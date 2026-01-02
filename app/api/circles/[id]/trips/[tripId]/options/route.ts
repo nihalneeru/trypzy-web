@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { calculateConsensus } from '@/lib/trip-consensus'
+import { authOptions } from '@/lib/auth/auth'
+import { prisma } from '@/lib/db/prisma'
+import { calculateConsensus } from '@/lib/trips/trip-consensus'
 
 // GET /api/circles/[id]/trips/[tripId]/options - Get top date options
 export async function GET(

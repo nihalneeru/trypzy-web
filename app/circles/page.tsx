@@ -1,8 +1,8 @@
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { authOptions } from '@/lib/auth/auth'
 import { redirect } from 'next/navigation'
-import { prisma } from '@/lib/prisma'
-import { Navbar } from '@/components/Navbar'
+import { prisma } from '@/lib/db/prisma'
+import { Navbar } from '@/components/layout/Navbar'
 import Link from 'next/link'
 
 export default async function CirclesPage() {

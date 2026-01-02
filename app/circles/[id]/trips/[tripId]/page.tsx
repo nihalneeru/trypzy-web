@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Navbar } from '@/components/Navbar'
+import { Navbar } from '@/components/layout/Navbar'
 import Link from 'next/link'
-import { DateOption } from '@/types'
-import { dateToDayString, getAllDaysBetween, dayStringToDate } from '@/lib/trip-consensus'
+import { DateOption } from '@/types/trips'
+import { dateToDayString, getAllDaysBetween, dayStringToDate } from '@/lib/trips/trip-consensus'
 import { AvailabilityStatus } from '@/types/enums'
 
 interface Trip {

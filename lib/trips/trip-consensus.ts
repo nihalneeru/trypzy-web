@@ -1,5 +1,5 @@
 import { AvailabilityStatus } from '@/types/enums'
-import { DateOption } from '@/types'
+import { DateOption } from '@/types/trips'
 
 export interface AvailabilityData {
   day: string // "YYYY-MM-DD"

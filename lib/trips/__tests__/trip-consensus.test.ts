@@ -7,6 +7,7 @@ import {
   parseOptionKey,
   getAllDaysBetween,
 } from '../trip-consensus'
+import { DateOption } from '@/types/trips'
 import { AvailabilityStatus } from '@/types/enums'
 
 describe('trip-consensus', () => {
