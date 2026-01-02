@@ -286,6 +286,25 @@ export default function TripDetailPage() {
             <div className="space-y-4">
               {options.map((option, index) => {
                 const isSelected = userVote?.optionKey === option.optionKey
+                const startDate = new Date(option.startDate)
+                const endDate = new Date(option.endDate)
+                // Format dates with consistent options
+                const startDateStr = startDate.toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+                const endDateStr = endDate.toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+                // For single-day trips, show just one date; otherwise show range
+                const dateDisplay = startDateStr === endDateStr 
+                  ? startDateStr 
+                  : `${startDateStr} - ${endDateStr}`
                 return (
                   <div
                     key={option.optionKey}
@@ -293,9 +312,8 @@ export default function TripDetailPage() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-semibold">
-                          {new Date(option.startDate).toLocaleDateString()} -{' '}
-                          {new Date(option.endDate).toLocaleDateString()}
+                        <p className="font-semibold text-gray-900">
+                          {dateDisplay}
                         </p>
                         <p className="text-sm text-gray-600">
                           {option.attendeeCount} attendees • Score: {option.score.toFixed(2)}
@@ -395,6 +413,9 @@ function AvailabilityForm({
 }) {
   const [days, setDays] = useState<Record<string, AvailabilityStatus>>({})
   const [loading, setLoading] = useState(false)
+  const [dragStart, setDragStart] = useState<string | null>(null)
+  const [dragStatus, setDragStatus] = useState<AvailabilityStatus | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   // Generate day range (YYYY-MM-DD format)
   useEffect(() => {
@@ -443,17 +464,129 @@ function AvailabilityForm({
     setDays(prev => ({ ...prev, [day]: status }))
   }
 
+  const updateDaysInRange = (startDay: string, endDay: string, status: AvailabilityStatus) => {
+    const dayArray = Object.keys(days).sort()
+    const startIdx = dayArray.indexOf(startDay)
+    const endIdx = dayArray.indexOf(endDay)
+    
+    if (startIdx === -1 || endIdx === -1) return
+    
+    const minIdx = Math.min(startIdx, endIdx)
+    const maxIdx = Math.max(startIdx, endIdx)
+    
+    setDays(prev => {
+      const updated = { ...prev }
+      for (let i = minIdx; i <= maxIdx; i++) {
+        updated[dayArray[i]] = status
+      }
+      return updated
+    })
+  }
+
+  const handleDayMouseDown = (day: string, status: AvailabilityStatus) => {
+    setDragStart(day)
+    setDragStatus(status)
+    setIsDragging(true)
+    updateDayStatus(day, status)
+  }
+
+  const handleDayMouseEnter = (day: string) => {
+    if (isDragging && dragStart && dragStatus !== null) {
+      updateDaysInRange(dragStart, day, dragStatus)
+    }
+  }
+
+  const handleDayMouseUp = () => {
+    setIsDragging(false)
+    setDragStart(null)
+    setDragStatus(null)
+  }
+
+  // Quick actions
+  const setAllDays = (status: AvailabilityStatus) => {
+    const dayArray = Object.keys(days).sort()
+    const updated: Record<string, AvailabilityStatus> = {}
+    dayArray.forEach(day => {
+      updated[day] = status
+    })
+    setDays(updated)
+  }
+
+  const setWeekendsOnly = () => {
+    const dayArray = Object.keys(days).sort()
+    const updated: Record<string, AvailabilityStatus> = { ...days }
+    dayArray.forEach(day => {
+      const date = dayStringToDate(day)
+      const dayOfWeek = date.getUTCDay()
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+      updated[day] = isWeekend ? AvailabilityStatus.available : AvailabilityStatus.unavailable
+    })
+    setDays(updated)
+  }
+
   const dayArray = Object.keys(days).sort()
+  const hasAtLeastOneDay = dayArray.length > 0
 
   return (
     <form onSubmit={handleSubmit} className="mt-4">
-      <div className="mb-4 max-h-64 overflow-y-auto">
+      {/* Visual Legend */}
+      <div className="mb-4 flex items-center justify-center gap-6 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded bg-green-600 flex items-center justify-center text-white text-xs">✓</div>
+          <span className="text-gray-700">Available</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded bg-yellow-500 flex items-center justify-center text-white text-xs">?</div>
+          <span className="text-gray-700">Maybe</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded bg-red-600 flex items-center justify-center text-white text-xs">✗</div>
+          <span className="text-gray-700">Unavailable</span>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setAllDays(AvailabilityStatus.available)}
+          className="px-3 py-1.5 text-sm bg-green-50 text-green-700 border border-green-200 rounded-md hover:bg-green-100"
+        >
+          Set All Available
+        </button>
+        <button
+          type="button"
+          onClick={() => setAllDays(AvailabilityStatus.unavailable)}
+          className="px-3 py-1.5 text-sm bg-red-50 text-red-700 border border-red-200 rounded-md hover:bg-red-100"
+        >
+          Set All Unavailable
+        </button>
+        <button
+          type="button"
+          onClick={setWeekendsOnly}
+          className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100"
+        >
+          Weekends Only
+        </button>
+      </div>
+
+      {/* Days Grid */}
+      <div 
+        className="mb-4 max-h-64 overflow-y-auto"
+        onMouseUp={handleDayMouseUp}
+        onMouseLeave={handleDayMouseUp}
+      >
         <div className="space-y-2">
           {dayArray.map((day) => {
             const date = dayStringToDate(day)
+            const currentStatus = days[day]
             return (
-              <div key={day} className="flex items-center justify-between border-b pb-2">
-                <span className="text-sm">
+              <div 
+                key={day} 
+                className="flex items-center justify-between border-b pb-2"
+                onMouseEnter={() => handleDayMouseEnter(day)}
+              >
+                <span className="text-sm font-medium text-gray-900 min-w-[120px]">
                   {date.toLocaleDateString('en-US', {
                     weekday: 'short',
                     month: 'short',
@@ -466,14 +599,18 @@ function AvailabilityForm({
                       key={status}
                       type="button"
                       onClick={() => updateDayStatus(day, status)}
-                      className={`px-3 py-1 text-xs rounded ${
-                        days[day] === status
-                          ? status === 'available'
-                            ? 'bg-green-600 text-white'
-                            : status === 'maybe'
-                            ? 'bg-yellow-500 text-white'
-                            : 'bg-red-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleDayMouseDown(day, status)
+                      }}
+                      className={`h-8 w-8 rounded text-xs font-semibold transition-all ${
+                        currentStatus === status
+                          ? status === AvailabilityStatus.available
+                            ? 'bg-green-600 text-white shadow-md scale-110'
+                            : status === AvailabilityStatus.maybe
+                            ? 'bg-yellow-500 text-white shadow-md scale-110'
+                            : 'bg-red-600 text-white shadow-md scale-110'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                       }`}
                     >
                       {status === AvailabilityStatus.available ? '✓' : status === AvailabilityStatus.maybe ? '?' : '✗'}
@@ -495,8 +632,8 @@ function AvailabilityForm({
         </button>
         <button
           type="submit"
-          disabled={loading}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+          disabled={loading || !hasAtLeastOneDay}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Submitting...' : 'Submit'}
         </button>

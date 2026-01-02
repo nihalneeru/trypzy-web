@@ -131,10 +131,21 @@ export function calculateConsensus(
     }
   }
   
-  // Sort by score (descending), then by attendee count
+  // Sort by score (descending), then by window length (descending - prefer longer trips), then by attendee count
   options.sort((a, b) => {
     if (b.score !== a.score) {
       return b.score - a.score
+    }
+    // When scores are equal, prefer longer windows (multi-day trips)
+    // Calculate window length from dates
+    const aStart = new Date(a.startDate).getTime()
+    const aEnd = new Date(a.endDate).getTime()
+    const bStart = new Date(b.startDate).getTime()
+    const bEnd = new Date(b.endDate).getTime()
+    const aLength = Math.round((aEnd - aStart) / (1000 * 60 * 60 * 24)) + 1
+    const bLength = Math.round((bEnd - bStart) / (1000 * 60 * 60 * 24)) + 1
+    if (bLength !== aLength) {
+      return bLength - aLength
     }
     return b.attendeeCount - a.attendeeCount
   })

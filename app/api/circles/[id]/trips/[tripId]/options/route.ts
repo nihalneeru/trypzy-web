@@ -90,7 +90,9 @@ export async function GET(
         userId: a.userId,
       })),
       earliestStart,
-      latestEnd
+      latestEnd,
+      1, // minDays: allow single-day trips
+      14 // maxDays: up to 2 weeks
     )
 
     return NextResponse.json({ options })
