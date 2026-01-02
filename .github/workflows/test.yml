@@ -10,6 +10,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      DATABASE_URL: 'file:./test.db'
+      NEXTAUTH_URL: 'http://localhost:3000'
+      NEXTAUTH_SECRET: 'test-secret-key-for-ci-only-not-for-production'
+
     steps:
       - uses: actions/checkout@v3
       
