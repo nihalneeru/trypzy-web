@@ -1,0 +1,139 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+//
+// Note: SQLite doesn't support Prisma enums, so we use strings with application-level validation.
+// If switching to PostgreSQL, these can be converted to Prisma enums for database-level enforcement.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  memberships    Membership[]
+  createdCircles Circle[] @relation("CircleOwner")
+  trips          Trip[]
+  availabilities Availability[]
+  votes          Vote[]
+  participants   TripParticipant[]
+  posts          Post[]
+  
+  @@map("users")
+}
+
+model Circle {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String   @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  owner       User         @relation("CircleOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  memberships Membership[]
+  trips       Trip[]
+  posts       Post[]
+  
+  @@map("circles")
+}
+
+model Membership {
+  userId   String @map("user_id")
+  circleId String @map("circle_id")
+  role     String // "owner" | "member" - validated at application level
+  
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  
+  @@id([userId, circleId])
+  @@map("memberships")
+}
+
+model Trip {
+  id            String    @id @default(cuid())
+  circleId      String    @map("circle_id")
+  createdBy     String    @map("created_by")
+  destination   String
+  startDate     DateTime? @map("start_date")
+  endDate       DateTime? @map("end_date")
+  earliestStart DateTime? @map("earliest_start")
+  latestEnd     DateTime? @map("latest_end")
+  tripType      String    @map("trip_type") // "collaborative" | "hosted" - validated at application level
+  status        String    @default("proposed") @map("status") // "proposed" | "scheduling" | "locked" - validated at application level
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  circle        Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  creator       User             @relation(fields: [createdBy], references: [id])
+  availabilities Availability[]
+  votes         Vote[]
+  participants  TripParticipant[]
+  posts         Post[]
+  
+  @@map("trips")
+}
+
+model Availability {
+  id     String @id @default(cuid())
+  tripId String @map("trip_id")
+  userId String @map("user_id")
+  day    String // "YYYY-MM-DD" format
+  status String // "available" | "maybe" | "unavailable" - validated at application level
+  
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([tripId, userId, day])
+  @@map("availabilities")
+}
+
+model Vote {
+  id        String @id @default(cuid())
+  tripId    String @map("trip_id")
+  userId    String @map("user_id")
+  optionKey String @map("option_key") // "YYYY-MM-DD_YYYY-MM-DD" format
+  
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([tripId, userId])
+  @@map("votes")
+}
+
+model TripParticipant {
+  tripId   String   @map("trip_id")
+  userId   String   @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+  
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@id([tripId, userId])
+  @@map("trip_participants")
+}
+
+model Post {
+  id           String    @id @default(cuid())
+  circleId     String    @map("circle_id")
+  tripId       String?   @map("trip_id")
+  userId       String    @map("user_id")
+  mediaUrls    String    @map("media_urls") // JSON array of URLs
+  caption      String?
+  discoverable Boolean   @default(false)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  trip   Trip?  @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("posts")
+}
+

@@ -5,6 +5,9 @@ node_modules/
 
 # Testing
 /coverage
+/test-results/
+/playwright-report/
+/playwright/.cache/
 
 # Production
 /build
@@ -24,6 +27,12 @@ yarn-error.log*
 # Local env files
 .env
 .env*.local
+.env.example
+
+# Database
+*.db
+*.db-journal
+prisma/dev.db*
 
 # Vercel
 .vercel
@@ -38,4 +47,3 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
-
