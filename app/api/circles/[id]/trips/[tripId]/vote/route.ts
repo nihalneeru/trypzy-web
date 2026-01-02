@@ -21,7 +21,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify user is a member
+    // Authorization check: Only circle members can vote
     const membership = await prisma.membership.findUnique({
       where: {
         userId_circleId: {
@@ -49,9 +49,18 @@ export async function POST(
       return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
     }
 
+    // Defensive check: Cannot vote after trip is locked
     if (trip.status === 'locked') {
       return NextResponse.json(
-        { error: 'Trip dates are already locked. Voting is no longer available.' },
+        { error: 'Cannot vote after trip dates are locked' },
+        { status: 403 }
+      )
+    }
+
+    // Defensive check: Only collaborative trips allow voting
+    if (trip.tripType !== 'collaborative') {
+      return NextResponse.json(
+        { error: 'Voting is only available for collaborative trips' },
         { status: 400 }
       )
     }

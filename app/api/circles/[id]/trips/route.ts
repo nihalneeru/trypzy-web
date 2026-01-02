@@ -26,7 +26,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify user is a member of the circle
+    // Authorization check: Only circle members can create trips
     const membership = await prisma.membership.findUnique({
       where: {
         userId_circleId: {

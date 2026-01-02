@@ -11,10 +11,13 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
 
+    // Authentication check: Only authenticated users can access
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Authorization check: Only circle members can view circle details
+    // Using findFirst with membership filter ensures users can only see circles they belong to
     const circle = await prisma.circle.findFirst({
       where: {
         id: params.id,

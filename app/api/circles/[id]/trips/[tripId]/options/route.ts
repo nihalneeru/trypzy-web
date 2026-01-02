@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify user is a member
+    // Authorization check: Only circle members can view date options
     const membership = await prisma.membership.findUnique({
       where: {
         userId_circleId: {
@@ -40,10 +40,15 @@ export async function GET(
       },
     })
 
-    if (!trip || trip.tripType !== 'collaborative') {
+    if (!trip) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
+    }
+
+    // Only collaborative trips have date options
+    if (trip.tripType !== 'collaborative') {
       return NextResponse.json(
-        { error: 'Trip not found or not collaborative' },
-        { status: 404 }
+        { error: 'Date options are only available for collaborative trips' },
+        { status: 400 }
       )
     }
 

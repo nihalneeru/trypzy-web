@@ -17,37 +17,49 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions)
 
+    // Authentication check: Only authenticated users can access
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify user is the circle owner or trip creator
-    const [membership, trip] = await Promise.all([
-      prisma.membership.findUnique({
-        where: {
-          userId_circleId: {
-            userId: session.user.id,
-            circleId: params.id,
-          },
-        },
-      }),
-      prisma.trip.findFirst({
-        where: {
-          id: params.tripId,
+    // Authorization check: Verify user is a circle member first
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_circleId: {
+          userId: session.user.id,
           circleId: params.id,
         },
-      }),
-    ])
+      },
+    })
 
-    if (!membership || (membership.role !== 'owner' && trip?.createdBy !== session.user.id)) {
+    if (!membership) {
       return NextResponse.json(
-        { error: 'Only circle owner or trip creator can lock dates' },
+        { error: 'Not a member of this circle' },
         { status: 403 }
       )
     }
 
+    // Verify trip exists
+    const trip = await prisma.trip.findFirst({
+      where: {
+        id: params.tripId,
+        circleId: params.id,
+      },
+    })
+
     if (!trip) {
       return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
+    }
+
+    // Authorization check: Only circle owner OR trip creator can lock dates
+    const isCircleOwner = membership.role === 'owner'
+    const isTripCreator = trip.createdBy === session.user.id
+
+    if (!isCircleOwner && !isTripCreator) {
+      return NextResponse.json(
+        { error: 'Only circle owner or trip creator can lock dates' },
+        { status: 403 }
+      )
     }
 
     if (trip.status === 'locked') {

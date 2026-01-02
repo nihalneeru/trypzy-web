@@ -51,6 +51,14 @@ export async function POST(
       )
     }
 
+    // Defensive check: Cannot join if already the creator (creators are always participants)
+    if (trip.createdBy === session.user.id) {
+      return NextResponse.json(
+        { error: 'Trip creator is already a participant' },
+        { status: 400 }
+      )
+    }
+
     // Check if already a participant
     const existing = await prisma.tripParticipant.findUnique({
       where: {

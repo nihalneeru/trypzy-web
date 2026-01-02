@@ -11,6 +11,7 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions)
 
+    // Authentication check: Only authenticated users can join circles
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

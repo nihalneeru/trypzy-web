@@ -21,11 +21,12 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions)
 
+    // Authentication check: Only authenticated users can access
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify user is a member and trip exists
+    // Authorization check: Only circle members can submit availability
     const [membership, trip] = await Promise.all([
       prisma.membership.findUnique({
         where: {
@@ -54,9 +55,18 @@ export async function POST(
       return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
     }
 
+    // Defensive check: Cannot submit availability after trip is locked
     if (trip.status === 'locked') {
       return NextResponse.json(
-        { error: 'Trip dates are already locked' },
+        { error: 'Cannot submit availability after trip dates are locked' },
+        { status: 403 }
+      )
+    }
+
+    // Defensive check: Only collaborative trips accept availability
+    if (trip.tripType !== 'collaborative') {
+      return NextResponse.json(
+        { error: 'Availability can only be submitted for collaborative trips' },
         { status: 400 }
       )
     }
@@ -107,8 +117,38 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
 
+    // Authentication check: Only authenticated users can access
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Authorization check: Only circle members can view availability
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_circleId: {
+          userId: session.user.id,
+          circleId: params.id,
+        },
+      },
+    })
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: 'Not a member of this circle' },
+        { status: 403 }
+      )
+    }
+
+    // Verify trip exists in this circle
+    const trip = await prisma.trip.findFirst({
+      where: {
+        id: params.tripId,
+        circleId: params.id,
+      },
+    })
+
+    if (!trip) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
     }
 
     const availabilities = await prisma.availability.findMany({
