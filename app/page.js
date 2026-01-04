@@ -529,7 +529,7 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
                   <SelectValue placeholder="Select a trip" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No trip</SelectItem>
+                  <SelectItem value="none">No trip</SelectItem>
                   {trips.map((trip) => (
                     <SelectItem key={trip.id} value={trip.id}>{trip.name}</SelectItem>
                   ))}
