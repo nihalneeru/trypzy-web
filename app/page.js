@@ -423,7 +423,7 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
         body: JSON.stringify({
           mediaUrls,
           caption,
-          tripId: tripId || null,
+          tripId: tripId && tripId !== 'none' ? tripId : null,
           discoverable,
           destinationText
         })
