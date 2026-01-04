@@ -1153,6 +1153,436 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // ============ POSTS/MEMORIES ROUTES ============
+    
+    // Get circle posts - GET /api/circles/:id/posts
+    if (route.match(/^\/circles\/[^/]+\/posts$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const circleId = path[1]
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const posts = await db.collection('posts')
+        .find({ circleId })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray()
+      
+      // Get user details and trip details for posts
+      const userIds = [...new Set(posts.map(p => p.userId))]
+      const tripIds = [...new Set(posts.filter(p => p.tripId).map(p => p.tripId))]
+      
+      const users = await db.collection('users')
+        .find({ id: { $in: userIds } })
+        .toArray()
+      
+      const trips = tripIds.length > 0 
+        ? await db.collection('trips').find({ id: { $in: tripIds } }).toArray()
+        : []
+      
+      const postsWithDetails = posts.map(post => ({
+        id: post.id,
+        caption: post.caption,
+        mediaUrls: post.mediaUrls || [],
+        discoverable: post.discoverable || false,
+        destinationText: post.destinationText,
+        createdAt: post.createdAt,
+        author: users.find(u => u.id === post.userId) 
+          ? { id: users.find(u => u.id === post.userId).id, name: users.find(u => u.id === post.userId).name }
+          : null,
+        trip: post.tripId && trips.find(t => t.id === post.tripId)
+          ? { id: trips.find(t => t.id === post.tripId).id, name: trips.find(t => t.id === post.tripId).name }
+          : null,
+        isAuthor: post.userId === auth.user.id
+      }))
+      
+      return handleCORS(NextResponse.json(postsWithDetails))
+    }
+    
+    // Create circle post - POST /api/circles/:id/posts
+    if (route.match(/^\/circles\/[^/]+\/posts$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const circleId = path[1]
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const body = await request.json()
+      const { mediaUrls, caption, tripId, discoverable, destinationText } = body
+      
+      // Validate mediaUrls
+      if (!mediaUrls || !Array.isArray(mediaUrls) || mediaUrls.length === 0 || mediaUrls.length > 5) {
+        return handleCORS(NextResponse.json(
+          { error: 'Posts require 1-5 images' },
+          { status: 400 }
+        ))
+      }
+      
+      // If tripId provided, verify it belongs to this circle
+      if (tripId) {
+        const trip = await db.collection('trips').findOne({ id: tripId, circleId })
+        if (!trip) {
+          return handleCORS(NextResponse.json(
+            { error: 'Trip not found in this circle' },
+            { status: 400 }
+          ))
+        }
+      }
+      
+      const post = {
+        id: uuidv4(),
+        circleId,
+        tripId: tripId || null,
+        userId: auth.user.id,
+        mediaUrls,
+        caption: caption?.trim() || null,
+        discoverable: discoverable || false,
+        destinationText: destinationText?.trim() || null,
+        createdAt: new Date().toISOString()
+      }
+      
+      await db.collection('posts').insertOne(post)
+      
+      return handleCORS(NextResponse.json({
+        ...post,
+        author: { id: auth.user.id, name: auth.user.name },
+        isAuthor: true
+      }))
+    }
+    
+    // Get trip posts - GET /api/trips/:id/posts
+    if (route.match(/^\/trips\/[^/]+\/posts$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const posts = await db.collection('posts')
+        .find({ tripId })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray()
+      
+      // Get user details
+      const userIds = [...new Set(posts.map(p => p.userId))]
+      const users = await db.collection('users')
+        .find({ id: { $in: userIds } })
+        .toArray()
+      
+      const postsWithDetails = posts.map(post => ({
+        id: post.id,
+        caption: post.caption,
+        mediaUrls: post.mediaUrls || [],
+        discoverable: post.discoverable || false,
+        destinationText: post.destinationText,
+        createdAt: post.createdAt,
+        author: users.find(u => u.id === post.userId) 
+          ? { id: users.find(u => u.id === post.userId).id, name: users.find(u => u.id === post.userId).name }
+          : null,
+        isAuthor: post.userId === auth.user.id
+      }))
+      
+      return handleCORS(NextResponse.json(postsWithDetails))
+    }
+    
+    // Update post - PATCH /api/posts/:id
+    if (route.match(/^\/posts\/[^/]+$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const postId = path[1]
+      
+      const post = await db.collection('posts').findOne({ id: postId })
+      if (!post) {
+        return handleCORS(NextResponse.json(
+          { error: 'Post not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Author-only edit
+      if (post.userId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the author can edit this post' },
+          { status: 403 }
+        ))
+      }
+      
+      const body = await request.json()
+      const updateFields = {}
+      
+      if (body.caption !== undefined) updateFields.caption = body.caption?.trim() || null
+      if (body.discoverable !== undefined) updateFields.discoverable = Boolean(body.discoverable)
+      if (body.destinationText !== undefined) updateFields.destinationText = body.destinationText?.trim() || null
+      if (body.tripId !== undefined) {
+        if (body.tripId) {
+          const trip = await db.collection('trips').findOne({ id: body.tripId, circleId: post.circleId })
+          if (!trip) {
+            return handleCORS(NextResponse.json(
+              { error: 'Trip not found in this circle' },
+              { status: 400 }
+            ))
+          }
+        }
+        updateFields.tripId = body.tripId || null
+      }
+      
+      updateFields.updatedAt = new Date().toISOString()
+      
+      await db.collection('posts').updateOne(
+        { id: postId },
+        { $set: updateFields }
+      )
+      
+      return handleCORS(NextResponse.json({ message: 'Post updated' }))
+    }
+    
+    // Delete post - DELETE /api/posts/:id
+    if (route.match(/^\/posts\/[^/]+$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const postId = path[1]
+      
+      const post = await db.collection('posts').findOne({ id: postId })
+      if (!post) {
+        return handleCORS(NextResponse.json(
+          { error: 'Post not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Author-only delete
+      if (post.userId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the author can delete this post' },
+          { status: 403 }
+        ))
+      }
+      
+      await db.collection('posts').deleteOne({ id: postId })
+      
+      return handleCORS(NextResponse.json({ message: 'Post deleted' }))
+    }
+    
+    // ============ DISCOVER ROUTES ============
+    
+    // Get discoverable posts - GET /api/discover/posts (public, read-only)
+    if (route === '/discover/posts' && method === 'GET') {
+      const url = new URL(request.url)
+      const search = url.searchParams.get('search')?.toLowerCase() || ''
+      const page = parseInt(url.searchParams.get('page') || '1')
+      const limit = 20
+      const skip = (page - 1) * limit
+      
+      // Build query for discoverable posts only
+      const query = { discoverable: true }
+      
+      // Optional search by destination or caption
+      if (search) {
+        query.$or = [
+          { destinationText: { $regex: search, $options: 'i' } },
+          { caption: { $regex: search, $options: 'i' } }
+        ]
+      }
+      
+      const posts = await db.collection('posts')
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray()
+      
+      const totalCount = await db.collection('posts').countDocuments(query)
+      
+      // Get user details (only name for public display)
+      const userIds = [...new Set(posts.map(p => p.userId))]
+      const tripIds = [...new Set(posts.filter(p => p.tripId).map(p => p.tripId))]
+      
+      const users = await db.collection('users')
+        .find({ id: { $in: userIds } })
+        .toArray()
+      
+      const trips = tripIds.length > 0 
+        ? await db.collection('trips').find({ id: { $in: tripIds } }).toArray()
+        : []
+      
+      const postsForDiscover = posts.map(post => ({
+        id: post.id,
+        caption: post.caption,
+        mediaUrls: post.mediaUrls || [],
+        destinationText: post.destinationText,
+        createdAt: post.createdAt,
+        authorName: users.find(u => u.id === post.userId)?.name || 'Anonymous',
+        tripName: post.tripId && trips.find(t => t.id === post.tripId)?.name || null
+      }))
+      
+      return handleCORS(NextResponse.json({
+        posts: postsForDiscover,
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          hasMore: skip + posts.length < totalCount
+        }
+      }))
+    }
+    
+    // ============ REPORT ROUTES ============
+    
+    // Report a post - POST /api/reports
+    if (route === '/reports' && method === 'POST') {
+      const body = await request.json()
+      const { postId, reason } = body
+      
+      if (!postId || !reason) {
+        return handleCORS(NextResponse.json(
+          { error: 'Post ID and reason are required' },
+          { status: 400 }
+        ))
+      }
+      
+      // Verify post exists
+      const post = await db.collection('posts').findOne({ id: postId })
+      if (!post) {
+        return handleCORS(NextResponse.json(
+          { error: 'Post not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Optional: get user if authenticated
+      const user = await getUserFromToken(request)
+      
+      const report = {
+        id: uuidv4(),
+        postId,
+        reporterUserId: user?.id || null,
+        reason: reason.trim(),
+        createdAt: new Date().toISOString()
+      }
+      
+      await db.collection('reports').insertOne(report)
+      
+      return handleCORS(NextResponse.json({ message: 'Report submitted. Thank you.' }))
+    }
+    
+    // ============ FILE UPLOAD ROUTES ============
+    
+    // Upload image - POST /api/upload
+    if (route === '/upload' && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      try {
+        const formData = await request.formData()
+        const file = formData.get('file')
+        
+        if (!file) {
+          return handleCORS(NextResponse.json(
+            { error: 'No file uploaded' },
+            { status: 400 }
+          ))
+        }
+        
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+        if (!allowedTypes.includes(file.type)) {
+          return handleCORS(NextResponse.json(
+            { error: 'Invalid file type. Allowed: JPEG, PNG, WebP, GIF' },
+            { status: 400 }
+          ))
+        }
+        
+        // Validate file size (max 5MB)
+        const maxSize = 5 * 1024 * 1024
+        if (file.size > maxSize) {
+          return handleCORS(NextResponse.json(
+            { error: 'File too large. Maximum size is 5MB' },
+            { status: 400 }
+          ))
+        }
+        
+        // Generate unique filename
+        const ext = file.name.split('.').pop() || 'jpg'
+        const filename = `${uuidv4()}.${ext}`
+        
+        // Write file to uploads directory
+        const fs = await import('fs/promises')
+        const filePath = `/app/public/uploads/${filename}`
+        const buffer = Buffer.from(await file.arrayBuffer())
+        await fs.writeFile(filePath, buffer)
+        
+        const fileUrl = `/uploads/${filename}`
+        
+        return handleCORS(NextResponse.json({ url: fileUrl }))
+      } catch (error) {
+        console.error('Upload error:', error)
+        return handleCORS(NextResponse.json(
+          { error: 'Failed to upload file' },
+          { status: 500 }
+        ))
+      }
+    }
+
     // ============ DEFAULT ROUTES ============
     
     // Root endpoint
