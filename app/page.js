@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -11,14 +11,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { Calendar } from '@/components/ui/calendar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
 import { 
   Users, Plus, LogOut, MapPin, Calendar as CalendarIcon, 
   MessageCircle, Check, X, HelpCircle, Vote, Lock, UserPlus,
-  ChevronLeft, Send, Compass, ArrowRight
+  ChevronLeft, Send, Compass, ArrowRight, Image as ImageIcon,
+  Camera, Globe, Eye, EyeOff, Trash2, Edit, Search, Flag, Sparkles
 } from 'lucide-react'
 
 // Auth Context
@@ -57,7 +58,7 @@ const useAuth = () => {
 // API Helper
 const api = async (endpoint, options = {}, token = null) => {
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token && { Authorization: `Bearer ${token}` })
   }
   
@@ -73,6 +74,27 @@ const api = async (endpoint, options = {}, token = null) => {
   }
   
   return data
+}
+
+// Format date for display
+const formatDate = (dateStr) => {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now - date
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (days === 0) {
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    if (hours === 0) {
+      const mins = Math.floor(diff / (1000 * 60))
+      return mins <= 1 ? 'Just now' : `${mins} min ago`
+    }
+    return hours === 1 ? '1 hour ago' : `${hours} hours ago`
+  }
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 // Auth Page Component
@@ -179,13 +201,558 @@ function AuthPage({ onLogin }) {
   )
 }
 
+// Post Card Component
+function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView = false }) {
+  const [showReportDialog, setShowReportDialog] = useState(false)
+  const [reportReason, setReportReason] = useState('')
+  const [reporting, setReporting] = useState(false)
+  
+  const handleReport = async () => {
+    if (!reportReason.trim()) return
+    setReporting(true)
+    try {
+      await api('/reports', {
+        method: 'POST',
+        body: JSON.stringify({ postId: post.id, reason: reportReason })
+      })
+      toast.success('Report submitted. Thank you.')
+      setShowReportDialog(false)
+      setReportReason('')
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setReporting(false)
+    }
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      {/* Image Grid */}
+      {post.mediaUrls && post.mediaUrls.length > 0 && (
+        <div className={`grid gap-1 ${
+          post.mediaUrls.length === 1 ? 'grid-cols-1' :
+          post.mediaUrls.length === 2 ? 'grid-cols-2' :
+          post.mediaUrls.length === 3 ? 'grid-cols-3' :
+          post.mediaUrls.length === 4 ? 'grid-cols-2' :
+          'grid-cols-3'
+        }`}>
+          {post.mediaUrls.slice(0, 5).map((url, idx) => (
+            <div 
+              key={idx} 
+              className={`aspect-square bg-gray-100 overflow-hidden ${
+                post.mediaUrls.length === 3 && idx === 0 ? 'col-span-2 row-span-2' : ''
+              }`}
+            >
+              <img 
+                src={url} 
+                alt={`Memory ${idx + 1}`}
+                className="w-full h-full object-cover hover:scale-105 transition-transform"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <CardContent className="p-4">
+        {/* Author & Date */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+              <span className="text-indigo-600 text-sm font-medium">
+                {(post.author?.name || post.authorName || 'A').charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <p className="font-medium text-sm">{post.author?.name || post.authorName || 'Anonymous'}</p>
+              <p className="text-xs text-gray-500">{formatDate(post.createdAt)}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            {post.discoverable && !isDiscoverView && (
+              <Badge variant="secondary" className="text-xs">
+                <Globe className="h-3 w-3 mr-1" />
+                Discoverable
+              </Badge>
+            )}
+            {post.trip && (
+              <Badge variant="outline" className="text-xs">
+                <MapPin className="h-3 w-3 mr-1" />
+                {post.trip.name || post.tripName}
+              </Badge>
+            )}
+            {post.tripName && !post.trip && (
+              <Badge variant="outline" className="text-xs">
+                <MapPin className="h-3 w-3 mr-1" />
+                {post.tripName}
+              </Badge>
+            )}
+          </div>
+        </div>
+        
+        {/* Destination */}
+        {post.destinationText && (
+          <p className="text-sm text-indigo-600 mb-2 flex items-center gap-1">
+            <MapPin className="h-3 w-3" />
+            {post.destinationText}
+          </p>
+        )}
+        
+        {/* Caption */}
+        {post.caption && (
+          <p className="text-gray-700 text-sm">{post.caption}</p>
+        )}
+        
+        {/* Actions */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t">
+          {isDiscoverView ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => setShowReportDialog(true)}>
+                <Flag className="h-4 w-4 mr-1" />
+                Report
+              </Button>
+              {/* CTA for discover - will be handled by parent */}
+            </>
+          ) : post.isAuthor ? (
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => onEdit?.(post)}>
+                <Edit className="h-4 w-4 mr-1" />
+                Edit
+              </Button>
+              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => onDelete?.(post.id)}>
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            </div>
+          ) : (
+            <div />
+          )}
+        </div>
+      </CardContent>
+      
+      {/* Report Dialog */}
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report Post</DialogTitle>
+            <DialogDescription>Let us know why you're reporting this post</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Textarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="Describe the issue..."
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReportDialog(false)}>Cancel</Button>
+            <Button onClick={handleReport} disabled={reporting || !reportReason.trim()}>
+              {reporting ? 'Submitting...' : 'Submit Report'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  )
+}
+
+// Create Post Dialog Component
+function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreated }) {
+  const [uploading, setUploading] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [mediaUrls, setMediaUrls] = useState([])
+  const [caption, setCaption] = useState('')
+  const [tripId, setTripId] = useState('')
+  const [discoverable, setDiscoverable] = useState(false)
+  const [destinationText, setDestinationText] = useState('')
+  const fileInputRef = useRef(null)
+
+  const handleFileSelect = async (e) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    
+    if (mediaUrls.length + files.length > 5) {
+      toast.error('Maximum 5 images allowed')
+      return
+    }
+    
+    setUploading(true)
+    
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const formData = new FormData()
+        formData.append('file', file)
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        })
+        
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error)
+        return data.url
+      })
+      
+      const newUrls = await Promise.all(uploadPromises)
+      setMediaUrls([...mediaUrls, ...newUrls])
+      toast.success(`${newUrls.length} image(s) uploaded`)
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removeImage = (idx) => {
+    setMediaUrls(mediaUrls.filter((_, i) => i !== idx))
+  }
+
+  const handleCreate = async () => {
+    if (mediaUrls.length === 0) {
+      toast.error('Add at least one image')
+      return
+    }
+    
+    setCreating(true)
+    
+    try {
+      await api(`/circles/${circleId}/posts`, {
+        method: 'POST',
+        body: JSON.stringify({
+          mediaUrls,
+          caption,
+          tripId: tripId || null,
+          discoverable,
+          destinationText
+        })
+      }, token)
+      
+      toast.success('Memory shared!')
+      onOpenChange(false)
+      onCreated?.()
+      
+      // Reset form
+      setMediaUrls([])
+      setCaption('')
+      setTripId('')
+      setDiscoverable(false)
+      setDestinationText('')
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            Share a Memory
+          </DialogTitle>
+          <DialogDescription>
+            Add photos and share moments with your circle
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          {/* Image Upload */}
+          <div className="space-y-2">
+            <Label>Photos (1-5 images)</Label>
+            <div className="grid grid-cols-5 gap-2">
+              {mediaUrls.map((url, idx) => (
+                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => removeImage(idx)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {mediaUrls.length < 5 && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+                >
+                  {uploading ? (
+                    <div className="animate-spin h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                  ) : (
+                    <Plus className="h-6 w-6 text-gray-400" />
+                  )}
+                </button>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+          
+          {/* Caption */}
+          <div className="space-y-2">
+            <Label>Caption (optional)</Label>
+            <Textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="Share your thoughts..."
+              rows={2}
+            />
+          </div>
+          
+          {/* Destination */}
+          <div className="space-y-2">
+            <Label>Destination (optional)</Label>
+            <Input
+              value={destinationText}
+              onChange={(e) => setDestinationText(e.target.value)}
+              placeholder="e.g. Bali, Indonesia"
+            />
+          </div>
+          
+          {/* Attach to Trip */}
+          {trips && trips.length > 0 && (
+            <div className="space-y-2">
+              <Label>Attach to Trip (optional)</Label>
+              <Select value={tripId} onValueChange={setTripId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a trip" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No trip</SelectItem>
+                  {trips.map((trip) => (
+                    <SelectItem key={trip.id} value={trip.id}>{trip.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          {/* Visibility */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              {discoverable ? (
+                <Globe className="h-5 w-5 text-indigo-600" />
+              ) : (
+                <EyeOff className="h-5 w-5 text-gray-500" />
+              )}
+              <div>
+                <p className="font-medium text-sm">
+                  {discoverable ? 'Discoverable' : 'Circle-only'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {discoverable 
+                    ? 'Anyone can see this in Discover feed'
+                    : 'Only circle members can see this'}
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={discoverable}
+              onCheckedChange={setDiscoverable}
+            />
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleCreate} disabled={creating || mediaUrls.length === 0}>
+            {creating ? 'Sharing...' : 'Share Memory'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Memories View Component
+function MemoriesView({ posts, loading, onCreatePost, onDeletePost, onEditPost, emptyMessage = "No memories yet" }) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  if (posts.length === 0) {
+    return (
+      <Card className="text-center py-12">
+        <CardContent>
+          <Camera className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{emptyMessage}</h3>
+          <p className="text-gray-500 mb-4">Capture and share your travel moments</p>
+          {onCreatePost && (
+            <Button onClick={onCreatePost}>
+              <Plus className="h-4 w-4 mr-2" />
+              Share your first memory
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      {posts.map((post) => (
+        <PostCard 
+          key={post.id} 
+          post={post}
+          onDelete={onDeletePost}
+          onEdit={onEditPost}
+        />
+      ))}
+    </div>
+  )
+}
+
+// Discover Page Component
+function DiscoverPage({ token, onCreateTrip }) {
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [total, setTotal] = useState(0)
+
+  const loadPosts = async (pageNum = 1, searchQuery = search) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page: pageNum.toString() })
+      if (searchQuery) params.append('search', searchQuery)
+      
+      const data = await api(`/discover/posts?${params}`)
+      
+      if (pageNum === 1) {
+        setPosts(data.posts)
+      } else {
+        setPosts([...posts, ...data.posts])
+      }
+      setHasMore(data.pagination.hasMore)
+      setTotal(data.pagination.total)
+      setPage(pageNum)
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadPosts(1)
+  }, [])
+
+  const handleSearch = (e) => {
+    e.preventDefault()
+    setSearch(searchInput)
+    loadPosts(1, searchInput)
+  }
+
+  const loadMore = () => {
+    loadPosts(page + 1)
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+          <Sparkles className="h-8 w-8 text-indigo-600" />
+          Discover
+        </h1>
+        <p className="text-gray-600 mt-1">Get inspired by travel memories from the community</p>
+      </div>
+
+      {/* Search */}
+      <form onSubmit={handleSearch} className="mb-6">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search destinations or captions..."
+              className="pl-10"
+            />
+          </div>
+          <Button type="submit">Search</Button>
+        </div>
+      </form>
+
+      {/* Results count */}
+      {search && (
+        <p className="text-sm text-gray-500 mb-4">
+          Found {total} {total === 1 ? 'memory' : 'memories'} for "{search}"
+        </p>
+      )}
+
+      {/* Posts Grid */}
+      {loading && posts.length === 0 ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+        </div>
+      ) : posts.length === 0 ? (
+        <Card className="text-center py-12">
+          <CardContent>
+            <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {search ? 'No results found' : 'No discoverable memories yet'}
+            </h3>
+            <p className="text-gray-500">
+              {search ? 'Try a different search term' : 'Be the first to share a discoverable memory!'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="grid md:grid-cols-2 gap-6">
+            {posts.map((post) => (
+              <div key={post.id}>
+                <PostCard post={post} isDiscoverView />
+                {/* CTA Button */}
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-2"
+                  onClick={() => onCreateTrip?.(post.destinationText)}
+                >
+                  <Compass className="h-4 w-4 mr-2" />
+                  Create a similar trip
+                </Button>
+              </div>
+            ))}
+          </div>
+          
+          {hasMore && (
+            <div className="text-center mt-8">
+              <Button variant="outline" onClick={loadMore} disabled={loading}>
+                {loading ? 'Loading...' : 'Load More'}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // Main Dashboard Component
 function Dashboard({ user, token, onLogout }) {
   const [circles, setCircles] = useState([])
   const [selectedCircle, setSelectedCircle] = useState(null)
   const [selectedTrip, setSelectedTrip] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState('circles') // circles, circle, trip
+  const [view, setView] = useState('circles') // circles, circle, trip, discover
 
   // Load circles
   const loadCircles = async () => {
@@ -232,6 +799,19 @@ function Dashboard({ user, token, onLogout }) {
       setSelectedCircle(null)
       setView('circles')
       loadCircles()
+    } else if (view === 'discover') {
+      setView('circles')
+    }
+  }
+
+  const handleCreateTripFromDiscover = (destination) => {
+    // Navigate to circles to create a trip
+    if (circles.length > 0) {
+      toast.info(`Select a circle to create a trip${destination ? ` to ${destination}` : ''}`)
+      setView('circles')
+    } else {
+      toast.info('Create a circle first to plan trips')
+      setView('circles')
     }
   }
 
@@ -253,23 +833,65 @@ function Dashboard({ user, token, onLogout }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-4">
-              {view !== 'circles' && (
+              {view !== 'circles' && view !== 'discover' && (
                 <Button variant="ghost" size="icon" onClick={goBack}>
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('circles')}>
                 <Compass className="h-6 w-6 text-indigo-600" />
                 <span className="font-semibold text-xl">Trypzy</span>
               </div>
+              
+              {/* Nav Links */}
+              <div className="hidden md:flex items-center gap-1 ml-8">
+                <Button 
+                  variant={view === 'circles' || view === 'circle' || view === 'trip' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView('circles')}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  Circles
+                </Button>
+                <Button 
+                  variant={view === 'discover' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView('discover')}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Discover
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">Hi, {user.name}</span>
+              <span className="text-sm text-gray-600 hidden sm:block">Hi, {user.name}</span>
               <Button variant="ghost" size="icon" onClick={onLogout}>
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>
           </div>
+        </div>
+        
+        {/* Mobile Nav */}
+        <div className="md:hidden border-t px-4 py-2 flex gap-2">
+          <Button 
+            variant={view === 'circles' || view === 'circle' || view === 'trip' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="flex-1"
+            onClick={() => setView('circles')}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Circles
+          </Button>
+          <Button 
+            variant={view === 'discover' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="flex-1"
+            onClick={() => setView('discover')}
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Discover
+          </Button>
         </div>
       </nav>
 
@@ -298,6 +920,12 @@ function Dashboard({ user, token, onLogout }) {
             token={token}
             user={user}
             onRefresh={() => openTrip(selectedTrip.id)}
+          />
+        )}
+        {view === 'discover' && (
+          <DiscoverPage 
+            token={token}
+            onCreateTrip={handleCreateTripFromDiscover}
           />
         )}
       </main>
@@ -499,6 +1127,7 @@ function CirclesView({ circles, token, onOpenCircle, onRefresh }) {
 function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
   const [activeTab, setActiveTab] = useState('trips')
   const [showCreateTrip, setShowCreateTrip] = useState(false)
+  const [showCreatePost, setShowCreatePost] = useState(false)
   const [tripForm, setTripForm] = useState({
     name: '',
     description: '',
@@ -511,6 +1140,8 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
   const [messages, setMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [posts, setPosts] = useState([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
 
   // Load messages
   const loadMessages = async () => {
@@ -522,11 +1153,27 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     }
   }
 
+  // Load posts
+  const loadPosts = async () => {
+    setLoadingPosts(true)
+    try {
+      const data = await api(`/circles/${circle.id}/posts`, { method: 'GET' }, token)
+      setPosts(data)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoadingPosts(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'chat') {
       loadMessages()
       const interval = setInterval(loadMessages, 5000)
       return () => clearInterval(interval)
+    }
+    if (activeTab === 'memories') {
+      loadPosts()
     }
   }, [activeTab])
 
@@ -570,6 +1217,17 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
       toast.error(error.message)
     } finally {
       setSendingMessage(false)
+    }
+  }
+
+  const deletePost = async (postId) => {
+    if (!confirm('Delete this memory?')) return
+    try {
+      await api(`/posts/${postId}`, { method: 'DELETE' }, token)
+      toast.success('Memory deleted')
+      loadPosts()
+    } catch (error) {
+      toast.error(error.message)
     }
   }
 
@@ -630,6 +1288,10 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           <TabsTrigger value="trips">
             <MapPin className="h-4 w-4 mr-2" />
             Trips
+          </TabsTrigger>
+          <TabsTrigger value="memories">
+            <Camera className="h-4 w-4 mr-2" />
+            Memories
           </TabsTrigger>
           <TabsTrigger value="members">
             <Users className="h-4 w-4 mr-2" />
@@ -788,6 +1450,33 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           )}
         </TabsContent>
 
+        {/* Memories Tab */}
+        <TabsContent value="memories">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">Circle Memories</h2>
+            <Button onClick={() => setShowCreatePost(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Memory
+            </Button>
+          </div>
+          
+          <MemoriesView 
+            posts={posts}
+            loading={loadingPosts}
+            onCreatePost={() => setShowCreatePost(true)}
+            onDeletePost={deletePost}
+          />
+          
+          <CreatePostDialog
+            open={showCreatePost}
+            onOpenChange={setShowCreatePost}
+            circleId={circle.id}
+            trips={circle.trips}
+            token={token}
+            onCreated={loadPosts}
+          />
+        </TabsContent>
+
         {/* Members Tab */}
         <TabsContent value="members">
           <h2 className="text-xl font-semibold mb-6">Circle Members ({circle.members.length})</h2>
@@ -877,6 +1566,9 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const [messages, setMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [posts, setPosts] = useState([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
+  const [showCreatePost, setShowCreatePost] = useState(false)
 
   // Initialize availability from existing data
   useEffect(() => {
@@ -897,11 +1589,27 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
+  // Load posts
+  const loadPosts = async () => {
+    setLoadingPosts(true)
+    try {
+      const data = await api(`/trips/${trip.id}/posts`, { method: 'GET' }, token)
+      setPosts(data)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoadingPosts(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'chat') {
       loadMessages()
       const interval = setInterval(loadMessages, 5000)
       return () => clearInterval(interval)
+    }
+    if (activeTab === 'memories') {
+      loadPosts()
     }
   }, [activeTab])
 
@@ -1018,6 +1726,17 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
+  const deletePost = async (postId) => {
+    if (!confirm('Delete this memory?')) return
+    try {
+      await api(`/posts/${postId}`, { method: 'DELETE' }, token)
+      toast.success('Memory deleted')
+      loadPosts()
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
   const getStatusBadge = () => {
     switch (trip.status) {
       case 'scheduling':
@@ -1049,7 +1768,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
           <span>{trip.circle?.name}</span>
         </div>
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-4 flex-wrap">
           <h1 className="text-3xl font-bold text-gray-900">{trip.name}</h1>
           {getStatusBadge()}
           <Badge variant="outline">
@@ -1063,7 +1782,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         {/* Trip Info Card */}
         <Card className={trip.status === 'locked' ? 'bg-green-50 border-green-200' : ''}>
           <CardContent className="py-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <CalendarIcon className="h-5 w-5 text-gray-500" />
               {trip.status === 'locked' ? (
                 <span className="font-medium text-green-800">
@@ -1084,7 +1803,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
       {trip.type === 'hosted' && (
         <Card className="mb-6">
           <CardContent className="py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h3 className="font-semibold">Participants ({trip.participants?.length || 0})</h3>
                 <p className="text-sm text-gray-500">
@@ -1106,286 +1825,297 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         </Card>
       )}
 
-      {/* Tabs for Collaborative Trips */}
-      {trip.type === 'collaborative' && (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="planning">
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              Planning
-            </TabsTrigger>
-            <TabsTrigger value="chat">
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Chat
-            </TabsTrigger>
-          </TabsList>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="planning">
+            <CalendarIcon className="h-4 w-4 mr-2" />
+            Planning
+          </TabsTrigger>
+          <TabsTrigger value="memories">
+            <Camera className="h-4 w-4 mr-2" />
+            Memories
+          </TabsTrigger>
+          <TabsTrigger value="chat">
+            <MessageCircle className="h-4 w-4 mr-2" />
+            Chat
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="planning">
-            {/* Scheduling Phase */}
-            {trip.status === 'scheduling' && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CalendarIcon className="h-5 w-5" />
-                      Submit Your Availability
-                    </CardTitle>
-                    <CardDescription>
-                      Mark your availability for each day in the trip range
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {dates.map((date) => (
-                        <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0">
-                          <span className="w-32 font-medium">
-                            {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </span>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant={availability[date] === 'available' ? 'default' : 'outline'}
-                              onClick={() => setDayAvailability(date, 'available')}
-                              className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                            >
-                              <Check className="h-4 w-4 mr-1" />
-                              Available
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={availability[date] === 'maybe' ? 'default' : 'outline'}
-                              onClick={() => setDayAvailability(date, 'maybe')}
-                              className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                            >
-                              <HelpCircle className="h-4 w-4 mr-1" />
-                              Maybe
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
-                              onClick={() => setDayAvailability(date, 'unavailable')}
-                              className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                            >
-                              <X className="h-4 w-4 mr-1" />
-                              Unavailable
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-6 flex gap-4">
-                      <Button onClick={saveAvailability} disabled={saving}>
-                        {saving ? 'Saving...' : 'Save Availability'}
-                      </Button>
-                      {trip.isCreator && (
-                        <Button variant="outline" onClick={openVoting}>
-                          <Vote className="h-4 w-4 mr-2" />
-                          Open Voting
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Consensus Preview */}
-                {trip.consensusOptions?.length > 0 && (
+        <TabsContent value="planning">
+          {/* Collaborative Trip Planning */}
+          {trip.type === 'collaborative' && (
+            <>
+              {/* Scheduling Phase */}
+              {trip.status === 'scheduling' && (
+                <div className="space-y-6">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Top Date Options (Preview)</CardTitle>
+                      <CardTitle className="flex items-center gap-2">
+                        <CalendarIcon className="h-5 w-5" />
+                        Submit Your Availability
+                      </CardTitle>
                       <CardDescription>
-                        Based on {trip.availabilities?.length || 0} availability submissions
+                        Mark your availability for each day in the trip range
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {trip.consensusOptions.map((option, idx) => (
-                          <div key={option.optionKey} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
-                              <div>
-                                <p className="font-medium">{option.startDate} to {option.endDate}</p>
-                                <p className="text-sm text-gray-500">Score: {(option.score * 100).toFixed(0)}%</p>
-                              </div>
+                        {dates.map((date) => (
+                          <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
+                            <span className="w-32 font-medium">
+                              {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </span>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button
+                                size="sm"
+                                variant={availability[date] === 'available' ? 'default' : 'outline'}
+                                onClick={() => setDayAvailability(date, 'available')}
+                                className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Available
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={availability[date] === 'maybe' ? 'default' : 'outline'}
+                                onClick={() => setDayAvailability(date, 'maybe')}
+                                className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                              >
+                                <HelpCircle className="h-4 w-4 mr-1" />
+                                Maybe
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
+                                onClick={() => setDayAvailability(date, 'unavailable')}
+                                className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Unavailable
+                              </Button>
                             </div>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-6 flex gap-4 flex-wrap">
+                        <Button onClick={saveAvailability} disabled={saving}>
+                          {saving ? 'Saving...' : 'Save Availability'}
+                        </Button>
+                        {trip.isCreator && (
+                          <Button variant="outline" onClick={openVoting}>
+                            <Vote className="h-4 w-4 mr-2" />
+                            Open Voting
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
-                )}
-              </div>
-            )}
 
-            {/* Voting Phase */}
-            {trip.status === 'voting' && (
-              <div className="space-y-6">
-                <Card>
+                  {/* Consensus Preview */}
+                  {trip.consensusOptions?.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Top Date Options (Preview)</CardTitle>
+                        <CardDescription>
+                          Based on {trip.availabilities?.length || 0} availability submissions
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {trip.consensusOptions.map((option, idx) => (
+                            <div key={option.optionKey} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
+                                <div>
+                                  <p className="font-medium">{option.startDate} to {option.endDate}</p>
+                                  <p className="text-sm text-gray-500">Score: {(option.score * 100).toFixed(0)}%</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {/* Voting Phase */}
+              {trip.status === 'voting' && (
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Vote className="h-5 w-5" />
+                        Vote for Your Preferred Dates
+                      </CardTitle>
+                      <CardDescription>
+                        Choose one of the top options based on group availability
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <RadioGroup value={selectedVote} onValueChange={setSelectedVote}>
+                        <div className="space-y-3">
+                          {trip.consensusOptions?.map((option, idx) => (
+                            <div key={option.optionKey} className="flex items-center space-x-3">
+                              <RadioGroupItem value={option.optionKey} id={option.optionKey} />
+                              <Label htmlFor={option.optionKey} className="flex-1 cursor-pointer">
+                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
+                                    <div>
+                                      <p className="font-medium">{option.startDate} to {option.endDate}</p>
+                                      <p className="text-sm text-gray-500">Compatibility: {(option.score * 100).toFixed(0)}%</p>
+                                    </div>
+                                  </div>
+                                  <Badge variant="secondary">
+                                    {voteCounts[option.optionKey] || 0} votes
+                                  </Badge>
+                                </div>
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </RadioGroup>
+                      <div className="mt-6 flex gap-4 flex-wrap">
+                        <Button onClick={submitVote} disabled={!selectedVote}>
+                          {trip.userVote ? 'Update Vote' : 'Submit Vote'}
+                        </Button>
+                        {trip.canLock && selectedVote && (
+                          <Button variant="outline" onClick={() => lockTrip(selectedVote)}>
+                            <Lock className="h-4 w-4 mr-2" />
+                            Lock Selected Dates
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Locked Phase */}
+              {trip.status === 'locked' && (
+                <Card className="bg-green-50 border-green-200">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Vote className="h-5 w-5" />
-                      Vote for Your Preferred Dates
+                    <CardTitle className="flex items-center gap-2 text-green-800">
+                      <Lock className="h-5 w-5" />
+                      Trip Dates Locked!
                     </CardTitle>
-                    <CardDescription>
-                      Choose one of the top options based on group availability
-                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <RadioGroup value={selectedVote} onValueChange={setSelectedVote}>
-                      <div className="space-y-3">
-                        {trip.consensusOptions?.map((option, idx) => (
-                          <div key={option.optionKey} className="flex items-center space-x-3">
-                            <RadioGroupItem value={option.optionKey} id={option.optionKey} />
-                            <Label htmlFor={option.optionKey} className="flex-1 cursor-pointer">
-                              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
-                                  <div>
-                                    <p className="font-medium">{option.startDate} to {option.endDate}</p>
-                                    <p className="text-sm text-gray-500">Compatibility: {(option.score * 100).toFixed(0)}%</p>
-                                  </div>
-                                </div>
-                                <Badge variant="secondary">
-                                  {voteCounts[option.optionKey] || 0} votes
-                                </Badge>
-                              </div>
-                            </Label>
-                          </div>
-                        ))}
+                    <div className="text-center py-8">
+                      <div className="text-4xl font-bold text-green-800 mb-4">
+                        {trip.lockedStartDate} to {trip.lockedEndDate}
                       </div>
-                    </RadioGroup>
-                    <div className="mt-6 flex gap-4">
-                      <Button onClick={submitVote} disabled={!selectedVote}>
-                        {trip.userVote ? 'Update Vote' : 'Submit Vote'}
-                      </Button>
-                      {trip.canLock && selectedVote && (
-                        <Button variant="outline" onClick={() => lockTrip(selectedVote)}>
-                          <Lock className="h-4 w-4 mr-2" />
-                          Lock Selected Dates
-                        </Button>
-                      )}
+                      <p className="text-green-700">
+                        Your trip dates are confirmed. Time to start planning the details!
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
-              </div>
-            )}
+              )}
+            </>
+          )}
 
-            {/* Locked Phase */}
-            {trip.status === 'locked' && (
-              <Card className="bg-green-50 border-green-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-green-800">
-                    <Lock className="h-5 w-5" />
-                    Trip Dates Locked!
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8">
-                    <div className="text-4xl font-bold text-green-800 mb-4">
-                      {trip.lockedStartDate} to {trip.lockedEndDate}
-                    </div>
-                    <p className="text-green-700">
-                      Your trip dates are confirmed. Time to start planning the details!
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="chat">
-            <Card className="h-[500px] flex flex-col">
+          {/* Hosted Trip - Just show locked dates */}
+          {trip.type === 'hosted' && (
+            <Card className="bg-green-50 border-green-200">
               <CardHeader>
-                <CardTitle className="text-lg">Trip Chat</CardTitle>
-                <CardDescription>Discuss trip details with your group</CardDescription>
+                <CardTitle className="flex items-center gap-2 text-green-800">
+                  <Lock className="h-5 w-5" />
+                  Fixed Trip Dates
+                </CardTitle>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                <ScrollArea className="flex-1 pr-4">
-                  <div className="space-y-4">
-                    {messages.length === 0 ? (
-                      <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
-                    ) : (
-                      messages.map((msg) => (
-                        <div key={msg.id} className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
-                          {msg.isSystem ? (
-                            <div className="bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600">
-                              {msg.content}
-                            </div>
-                          ) : (
-                            <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
-                              {msg.user?.id !== user.id && (
-                                <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
-                              )}
-                              <p>{msg.content}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
+              <CardContent>
+                <div className="text-center py-8">
+                  <div className="text-4xl font-bold text-green-800 mb-4">
+                    {trip.lockedStartDate} to {trip.lockedEndDate}
                   </div>
-                </ScrollArea>
-                <div className="flex gap-2 mt-4 pt-4 border-t">
-                  <Input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
-                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                  />
-                  <Button onClick={sendMessage} disabled={sendingMessage || !newMessage.trim()}>
-                    <Send className="h-4 w-4" />
-                  </Button>
+                  <p className="text-green-700">
+                    This is a hosted trip with fixed dates. Join if you're available!
+                  </p>
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
-      )}
+          )}
+        </TabsContent>
 
-      {/* Chat for Hosted Trips */}
-      {trip.type === 'hosted' && (
-        <Card className="h-[500px] flex flex-col mt-6">
-          <CardHeader>
-            <CardTitle className="text-lg">Trip Chat</CardTitle>
-            <CardDescription>Discuss trip details with participants</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-4">
-                {messages.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
-                      {msg.isSystem ? (
-                        <div className="bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600">
-                          {msg.content}
-                        </div>
-                      ) : (
-                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
-                          {msg.user?.id !== user.id && (
-                            <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
-                          )}
-                          <p>{msg.content}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
+        {/* Memories Tab */}
+        <TabsContent value="memories">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">Trip Memories</h2>
+            <Button onClick={() => setShowCreatePost(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Memory
+            </Button>
+          </div>
+          
+          <MemoriesView 
+            posts={posts}
+            loading={loadingPosts}
+            onCreatePost={() => setShowCreatePost(true)}
+            onDeletePost={deletePost}
+            emptyMessage="No memories from this trip yet"
+          />
+          
+          <CreatePostDialog
+            open={showCreatePost}
+            onOpenChange={setShowCreatePost}
+            circleId={trip.circleId}
+            trips={[trip]}
+            token={token}
+            onCreated={loadPosts}
+          />
+        </TabsContent>
+
+        {/* Chat Tab */}
+        <TabsContent value="chat">
+          <Card className="h-[500px] flex flex-col">
+            <CardHeader>
+              <CardTitle className="text-lg">Trip Chat</CardTitle>
+              <CardDescription>Discuss trip details with your group</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col">
+              <ScrollArea className="flex-1 pr-4">
+                <div className="space-y-4">
+                  {messages.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
+                  ) : (
+                    messages.map((msg) => (
+                      <div key={msg.id} className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
+                        {msg.isSystem ? (
+                          <div className="bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600">
+                            {msg.content}
+                          </div>
+                        ) : (
+                          <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
+                            {msg.user?.id !== user.id && (
+                              <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
+                            )}
+                            <p>{msg.content}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+              <div className="flex gap-2 mt-4 pt-4 border-t">
+                <Input
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                />
+                <Button onClick={sendMessage} disabled={sendingMessage || !newMessage.trim()}>
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
-            </ScrollArea>
-            <div className="flex gap-2 mt-4 pt-4 border-t">
-              <Input
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              />
-              <Button onClick={sendMessage} disabled={sendingMessage || !newMessage.trim()}>
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
