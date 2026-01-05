@@ -1487,6 +1487,7 @@ async function handleRoute(request, { params }) {
       // Get user details (only name for public display)
       const userIds = [...new Set(posts.map(p => p.userId))]
       const tripIds = [...new Set(posts.filter(p => p.tripId).map(p => p.tripId))]
+      const itineraryIds = [...new Set(posts.filter(p => p.itineraryId).map(p => p.itineraryId))]
       
       const users = await db.collection('users')
         .find({ id: { $in: userIds } })
@@ -1496,15 +1497,85 @@ async function handleRoute(request, { params }) {
         ? await db.collection('trips').find({ id: { $in: tripIds } }).toArray()
         : []
       
-      const postsForDiscover = posts.map(post => ({
-        id: post.id,
-        caption: post.caption,
-        mediaUrls: post.mediaUrls || [],
-        destinationText: post.destinationText,
-        createdAt: post.createdAt,
-        authorName: users.find(u => u.id === post.userId)?.name || 'Anonymous',
-        tripName: post.tripId && trips.find(t => t.id === post.tripId)?.name || null
-      }))
+      // Fetch itinerary data for posts that have attached itineraries
+      let itineraries = []
+      let itineraryItems = []
+      if (itineraryIds.length > 0) {
+        itineraries = await db.collection('itineraries')
+          .find({ id: { $in: itineraryIds } })
+          .toArray()
+        itineraryItems = await db.collection('itinerary_items')
+          .find({ itineraryId: { $in: itineraryIds } })
+          .sort({ day: 1, order: 1 })
+          .toArray()
+      }
+      
+      const postsForDiscover = posts.map(post => {
+        const trip = post.tripId ? trips.find(t => t.id === post.tripId) : null
+        const itinerary = post.itineraryId ? itineraries.find(i => i.id === post.itineraryId) : null
+        const items = post.itineraryId ? itineraryItems.filter(i => i.itineraryId === post.itineraryId) : []
+        
+        // Build itinerary snapshot if attached
+        let itinerarySnapshot = null
+        if (itinerary && items.length > 0) {
+          // Group items by day
+          const dayMap = new Map()
+          items.forEach(item => {
+            if (!dayMap.has(item.day)) {
+              dayMap.set(item.day, [])
+            }
+            dayMap.get(item.day).push(item)
+          })
+          
+          const tripLength = Math.max(...items.map(i => i.day))
+          
+          // Build day summaries
+          const days = []
+          for (let d = 1; d <= tripLength; d++) {
+            const dayItems = dayMap.get(d) || []
+            // For highlights mode, show top 3 per day; for full, show all
+            const displayItems = post.itineraryMode === 'highlights' 
+              ? dayItems.slice(0, 3)
+              : dayItems
+            
+            days.push({
+              dayNumber: d,
+              items: displayItems.map(item => ({
+                id: item.id,
+                title: item.title,
+                timeBlock: item.timeBlock,
+                notes: item.notes,
+                locationText: item.locationText
+              })),
+              totalItems: dayItems.length,
+              hasMore: post.itineraryMode === 'highlights' && dayItems.length > 3
+            })
+          }
+          
+          itinerarySnapshot = {
+            itineraryId: itinerary.id,
+            tripId: post.tripId,
+            style: itinerary.title,
+            tripLength,
+            totalActivities: items.length,
+            mode: post.itineraryMode || 'highlights',
+            days
+          }
+        }
+        
+        return {
+          id: post.id,
+          caption: post.caption,
+          mediaUrls: post.mediaUrls || [],
+          destinationText: post.destinationText,
+          createdAt: post.createdAt,
+          authorName: users.find(u => u.id === post.userId)?.name || 'Anonymous',
+          tripName: trip?.name || null,
+          tripId: post.tripId,
+          hasItinerary: !!itinerary,
+          itinerarySnapshot
+        }
+      })
       
       return handleCORS(NextResponse.json({
         posts: postsForDiscover,
