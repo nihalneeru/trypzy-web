@@ -2534,6 +2534,61 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(itinerariesWithItems))
     }
     
+    // Get selected (final) itinerary for a trip - GET /api/trips/:tripId/itineraries/selected
+    if (route.match(/^\/trips\/[^/]+\/itineraries\/selected$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get only selected (final) itinerary
+      const selectedItinerary = await db.collection('itineraries').findOne({
+        tripId,
+        status: 'selected'
+      })
+      
+      if (!selectedItinerary) {
+        return handleCORS(NextResponse.json({ itinerary: null }))
+      }
+      
+      // Get items
+      const items = await db.collection('itinerary_items')
+        .find({ itineraryId: selectedItinerary.id })
+        .sort({ day: 1, order: 1 })
+        .toArray()
+      
+      return handleCORS(NextResponse.json({
+        itinerary: {
+          id: selectedItinerary.id,
+          tripId: selectedItinerary.tripId,
+          title: selectedItinerary.title,
+          status: selectedItinerary.status,
+          itemCount: items.length,
+          items: items.map(({ _id, ...rest }) => rest)
+        }
+      }))
+    }
+    
     // Generate itineraries - POST /api/trips/:tripId/itineraries/generate
     if (route.match(/^\/trips\/[^/]+\/itineraries\/generate$/) && method === 'POST') {
       const auth = await requireAuth(request)
