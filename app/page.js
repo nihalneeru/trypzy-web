@@ -572,6 +572,62 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
             </div>
           )}
           
+          {/* Attach Itinerary Section - Only show if trip is selected and has final itinerary */}
+          {tripId && tripId !== 'none' && (
+            <div className="space-y-3 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ListTodo className="h-5 w-5 text-indigo-600" />
+                  <div>
+                    <p className="font-medium text-sm">Attach itinerary to this memory?</p>
+                    <p className="text-xs text-gray-500">Share your trip plan to inspire others</p>
+                  </div>
+                </div>
+                {loadingItinerary ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                ) : selectedItinerary ? (
+                  <Switch
+                    checked={attachItinerary}
+                    onCheckedChange={setAttachItinerary}
+                  />
+                ) : (
+                  <Badge variant="secondary" className="text-xs">No final itinerary</Badge>
+                )}
+              </div>
+              
+              {attachItinerary && selectedItinerary && (
+                <div className="space-y-3 pt-2 border-t border-indigo-100">
+                  <div className="flex items-center gap-2 text-sm text-indigo-700">
+                    <Check className="h-4 w-4" />
+                    <span>{selectedItinerary.title} ({selectedItinerary.itemCount} activities)</span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-600">How much to share:</Label>
+                    <RadioGroup value={itineraryMode} onValueChange={setItineraryMode} className="flex gap-4">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="highlights" id="highlights" />
+                        <Label htmlFor="highlights" className="text-sm font-normal cursor-pointer">
+                          Highlights (top 3 per day)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="full" id="full" />
+                        <Label htmlFor="full" className="text-sm font-normal cursor-pointer">
+                          Full itinerary
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 bg-white rounded p-2">
+                    This itinerary worked for your group. Others can use it as a starting point and customize it for their own trip.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* Visibility */}
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-2">
