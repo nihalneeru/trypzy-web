@@ -368,7 +368,34 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
   const [tripId, setTripId] = useState('')
   const [discoverable, setDiscoverable] = useState(false)
   const [destinationText, setDestinationText] = useState('')
+  const [attachItinerary, setAttachItinerary] = useState(false)
+  const [selectedItinerary, setSelectedItinerary] = useState(null)
+  const [itineraryMode, setItineraryMode] = useState('highlights')
+  const [loadingItinerary, setLoadingItinerary] = useState(false)
   const fileInputRef = useRef(null)
+
+  // Fetch selected itinerary when trip changes
+  useEffect(() => {
+    if (tripId && tripId !== 'none') {
+      fetchSelectedItinerary(tripId)
+    } else {
+      setSelectedItinerary(null)
+      setAttachItinerary(false)
+    }
+  }, [tripId])
+
+  const fetchSelectedItinerary = async (tid) => {
+    setLoadingItinerary(true)
+    try {
+      const data = await api(`/trips/${tid}/itineraries/selected`, {}, token)
+      setSelectedItinerary(data.itinerary)
+    } catch (error) {
+      console.error('Failed to fetch itinerary:', error)
+      setSelectedItinerary(null)
+    } finally {
+      setLoadingItinerary(false)
+    }
+  }
 
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files || [])
@@ -427,7 +454,9 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
           caption,
           tripId: tripId && tripId !== 'none' ? tripId : null,
           discoverable,
-          destinationText
+          destinationText,
+          itineraryId: attachItinerary && selectedItinerary ? selectedItinerary.id : null,
+          itineraryMode: attachItinerary && selectedItinerary ? itineraryMode : null
         })
       }, token)
       
@@ -441,6 +470,9 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
       setTripId('')
       setDiscoverable(false)
       setDestinationText('')
+      setAttachItinerary(false)
+      setSelectedItinerary(null)
+      setItineraryMode('highlights')
     } catch (error) {
       toast.error(error.message)
     } finally {
