@@ -2361,6 +2361,19 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
+  const toggleItineraryDiscoverable = async (itineraryId, discoverable) => {
+    try {
+      await api(`/trips/${trip.id}/itineraries/${itineraryId}/discoverable`, {
+        method: 'PATCH',
+        body: JSON.stringify({ discoverable })
+      }, token)
+      toast.success(discoverable ? 'Itinerary is now discoverable!' : 'Itinerary is now private')
+      loadItineraries()
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
   const getStatusBadge = () => {
     switch (trip.status) {
       case 'scheduling':
