@@ -3073,12 +3073,20 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                             <CardHeader className="pb-3">
                               <div className="flex items-center justify-between">
                                 <CardTitle className="text-lg">{itin.title}</CardTitle>
-                                {isSelected && (
-                                  <Badge className="bg-green-100 text-green-800">
-                                    <Check className="h-3 w-3 mr-1" />
-                                    Selected
-                                  </Badge>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {itin.discoverable && (
+                                    <Badge variant="outline" className="text-xs">
+                                      <Globe className="h-3 w-3 mr-1" />
+                                      Discoverable
+                                    </Badge>
+                                  )}
+                                  {isSelected && (
+                                    <Badge className="bg-green-100 text-green-800">
+                                      <Check className="h-3 w-3 mr-1" />
+                                      Selected
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                               <CardDescription>
                                 ~{itemsPerDay} activities per day
@@ -3091,6 +3099,21 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                                   {itin.startDay} → {itin.endDay}
                                 </p>
                               </div>
+                              
+                              {/* Discoverable toggle for selected itinerary */}
+                              {isSelected && (trip.isCreator || trip.circle?.ownerId === user.id) && (
+                                <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <Globe className="h-4 w-4 text-gray-500" />
+                                    <span className="text-sm">Share in Discover</span>
+                                  </div>
+                                  <Switch
+                                    checked={itin.discoverable || false}
+                                    onCheckedChange={(checked) => toggleItineraryDiscoverable(itin.id, checked)}
+                                  />
+                                </div>
+                              )}
+                              
                               <div className="flex gap-2">
                                 <Button 
                                   size="sm" 
