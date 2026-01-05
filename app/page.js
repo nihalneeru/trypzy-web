@@ -1368,7 +1368,9 @@ function Dashboard({ user, token, onLogout }) {
         {view === 'discover' && (
           <DiscoverPage 
             token={token}
+            circles={circles}
             onCreateTrip={handleCreateTripFromDiscover}
+            onNavigateToTrip={handleNavigateToTrip}
           />
         )}
       </main>
