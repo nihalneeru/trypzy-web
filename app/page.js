@@ -620,14 +620,26 @@ function MemoriesView({ posts, loading, onCreatePost, onDeletePost, onEditPost, 
 }
 
 // Discover Page Component
-function DiscoverPage({ token, onCreateTrip }) {
+function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
+  const [activeTab, setActiveTab] = useState('itineraries')
   const [posts, setPosts] = useState([])
+  const [itineraryTrips, setItineraryTrips] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [styleFilter, setStyleFilter] = useState('')
+  const [durationFilter, setDurationFilter] = useState('')
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [total, setTotal] = useState(0)
+  
+  // Itinerary view/propose state
+  const [selectedItinerary, setSelectedItinerary] = useState(null)
+  const [loadingItinerary, setLoadingItinerary] = useState(false)
+  const [showProposeModal, setShowProposeModal] = useState(false)
+  const [proposingTripId, setProposingTripId] = useState(null)
+  const [selectedCircleId, setSelectedCircleId] = useState('')
+  const [proposing, setProposing] = useState(false)
 
   const loadPosts = async (pageNum = 1, searchQuery = search) => {
     setLoading(true)
@@ -652,98 +664,514 @@ function DiscoverPage({ token, onCreateTrip }) {
     }
   }
 
+  const loadItineraries = async (pageNum = 1, searchQuery = search) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page: pageNum.toString() })
+      if (searchQuery) params.append('search', searchQuery)
+      if (styleFilter) params.append('style', styleFilter)
+      if (durationFilter) params.append('duration', durationFilter)
+      
+      const data = await api(`/discover/itineraries?${params}`)
+      
+      if (pageNum === 1) {
+        setItineraryTrips(data.trips)
+      } else {
+        setItineraryTrips([...itineraryTrips, ...data.trips])
+      }
+      setHasMore(data.pagination.hasMore)
+      setTotal(data.pagination.total)
+      setPage(pageNum)
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    loadPosts(1)
-  }, [])
+    if (activeTab === 'itineraries') {
+      loadItineraries(1)
+    } else {
+      loadPosts(1)
+    }
+  }, [activeTab])
 
   const handleSearch = (e) => {
     e.preventDefault()
     setSearch(searchInput)
-    loadPosts(1, searchInput)
+    if (activeTab === 'itineraries') {
+      loadItineraries(1, searchInput)
+    } else {
+      loadPosts(1, searchInput)
+    }
   }
 
+  const applyFilters = () => {
+    loadItineraries(1, search)
+  }
+
+  useEffect(() => {
+    if (activeTab === 'itineraries') {
+      loadItineraries(1, search)
+    }
+  }, [styleFilter, durationFilter])
+
   const loadMore = () => {
-    loadPosts(page + 1)
+    if (activeTab === 'itineraries') {
+      loadItineraries(page + 1, search)
+    } else {
+      loadPosts(page + 1, search)
+    }
+  }
+
+  const viewItinerary = async (tripId) => {
+    setLoadingItinerary(true)
+    try {
+      const data = await api(`/discover/itineraries/${tripId}`)
+      setSelectedItinerary(data)
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setLoadingItinerary(false)
+    }
+  }
+
+  const openProposeModal = (tripId) => {
+    if (!token) {
+      toast.error('Please sign in to propose a trip')
+      return
+    }
+    setProposingTripId(tripId)
+    setSelectedCircleId('')
+    setShowProposeModal(true)
+  }
+
+  const proposeTrip = async () => {
+    if (!selectedCircleId) {
+      toast.error('Please select a circle')
+      return
+    }
+    setProposing(true)
+    try {
+      const result = await api(`/discover/itineraries/${proposingTripId}/propose`, {
+        method: 'POST',
+        body: JSON.stringify({ circleId: selectedCircleId })
+      }, token)
+      
+      toast.success('Trip proposed! Your circle can now schedule dates.')
+      setShowProposeModal(false)
+      
+      // Optionally navigate to the new trip
+      if (onNavigateToTrip && result.trip) {
+        onNavigateToTrip(result.trip.circleId, result.trip.id)
+      }
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setProposing(false)
+    }
+  }
+
+  const getTimeBlockIcon = (timeBlock) => {
+    switch (timeBlock) {
+      case 'morning': return <Sun className="h-4 w-4 text-yellow-500" />
+      case 'afternoon': return <Sunset className="h-4 w-4 text-orange-500" />
+      case 'evening': return <Moon className="h-4 w-4 text-indigo-500" />
+      default: return <Clock className="h-4 w-4" />
+    }
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
           <Sparkles className="h-8 w-8 text-indigo-600" />
           Discover
         </h1>
-        <p className="text-gray-600 mt-1">Get inspired by travel memories from the community</p>
+        <p className="text-gray-600 mt-1">Get inspired by travel itineraries and memories</p>
       </div>
 
-      {/* Search */}
-      <form onSubmit={handleSearch} className="mb-6">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search destinations or captions..."
-              className="pl-10"
-            />
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+        <TabsList>
+          <TabsTrigger value="itineraries">
+            <ListTodo className="h-4 w-4 mr-2" />
+            Itineraries
+          </TabsTrigger>
+          <TabsTrigger value="memories">
+            <Camera className="h-4 w-4 mr-2" />
+            Memories
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Search & Filters */}
+      <div className="mb-6 space-y-4">
+        <form onSubmit={handleSearch}>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search destinations..."
+                className="pl-10"
+              />
+            </div>
+            <Button type="submit">Search</Button>
           </div>
-          <Button type="submit">Search</Button>
-        </div>
-      </form>
+        </form>
+        
+        {activeTab === 'itineraries' && (
+          <div className="flex gap-4 flex-wrap">
+            <Select value={styleFilter} onValueChange={setStyleFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Itinerary Style" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Styles</SelectItem>
+                <SelectItem value="balanced">Balanced</SelectItem>
+                <SelectItem value="packed">Packed</SelectItem>
+                <SelectItem value="chill">Chill</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={durationFilter} onValueChange={setDurationFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Trip Length" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any Length</SelectItem>
+                <SelectItem value="weekend">Weekend (1-2 days)</SelectItem>
+                <SelectItem value="short">Short (3-5 days)</SelectItem>
+                <SelectItem value="week">Week+ (6+ days)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
 
       {/* Results count */}
       {search && (
         <p className="text-sm text-gray-500 mb-4">
-          Found {total} {total === 1 ? 'memory' : 'memories'} for "{search}"
+          Found {total} {total === 1 ? 'result' : 'results'} for "{search}"
         </p>
       )}
 
-      {/* Posts Grid */}
-      {loading && posts.length === 0 ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
-        </div>
-      ) : posts.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {search ? 'No results found' : 'No discoverable memories yet'}
-            </h3>
-            <p className="text-gray-500">
-              {search ? 'Try a different search term' : 'Be the first to share a discoverable memory!'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <div className="grid md:grid-cols-2 gap-6">
-            {posts.map((post) => (
-              <div key={post.id}>
-                <PostCard post={post} isDiscoverView />
-                {/* CTA Button */}
-                <Button 
-                  variant="outline" 
-                  className="w-full mt-2"
-                  onClick={() => onCreateTrip?.(post.destinationText)}
-                >
-                  <Compass className="h-4 w-4 mr-2" />
-                  Create a similar trip
+      {/* Itineraries Tab */}
+      <TabsContent value="itineraries" className="mt-0">
+        {loading && itineraryTrips.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+          </div>
+        ) : itineraryTrips.length === 0 ? (
+          <Card className="text-center py-12">
+            <CardContent>
+              <ListTodo className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {search ? 'No itineraries found' : 'No discoverable itineraries yet'}
+              </h3>
+              <p className="text-gray-500">
+                {search ? 'Try a different search term or filter' : 'Check back later for travel inspiration!'}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {itineraryTrips.map((trip) => (
+                <Card key={trip.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  {/* Preview Image */}
+                  {trip.previewImage && (
+                    <div className="aspect-video bg-gray-100 overflow-hidden">
+                      <img 
+                        src={trip.previewImage} 
+                        alt={trip.destination}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  {!trip.previewImage && (
+                    <div className="aspect-video bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                      <MapPin className="h-12 w-12 text-indigo-300" />
+                    </div>
+                  )}
+                  
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h3 className="font-semibold text-lg">{trip.destination}</h3>
+                        <p className="text-sm text-gray-500">{trip.tripLengthLabel}</p>
+                      </div>
+                      {trip.itineraryStyle && (
+                        <Badge variant="secondary">{trip.itineraryStyle}</Badge>
+                      )}
+                    </div>
+                    
+                    {/* Activity Preview */}
+                    {trip.activityPreview.length > 0 && (
+                      <div className="mt-3 space-y-1">
+                        {trip.activityPreview.map((activity, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-sm text-gray-600">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                            <span className="truncate">{activity}</span>
+                          </div>
+                        ))}
+                        {trip.totalActivities > 3 && (
+                          <p className="text-xs text-gray-400 pl-3.5">
+                            +{trip.totalActivities - 3} more activities
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Actions */}
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => viewItinerary(trip.id)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => openProposeModal(trip.id)}
+                      >
+                        <UserPlus className="h-4 w-4 mr-1" />
+                        Propose
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            
+            {hasMore && (
+              <div className="text-center mt-8">
+                <Button variant="outline" onClick={loadMore} disabled={loading}>
+                  {loading ? 'Loading...' : 'Load More'}
                 </Button>
               </div>
-            ))}
+            )}
+          </>
+        )}
+      </TabsContent>
+
+      {/* Memories Tab */}
+      <TabsContent value="memories" className="mt-0">
+        {loading && posts.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+          </div>
+        ) : posts.length === 0 ? (
+          <Card className="text-center py-12">
+            <CardContent>
+              <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {search ? 'No results found' : 'No discoverable memories yet'}
+              </h3>
+              <p className="text-gray-500">
+                {search ? 'Try a different search term' : 'Be the first to share a discoverable memory!'}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-2 gap-6">
+              {posts.map((post) => (
+                <div key={post.id}>
+                  <PostCard post={post} isDiscoverView />
+                  <Button 
+                    variant="outline" 
+                    className="w-full mt-2"
+                    onClick={() => onCreateTrip?.(post.destinationText)}
+                  >
+                    <Compass className="h-4 w-4 mr-2" />
+                    Create a similar trip
+                  </Button>
+                </div>
+              ))}
+            </div>
+            
+            {hasMore && (
+              <div className="text-center mt-8">
+                <Button variant="outline" onClick={loadMore} disabled={loading}>
+                  {loading ? 'Loading...' : 'Load More'}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </TabsContent>
+
+      {/* View Itinerary Dialog */}
+      <Dialog open={!!selectedItinerary} onOpenChange={(open) => !open && setSelectedItinerary(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {loadingItinerary ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+            </div>
+          ) : selectedItinerary && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-indigo-600" />
+                  {selectedItinerary.destination}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedItinerary.tripLength}-day {selectedItinerary.itineraryStyle} itinerary • {selectedItinerary.totalActivities} activities
+                </DialogDescription>
+              </DialogHeader>
+              
+              {/* Inspiration Notice */}
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-800">
+                <p className="font-medium">This is inspiration for planning</p>
+                <p className="text-indigo-600">Your group will decide the actual dates and can customize activities.</p>
+              </div>
+              
+              {/* Preview Images */}
+              {selectedItinerary.previewImages?.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {selectedItinerary.previewImages.map((img, idx) => (
+                    <img 
+                      key={idx}
+                      src={img} 
+                      alt=""
+                      className="h-24 w-32 object-cover rounded-lg flex-shrink-0"
+                    />
+                  ))}
+                </div>
+              )}
+              
+              {/* Day by Day Itinerary */}
+              <div className="space-y-4 mt-4">
+                {selectedItinerary.days?.map((day) => (
+                  <div key={day.dayNumber} className="border rounded-lg p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4 text-gray-500" />
+                      Day {day.dayNumber}
+                    </h4>
+                    <div className="space-y-2">
+                      {day.items.map((item) => (
+                        <div key={item.id} className="flex items-start gap-3 pl-2">
+                          {getTimeBlockIcon(item.timeBlock)}
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{item.title}</p>
+                            {item.notes && (
+                              <p className="text-xs text-gray-500">{item.notes}</p>
+                            )}
+                            {item.locationText && (
+                              <p className="text-xs text-indigo-600 flex items-center gap-1 mt-1">
+                                <MapPin className="h-3 w-3" />
+                                {item.locationText}
+                              </p>
+                            )}
+                          </div>
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {item.timeBlock}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setSelectedItinerary(null)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  setSelectedItinerary(null)
+                  openProposeModal(selectedItinerary.tripId)
+                }}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Propose to Circle
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Propose to Circle Modal */}
+      <Dialog open={showProposeModal} onOpenChange={setShowProposeModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Propose Trip to Your Circle
+            </DialogTitle>
+            <DialogDescription>
+              Create a new trip in your circle inspired by this itinerary
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            {/* Circle Selection */}
+            <div className="space-y-2">
+              <Label>Select a Circle</Label>
+              {circles && circles.length > 0 ? (
+                <Select value={selectedCircleId} onValueChange={setSelectedCircleId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a circle..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {circles.map(circle => (
+                      <SelectItem key={circle.id} value={circle.id}>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          {circle.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  You need to create or join a circle first to propose trips.
+                </p>
+              )}
+            </div>
+            
+            {/* Info Box */}
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
+              <p className="font-medium text-gray-700">What happens next:</p>
+              <ul className="space-y-1 text-gray-600">
+                <li className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                  <span>A new trip will be created in your circle</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                  <span>The itinerary will be copied as a template you can edit</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                  <span>Your circle members will decide the actual travel dates</span>
+                </li>
+              </ul>
+            </div>
           </div>
           
-          {hasMore && (
-            <div className="text-center mt-8">
-              <Button variant="outline" onClick={loadMore} disabled={loading}>
-                {loading ? 'Loading...' : 'Load More'}
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProposeModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={proposeTrip} 
+              disabled={proposing || !selectedCircleId}
+            >
+              {proposing ? 'Proposing...' : 'Propose Trip'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
