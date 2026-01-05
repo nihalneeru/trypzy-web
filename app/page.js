@@ -14,12 +14,14 @@ import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { toast } from 'sonner'
 import { 
   Users, Plus, LogOut, MapPin, Calendar as CalendarIcon, 
   MessageCircle, Check, X, HelpCircle, Vote, Lock, UserPlus,
   ChevronLeft, Send, Compass, ArrowRight, Image as ImageIcon,
-  Camera, Globe, Eye, EyeOff, Trash2, Edit, Search, Flag, Sparkles
+  Camera, Globe, Eye, EyeOff, Trash2, Edit, Search, Flag, Sparkles,
+  ListTodo, Lightbulb, RefreshCw, ChevronUp, ChevronDown, Clock, Sun, Moon, Sunset
 } from 'lucide-react'
 
 // Auth Context
