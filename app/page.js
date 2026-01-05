@@ -1563,6 +1563,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
 function TripDetailView({ trip, token, user, onRefresh }) {
   const [activeTab, setActiveTab] = useState('planning')
   const [availability, setAvailability] = useState({})
+  const [activityIdeas, setActivityIdeas] = useState(['', '', '']) // Idea jar for availability submission
   const [saving, setSaving] = useState(false)
   const [selectedVote, setSelectedVote] = useState(trip.userVote?.optionKey || '')
   const [messages, setMessages] = useState([])
@@ -1571,6 +1572,18 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [showCreatePost, setShowCreatePost] = useState(false)
+  
+  // Itinerary state
+  const [ideas, setIdeas] = useState([])
+  const [loadingIdeas, setLoadingIdeas] = useState(false)
+  const [newIdea, setNewIdea] = useState({ title: '', category: '', notes: '' })
+  const [addingIdea, setAddingIdea] = useState(false)
+  const [itineraries, setItineraries] = useState([])
+  const [loadingItineraries, setLoadingItineraries] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [selectedItinerary, setSelectedItinerary] = useState(null)
+  const [editingItems, setEditingItems] = useState([])
+  const [savingItems, setSavingItems] = useState(false)
 
   // Initialize availability from existing data
   useEffect(() => {
@@ -1604,6 +1617,32 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
+  // Load ideas
+  const loadIdeas = async () => {
+    setLoadingIdeas(true)
+    try {
+      const data = await api(`/trips/${trip.id}/ideas`, { method: 'GET' }, token)
+      setIdeas(data)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoadingIdeas(false)
+    }
+  }
+
+  // Load itineraries
+  const loadItineraries = async () => {
+    setLoadingItineraries(true)
+    try {
+      const data = await api(`/trips/${trip.id}/itineraries`, { method: 'GET' }, token)
+      setItineraries(data)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoadingItineraries(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'chat') {
       loadMessages()
@@ -1612,6 +1651,10 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
     if (activeTab === 'memories') {
       loadPosts()
+    }
+    if (activeTab === 'itinerary') {
+      loadIdeas()
+      loadItineraries()
     }
   }, [activeTab])
 
@@ -1641,7 +1684,21 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         body: JSON.stringify({ availabilities })
       }, token)
       
+      // Also submit activity ideas if any
+      const validIdeas = activityIdeas.filter(idea => idea.trim())
+      for (const ideaTitle of validIdeas) {
+        try {
+          await api(`/trips/${trip.id}/ideas`, {
+            method: 'POST',
+            body: JSON.stringify({ title: ideaTitle })
+          }, token)
+        } catch (e) {
+          // Ignore duplicate errors
+        }
+      }
+      
       toast.success('Availability saved!')
+      setActivityIdeas(['', '', ''])
       onRefresh()
     } catch (error) {
       toast.error(error.message)
@@ -1739,6 +1796,128 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
+  // Itinerary functions
+  const addIdea = async () => {
+    if (!newIdea.title.trim()) return
+    setAddingIdea(true)
+    try {
+      await api(`/trips/${trip.id}/ideas`, {
+        method: 'POST',
+        body: JSON.stringify(newIdea)
+      }, token)
+      toast.success('Idea added!')
+      setNewIdea({ title: '', category: '', notes: '' })
+      loadIdeas()
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setAddingIdea(false)
+    }
+  }
+
+  const deleteIdea = async (ideaId) => {
+    try {
+      await api(`/trips/${trip.id}/ideas/${ideaId}`, { method: 'DELETE' }, token)
+      toast.success('Idea removed')
+      loadIdeas()
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const generateItineraries = async () => {
+    setGenerating(true)
+    try {
+      await api(`/trips/${trip.id}/itineraries/generate`, { method: 'POST' }, token)
+      toast.success('Itineraries generated!')
+      loadItineraries()
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const selectItinerary = async (itineraryId) => {
+    try {
+      await api(`/trips/${trip.id}/itineraries/${itineraryId}/select`, { method: 'PATCH' }, token)
+      toast.success('Itinerary selected as final!')
+      loadItineraries()
+      setSelectedItinerary(null)
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const openItineraryEditor = (itinerary) => {
+    setSelectedItinerary(itinerary)
+    setEditingItems([...itinerary.items])
+  }
+
+  const updateItem = (itemId, field, value) => {
+    setEditingItems(editingItems.map(item => 
+      item.id === itemId ? { ...item, [field]: value } : item
+    ))
+  }
+
+  const addItem = (day, timeBlock) => {
+    const maxOrder = Math.max(0, ...editingItems.filter(i => i.day === day).map(i => i.order))
+    setEditingItems([...editingItems, {
+      id: `new-${Date.now()}`,
+      day,
+      timeBlock,
+      title: '',
+      notes: '',
+      locationText: '',
+      order: maxOrder + 1
+    }])
+  }
+
+  const removeItem = (itemId) => {
+    setEditingItems(editingItems.filter(item => item.id !== itemId))
+  }
+
+  const moveItem = (itemId, direction) => {
+    const item = editingItems.find(i => i.id === itemId)
+    if (!item) return
+    
+    const dayItems = editingItems.filter(i => i.day === item.day).sort((a, b) => a.order - b.order)
+    const idx = dayItems.findIndex(i => i.id === itemId)
+    
+    if (direction === 'up' && idx > 0) {
+      const prevItem = dayItems[idx - 1]
+      setEditingItems(editingItems.map(i => {
+        if (i.id === itemId) return { ...i, order: prevItem.order }
+        if (i.id === prevItem.id) return { ...i, order: item.order }
+        return i
+      }))
+    } else if (direction === 'down' && idx < dayItems.length - 1) {
+      const nextItem = dayItems[idx + 1]
+      setEditingItems(editingItems.map(i => {
+        if (i.id === itemId) return { ...i, order: nextItem.order }
+        if (i.id === nextItem.id) return { ...i, order: item.order }
+        return i
+      }))
+    }
+  }
+
+  const saveItineraryItems = async () => {
+    if (!selectedItinerary) return
+    setSavingItems(true)
+    try {
+      await api(`/trips/${trip.id}/itineraries/${selectedItinerary.id}/items`, {
+        method: 'PATCH',
+        body: JSON.stringify({ items: editingItems })
+      }, token)
+      toast.success('Itinerary saved!')
+      loadItineraries()
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setSavingItems(false)
+    }
+  }
+
   const getStatusBadge = () => {
     switch (trip.status) {
       case 'scheduling':
@@ -1762,6 +1941,57 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   }
 
   const voteCounts = getVoteCounts()
+
+  // Get unique ideas with counts
+  const getUniqueIdeas = () => {
+    const ideaMap = new Map()
+    ideas.forEach(idea => {
+      const key = idea.title.toLowerCase()
+      if (!ideaMap.has(key)) {
+        ideaMap.set(key, { ...idea, count: 1 })
+      } else {
+        ideaMap.get(key).count++
+      }
+    })
+    return Array.from(ideaMap.values()).sort((a, b) => b.count - a.count)
+  }
+
+  const uniqueIdeas = getUniqueIdeas()
+
+  // Get time block icon
+  const getTimeBlockIcon = (timeBlock) => {
+    switch (timeBlock) {
+      case 'morning': return <Sun className="h-4 w-4 text-yellow-500" />
+      case 'afternoon': return <Sunset className="h-4 w-4 text-orange-500" />
+      case 'evening': return <Moon className="h-4 w-4 text-indigo-500" />
+      default: return <Clock className="h-4 w-4" />
+    }
+  }
+
+  // Get days for locked trip
+  const getLockedDays = () => {
+    if (!trip.lockedStartDate || !trip.lockedEndDate) return []
+    const days = []
+    const start = new Date(trip.lockedStartDate)
+    const end = new Date(trip.lockedEndDate)
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      days.push(new Date(d).toISOString().split('T')[0])
+    }
+    return days
+  }
+
+  const lockedDays = getLockedDays()
+
+  // Category options
+  const categories = [
+    { value: 'food', label: 'Food & Dining' },
+    { value: 'outdoors', label: 'Outdoors & Nature' },
+    { value: 'culture', label: 'Culture & Sightseeing' },
+    { value: 'nightlife', label: 'Nightlife & Entertainment' },
+    { value: 'relax', label: 'Relaxation' },
+    { value: 'shopping', label: 'Shopping' },
+    { value: 'adventure', label: 'Adventure' }
+  ]
 
   return (
     <div>
