@@ -1237,7 +1237,7 @@ async function handleRoute(request, { params }) {
       }
       
       const body = await request.json()
-      const { mediaUrls, caption, tripId, discoverable, destinationText } = body
+      const { mediaUrls, caption, tripId, discoverable, destinationText, itineraryId, itineraryMode } = body
       
       // Validate mediaUrls
       if (!mediaUrls || !Array.isArray(mediaUrls) || mediaUrls.length === 0 || mediaUrls.length > 5) {
@@ -1248,14 +1248,45 @@ async function handleRoute(request, { params }) {
       }
       
       // If tripId provided, verify it belongs to this circle
+      let trip = null
       if (tripId) {
-        const trip = await db.collection('trips').findOne({ id: tripId, circleId })
+        trip = await db.collection('trips').findOne({ id: tripId, circleId })
         if (!trip) {
           return handleCORS(NextResponse.json(
             { error: 'Trip not found in this circle' },
             { status: 400 }
           ))
         }
+      }
+      
+      // If itineraryId provided, validate it
+      let validatedItineraryId = null
+      let validatedItineraryMode = null
+      if (itineraryId) {
+        // Must have a tripId to attach an itinerary
+        if (!tripId) {
+          return handleCORS(NextResponse.json(
+            { error: 'Cannot attach itinerary without selecting a trip' },
+            { status: 400 }
+          ))
+        }
+        
+        // Verify itinerary exists, belongs to the trip, and is selected (final)
+        const itinerary = await db.collection('itineraries').findOne({ 
+          id: itineraryId, 
+          tripId,
+          status: 'selected'
+        })
+        
+        if (!itinerary) {
+          return handleCORS(NextResponse.json(
+            { error: 'Only final (selected) itineraries can be attached to memories' },
+            { status: 400 }
+          ))
+        }
+        
+        validatedItineraryId = itineraryId
+        validatedItineraryMode = itineraryMode === 'full' ? 'full' : 'highlights'
       }
       
       const post = {
@@ -1267,6 +1298,8 @@ async function handleRoute(request, { params }) {
         caption: caption?.trim() || null,
         discoverable: discoverable || false,
         destinationText: destinationText?.trim() || null,
+        itineraryId: validatedItineraryId,
+        itineraryMode: validatedItineraryMode,
         createdAt: new Date().toISOString()
       }
       
