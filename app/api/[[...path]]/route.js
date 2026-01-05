@@ -1484,6 +1484,459 @@ async function handleRoute(request, { params }) {
       }))
     }
     
+    // Get discoverable itineraries - GET /api/discover/itineraries (public, read-only)
+    if (route === '/discover/itineraries' && method === 'GET') {
+      const url = new URL(request.url)
+      const search = url.searchParams.get('search')?.toLowerCase() || ''
+      const style = url.searchParams.get('style') || '' // Balanced, Packed, Chill
+      const duration = url.searchParams.get('duration') || '' // weekend, short, week
+      const page = parseInt(url.searchParams.get('page') || '1')
+      const limit = 12
+      const skip = (page - 1) * limit
+      
+      // Find trips that have:
+      // 1. A selected itinerary marked discoverable OR
+      // 2. At least one discoverable post
+      
+      // First, get trips with discoverable selected itineraries
+      const discoverableItineraries = await db.collection('itineraries')
+        .find({ 
+          status: 'selected',
+          discoverable: true 
+        })
+        .toArray()
+      
+      const tripIdsFromItineraries = discoverableItineraries.map(i => i.tripId)
+      
+      // Get trips with discoverable posts
+      const discoverablePosts = await db.collection('posts')
+        .find({ 
+          discoverable: true,
+          tripId: { $ne: null }
+        })
+        .toArray()
+      
+      const tripIdsFromPosts = [...new Set(discoverablePosts.map(p => p.tripId))]
+      
+      // Combine unique trip IDs
+      const allDiscoverableTripIds = [...new Set([...tripIdsFromItineraries, ...tripIdsFromPosts])]
+      
+      // Build query for trips
+      let tripQuery = {
+        id: { $in: allDiscoverableTripIds },
+        status: 'locked'
+      }
+      
+      // Get all matching trips
+      let trips = await db.collection('trips')
+        .find(tripQuery)
+        .toArray()
+      
+      // Get itineraries for these trips
+      const selectedItineraries = await db.collection('itineraries')
+        .find({ 
+          tripId: { $in: trips.map(t => t.id) },
+          status: 'selected'
+        })
+        .toArray()
+      
+      // Get itinerary items
+      const itineraryIds = selectedItineraries.map(i => i.id)
+      const allItems = await db.collection('itinerary_items')
+        .find({ itineraryId: { $in: itineraryIds } })
+        .sort({ day: 1, order: 1 })
+        .toArray()
+      
+      // Get posts for preview images
+      const tripPosts = await db.collection('posts')
+        .find({ tripId: { $in: trips.map(t => t.id) }, discoverable: true })
+        .toArray()
+      
+      // Combine trip data with itinerary info
+      let tripCards = trips.map(trip => {
+        const itinerary = selectedItineraries.find(i => i.tripId === trip.id)
+        const items = itinerary ? allItems.filter(item => item.itineraryId === itinerary.id) : []
+        const posts = tripPosts.filter(p => p.tripId === trip.id)
+        
+        // Calculate trip length in days
+        const start = new Date(trip.lockedStartDate)
+        const end = new Date(trip.lockedEndDate)
+        const tripLength = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+        
+        // Get destination from posts or trip name
+        const destination = posts.find(p => p.destinationText)?.destinationText || 
+                          trip.name.replace(/trip|getaway|retreat|vacation/gi, '').trim() ||
+                          'Destination'
+        
+        // Get preview image from posts
+        const previewImage = posts.find(p => p.mediaUrls?.length > 0)?.mediaUrls[0] || null
+        
+        // Get first 3 unique activities for preview
+        const activityPreview = items
+          .slice(0, 3)
+          .map(item => item.title)
+        
+        return {
+          id: trip.id,
+          destination,
+          tripName: trip.name,
+          tripLength,
+          tripLengthLabel: tripLength <= 2 ? 'Weekend' : tripLength <= 5 ? `${tripLength} days` : `${tripLength} days`,
+          startDate: trip.lockedStartDate,
+          endDate: trip.lockedEndDate,
+          itineraryStyle: itinerary?.title || null,
+          itineraryId: itinerary?.id || null,
+          activityPreview,
+          totalActivities: items.length,
+          previewImage,
+          hasItinerary: !!itinerary
+        }
+      })
+      
+      // Apply filters
+      if (search) {
+        tripCards = tripCards.filter(t => 
+          t.destination.toLowerCase().includes(search) ||
+          t.tripName.toLowerCase().includes(search) ||
+          t.activityPreview.some(a => a.toLowerCase().includes(search))
+        )
+      }
+      
+      if (style) {
+        tripCards = tripCards.filter(t => 
+          t.itineraryStyle?.toLowerCase() === style.toLowerCase()
+        )
+      }
+      
+      if (duration) {
+        tripCards = tripCards.filter(t => {
+          if (duration === 'weekend') return t.tripLength <= 2
+          if (duration === 'short') return t.tripLength >= 3 && t.tripLength <= 5
+          if (duration === 'week') return t.tripLength >= 6
+          return true
+        })
+      }
+      
+      // Sort by trip length and then by name for determinism
+      tripCards.sort((a, b) => {
+        if (a.tripLength !== b.tripLength) return a.tripLength - b.tripLength
+        return a.destination.localeCompare(b.destination)
+      })
+      
+      const total = tripCards.length
+      const paginatedCards = tripCards.slice(skip, skip + limit)
+      
+      return handleCORS(NextResponse.json({
+        trips: paginatedCards,
+        pagination: {
+          page,
+          limit,
+          total,
+          hasMore: skip + paginatedCards.length < total
+        }
+      }))
+    }
+    
+    // Get single discoverable itinerary details - GET /api/discover/itineraries/:tripId
+    if (route.match(/^\/discover\/itineraries\/[^/]+$/) && method === 'GET') {
+      const tripId = path[2]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId, status: 'locked' })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      // Get selected itinerary
+      const itinerary = await db.collection('itineraries').findOne({
+        tripId,
+        status: 'selected'
+      })
+      
+      if (!itinerary) {
+        return handleCORS(NextResponse.json({ error: 'No itinerary found' }, { status: 404 }))
+      }
+      
+      // Check if itinerary or any posts are discoverable
+      const hasDiscoverablePost = await db.collection('posts').findOne({
+        tripId,
+        discoverable: true
+      })
+      
+      if (!itinerary.discoverable && !hasDiscoverablePost) {
+        return handleCORS(NextResponse.json({ error: 'Itinerary not discoverable' }, { status: 403 }))
+      }
+      
+      // Get all items
+      const items = await db.collection('itinerary_items')
+        .find({ itineraryId: itinerary.id })
+        .sort({ day: 1, order: 1 })
+        .toArray()
+      
+      // Get destination from posts
+      const posts = await db.collection('posts')
+        .find({ tripId, discoverable: true })
+        .toArray()
+      
+      const destination = posts.find(p => p.destinationText)?.destinationText || trip.name
+      const previewImages = posts.flatMap(p => p.mediaUrls || []).slice(0, 5)
+      
+      // Calculate trip length
+      const start = new Date(trip.lockedStartDate)
+      const end = new Date(trip.lockedEndDate)
+      const tripLength = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+      
+      // Group items by day
+      const days = []
+      const uniqueDays = [...new Set(items.map(i => i.day))].sort()
+      
+      uniqueDays.forEach((day, idx) => {
+        const dayItems = items.filter(i => i.day === day).sort((a, b) => a.order - b.order)
+        days.push({
+          dayNumber: idx + 1,
+          date: day,
+          items: dayItems.map(({ _id, ...rest }) => rest)
+        })
+      })
+      
+      return handleCORS(NextResponse.json({
+        tripId: trip.id,
+        destination,
+        tripName: trip.name,
+        tripLength,
+        itineraryStyle: itinerary.title,
+        itineraryId: itinerary.id,
+        totalActivities: items.length,
+        previewImages,
+        days
+      }))
+    }
+    
+    // Propose trip to circle - POST /api/discover/itineraries/:tripId/propose
+    if (route.match(/^\/discover\/itineraries\/[^/]+\/propose$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const sourceTripId = path[2]
+      const body = await request.json()
+      const { circleId } = body
+      
+      if (!circleId) {
+        return handleCORS(NextResponse.json({ error: 'Circle ID is required' }, { status: 400 }))
+      }
+      
+      // Verify user membership in target circle
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get source trip
+      const sourceTrip = await db.collection('trips').findOne({ id: sourceTripId, status: 'locked' })
+      if (!sourceTrip) {
+        return handleCORS(NextResponse.json({ error: 'Source trip not found' }, { status: 404 }))
+      }
+      
+      // Get source itinerary
+      const sourceItinerary = await db.collection('itineraries').findOne({
+        tripId: sourceTripId,
+        status: 'selected'
+      })
+      
+      // Get source items if itinerary exists
+      const sourceItems = sourceItinerary 
+        ? await db.collection('itinerary_items')
+            .find({ itineraryId: sourceItinerary.id })
+            .sort({ day: 1, order: 1 })
+            .toArray()
+        : []
+      
+      // Get destination from posts
+      const posts = await db.collection('posts')
+        .find({ tripId: sourceTripId, discoverable: true })
+        .toArray()
+      const destination = posts.find(p => p.destinationText)?.destinationText || null
+      
+      // Calculate trip length
+      const sourceStart = new Date(sourceTrip.lockedStartDate)
+      const sourceEnd = new Date(sourceTrip.lockedEndDate)
+      const tripLength = Math.ceil((sourceEnd - sourceStart) / (1000 * 60 * 60 * 24)) + 1
+      
+      // Create date range for new trip (start from 2 weeks from now, span same length)
+      const today = new Date()
+      const earliestStart = new Date(today)
+      earliestStart.setDate(today.getDate() + 14)
+      const latestEnd = new Date(earliestStart)
+      latestEnd.setDate(earliestStart.getDate() + tripLength + 13) // Add buffer for scheduling
+      
+      // Create new trip
+      const newTrip = {
+        id: uuidv4(),
+        circleId,
+        name: destination ? `${destination} Trip` : `Inspired Trip`,
+        description: `Inspired by a ${tripLength}-day ${sourceItinerary?.title?.toLowerCase() || 'balanced'} itinerary. Your group will decide the dates!`,
+        type: 'collaborative',
+        startDate: earliestStart.toISOString().split('T')[0],
+        endDate: latestEnd.toISOString().split('T')[0],
+        duration: tripLength,
+        status: 'scheduling',
+        lockedStartDate: null,
+        lockedEndDate: null,
+        createdBy: auth.user.id,
+        inspiredBy: {
+          sourceTripId,
+          destination,
+          itineraryStyle: sourceItinerary?.title || null
+        },
+        createdAt: new Date().toISOString()
+      }
+      
+      await db.collection('trips').insertOne(newTrip)
+      
+      // Copy itinerary as template if source has one
+      if (sourceItinerary && sourceItems.length > 0) {
+        // Group source items by day number (relative position)
+        const dayMap = new Map()
+        const uniqueDays = [...new Set(sourceItems.map(i => i.day))].sort()
+        uniqueDays.forEach((day, idx) => {
+          dayMap.set(day, idx + 1) // Day 1, Day 2, etc.
+        })
+        
+        const templateItinerary = {
+          id: uuidv4(),
+          tripId: newTrip.id,
+          version: 1,
+          title: sourceItinerary.title,
+          status: 'draft',
+          startDay: null, // Will be set when trip dates are locked
+          endDay: null,
+          createdBy: auth.user.id,
+          isTemplate: true,
+          sourceType: 'discover',
+          sourceTripId,
+          createdAt: new Date().toISOString()
+        }
+        
+        await db.collection('itineraries').insertOne(templateItinerary)
+        
+        // Copy items with relative day numbers (stored in notes for now)
+        const templateItems = sourceItems.map((item, idx) => ({
+          id: uuidv4(),
+          itineraryId: templateItinerary.id,
+          day: `Day ${dayMap.get(item.day)}`, // Relative day
+          dayNumber: dayMap.get(item.day),
+          timeBlock: item.timeBlock,
+          title: item.title,
+          notes: item.notes,
+          locationText: item.locationText,
+          order: item.order
+        }))
+        
+        if (templateItems.length > 0) {
+          await db.collection('itinerary_items').insertMany(templateItems)
+        }
+      }
+      
+      // Copy ideas from source if any
+      const sourceIdeas = await db.collection('trip_ideas')
+        .find({ tripId: sourceTripId })
+        .toArray()
+      
+      // Get unique ideas by title
+      const uniqueIdeas = new Map()
+      sourceIdeas.forEach(idea => {
+        const key = idea.title.toLowerCase()
+        if (!uniqueIdeas.has(key)) {
+          uniqueIdeas.set(key, idea)
+        }
+      })
+      
+      // Copy unique ideas to new trip
+      const newIdeas = Array.from(uniqueIdeas.values()).map(idea => ({
+        id: uuidv4(),
+        tripId: newTrip.id,
+        userId: auth.user.id,
+        title: idea.title,
+        category: idea.category,
+        notes: idea.notes,
+        createdAt: new Date().toISOString()
+      }))
+      
+      if (newIdeas.length > 0) {
+        await db.collection('trip_ideas').insertMany(newIdeas)
+      }
+      
+      // Add system message
+      await db.collection('trip_messages').insertOne({
+        id: uuidv4(),
+        tripId: newTrip.id,
+        userId: null,
+        content: `${auth.user.name} proposed this trip inspired by a ${tripLength}-day itinerary. Add your availability and the group will decide the dates!`,
+        isSystem: true,
+        createdAt: new Date().toISOString()
+      })
+      
+      return handleCORS(NextResponse.json({
+        message: 'Trip proposed successfully',
+        trip: {
+          id: newTrip.id,
+          name: newTrip.name,
+          circleId: newTrip.circleId
+        }
+      }))
+    }
+    
+    // Mark itinerary as discoverable - PATCH /api/trips/:tripId/itineraries/:itineraryId/discoverable
+    if (route.match(/^\/trips\/[^/]+\/itineraries\/[^/]+\/discoverable$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const itineraryId = path[3]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      
+      // Only trip creator or circle owner can make itinerary discoverable
+      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator or circle owner can change discoverability' },
+          { status: 403 }
+        ))
+      }
+      
+      const itinerary = await db.collection('itineraries').findOne({ id: itineraryId, tripId })
+      if (!itinerary) {
+        return handleCORS(NextResponse.json({ error: 'Itinerary not found' }, { status: 404 }))
+      }
+      
+      const body = await request.json()
+      const { discoverable } = body
+      
+      await db.collection('itineraries').updateOne(
+        { id: itineraryId },
+        { $set: { discoverable: Boolean(discoverable) } }
+      )
+      
+      return handleCORS(NextResponse.json({ 
+        message: discoverable ? 'Itinerary is now discoverable' : 'Itinerary is now private'
+      }))
+    }
+    
     // ============ REPORT ROUTES ============
     
     // Report a post - POST /api/reports
