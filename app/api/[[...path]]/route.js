@@ -1583,6 +1583,524 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // ============ TRIP IDEAS ROUTES ============
+    
+    // Get trip ideas - GET /api/trips/:tripId/ideas
+    if (route.match(/^\/trips\/[^/]+\/ideas$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const ideas = await db.collection('trip_ideas')
+        .find({ tripId })
+        .sort({ createdAt: -1 })
+        .toArray()
+      
+      // Get user details
+      const userIds = [...new Set(ideas.map(i => i.userId))]
+      const users = await db.collection('users')
+        .find({ id: { $in: userIds } })
+        .toArray()
+      
+      // Count ideas by normalized title
+      const ideaCounts = {}
+      ideas.forEach(idea => {
+        const key = idea.title.toLowerCase().trim()
+        if (!ideaCounts[key]) {
+          ideaCounts[key] = { count: 0, users: [] }
+        }
+        ideaCounts[key].count++
+        ideaCounts[key].users.push(idea.userId)
+      })
+      
+      const ideasWithDetails = ideas.map(idea => ({
+        id: idea.id,
+        title: idea.title,
+        category: idea.category,
+        notes: idea.notes,
+        createdAt: idea.createdAt,
+        author: users.find(u => u.id === idea.userId)
+          ? { id: users.find(u => u.id === idea.userId).id, name: users.find(u => u.id === idea.userId).name }
+          : null,
+        isAuthor: idea.userId === auth.user.id,
+        suggestionCount: ideaCounts[idea.title.toLowerCase().trim()]?.count || 1
+      }))
+      
+      return handleCORS(NextResponse.json(ideasWithDetails))
+    }
+    
+    // Create trip idea - POST /api/trips/:tripId/ideas
+    if (route.match(/^\/trips\/[^/]+\/ideas$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { title, category, notes } = body
+      
+      if (!title || !title.trim()) {
+        return handleCORS(NextResponse.json(
+          { error: 'Title is required' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Check for duplicate (same user, same title for this trip)
+      const existingIdea = await db.collection('trip_ideas').findOne({
+        tripId,
+        userId: auth.user.id,
+        title: { $regex: new RegExp(`^${title.trim()}$`, 'i') }
+      })
+      
+      if (existingIdea) {
+        return handleCORS(NextResponse.json(
+          { error: 'You have already suggested this activity' },
+          { status: 400 }
+        ))
+      }
+      
+      const idea = {
+        id: uuidv4(),
+        tripId,
+        userId: auth.user.id,
+        title: title.trim(),
+        category: category?.trim() || null,
+        notes: notes?.trim() || null,
+        createdAt: new Date().toISOString()
+      }
+      
+      await db.collection('trip_ideas').insertOne(idea)
+      
+      return handleCORS(NextResponse.json({
+        ...idea,
+        author: { id: auth.user.id, name: auth.user.name },
+        isAuthor: true
+      }))
+    }
+    
+    // Delete trip idea - DELETE /api/trips/:tripId/ideas/:ideaId
+    if (route.match(/^\/trips\/[^/]+\/ideas\/[^/]+$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const ideaId = path[3]
+      
+      const idea = await db.collection('trip_ideas').findOne({ id: ideaId, tripId })
+      if (!idea) {
+        return handleCORS(NextResponse.json({ error: 'Idea not found' }, { status: 404 }))
+      }
+      
+      // Author only
+      if (idea.userId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the author can delete this idea' },
+          { status: 403 }
+        ))
+      }
+      
+      await db.collection('trip_ideas').deleteOne({ id: ideaId })
+      
+      return handleCORS(NextResponse.json({ message: 'Idea deleted' }))
+    }
+    
+    // ============ ITINERARY ROUTES ============
+    
+    // Get itineraries - GET /api/trips/:tripId/itineraries
+    if (route.match(/^\/trips\/[^/]+\/itineraries$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const itineraries = await db.collection('itineraries')
+        .find({ tripId })
+        .sort({ version: 1 })
+        .toArray()
+      
+      // Get items for each itinerary
+      const itineraryIds = itineraries.map(i => i.id)
+      const allItems = await db.collection('itinerary_items')
+        .find({ itineraryId: { $in: itineraryIds } })
+        .sort({ day: 1, order: 1 })
+        .toArray()
+      
+      const itinerariesWithItems = itineraries.map(itin => ({
+        id: itin.id,
+        tripId: itin.tripId,
+        version: itin.version,
+        title: itin.title,
+        status: itin.status,
+        startDay: itin.startDay,
+        endDay: itin.endDay,
+        createdBy: itin.createdBy,
+        createdAt: itin.createdAt,
+        items: allItems
+          .filter(item => item.itineraryId === itin.id)
+          .map(({ _id, ...rest }) => rest)
+      }))
+      
+      return handleCORS(NextResponse.json(itinerariesWithItems))
+    }
+    
+    // Generate itineraries - POST /api/trips/:tripId/itineraries/generate
+    if (route.match(/^\/trips\/[^/]+\/itineraries\/generate$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      // Only allowed when trip is locked
+      if (trip.status !== 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Itineraries can only be generated after trip dates are locked' },
+          { status: 400 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get existing ideas and aggregate by title
+      const ideas = await db.collection('trip_ideas')
+        .find({ tripId })
+        .toArray()
+      
+      // Normalize and rank ideas by frequency
+      const ideaCounts = new Map()
+      ideas.forEach(idea => {
+        const key = idea.title.toLowerCase().trim()
+        if (!ideaCounts.has(key)) {
+          ideaCounts.set(key, { title: idea.title, category: idea.category, count: 0 })
+        }
+        ideaCounts.get(key).count++
+      })
+      
+      // Sort by count descending, then alphabetically for determinism
+      const rankedIdeas = Array.from(ideaCounts.values())
+        .sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count
+          return a.title.localeCompare(b.title)
+        })
+      
+      // Default placeholders if not enough ideas
+      const defaultActivities = [
+        { title: 'Explore local neighborhood', category: 'outdoors' },
+        { title: 'Try local cuisine', category: 'food' },
+        { title: 'Visit popular landmark', category: 'culture' },
+        { title: 'Relax and unwind', category: 'relax' },
+        { title: 'Shopping and souvenirs', category: 'culture' },
+        { title: 'Scenic walk or hike', category: 'outdoors' },
+        { title: 'Local cafe or coffee shop', category: 'food' },
+        { title: 'Evening entertainment', category: 'nightlife' },
+        { title: 'Flexible free time', category: 'relax' }
+      ]
+      
+      // Fill ideas pool
+      const ideasPool = rankedIdeas.length >= 3 ? rankedIdeas : [...rankedIdeas, ...defaultActivities]
+      
+      // Generate day list from locked dates
+      const startDate = new Date(trip.lockedStartDate)
+      const endDate = new Date(trip.lockedEndDate)
+      const days = []
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        days.push(new Date(d).toISOString().split('T')[0])
+      }
+      
+      // Delete existing draft itineraries (regenerate)
+      await db.collection('itinerary_items').deleteMany({
+        itineraryId: { $in: (await db.collection('itineraries').find({ tripId, status: 'draft' }).toArray()).map(i => i.id) }
+      })
+      await db.collection('itineraries').deleteMany({ tripId, status: 'draft' })
+      
+      // Keep track of next version
+      const maxVersion = await db.collection('itineraries')
+        .find({ tripId })
+        .sort({ version: -1 })
+        .limit(1)
+        .toArray()
+      let nextVersion = (maxVersion[0]?.version || 0) + 1
+      
+      // Generate 3 itinerary styles
+      const styles = [
+        { title: 'Balanced', timeBlocks: ['morning', 'evening'], itemsPerDay: 2 },
+        { title: 'Packed', timeBlocks: ['morning', 'afternoon', 'evening'], itemsPerDay: 3 },
+        { title: 'Chill', timeBlocks: ['evening'], itemsPerDay: 1, addFreeTime: true }
+      ]
+      
+      const generatedItineraries = []
+      
+      for (const style of styles) {
+        const itinerary = {
+          id: uuidv4(),
+          tripId,
+          version: nextVersion++,
+          title: style.title,
+          status: 'draft',
+          startDay: trip.lockedStartDate,
+          endDay: trip.lockedEndDate,
+          createdBy: null, // system-generated
+          createdAt: new Date().toISOString()
+        }
+        
+        await db.collection('itineraries').insertOne(itinerary)
+        
+        // Generate items
+        const items = []
+        let ideaIndex = 0
+        
+        for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
+          const day = days[dayIdx]
+          let order = 0
+          
+          for (const timeBlock of style.timeBlocks) {
+            const idea = ideasPool[ideaIndex % ideasPool.length]
+            ideaIndex++
+            
+            items.push({
+              id: uuidv4(),
+              itineraryId: itinerary.id,
+              day,
+              timeBlock,
+              title: idea.title,
+              notes: idea.category ? `Category: ${idea.category}` : null,
+              locationText: null,
+              order: order++
+            })
+          }
+          
+          // Add free time note for Chill style
+          if (style.addFreeTime) {
+            items.push({
+              id: uuidv4(),
+              itineraryId: itinerary.id,
+              day,
+              timeBlock: 'afternoon',
+              title: 'Free time',
+              notes: 'Relax, explore at your own pace, or rest up',
+              locationText: null,
+              order: order++
+            })
+          }
+        }
+        
+        if (items.length > 0) {
+          await db.collection('itinerary_items').insertMany(items)
+        }
+        
+        generatedItineraries.push({
+          ...itinerary,
+          items
+        })
+      }
+      
+      return handleCORS(NextResponse.json({
+        message: 'Itineraries generated',
+        itineraries: generatedItineraries
+      }))
+    }
+    
+    // Select itinerary - PATCH /api/trips/:tripId/itineraries/:itineraryId/select
+    if (route.match(/^\/trips\/[^/]+\/itineraries\/[^/]+\/select$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const itineraryId = path[3]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      
+      // Only trip creator or circle owner can select
+      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator or circle owner can select an itinerary' },
+          { status: 403 }
+        ))
+      }
+      
+      const itinerary = await db.collection('itineraries').findOne({ id: itineraryId, tripId })
+      if (!itinerary) {
+        return handleCORS(NextResponse.json({ error: 'Itinerary not found' }, { status: 404 }))
+      }
+      
+      // Unselect any previously selected itinerary for this trip
+      await db.collection('itineraries').updateMany(
+        { tripId, status: 'selected' },
+        { $set: { status: 'draft' } }
+      )
+      
+      // Mark this one as selected
+      await db.collection('itineraries').updateOne(
+        { id: itineraryId },
+        { $set: { status: 'selected' } }
+      )
+      
+      return handleCORS(NextResponse.json({ message: 'Itinerary selected' }))
+    }
+    
+    // Update itinerary items - PATCH /api/trips/:tripId/itineraries/:itineraryId/items
+    if (route.match(/^\/trips\/[^/]+\/itineraries\/[^/]+\/items$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const itineraryId = path[3]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const itinerary = await db.collection('itineraries').findOne({ id: itineraryId, tripId })
+      if (!itinerary) {
+        return handleCORS(NextResponse.json({ error: 'Itinerary not found' }, { status: 404 }))
+      }
+      
+      // Cannot edit selected itinerary
+      if (itinerary.status === 'selected') {
+        return handleCORS(NextResponse.json(
+          { error: 'Cannot edit a selected itinerary' },
+          { status: 400 }
+        ))
+      }
+      
+      const body = await request.json()
+      const { items } = body // Array of items to replace
+      
+      if (!items || !Array.isArray(items)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Items array is required' },
+          { status: 400 }
+        ))
+      }
+      
+      // Delete existing items
+      await db.collection('itinerary_items').deleteMany({ itineraryId })
+      
+      // Insert new items
+      const newItems = items.map((item, idx) => ({
+        id: item.id || uuidv4(),
+        itineraryId,
+        day: item.day,
+        timeBlock: item.timeBlock,
+        title: item.title,
+        notes: item.notes || null,
+        locationText: item.locationText || null,
+        order: item.order ?? idx
+      }))
+      
+      if (newItems.length > 0) {
+        await db.collection('itinerary_items').insertMany(newItems)
+      }
+      
+      return handleCORS(NextResponse.json({
+        message: 'Itinerary updated',
+        items: newItems
+      }))
+    }
+
     // ============ DEFAULT ROUTES ============
     
     // Root endpoint
