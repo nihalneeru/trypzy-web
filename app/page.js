@@ -2137,6 +2137,31 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                           </div>
                         ))}
                       </div>
+                      
+                      {/* Optional Activity Ideas (Idea Jar) */}
+                      <div className="mt-6 pt-6 border-t">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Lightbulb className="h-5 w-5 text-yellow-500" />
+                          <span className="font-medium text-sm">Any activity ideas? (optional)</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">Suggest up to 3 activities you'd like to do on this trip</p>
+                        <div className="grid gap-2">
+                          {activityIdeas.map((idea, idx) => (
+                            <Input
+                              key={idx}
+                              value={idea}
+                              onChange={(e) => {
+                                const newIdeas = [...activityIdeas]
+                                newIdeas[idx] = e.target.value
+                                setActivityIdeas(newIdeas)
+                              }}
+                              placeholder={`Activity idea ${idx + 1}...`}
+                              className="text-sm"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
                       <div className="mt-6 flex gap-4 flex-wrap">
                         <Button onClick={saveAvailability} disabled={saving}>
                           {saving ? 'Saving...' : 'Save Availability'}
