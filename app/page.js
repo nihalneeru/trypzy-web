@@ -2333,6 +2333,352 @@ function TripDetailView({ trip, token, user, onRefresh }) {
           />
         </TabsContent>
 
+        {/* Itinerary Tab */}
+        <TabsContent value="itinerary">
+          {selectedItinerary ? (
+            // Itinerary Editor View
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Button variant="ghost" size="icon" onClick={() => setSelectedItinerary(null)}>
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <div>
+                    <h2 className="text-xl font-semibold">{selectedItinerary.title} Itinerary</h2>
+                    <p className="text-sm text-gray-500">
+                      {selectedItinerary.status === 'selected' ? 'Final itinerary (read-only)' : 'Edit activities for each day'}
+                    </p>
+                  </div>
+                </div>
+                {selectedItinerary.status !== 'selected' && (
+                  <div className="flex gap-2">
+                    <Button onClick={saveItineraryItems} disabled={savingItems}>
+                      {savingItems ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <Accordion type="multiple" defaultValue={lockedDays} className="w-full">
+                {lockedDays.map((day) => {
+                  const dayItems = editingItems
+                    .filter(item => item.day === day)
+                    .sort((a, b) => a.order - b.order)
+                  
+                  return (
+                    <AccordionItem key={day} value={day}>
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="h-4 w-4" />
+                          <span className="font-medium">
+                            {new Date(day).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                          </span>
+                          <Badge variant="secondary" className="ml-2">
+                            {dayItems.length} {dayItems.length === 1 ? 'activity' : 'activities'}
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-4 pt-2">
+                          {['morning', 'afternoon', 'evening'].map((timeBlock) => {
+                            const blockItems = dayItems.filter(i => i.timeBlock === timeBlock)
+                            return (
+                              <div key={timeBlock} className="border rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center gap-2">
+                                    {getTimeBlockIcon(timeBlock)}
+                                    <span className="font-medium capitalize">{timeBlock}</span>
+                                  </div>
+                                  {selectedItinerary.status !== 'selected' && (
+                                    <Button size="sm" variant="outline" onClick={() => addItem(day, timeBlock)}>
+                                      <Plus className="h-3 w-3 mr-1" />
+                                      Add
+                                    </Button>
+                                  )}
+                                </div>
+                                
+                                {blockItems.length === 0 ? (
+                                  <p className="text-sm text-gray-400 italic">No activities planned</p>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {blockItems.map((item, idx) => (
+                                      <div key={item.id} className="bg-gray-50 rounded-lg p-3">
+                                        {selectedItinerary.status === 'selected' ? (
+                                          // Read-only view
+                                          <div>
+                                            <p className="font-medium">{item.title}</p>
+                                            {item.notes && <p className="text-sm text-gray-600 mt-1">{item.notes}</p>}
+                                            {item.locationText && (
+                                              <p className="text-sm text-indigo-600 mt-1 flex items-center gap-1">
+                                                <MapPin className="h-3 w-3" />
+                                                {item.locationText}
+                                              </p>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          // Editable view
+                                          <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                              <Input
+                                                value={item.title}
+                                                onChange={(e) => updateItem(item.id, 'title', e.target.value)}
+                                                placeholder="Activity name"
+                                                className="flex-1"
+                                              />
+                                              <div className="flex gap-1">
+                                                <Button 
+                                                  size="icon" 
+                                                  variant="ghost" 
+                                                  className="h-8 w-8"
+                                                  onClick={() => moveItem(item.id, 'up')}
+                                                  disabled={idx === 0}
+                                                >
+                                                  <ChevronUp className="h-4 w-4" />
+                                                </Button>
+                                                <Button 
+                                                  size="icon" 
+                                                  variant="ghost"
+                                                  className="h-8 w-8"
+                                                  onClick={() => moveItem(item.id, 'down')}
+                                                  disabled={idx === blockItems.length - 1}
+                                                >
+                                                  <ChevronDown className="h-4 w-4" />
+                                                </Button>
+                                                <Button 
+                                                  size="icon" 
+                                                  variant="ghost"
+                                                  className="h-8 w-8 text-red-500 hover:text-red-600"
+                                                  onClick={() => removeItem(item.id)}
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                              <Input
+                                                value={item.notes || ''}
+                                                onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
+                                                placeholder="Notes (optional)"
+                                                className="text-sm"
+                                              />
+                                              <Input
+                                                value={item.locationText || ''}
+                                                onChange={(e) => updateItem(item.id, 'locationText', e.target.value)}
+                                                placeholder="Location (optional)"
+                                                className="text-sm"
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )
+                })}
+              </Accordion>
+            </div>
+          ) : (
+            // Itinerary List View
+            <div className="space-y-6">
+              {/* Activity Ideas Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Lightbulb className="h-5 w-5 text-yellow-500" />
+                    Activity Ideas
+                  </CardTitle>
+                  <CardDescription>
+                    Suggest activities for the trip. Popular ideas will be included in generated itineraries.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {/* Add Idea Form */}
+                  <div className="flex gap-2 mb-4">
+                    <Input
+                      value={newIdea.title}
+                      onChange={(e) => setNewIdea({ ...newIdea, title: e.target.value })}
+                      placeholder="e.g. Visit the local market, Go snorkeling..."
+                      className="flex-1"
+                    />
+                    <Select value={newIdea.category} onValueChange={(v) => setNewIdea({ ...newIdea, category: v })}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map(cat => (
+                          <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={addIdea} disabled={addingIdea || !newIdea.title.trim()}>
+                      {addingIdea ? 'Adding...' : 'Add Idea'}
+                    </Button>
+                  </div>
+                  
+                  {/* Ideas List */}
+                  {loadingIdeas ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin h-6 w-6 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                    </div>
+                  ) : uniqueIdeas.length === 0 ? (
+                    <p className="text-center text-gray-500 py-6">
+                      No ideas yet. Add some activities you'd like to do!
+                    </p>
+                  ) : (
+                    <div className="grid gap-2">
+                      {uniqueIdeas.map((idea) => (
+                        <div 
+                          key={idea.id} 
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1">
+                              <span className="text-lg font-semibold text-indigo-600">{idea.count}</span>
+                              <span className="text-xs text-gray-500">vote{idea.count !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div>
+                              <p className="font-medium">{idea.title}</p>
+                              {idea.category && (
+                                <Badge variant="secondary" className="text-xs mt-1">
+                                  {categories.find(c => c.value === idea.category)?.label || idea.category}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          {idea.isAuthor && (
+                            <Button 
+                              size="icon" 
+                              variant="ghost"
+                              className="h-8 w-8 text-gray-400 hover:text-red-500"
+                              onClick={() => deleteIdea(idea.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Generate Itineraries Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ListTodo className="h-5 w-5" />
+                    Itinerary Drafts
+                  </CardTitle>
+                  <CardDescription>
+                    Generate 3 itinerary styles based on group activity ideas
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button 
+                    onClick={generateItineraries} 
+                    disabled={generating}
+                    className="mb-6"
+                  >
+                    {generating ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : itineraries.length > 0 ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Regenerate Itineraries
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate Itineraries
+                      </>
+                    )}
+                  </Button>
+                  
+                  {loadingItineraries ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin h-6 w-6 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                    </div>
+                  ) : itineraries.length === 0 ? (
+                    <p className="text-center text-gray-500 py-6">
+                      No itineraries generated yet. Click the button above to create drafts.
+                    </p>
+                  ) : (
+                    <div className="grid md:grid-cols-3 gap-4">
+                      {itineraries.map((itin) => {
+                        const isSelected = itin.status === 'selected'
+                        const itemsPerDay = lockedDays.length > 0 
+                          ? Math.round(itin.items.length / lockedDays.length)
+                          : 0
+                        
+                        return (
+                          <Card 
+                            key={itin.id} 
+                            className={`cursor-pointer hover:shadow-md transition-shadow ${
+                              isSelected ? 'ring-2 ring-green-500 bg-green-50' : ''
+                            }`}
+                          >
+                            <CardHeader className="pb-3">
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="text-lg">{itin.title}</CardTitle>
+                                {isSelected && (
+                                  <Badge className="bg-green-100 text-green-800">
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Selected
+                                  </Badge>
+                                )}
+                              </div>
+                              <CardDescription>
+                                ~{itemsPerDay} activities per day
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <div className="text-sm text-gray-600 mb-4">
+                                <p>{itin.items.length} total activities</p>
+                                <p className="text-xs text-gray-400">
+                                  {itin.startDay} → {itin.endDay}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  className="flex-1"
+                                  onClick={() => openItineraryEditor(itin)}
+                                >
+                                  {isSelected ? 'View' : 'View & Edit'}
+                                </Button>
+                                {!isSelected && (trip.isCreator || trip.circle?.ownerId === user.id) && (
+                                  <Button 
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={() => selectItinerary(itin.id)}
+                                  >
+                                    Select as Final
+                                  </Button>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+
         {/* Chat Tab */}
         <TabsContent value="chat">
           <Card className="h-[500px] flex flex-col">
