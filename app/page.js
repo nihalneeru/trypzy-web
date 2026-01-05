@@ -2059,10 +2059,17 @@ function TripDetailView({ trip, token, user, onRefresh }) {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 flex-wrap">
           <TabsTrigger value="planning">
             <CalendarIcon className="h-4 w-4 mr-2" />
             Planning
+          </TabsTrigger>
+          <TabsTrigger value="itinerary" disabled={trip.status !== 'locked'}>
+            <ListTodo className="h-4 w-4 mr-2" />
+            Itinerary
+            {trip.status !== 'locked' && (
+              <Lock className="h-3 w-3 ml-1 text-gray-400" />
+            )}
           </TabsTrigger>
           <TabsTrigger value="memories">
             <Camera className="h-4 w-4 mr-2" />
