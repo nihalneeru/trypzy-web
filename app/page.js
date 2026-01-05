@@ -204,10 +204,11 @@ function AuthPage({ onLogin }) {
 }
 
 // Post Card Component
-function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView = false }) {
+function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView = false, onViewItinerary, onProposeTrip }) {
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportReason, setReportReason] = useState('')
   const [reporting, setReporting] = useState(false)
+  const [itineraryExpanded, setItineraryExpanded] = useState(false)
   
   const handleReport = async () => {
     if (!reportReason.trim()) return
@@ -224,6 +225,15 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
       toast.error(error.message)
     } finally {
       setReporting(false)
+    }
+  }
+
+  const getTimeBlockIcon = (timeBlock) => {
+    switch (timeBlock) {
+      case 'morning': return <Sun className="h-3 w-3 text-yellow-500" />
+      case 'afternoon': return <Sunset className="h-3 w-3 text-orange-500" />
+      case 'evening': return <Moon className="h-3 w-3 text-indigo-500" />
+      default: return <Clock className="h-3 w-3 text-gray-400" />
     }
   }
 
@@ -303,6 +313,86 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
         {/* Caption */}
         {post.caption && (
           <p className="text-gray-700 text-sm">{post.caption}</p>
+        )}
+        
+        {/* Itinerary Snapshot - Only show if post has attached itinerary */}
+        {post.itinerarySnapshot && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <button
+              onClick={() => setItineraryExpanded(!itineraryExpanded)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-2">
+                <ListTodo className="h-4 w-4 text-indigo-600" />
+                <span className="font-medium text-sm text-gray-900">Itinerary Snapshot</span>
+                <Badge variant="secondary" className="text-xs">
+                  {post.itinerarySnapshot.tripLength} days • {post.itinerarySnapshot.style}
+                </Badge>
+              </div>
+              {itineraryExpanded ? (
+                <ChevronUp className="h-4 w-4 text-gray-400" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              )}
+            </button>
+            
+            {itineraryExpanded && (
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-gray-500 italic">
+                  This itinerary worked for them. Your group can change it.
+                </p>
+                
+                {/* Day-by-day summary */}
+                <div className="space-y-2">
+                  {post.itinerarySnapshot.days?.map((day) => (
+                    <div key={day.dayNumber} className="bg-gray-50 rounded-lg p-3">
+                      <p className="font-medium text-xs text-gray-700 mb-2">Day {day.dayNumber}</p>
+                      <div className="space-y-1">
+                        {day.items.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-xs text-gray-600">
+                            {getTimeBlockIcon(item.timeBlock)}
+                            <span className="truncate">{item.title}</span>
+                          </div>
+                        ))}
+                        {day.hasMore && (
+                          <p className="text-xs text-gray-400 pl-5">
+                            +{day.totalItems - day.items.length} more activities
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Itinerary Actions - Only in discover view */}
+                {isDiscoverView && (
+                  <div className="flex gap-2 pt-2">
+                    {onViewItinerary && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1 text-xs"
+                        onClick={() => onViewItinerary(post)}
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        View full itinerary
+                      </Button>
+                    )}
+                    {onProposeTrip && (
+                      <Button 
+                        size="sm" 
+                        className="flex-1 text-xs"
+                        onClick={() => onProposeTrip(post)}
+                      >
+                        <UserPlus className="h-3 w-3 mr-1" />
+                        Propose to circle
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
         
         {/* Actions */}
