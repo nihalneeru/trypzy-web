@@ -1245,6 +1245,19 @@ function Dashboard({ user, token, onLogout }) {
     }
   }
 
+  const handleNavigateToTrip = async (circleId, tripId) => {
+    // Navigate to the newly proposed trip
+    try {
+      const circleData = await api(`/circles/${circleId}`, { method: 'GET' }, token)
+      setSelectedCircle(circleData)
+      const tripData = await api(`/trips/${tripId}`, { method: 'GET' }, token)
+      setSelectedTrip(tripData)
+      setView('trip')
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
