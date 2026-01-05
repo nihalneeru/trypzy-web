@@ -804,7 +804,6 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
             Memories
           </TabsTrigger>
         </TabsList>
-      </Tabs>
 
       {/* Search & Filters */}
       <div className="mb-6 space-y-4">
