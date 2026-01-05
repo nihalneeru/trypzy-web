@@ -1998,6 +1998,177 @@ async function handleRoute(request, { params }) {
       }))
     }
     
+    // Propose trip from a memory post - POST /api/discover/posts/:postId/propose
+    if (route.match(/^\/discover\/posts\/[^/]+\/propose$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const postId = path[2]
+      const body = await request.json()
+      const { circleId } = body
+      
+      if (!circleId) {
+        return handleCORS(NextResponse.json({ error: 'Circle ID is required' }, { status: 400 }))
+      }
+      
+      // Verify user membership in target circle
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get the source post
+      const sourcePost = await db.collection('posts').findOne({ id: postId, discoverable: true })
+      if (!sourcePost) {
+        return handleCORS(NextResponse.json({ error: 'Post not found or not discoverable' }, { status: 404 }))
+      }
+      
+      // Post must have an itinerary attached
+      if (!sourcePost.itineraryId) {
+        return handleCORS(NextResponse.json(
+          { error: 'This memory does not have an itinerary attached' },
+          { status: 400 }
+        ))
+      }
+      
+      // Get the itinerary
+      const sourceItinerary = await db.collection('itineraries').findOne({
+        id: sourcePost.itineraryId,
+        status: 'selected'
+      })
+      
+      if (!sourceItinerary) {
+        return handleCORS(NextResponse.json({ error: 'Itinerary not found' }, { status: 404 }))
+      }
+      
+      // Get source items
+      const sourceItems = await db.collection('itinerary_items')
+        .find({ itineraryId: sourceItinerary.id })
+        .sort({ day: 1, order: 1 })
+        .toArray()
+      
+      // Calculate trip length from itinerary
+      const tripLength = sourceItems.length > 0 
+        ? Math.max(...sourceItems.map(i => typeof i.day === 'number' ? i.day : parseInt(i.day) || 1))
+        : 3
+      
+      // Use destination from post or fall back to itinerary info
+      const destination = sourcePost.destinationText || null
+      
+      // Create date range for new trip (start from 2 weeks from now)
+      const today = new Date()
+      const earliestStart = new Date(today)
+      earliestStart.setDate(today.getDate() + 14)
+      const latestEnd = new Date(earliestStart)
+      latestEnd.setDate(earliestStart.getDate() + tripLength + 13)
+      
+      // Create new trip
+      const newTrip = {
+        id: uuidv4(),
+        circleId,
+        name: destination ? `${destination} Trip` : `Inspired Trip`,
+        description: `A ${tripLength}-day trip inspired by a traveler's experience. Your group will decide the dates and can customize the itinerary!`,
+        type: 'collaborative',
+        startDate: earliestStart.toISOString().split('T')[0],
+        endDate: latestEnd.toISOString().split('T')[0],
+        duration: tripLength,
+        status: 'scheduling',
+        lockedStartDate: null,
+        lockedEndDate: null,
+        createdBy: auth.user.id,
+        inspiredBy: {
+          sourceType: 'memory',
+          sourcePostId: postId,
+          destination,
+          itineraryStyle: sourceItinerary.title || null
+        },
+        createdAt: new Date().toISOString()
+      }
+      
+      await db.collection('trips').insertOne(newTrip)
+      
+      // Copy itinerary as editable draft template
+      if (sourceItems.length > 0) {
+        // Group source items by day number
+        const dayMap = new Map()
+        const uniqueDays = [...new Set(sourceItems.map(i => {
+          const d = typeof i.day === 'number' ? i.day : parseInt(i.day) || i.dayNumber || 1
+          return d
+        }))].sort((a, b) => a - b)
+        
+        uniqueDays.forEach((day, idx) => {
+          dayMap.set(day, idx + 1)
+        })
+        
+        const templateItinerary = {
+          id: uuidv4(),
+          tripId: newTrip.id,
+          version: 1,
+          title: sourceItinerary.title || 'Balanced',
+          status: 'draft', // Important: Draft so group can edit
+          startDay: null,
+          endDay: null,
+          createdBy: auth.user.id,
+          isTemplate: true,
+          sourceType: 'memory',
+          sourcePostId: postId,
+          createdAt: new Date().toISOString()
+        }
+        
+        await db.collection('itineraries').insertOne(templateItinerary)
+        
+        // Copy items with relative day numbers
+        const templateItems = sourceItems.map((item) => {
+          const originalDay = typeof item.day === 'number' ? item.day : parseInt(item.day) || item.dayNumber || 1
+          const relativeDay = dayMap.get(originalDay) || 1
+          
+          return {
+            id: uuidv4(),
+            itineraryId: templateItinerary.id,
+            day: relativeDay,
+            dayNumber: relativeDay,
+            timeBlock: item.timeBlock,
+            title: item.title,
+            notes: item.notes,
+            locationText: item.locationText,
+            order: item.order
+          }
+        })
+        
+        if (templateItems.length > 0) {
+          await db.collection('itinerary_items').insertMany(templateItems)
+        }
+      }
+      
+      // Add system message
+      await db.collection('trip_messages').insertOne({
+        id: uuidv4(),
+        tripId: newTrip.id,
+        userId: null,
+        content: `${auth.user.name} proposed this trip inspired by a traveler's ${tripLength}-day itinerary. This itinerary worked for them - your group can customize it! Add your availability to get started.`,
+        isSystem: true,
+        createdAt: new Date().toISOString()
+      })
+      
+      return handleCORS(NextResponse.json({
+        message: 'Trip proposed successfully',
+        trip: {
+          id: newTrip.id,
+          name: newTrip.name,
+          circleId: newTrip.circleId
+        }
+      }))
+    }
+    
     // Mark itinerary as discoverable - PATCH /api/trips/:tripId/itineraries/:itineraryId/discoverable
     if (route.match(/^\/trips\/[^/]+\/itineraries\/[^/]+\/discoverable$/) && method === 'PATCH') {
       const auth = await requireAuth(request)
