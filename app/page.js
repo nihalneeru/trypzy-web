@@ -1007,6 +1007,7 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
           </>
         )}
       </TabsContent>
+      </Tabs>
 
       {/* View Itinerary Dialog */}
       <Dialog open={!!selectedItinerary} onOpenChange={(open) => !open && setSelectedItinerary(null)}>
