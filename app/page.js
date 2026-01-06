@@ -806,6 +806,8 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [total, setTotal] = useState(0)
+  const [scope, setScope] = useState('global') // 'global' or 'circle'
+  const [viewCircleId, setViewCircleId] = useState('') // Circle ID for viewing circle feed
   
   // View/Propose state
   const [selectedPost, setSelectedPost] = useState(null)
@@ -814,13 +816,19 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
   const [selectedCircleId, setSelectedCircleId] = useState('')
   const [proposing, setProposing] = useState(false)
 
-  const loadPosts = async (pageNum = 1, searchQuery = search) => {
+  const loadPosts = async (pageNum = 1, searchQuery = search, currentScope = scope, circleId = viewCircleId) => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: pageNum.toString() })
+      const params = new URLSearchParams({ 
+        page: pageNum.toString(),
+        scope: currentScope
+      })
       if (searchQuery) params.append('search', searchQuery)
+      if (currentScope === 'circle' && circleId) {
+        params.append('circleId', circleId)
+      }
       
-      const data = await api(`/discover/posts?${params}`)
+      const data = await api(`/discover/posts?${params}`, {}, token)
       
       if (pageNum === 1) {
         setPosts(data.posts)
@@ -836,6 +844,10 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
       setLoading(false)
     }
   }
+  
+  useEffect(() => {
+    loadPosts(1, search, scope, viewCircleId)
+  }, [scope, viewCircleId])
 
   useEffect(() => {
     loadPosts(1)
@@ -901,14 +913,205 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
     }
   }
 
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareScope, setShareScope] = useState('global') // 'global' or 'circle'
+  const [selectedCircle, setSelectedCircle] = useState('')
+  const [selectedTrip, setSelectedTrip] = useState('')
+  const [shareFiles, setShareFiles] = useState([]) // Store File objects instead of URLs
+  const [sharePreviewUrls, setSharePreviewUrls] = useState([]) // For preview
+  const [shareCaption, setShareCaption] = useState('')
+  const [shareUploading, setShareUploading] = useState(false)
+  const [shareCreating, setShareCreating] = useState(false)
+  const [tripsForCircle, setTripsForCircle] = useState([])
+  const shareFileInputRef = useRef(null)
+
+  // Load trips when circle is selected
+  useEffect(() => {
+    if (selectedCircle && selectedCircle !== '' && token) {
+      loadTripsForCircle(selectedCircle)
+    } else {
+      setTripsForCircle([])
+      setSelectedTrip('')
+    }
+  }, [selectedCircle, token])
+
+  const loadTripsForCircle = async (circleId) => {
+    try {
+      const circle = await api(`/circles/${circleId}`, {}, token)
+      setTripsForCircle(circle.trips || [])
+    } catch (error) {
+      console.error('Failed to load trips:', error)
+      setTripsForCircle([])
+    }
+  }
+
+  const handleShareFileSelect = (e) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    
+    if (shareFiles.length + files.length > 5) {
+      toast.error('Maximum 5 images allowed')
+      return
+    }
+    
+    // Validate file types
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`Invalid file type: ${file.name}. Allowed: JPEG, PNG, WebP`)
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`File ${file.name} is too large. Maximum 5MB`)
+        return
+      }
+    }
+    
+    const newFiles = [...shareFiles, ...files]
+    setShareFiles(newFiles)
+    
+    // Create preview URLs
+    const newPreviews = files.map(file => URL.createObjectURL(file))
+    setSharePreviewUrls([...sharePreviewUrls, ...newPreviews])
+  }
+
+  const removeShareImage = (idx) => {
+    // Revoke preview URL
+    URL.revokeObjectURL(sharePreviewUrls[idx])
+    
+    setShareFiles(shareFiles.filter((_, i) => i !== idx))
+    setSharePreviewUrls(sharePreviewUrls.filter((_, i) => i !== idx))
+  }
+
+  const handleShareSubmit = async () => {
+    if (shareFiles.length === 0) {
+      toast.error('Please add at least one image')
+      return
+    }
+    
+    // Validate scope rules
+    if (shareScope === 'circle' && !selectedCircle) {
+      toast.error('Please select a circle for circle-scoped posts')
+      return
+    }
+    
+    setShareCreating(true)
+    
+    try {
+      // Create FormData
+      const formData = new FormData()
+      formData.append('scope', shareScope)
+      if (shareScope === 'circle') {
+        formData.append('circleId', selectedCircle)
+        if (selectedTrip && selectedTrip !== '' && selectedTrip !== 'none') {
+          formData.append('tripId', selectedTrip)
+        }
+      }
+      if (shareCaption.trim()) {
+        formData.append('caption', shareCaption.trim())
+      }
+      
+      // Add all files with name "images"
+      shareFiles.forEach(file => {
+        formData.append('images', file)
+      })
+      
+      // Send multipart/form-data
+      const response = await fetch('/api/discover/posts', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      })
+      
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create post')
+      }
+      
+      toast.success('Shared to Discover!')
+      setShowShareModal(false)
+      setShareScope('global')
+      setSelectedCircle('')
+      setSelectedTrip('')
+      setTripsForCircle([])
+      setShareFiles([])
+      // Clean up preview URLs
+      sharePreviewUrls.forEach(url => URL.revokeObjectURL(url))
+      setSharePreviewUrls([])
+      setShareCaption('')
+      loadPosts(1, search, scope, viewCircleId) // Refresh posts
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setShareCreating(false)
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-          <Sparkles className="h-8 w-8 text-indigo-600" />
-          Discover
-        </h1>
-        <p className="text-gray-600 mt-1">Travel stories and inspiration from fellow explorers</p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <Sparkles className="h-8 w-8 text-indigo-600" />
+            Discover
+          </h1>
+          <p className="text-gray-600 mt-1">Travel stories and inspiration from fellow explorers</p>
+        </div>
+        {token && (
+          <Button onClick={() => setShowShareModal(true)} className="flex-shrink-0">
+            <Plus className="h-4 w-4 mr-2" />
+            Share to Discover
+          </Button>
+        )}
+      </div>
+
+      {/* Scope Toggle */}
+      <div className="mb-6 flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setScope('global')
+              setViewCircleId('')
+            }}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              scope === 'global'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Global
+          </button>
+          {token && (
+            <button
+              onClick={() => setScope('circle')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                scope === 'circle'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              My Circles
+            </button>
+          )}
+        </div>
+        
+        {/* Circle selector for circle scope */}
+        {scope === 'circle' && token && circles && circles.length > 0 && (
+          <Select value={viewCircleId || undefined} onValueChange={(value) => setViewCircleId(value || '')}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select a circle..." />
+            </SelectTrigger>
+            <SelectContent>
+              {circles.map((circle) => (
+                <SelectItem key={circle.id} value={circle.id}>
+                  {circle.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Search */}
@@ -948,9 +1151,15 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               {search ? 'No stories found' : 'No stories yet'}
             </h3>
-            <p className="text-gray-500">
+            <p className="text-gray-500 mb-4">
               {search ? 'Try a different search term' : 'Be the first to share your travel story!'}
             </p>
+            {token && !search && (
+              <Button onClick={() => setShowShareModal(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Share Your Story
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -1148,6 +1357,164 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
               disabled={proposing || !selectedCircleId}
             >
               {proposing ? 'Proposing...' : 'Propose Trip'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share to Discover Dialog */}
+      <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              Share to Discover
+            </DialogTitle>
+            <DialogDescription>
+              Share your travel memories publicly. Select a circle for context (circle name won't be shown publicly).
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Scope Selector */}
+            <div className="space-y-2">
+              <Label>Visibility Scope</Label>
+              <Select value={shareScope} onValueChange={(value) => {
+                setShareScope(value)
+                if (value === 'global') {
+                  setSelectedCircle('')
+                  setSelectedTrip('')
+                  setTripsForCircle([])
+                }
+              }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="global">Global (Everyone)</SelectItem>
+                  <SelectItem value="circle">Circle-only Discover (Members of selected circle)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                {shareScope === 'global' 
+                  ? "Visible to everyone on Discover" 
+                  : "Visible only to members of the selected circle"}
+              </p>
+            </div>
+            
+            {/* Circle Selector (Required if scope=circle) */}
+            {shareScope === 'circle' && (
+              <div className="space-y-2">
+                <Label>Circle <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={selectedCircle || undefined} 
+                  onValueChange={(value) => setSelectedCircle(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a circle..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {circles && circles.length > 0 ? circles.map((circle) => (
+                      <SelectItem key={circle.id} value={circle.id}>
+                        {circle.name}
+                      </SelectItem>
+                    )) : (
+                      <SelectItem value="" disabled>No circles available</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">Circle name won't be visible publicly</p>
+              </div>
+            )}
+
+            {/* Trip Selector (optional) */}
+            {selectedCircle && selectedCircle !== '' && tripsForCircle.length > 0 && (
+              <div className="space-y-2">
+                <Label>Trip (optional)</Label>
+                <Select 
+                  value={selectedTrip === '' ? undefined : (selectedTrip || undefined)} 
+                  onValueChange={(value) => setSelectedTrip(value === 'none' ? '' : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {tripsForCircle.map((trip) => (
+                      <SelectItem key={trip.id} value={trip.id}>
+                        {trip.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Image Upload */}
+            <div className="space-y-2">
+              <Label>Photos (1-5 images) <span className="text-red-500">*</span></Label>
+              <div className="grid grid-cols-5 gap-2">
+                {sharePreviewUrls.map((url, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => removeShareImage(idx)}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                {shareFiles.length < 5 && (
+                  <button
+                    onClick={() => shareFileInputRef.current?.click()}
+                    className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-indigo-500 flex items-center justify-center text-gray-400 hover:text-indigo-500"
+                  >
+                    {shareUploading ? (
+                      <RefreshCw className="h-6 w-6 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-6 w-6" />
+                    )}
+                  </button>
+                )}
+              </div>
+              <input
+                ref={shareFileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                multiple
+                onChange={handleShareFileSelect}
+                className="hidden"
+              />
+            </div>
+
+            {/* Caption */}
+            <div className="space-y-2">
+              <Label>Caption (optional)</Label>
+              <Textarea
+                value={shareCaption}
+                onChange={(e) => setShareCaption(e.target.value)}
+                placeholder="Share your story..."
+                rows={3}
+              />
+            </div>
+
+            {/* Discoverable Notice */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+              <p className="font-medium">This will be shared publicly</p>
+              <p className="text-blue-600">Anyone can see this in Discover. Your circle name stays private.</p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowShareModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleShareSubmit} 
+              disabled={shareCreating || shareFiles.length === 0 || (shareScope === 'circle' && !selectedCircle)}
+            >
+              {shareCreating ? 'Sharing...' : 'Share to Discover'}
             </Button>
           </DialogFooter>
         </DialogContent>

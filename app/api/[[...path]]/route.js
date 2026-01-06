@@ -1516,138 +1516,8 @@ async function handleRoute(request, { params }) {
     }
     
     // ============ DISCOVER ROUTES ============
-    
-    // Get discoverable posts - GET /api/discover/posts (public, read-only)
-    if (route === '/discover/posts' && method === 'GET') {
-      const url = new URL(request.url)
-      const search = url.searchParams.get('search')?.toLowerCase() || ''
-      const page = parseInt(url.searchParams.get('page') || '1')
-      const limit = 20
-      const skip = (page - 1) * limit
-      
-      // Build query for discoverable posts only
-      const query = { discoverable: true }
-      
-      // Optional search by destination or caption
-      if (search) {
-        query.$or = [
-          { destinationText: { $regex: search, $options: 'i' } },
-          { caption: { $regex: search, $options: 'i' } }
-        ]
-      }
-      
-      const posts = await db.collection('posts')
-        .find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .toArray()
-      
-      const totalCount = await db.collection('posts').countDocuments(query)
-      
-      // Get user details (only name for public display)
-      const userIds = [...new Set(posts.map(p => p.userId))]
-      const tripIds = [...new Set(posts.filter(p => p.tripId).map(p => p.tripId))]
-      const itineraryIds = [...new Set(posts.filter(p => p.itineraryId).map(p => p.itineraryId))]
-      
-      const users = await db.collection('users')
-        .find({ id: { $in: userIds } })
-        .toArray()
-      
-      const trips = tripIds.length > 0 
-        ? await db.collection('trips').find({ id: { $in: tripIds } }).toArray()
-        : []
-      
-      // Fetch itinerary data for posts that have attached itineraries
-      let itineraries = []
-      let itineraryItems = []
-      if (itineraryIds.length > 0) {
-        itineraries = await db.collection('itineraries')
-          .find({ id: { $in: itineraryIds } })
-          .toArray()
-        itineraryItems = await db.collection('itinerary_items')
-          .find({ itineraryId: { $in: itineraryIds } })
-          .sort({ day: 1, order: 1 })
-          .toArray()
-      }
-      
-      const postsForDiscover = posts.map(post => {
-        const trip = post.tripId ? trips.find(t => t.id === post.tripId) : null
-        const itinerary = post.itineraryId ? itineraries.find(i => i.id === post.itineraryId) : null
-        const items = post.itineraryId ? itineraryItems.filter(i => i.itineraryId === post.itineraryId) : []
-        
-        // Build itinerary snapshot if attached
-        let itinerarySnapshot = null
-        if (itinerary && items.length > 0) {
-          // Group items by day
-          const dayMap = new Map()
-          items.forEach(item => {
-            if (!dayMap.has(item.day)) {
-              dayMap.set(item.day, [])
-            }
-            dayMap.get(item.day).push(item)
-          })
-          
-          const tripLength = Math.max(...items.map(i => i.day))
-          
-          // Build day summaries
-          const days = []
-          for (let d = 1; d <= tripLength; d++) {
-            const dayItems = dayMap.get(d) || []
-            // For highlights mode, show top 3 per day; for full, show all
-            const displayItems = post.itineraryMode === 'highlights' 
-              ? dayItems.slice(0, 3)
-              : dayItems
-            
-            days.push({
-              dayNumber: d,
-              items: displayItems.map(item => ({
-                id: item.id,
-                title: item.title,
-                timeBlock: item.timeBlock,
-                notes: item.notes,
-                locationText: item.locationText
-              })),
-              totalItems: dayItems.length,
-              hasMore: post.itineraryMode === 'highlights' && dayItems.length > 3
-            })
-          }
-          
-          itinerarySnapshot = {
-            itineraryId: itinerary.id,
-            tripId: post.tripId,
-            style: itinerary.title,
-            tripLength,
-            totalActivities: items.length,
-            mode: post.itineraryMode || 'highlights',
-            days
-          }
-        }
-        
-        return {
-          id: post.id,
-          caption: post.caption,
-          mediaUrls: post.mediaUrls || [],
-          destinationText: post.destinationText,
-          createdAt: post.createdAt,
-          authorName: users.find(u => u.id === post.userId)?.name || 'Anonymous',
-          tripName: trip?.name || null,
-          tripId: post.tripId,
-          hasItinerary: !!itinerary,
-          itinerarySnapshot
-        }
-      })
-      
-      return handleCORS(NextResponse.json({
-        posts: postsForDiscover,
-        pagination: {
-          page,
-          limit,
-          total: totalCount,
-          hasMore: skip + posts.length < totalCount
-        }
-      }))
-    }
+    // Note: GET /api/discover/posts and POST /api/discover/posts are now handled by
+    // app/api/discover/posts/route.js
     
     // Get discoverable itineraries - GET /api/discover/itineraries (public, read-only)
     if (route === '/discover/itineraries' && method === 'GET') {
@@ -2955,6 +2825,9 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // ============ DEV/SEEDING ROUTES ============
+    // Note: POST /api/seed/discover is now handled by app/api/seed/discover/route.js
+    
     // ============ DEFAULT ROUTES ============
     
     // Root endpoint
