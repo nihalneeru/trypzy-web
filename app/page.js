@@ -2098,7 +2098,15 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     setAvailability({ ...availability, [day]: status })
   }
 
+  const hasAnyAvailability = () => {
+    return Object.values(availability).some(status => status !== undefined && status !== null)
+  }
+
   const saveAvailability = async () => {
+    if (!hasAnyAvailability()) {
+      toast.error('Please mark at least one day as available, maybe, or unavailable')
+      return
+    }
     setSaving(true)
     try {
       const availabilities = Object.entries(availability).map(([day, status]) => ({ day, status }))
@@ -2155,17 +2163,30 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
+  const [showLockConfirm, setShowLockConfirm] = useState(false)
+  const [pendingLockOption, setPendingLockOption] = useState(null)
+
   const lockTrip = async (optionKey) => {
+    setPendingLockOption(optionKey)
+    setShowLockConfirm(true)
+  }
+
+  const confirmLockTrip = async () => {
+    if (!pendingLockOption) return
     try {
       await api(`/trips/${trip.id}/lock`, {
         method: 'POST',
-        body: JSON.stringify({ optionKey })
+        body: JSON.stringify({ optionKey: pendingLockOption })
       }, token)
       
-      toast.success('Trip dates locked!')
+      toast.success('Trip dates locked! 🎉 Planning can now begin.')
+      setShowLockConfirm(false)
+      setPendingLockOption(null)
       onRefresh()
     } catch (error) {
       toast.error(error.message)
+      setShowLockConfirm(false)
+      setPendingLockOption(null)
     }
   }
 
@@ -2356,6 +2377,8 @@ function TripDetailView({ trip, token, user, onRefresh }) {
 
   const getStatusBadge = () => {
     switch (trip.status) {
+      case 'proposed':
+        return <Badge className="bg-gray-100 text-gray-800">Proposed</Badge>
       case 'scheduling':
         return <Badge className="bg-yellow-100 text-yellow-800">Scheduling</Badge>
       case 'voting':
@@ -2363,7 +2386,10 @@ function TripDetailView({ trip, token, user, onRefresh }) {
       case 'locked':
         return <Badge className="bg-green-100 text-green-800">Locked</Badge>
       default:
-        return null
+        // Backward compatibility: treat missing status as scheduling for collaborative trips
+        return trip.type === 'collaborative' 
+          ? <Badge className="bg-yellow-100 text-yellow-800">Scheduling</Badge>
+          : null
     }
   }
 
@@ -2467,6 +2493,62 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         </Card>
       </div>
 
+      {/* Scheduling Progress Panel - Collaborative Trips Only */}
+      {trip.type === 'collaborative' && trip.status !== 'locked' && (
+        <Card className="mb-6 border-blue-200 bg-blue-50/50">
+          <CardContent className="py-4">
+            <div className="flex items-start justify-between flex-wrap gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="font-semibold text-gray-900">Scheduling Progress</h3>
+                  {getStatusBadge()}
+                </div>
+                <div className="space-y-2 text-sm">
+                  {trip.status === 'proposed' && (
+                    <p className="text-gray-600">
+                      This trip is proposed. Start by marking your availability to help the group find the best dates.
+                    </p>
+                  )}
+                  {trip.status === 'scheduling' && (
+                    <>
+                      <p className="text-gray-700 font-medium">
+                        {trip.respondedCount || 0} of {trip.totalMembers || 0} members responded
+                      </p>
+                      <p className="text-gray-600">
+                        {trip.totalMembers - (trip.respondedCount || 0) > 0 
+                          ? `${trip.totalMembers - (trip.respondedCount || 0)} haven't responded yet. We'll proceed with those who did.`
+                          : 'Everyone has responded! Ready to move to voting.'}
+                      </p>
+                    </>
+                  )}
+                  {trip.status === 'voting' && (
+                    <>
+                      <p className="text-gray-700 font-medium">
+                        {trip.votedCount || 0} of {trip.totalMembers || 0} members voted
+                      </p>
+                      <p className="text-gray-600">
+                        Vote for your preferred dates. The trip creator will lock dates based on preferences.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+              {trip.status === 'scheduling' && trip.isCreator && (
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 mb-2">
+                    Ready to move forward?
+                  </p>
+                  <Button variant="outline" size="sm" onClick={openVoting}>
+                    <Vote className="h-4 w-4 mr-2" />
+                    Open Voting
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Hosted Trip Actions */}
       {trip.type === 'hosted' && (
         <Card className="mb-6">
@@ -2521,6 +2603,74 @@ function TripDetailView({ trip, token, user, onRefresh }) {
           {/* Collaborative Trip Planning */}
           {trip.type === 'collaborative' && (
             <>
+              {/* Proposed Phase */}
+              {trip.status === 'proposed' && (
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CalendarIcon className="h-5 w-5" />
+                        Mark Your Availability
+                      </CardTitle>
+                      <CardDescription>
+                        Help the group find the best dates. Approximate availability is okay — locking is the only commitment.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          <strong>Note:</strong> Mark days you're genuinely open. If you don't respond, we'll assume you're unavailable.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        {dates.map((date) => (
+                          <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
+                            <span className="w-32 font-medium text-gray-900">
+                              {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </span>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button
+                                size="sm"
+                                variant={availability[date] === 'available' ? 'default' : 'outline'}
+                                onClick={() => setDayAvailability(date, 'available')}
+                                className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Available
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={availability[date] === 'maybe' ? 'default' : 'outline'}
+                                onClick={() => setDayAvailability(date, 'maybe')}
+                                className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                              >
+                                <HelpCircle className="h-4 w-4 mr-1" />
+                                Maybe
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
+                                onClick={() => setDayAvailability(date, 'unavailable')}
+                                className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Unavailable
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="mt-6 flex gap-4 flex-wrap">
+                        <Button onClick={saveAvailability} disabled={saving || !hasAnyAvailability()}>
+                          {saving ? 'Saving...' : 'Save Availability'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
               {/* Scheduling Phase */}
               {trip.status === 'scheduling' && (
                 <div className="space-y-6">
@@ -2531,14 +2681,19 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                         Submit Your Availability
                       </CardTitle>
                       <CardDescription>
-                        Mark your availability for each day in the trip range
+                        Mark days you're genuinely open. If you don't respond, we'll assume you're unavailable.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          <strong>Remember:</strong> Approximate availability is okay now — locking dates is the only commitment moment.
+                        </p>
+                      </div>
                       <div className="space-y-2">
                         {dates.map((date) => (
                           <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
-                            <span className="w-32 font-medium">
+                            <span className="w-32 font-medium text-gray-900">
                               {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                             </span>
                             <div className="flex gap-2 flex-wrap">
@@ -2599,16 +2754,23 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                       </div>
                       
                       <div className="mt-6 flex gap-4 flex-wrap">
-                        <Button onClick={saveAvailability} disabled={saving}>
-                          {saving ? 'Saving...' : 'Save Availability'}
+                        <Button onClick={saveAvailability} disabled={saving || trip.status === 'voting' || trip.status === 'locked'}>
+                          {trip.status === 'voting' || trip.status === 'locked' 
+                            ? 'Availability Frozen' 
+                            : saving ? 'Saving...' : 'Save Availability'}
                         </Button>
-                        {trip.isCreator && (
+                        {trip.isCreator && trip.status === 'scheduling' && (
                           <Button variant="outline" onClick={openVoting}>
                             <Vote className="h-4 w-4 mr-2" />
                             Open Voting
                           </Button>
                         )}
                       </div>
+                      {(trip.status === 'voting' || trip.status === 'locked') && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Availability cannot be changed after voting has started.
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -2651,7 +2813,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                         Vote for Your Preferred Dates
                       </CardTitle>
                       <CardDescription>
-                        Choose one of the top options based on group availability
+                        Voting is preference — we'll move forward even if everyone doesn't vote.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2683,9 +2845,9 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                           {trip.userVote ? 'Update Vote' : 'Submit Vote'}
                         </Button>
                         {trip.canLock && selectedVote && (
-                          <Button variant="outline" onClick={() => lockTrip(selectedVote)}>
+                          <Button variant="default" onClick={() => lockTrip(selectedVote)}>
                             <Lock className="h-4 w-4 mr-2" />
-                            Lock Selected Dates
+                            Lock Dates
                           </Button>
                         )}
                       </div>
@@ -3185,6 +3347,38 @@ function TripDetailView({ trip, token, user, onRefresh }) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Lock Confirmation Dialog */}
+      <Dialog open={showLockConfirm} onOpenChange={setShowLockConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Lock Trip Dates?</DialogTitle>
+            <DialogDescription>
+              Locking finalizes dates so planning can begin 🎉 Once locked, the trip dates cannot be changed.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingLockOption && (
+            <div className="py-4">
+              <p className="text-sm text-gray-600 mb-2">Selected dates:</p>
+              <p className="font-medium text-lg">
+                {pendingLockOption.split('_')[0]} to {pendingLockOption.split('_')[1]}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowLockConfirm(false)
+              setPendingLockOption(null)
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={confirmLockTrip} className="bg-green-600 hover:bg-green-700">
+              <Lock className="h-4 w-4 mr-2" />
+              Lock Dates
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

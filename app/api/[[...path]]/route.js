@@ -275,6 +275,16 @@ async function handleRoute(request, { params }) {
         joinedAt: new Date().toISOString()
       })
       
+      // Add system message for circle creation
+      await db.collection('circle_messages').insertOne({
+        id: uuidv4(),
+        circleId: circle.id,
+        userId: null,
+        content: `✨ Circle "${name}" was created by ${auth.user.name}`,
+        isSystem: true,
+        createdAt: new Date().toISOString()
+      })
+      
       return handleCORS(NextResponse.json(circle))
     }
     
@@ -355,6 +365,16 @@ async function handleRoute(request, { params }) {
         circleId: circle.id,
         role: 'member',
         joinedAt: new Date().toISOString()
+      })
+      
+      // Add system message for joining circle
+      await db.collection('circle_messages').insertOne({
+        id: uuidv4(),
+        circleId: circle.id,
+        userId: null,
+        content: `👋 ${auth.user.name} joined the circle`,
+        isSystem: true,
+        createdAt: new Date().toISOString()
       })
       
       return handleCORS(NextResponse.json({ message: 'Joined circle successfully', circle }))
@@ -463,7 +483,7 @@ async function handleRoute(request, { params }) {
         startDate, // YYYY-MM-DD
         endDate,   // YYYY-MM-DD
         duration: duration || 3,
-        status: type === 'hosted' ? 'locked' : 'scheduling', // scheduling, voting, locked
+        status: type === 'hosted' ? 'locked' : 'proposed', // proposed, scheduling, voting, locked
         lockedStartDate: type === 'hosted' ? startDate : null,
         lockedEndDate: type === 'hosted' ? endDate : null,
         createdBy: auth.user.id,
@@ -472,12 +492,12 @@ async function handleRoute(request, { params }) {
       
       await db.collection('trips').insertOne(trip)
       
-      // Add system message
+      // Add system message for trip creation
       await db.collection('trip_messages').insertOne({
         id: uuidv4(),
         tripId: trip.id,
         userId: null,
-        content: `Trip "${name}" was created by ${auth.user.name}`,
+        content: `✈️ Trip "${name}" was created by ${auth.user.name}`,
         isSystem: true,
         createdAt: new Date().toISOString()
       })
@@ -510,6 +530,11 @@ async function handleRoute(request, { params }) {
           { error: 'Trip not found' },
           { status: 404 }
         ))
+      }
+      
+      // Backward compatibility: default status for old trips without status field
+      if (!trip.status) {
+        trip.status = trip.type === 'hosted' ? 'locked' : 'scheduling'
       }
       
       // Check membership
@@ -560,8 +585,22 @@ async function handleRoute(request, { params }) {
       // Check if user is participant (for hosted trips)
       const isParticipant = participants.some(p => p.userId === auth.user.id)
       
-      // Get circle info
+      // Get circle info and member count for progress tracking
       const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      
+      // Get all circle members for progress calculation
+      const allMemberships = await db.collection('memberships')
+        .find({ circleId: trip.circleId })
+        .toArray()
+      const totalMembers = allMemberships.length
+      
+      // Count unique users who have submitted availability
+      const usersWithAvailability = [...new Set(availabilities.map(a => a.userId))]
+      const respondedCount = usersWithAvailability.length
+      
+      // Count unique users who have voted
+      const usersWithVotes = [...new Set(votes.map(v => v.userId))]
+      const votedCount = usersWithVotes.length
       
       return handleCORS(NextResponse.json({
         ...trip,
@@ -574,7 +613,11 @@ async function handleRoute(request, { params }) {
         participants: participantUsers.map(u => ({ id: u.id, name: u.name })),
         isParticipant,
         isCreator: trip.createdBy === auth.user.id,
-        canLock: (trip.createdBy === auth.user.id || circle?.ownerId === auth.user.id) && trip.status === 'voting'
+        canLock: (trip.createdBy === auth.user.id || circle?.ownerId === auth.user.id) && trip.status === 'voting',
+        // Progress tracking stats
+        totalMembers,
+        respondedCount,
+        votedCount
       }))
     }
     
@@ -597,9 +640,10 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      if (trip.status === 'locked') {
+      // Guard: Cannot submit availability after voting starts or when locked
+      if (trip.status === 'voting' || trip.status === 'locked') {
         return handleCORS(NextResponse.json(
-          { error: 'Trip dates are already locked' },
+          { error: 'Availability cannot be changed after voting has started' },
           { status: 400 }
         ))
       }
@@ -642,17 +686,28 @@ async function handleRoute(request, { params }) {
       
       if (newAvailabilities.length > 0) {
         await db.collection('availabilities').insertMany(newAvailabilities)
+        
+        // Transition from 'proposed' to 'scheduling' when first availability is submitted
+        if (trip.status === 'proposed') {
+          await db.collection('trips').updateOne(
+            { id: tripId },
+            { $set: { status: 'scheduling' } }
+          )
+          
+          // Add system message for scheduling phase start
+          await db.collection('trip_messages').insertOne({
+            id: uuidv4(),
+            tripId,
+            userId: null,
+            content: `📅 Scheduling has started! Mark your availability to help find the best dates.`,
+            isSystem: true,
+            createdAt: new Date().toISOString()
+          })
+        }
       }
       
-      // Add system message
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
-        tripId,
-        userId: null,
-        content: `${auth.user.name} submitted their availability`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
-      })
+      // Note: No system message for individual availability submissions
+      // (only state transitions generate system messages)
       
       return handleCORS(NextResponse.json({ message: 'Availability saved', availabilities: newAvailabilities }))
     }
@@ -684,9 +739,11 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      if (trip.status !== 'scheduling') {
+      // Allow opening voting from 'proposed' or 'scheduling' states
+      // This supports leader flexibility - they can move forward even if not everyone responded
+      if (trip.status !== 'proposed' && trip.status !== 'scheduling') {
         return handleCORS(NextResponse.json(
-          { error: 'Voting can only be opened during scheduling phase' },
+          { error: 'Voting can only be opened during proposed or scheduling phase' },
           { status: 400 }
         ))
       }
@@ -696,12 +753,12 @@ async function handleRoute(request, { params }) {
         { $set: { status: 'voting' } }
       )
       
-      // Add system message
+      // Add system message for voting phase
       await db.collection('trip_messages').insertOne({
         id: uuidv4(),
         tripId,
         userId: null,
-        content: `Voting is now open! Choose your preferred dates.`,
+        content: `🗳️ Voting is now open! Choose your preferred dates from the top options.`,
         isSystem: true,
         createdAt: new Date().toISOString()
       })
@@ -825,12 +882,16 @@ async function handleRoute(request, { params }) {
         }
       )
       
-      // Add system message
+      // Format dates for display
+      const startDateFormatted = new Date(lockedStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      const endDateFormatted = new Date(lockedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      
+      // Add system message for locked dates
       await db.collection('trip_messages').insertOne({
         id: uuidv4(),
         tripId,
         userId: null,
-        content: `Trip dates locked! ${lockedStartDate} to ${lockedEndDate}`,
+        content: `🔒 Trip dates locked! ${startDateFormatted} to ${endDateFormatted}. Planning can now begin! 🎉`,
         isSystem: true,
         createdAt: new Date().toISOString()
       })
@@ -895,12 +956,12 @@ async function handleRoute(request, { params }) {
         joinedAt: new Date().toISOString()
       })
       
-      // Add system message
+      // Add system message for joining hosted trip
       await db.collection('trip_messages').insertOne({
         id: uuidv4(),
         tripId,
         userId: null,
-        content: `${auth.user.name} joined the trip!`,
+        content: `👋 ${auth.user.name} joined the trip!`,
         isSystem: true,
         createdAt: new Date().toISOString()
       })
@@ -930,12 +991,12 @@ async function handleRoute(request, { params }) {
         userId: auth.user.id
       })
       
-      // Add system message
+      // Add system message for leaving hosted trip
       await db.collection('trip_messages').insertOne({
         id: uuidv4(),
         tripId,
         userId: null,
-        content: `${auth.user.name} left the trip`,
+        content: `👋 ${auth.user.name} left the trip`,
         isSystem: true,
         createdAt: new Date().toISOString()
       })
@@ -2804,6 +2865,16 @@ async function handleRoute(request, { params }) {
         { id: itineraryId },
         { $set: { status: 'selected' } }
       )
+      
+      // Add system message for itinerary selection
+      await db.collection('trip_messages').insertOne({
+        id: uuidv4(),
+        tripId,
+        userId: null,
+        content: `✅ "${itinerary.title}" itinerary selected as the final plan`,
+        isSystem: true,
+        createdAt: new Date().toISOString()
+      })
       
       return handleCORS(NextResponse.json({ message: 'Itinerary selected' }))
     }
