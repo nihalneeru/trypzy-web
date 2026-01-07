@@ -86,4 +86,3 @@ npm start
 - `/lib` - Utility functions and shared code
 - `/scripts` - Utility scripts (e.g., seeding)
 - `/public` - Static assets
-- `/prisma` - Database schema (if using Prisma in the future)
