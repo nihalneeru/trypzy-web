@@ -22,6 +22,9 @@ export async function GET(request) {
     
     const db = await connectToMongo()
     
+    // Get current user if authenticated (for isAuthor flag)
+    const currentUser = await getUserFromToken(request)
+    
     // Build query for discoverable posts only
     const query = { discoverable: true }
     
@@ -166,18 +169,20 @@ export async function GET(request) {
         }
       }
       
-      return {
-        id: post.id,
-        caption: post.caption,
-        mediaUrls: post.mediaUrls || [],
-        destinationText: post.destinationText,
-        createdAt: post.createdAt,
-        authorName: users.find(u => u.id === post.userId)?.name || 'Anonymous',
-        tripName: trip?.name || null,
-        tripId: post.tripId,
-        hasItinerary: !!itinerary,
-        itinerarySnapshot
-      }
+        return {
+          id: post.id,
+          caption: post.caption,
+          mediaUrls: post.mediaUrls || [],
+          destinationText: post.destinationText,
+          createdAt: post.createdAt,
+          authorName: users.find(u => u.id === post.userId)?.name || 'Anonymous',
+          userId: post.userId, // Include userId for authorization checks
+          isAuthor: currentUser && currentUser.id === post.userId, // Check if current user is author
+          tripName: trip?.name || null,
+          tripId: post.tripId,
+          hasItinerary: !!itinerary,
+          itinerarySnapshot
+        }
     })
     
     return handleCORS(NextResponse.json({

@@ -399,10 +399,23 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
         <div className="flex items-center justify-between mt-3 pt-3 border-t">
           {isDiscoverView ? (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setShowReportDialog(true)}>
-                <Flag className="h-4 w-4 mr-1" />
-                Report
-              </Button>
+              {post.isAuthor ? (
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => onEdit?.(post)}>
+                    <Edit className="h-4 w-4 mr-1" />
+                    Edit
+                  </Button>
+                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => onDelete?.(post.id)}>
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={() => setShowReportDialog(true)}>
+                  <Flag className="h-4 w-4 mr-1" />
+                  Report
+                </Button>
+              )}
               {/* CTA for discover - will be handled by parent */}
             </>
           ) : post.isAuthor ? (
@@ -846,11 +859,21 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
   }
   
   useEffect(() => {
+    // Don't load if circle scope is selected but no circle is chosen
+    if (scope === 'circle' && !viewCircleId) {
+      setPosts([])
+      setTotal(0)
+      setHasMore(false)
+      return
+    }
     loadPosts(1, search, scope, viewCircleId)
-  }, [scope, viewCircleId])
+  }, [scope, viewCircleId, search])
 
+  // Initial load - only if not circle scope or circle is selected
   useEffect(() => {
-    loadPosts(1)
+    if (scope !== 'circle' || viewCircleId) {
+      loadPosts(1)
+    }
   }, [])
 
   const handleSearch = (e) => {
@@ -866,6 +889,27 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
   const handleViewItinerary = (post) => {
     setSelectedPost(post)
   }
+
+  const handleDeletePost = async (postId) => {
+    if (!confirm('Are you sure you want to delete this post?')) return
+    
+    try {
+      await api(`/posts/${postId}`, { method: 'DELETE' }, token)
+      toast.success('Post deleted')
+      loadPosts(1, search, scope, viewCircleId) // Refresh posts
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const handleEditPost = (post) => {
+    // Set post to edit and open edit modal
+    setSelectedPost(post)
+    setShowEditModal(true)
+  }
+
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingPost, setEditingPost] = useState(null)
 
   const handleProposeTrip = (post) => {
     if (!token) {
@@ -1098,19 +1142,25 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
         </div>
         
         {/* Circle selector for circle scope */}
-        {scope === 'circle' && token && circles && circles.length > 0 && (
-          <Select value={viewCircleId || undefined} onValueChange={(value) => setViewCircleId(value || '')}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select a circle..." />
-            </SelectTrigger>
-            <SelectContent>
-              {circles.map((circle) => (
-                <SelectItem key={circle.id} value={circle.id}>
-                  {circle.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {scope === 'circle' && token && (
+          <>
+            {circles && circles.length > 0 ? (
+              <Select value={viewCircleId || undefined} onValueChange={(value) => setViewCircleId(value || '')}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select a circle..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {circles.map((circle) => (
+                    <SelectItem key={circle.id} value={circle.id}>
+                      {circle.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-gray-500">No circles available. Join a circle to see circle-scoped posts.</p>
+            )}
+          </>
         )}
       </div>
 
@@ -1144,6 +1194,18 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
         </div>
+      ) : scope === 'circle' && !viewCircleId && circles && circles.length > 0 ? (
+        <Card className="text-center py-12">
+          <CardContent>
+            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Select a Circle
+            </h3>
+            <p className="text-gray-500 mb-4">
+              Choose a circle from the dropdown above to see posts from that circle.
+            </p>
+          </CardContent>
+        </Card>
       ) : posts.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
@@ -1172,6 +1234,8 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
                   isDiscoverView 
                   onViewItinerary={post.hasItinerary ? handleViewItinerary : undefined}
                   onProposeTrip={post.hasItinerary ? handleProposeTrip : undefined}
+                  onDelete={post.isAuthor ? handleDeletePost : undefined}
+                  onEdit={post.isAuthor ? handleEditPost : undefined}
                 />
                 {/* CTA for posts without itinerary */}
                 {!post.hasItinerary && (
@@ -1515,6 +1579,78 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
               disabled={shareCreating || shareFiles.length === 0 || (shareScope === 'circle' && !selectedCircle)}
             >
               {shareCreating ? 'Sharing...' : 'Share to Discover'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Post Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Edit Post
+            </DialogTitle>
+            <DialogDescription>
+              Update your post caption and destination
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedPost && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Caption</Label>
+                <Textarea
+                  value={editingPost?.caption !== undefined ? editingPost.caption : (selectedPost.caption || '')}
+                  onChange={(e) => setEditingPost({ ...(editingPost || {}), caption: e.target.value })}
+                  placeholder="Share your story..."
+                  rows={3}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Destination</Label>
+                <Input
+                  value={editingPost?.destinationText !== undefined ? editingPost.destinationText : (selectedPost.destinationText || '')}
+                  onChange={(e) => setEditingPost({ ...(editingPost || {}), destinationText: e.target.value })}
+                  placeholder="Destination name..."
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowEditModal(false)
+              setEditingPost(null)
+              setSelectedPost(null)
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={async () => {
+                if (!selectedPost) return
+                const postToSave = editingPost || { caption: selectedPost.caption, destinationText: selectedPost.destinationText }
+                try {
+                  await api(`/posts/${selectedPost.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                      caption: postToSave.caption?.trim() || null,
+                      destinationText: postToSave.destinationText?.trim() || null
+                    })
+                  }, token)
+                  toast.success('Post updated')
+                  setShowEditModal(false)
+                  setEditingPost(null)
+                  setSelectedPost(null)
+                  loadPosts(1, search, scope, viewCircleId)
+                } catch (error) {
+                  toast.error(error.message)
+                }
+              }}
+            >
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2023,6 +2159,47 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     }
   }
 
+  const [showEditTripModal, setShowEditTripModal] = useState(false)
+  const [editingTrip, setEditingTrip] = useState(null)
+
+  const handleEditTrip = (trip) => {
+    setEditingTrip({
+      id: trip.id,
+      name: trip.name,
+      description: trip.description || '',
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+      duration: trip.duration
+    })
+    setShowEditTripModal(true)
+  }
+
+  const handleSaveTrip = async () => {
+    if (!editingTrip || !editingTrip.name || !editingTrip.startDate || !editingTrip.endDate) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+    
+    try {
+      await api(`/trips/${editingTrip.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editingTrip.name,
+          description: editingTrip.description,
+          startDate: editingTrip.startDate,
+          endDate: editingTrip.endDate,
+          duration: editingTrip.duration
+        })
+      }, token)
+      toast.success('Trip updated')
+      setShowEditTripModal(false)
+      setEditingTrip(null)
+      onRefresh()
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'scheduling':
@@ -2231,9 +2408,44 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                           )}
                         </div>
                       </div>
-                      <Button variant="ghost">
-                        <ArrowRight className="h-5 w-5" />
-                      </Button>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        {trip.isCreator && trip.status !== 'locked' && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEditTrip?.(trip)
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (confirm('Are you sure you want to delete this trip? This action cannot be undone.')) {
+                                  try {
+                                    await api(`/trips/${trip.id}`, { method: 'DELETE' }, token)
+                                    toast.success('Trip deleted')
+                                    onRefresh?.()
+                                  } catch (error) {
+                                    toast.error(error.message)
+                                  }
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        <Button variant="ghost">
+                          <ArrowRight className="h-5 w-5" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -2345,6 +2557,76 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Trip Modal */}
+      <Dialog open={showEditTripModal} onOpenChange={setShowEditTripModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Trip</DialogTitle>
+            <DialogDescription>Update trip details</DialogDescription>
+          </DialogHeader>
+          
+          {editingTrip && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Trip Name</Label>
+                <Input
+                  value={editingTrip.name}
+                  onChange={(e) => setEditingTrip({ ...editingTrip, name: e.target.value })}
+                  placeholder="Summer Beach Trip"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description (optional)</Label>
+                <Textarea
+                  value={editingTrip.description}
+                  onChange={(e) => setEditingTrip({ ...editingTrip, description: e.target.value })}
+                  placeholder="A relaxing weekend getaway..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    value={editingTrip.startDate}
+                    onChange={(e) => setEditingTrip({ ...editingTrip, startDate: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input
+                    type="date"
+                    value={editingTrip.endDate}
+                    onChange={(e) => setEditingTrip({ ...editingTrip, endDate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Duration (days)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={editingTrip.duration}
+                  onChange={(e) => setEditingTrip({ ...editingTrip, duration: parseInt(e.target.value) || 3 })}
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowEditTripModal(false)
+              setEditingTrip(null)
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTrip}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

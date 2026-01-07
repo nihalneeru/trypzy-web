@@ -434,10 +434,19 @@ async function handleRoute(request, { params }) {
         .sort({ createdAt: -1 })
         .toArray()
       
+      // Include isCreator flag for each trip
+      const tripsWithCreator = trips.map(trip => {
+        const { _id, ...rest } = trip
+        return {
+          ...rest,
+          isCreator: trip.createdBy === auth.user.id
+        }
+      })
+      
       return handleCORS(NextResponse.json({
         ...circle,
         members: membersWithRoles,
-        trips: trips.map(({ _id, ...rest }) => rest),
+        trips: tripsWithCreator,
         isOwner: circle.ownerId === auth.user.id
       }))
     }
@@ -513,6 +522,97 @@ async function handleRoute(request, { params }) {
       }
       
       return handleCORS(NextResponse.json(trip))
+    }
+    
+    // Delete trip - DELETE /api/trips/:id
+    if (route.match(/^\/trips\/[^/]+$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Only trip creator can delete
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator can delete this trip' },
+          { status: 403 }
+        ))
+      }
+      
+      // Delete related data
+      await db.collection('availabilities').deleteMany({ tripId })
+      await db.collection('votes').deleteMany({ tripId })
+      await db.collection('trip_participants').deleteMany({ tripId })
+      await db.collection('posts').deleteMany({ tripId })
+      await db.collection('trip_messages').deleteMany({ tripId })
+      
+      // Delete trip
+      await db.collection('trips').deleteOne({ id: tripId })
+      
+      return handleCORS(NextResponse.json({ message: 'Trip deleted' }))
+    }
+    
+    // Update trip - PATCH /api/trips/:id
+    if (route.match(/^\/trips\/[^/]+$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Only trip creator can edit (unless status is locked)
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator can edit this trip' },
+          { status: 403 }
+        ))
+      }
+      
+      // Can't edit locked trips
+      if (trip.status === 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Cannot edit a locked trip' },
+          { status: 400 }
+        ))
+      }
+      
+      const body = await request.json()
+      const updateFields = {}
+      
+      if (body.name !== undefined) updateFields.name = body.name.trim()
+      if (body.description !== undefined) updateFields.description = body.description?.trim() || null
+      if (body.startDate !== undefined) updateFields.startDate = body.startDate
+      if (body.endDate !== undefined) updateFields.endDate = body.endDate
+      if (body.duration !== undefined) updateFields.duration = parseInt(body.duration)
+      
+      updateFields.updatedAt = new Date().toISOString()
+      
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: updateFields }
+      )
+      
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+      return handleCORS(NextResponse.json(updatedTrip))
     }
     
     // Get trip by ID - GET /api/trips/:id
