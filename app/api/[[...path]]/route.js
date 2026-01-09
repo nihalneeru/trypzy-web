@@ -60,8 +60,77 @@ function generateInviteCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase()
 }
 
+// Normalize availability to effective per-day view
+// Handles broad, weekly, and per-day availability with precedence: per-day > weekly > broad
+// Returns array of { day: 'YYYY-MM-DD', status: 'available'|'maybe'|'unavailable', userId: string }
+function normalizeAvailabilityToPerDay(availabilities, tripStartDate, tripEndDate, userId) {
+  const userAvails = availabilities.filter(a => a.userId === userId)
+  if (userAvails.length === 0) return []
+  
+  // Separate by type
+  const perDayAvails = userAvails.filter(a => a.day && !a.isBroad && !a.isWeekly)
+  const broadAvails = userAvails.filter(a => a.isBroad === true)
+  const weeklyAvails = userAvails.filter(a => a.isWeekly === true)
+  
+  // Generate all days in trip range
+  const startDate = new Date(tripStartDate)
+  const endDate = new Date(tripEndDate)
+  const dayMap = new Map()
+  
+  // Initialize with broad availability (lowest precedence)
+  if (broadAvails.length > 0) {
+    const broadStatus = broadAvails[0].status // Take first if multiple
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dayStr = d.toISOString().split('T')[0]
+      dayMap.set(dayStr, broadStatus)
+    }
+  }
+  
+  // Apply weekly blocks (medium precedence)
+  weeklyAvails.forEach(weekly => {
+    const weekStart = new Date(weekly.startDate)
+    const weekEnd = new Date(weekly.endDate)
+    for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
+      const dayStr = d.toISOString().split('T')[0]
+      // Only set if within trip range
+      if (dayStr >= tripStartDate && dayStr <= tripEndDate) {
+        dayMap.set(dayStr, weekly.status)
+      }
+    }
+  })
+  
+  // Apply per-day records (highest precedence - overrides everything)
+  perDayAvails.forEach(perDay => {
+    dayMap.set(perDay.day, perDay.status)
+  })
+  
+  // Convert to array format and sort by day
+  return Array.from(dayMap.entries())
+    .map(([day, status]) => ({
+      day,
+      status,
+      userId
+    }))
+    .sort((a, b) => a.day.localeCompare(b.day))
+}
+
+// Get normalized availabilities for all users
+// Returns array of { day: 'YYYY-MM-DD', status: 'available'|'maybe'|'unavailable', userId: string }
+function getAllNormalizedAvailabilities(availabilities, tripStartDate, tripEndDate) {
+  const uniqueUserIds = [...new Set(availabilities.map(a => a.userId))]
+  const normalized = []
+  
+  uniqueUserIds.forEach(userId => {
+    const userNormalized = normalizeAvailabilityToPerDay(availabilities, tripStartDate, tripEndDate, userId)
+    normalized.push(...userNormalized)
+  })
+  
+  return normalized
+}
+
 // Consensus Algorithm - MUST BE DETERMINISTIC
 // Available = +1, Maybe = +0.5, Unavailable = 0
+// Now accepts normalized per-day availabilities
 function calculateConsensus(availabilities, tripStartDate, tripEndDate, tripDuration = 3) {
   const dateMap = new Map()
   
@@ -128,6 +197,23 @@ function calculateConsensus(availabilities, tripStartDate, tripEndDate, tripDura
   })
   
   return options.slice(0, 3)
+}
+
+// Generate promising windows for refinement
+// Returns 2-3 top date windows based on consensus algorithm
+// Uses normalized availability (handles broad/weekly/per-day automatically)
+// Returns array of { optionKey, startDate, endDate, score, totalScore, coverage }
+function generatePromisingWindows(availabilities, tripStartDate, tripEndDate, tripDuration = 3) {
+  // Use existing consensus algorithm
+  const consensusOptions = calculateConsensus(availabilities, tripStartDate, tripEndDate, tripDuration)
+  
+  // Return 2-3 windows (prefer 3, but return what's available)
+  // If we have fewer than 2, return what we have (could be 0 or 1)
+  if (consensusOptions.length >= 2) {
+    return consensusOptions.slice(0, Math.min(3, consensusOptions.length))
+  }
+  
+  return consensusOptions
 }
 
 // OPTIONS handler for CORS
@@ -483,15 +569,24 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // New scheduling mode: default to top3_heatmap for new trips
+      // Backward compatibility: old trips without schedulingMode use legacy availability flow
+      const schedulingMode = body.schedulingMode || 'top3_heatmap'
+      
       const trip = {
         id: uuidv4(),
         circleId,
         name,
         description: description || '',
         type, // 'collaborative' or 'hosted'
-        startDate, // YYYY-MM-DD
-        endDate,   // YYYY-MM-DD
+        startDate, // YYYY-MM-DD (legacy, kept for backward compatibility)
+        endDate,   // YYYY-MM-DD (legacy, kept for backward compatibility)
         duration: duration || 3,
+        // New fields for top3_heatmap scheduling
+        schedulingMode,
+        startBound: body.startBound || startDate, // YYYY-MM-DD (lower bound for window start dates)
+        endBound: body.endBound || endDate,       // YYYY-MM-DD (upper bound)
+        tripLengthDays: body.tripLengthDays || duration || 3, // Fixed trip length in days
         status: type === 'hosted' ? 'locked' : 'proposed', // proposed, scheduling, voting, locked
         lockedStartDate: type === 'hosted' ? startDate : null,
         lockedEndDate: type === 'hosted' ? endDate : null,
@@ -633,9 +728,13 @@ async function handleRoute(request, { params }) {
       }
       
       // Backward compatibility: default status for old trips without status field
+      // Also check for legacy 'type' field to determine status
       if (!trip.status) {
         trip.status = trip.type === 'hosted' ? 'locked' : 'scheduling'
       }
+      
+      // Ensure status is valid
+      const tripStatus = trip.status
       
       // Check membership
       const membership = await db.collection('memberships').findOne({
@@ -660,6 +759,25 @@ async function handleRoute(request, { params }) {
         .find({ tripId })
         .toArray()
       
+      // Get voter user details for vote display (only if there are votes)
+      let votesWithVoters = votes
+      if (votes.length > 0) {
+        const voterIds = [...new Set(votes.map(v => v.userId))]
+        const voters = await db.collection('users')
+          .find({ id: { $in: voterIds } })
+          .toArray()
+        const voterMap = new Map(voters.map(u => [u.id, { id: u.id, name: u.name }]))
+        
+        // Enrich votes with voter names
+        votesWithVoters = votes.map(vote => {
+          const voter = voterMap.get(vote.userId)
+          return {
+            ...vote,
+            voterName: voter?.name || 'Unknown'
+          }
+        })
+      }
+      
       // Get participants (for hosted trips)
       const participants = await db.collection('trip_participants')
         .find({ tripId })
@@ -671,13 +789,25 @@ async function handleRoute(request, { params }) {
         .find({ id: { $in: participantUserIds } })
         .toArray()
       
-      // Calculate consensus options
-      const consensusOptions = trip.status !== 'locked' && trip.type === 'collaborative'
-        ? calculateConsensus(availabilities, trip.startDate, trip.endDate, trip.duration)
+      // Normalize availabilities to per-day view for consensus calculation
+      const normalizedAvailabilities = trip.status !== 'locked' && trip.type === 'collaborative'
+        ? getAllNormalizedAvailabilities(availabilities, trip.startDate, trip.endDate)
         : []
       
-      // Get user's availability
-      const userAvailability = availabilities.filter(a => a.userId === auth.user.id)
+      // Calculate consensus options using normalized availabilities
+      const consensusOptions = trip.status !== 'locked' && trip.type === 'collaborative'
+        ? calculateConsensus(normalizedAvailabilities, trip.startDate, trip.endDate, trip.duration)
+        : []
+      
+      // Generate promising windows (2-3 top date windows for refinement)
+      // Computed on fetch - deterministic and stable across refreshes
+      const promisingWindows = trip.status !== 'locked' && trip.type === 'collaborative'
+        ? generatePromisingWindows(normalizedAvailabilities, trip.startDate, trip.endDate, trip.duration)
+        : []
+      
+      // Get user's availability and normalize to per-day view for frontend
+      const userRawAvailability = availabilities.filter(a => a.userId === auth.user.id)
+      const userAvailability = normalizeAvailabilityToPerDay(availabilities, trip.startDate, trip.endDate, auth.user.id)
       
       // Get user's vote
       const userVote = votes.find(v => v.userId === auth.user.id)
@@ -702,14 +832,95 @@ async function handleRoute(request, { params }) {
       const usersWithVotes = [...new Set(votes.map(v => v.userId))]
       const votedCount = usersWithVotes.length
       
+      // New scheduling mode: top3_heatmap - aggregate date picks into heatmap
+      let heatmapScores = {}
+      let topCandidates = []
+      let userDatePicks = null
+      
+      if (trip.schedulingMode === 'top3_heatmap') {
+        // Get all date picks for this trip
+        const allPicks = await db.collection('trip_date_picks')
+          .find({ tripId })
+          .toArray()
+        
+        // Get current user's picks
+        const userPicksDoc = allPicks.find(p => p.userId === auth.user.id)
+        userDatePicks = userPicksDoc ? userPicksDoc.picks : []
+        
+        // Compute heatmap scores: weight = {1:3, 2:2, 3:1}
+        const weightMap = { 1: 3, 2: 2, 3: 1 }
+        heatmapScores = {}
+        const scoreBreakdown = {} // { startDate: { loveCount, canCount, mightCount } }
+        
+        allPicks.forEach(pickDoc => {
+          pickDoc.picks.forEach(pick => {
+            const startDate = pick.startDateISO
+            const rank = pick.rank
+            const weight = weightMap[rank] || 0
+            
+            if (!heatmapScores[startDate]) {
+              heatmapScores[startDate] = 0
+              scoreBreakdown[startDate] = { loveCount: 0, canCount: 0, mightCount: 0 }
+            }
+            
+            heatmapScores[startDate] += weight
+            
+            // Track breakdown by rank
+            if (rank === 1) scoreBreakdown[startDate].loveCount++
+            else if (rank === 2) scoreBreakdown[startDate].canCount++
+            else if (rank === 3) scoreBreakdown[startDate].mightCount++
+          })
+        })
+        
+        // Generate top candidates: top 5 start dates by score
+        const startBound = trip.startBound || trip.startDate
+        const endBound = trip.endBound || trip.endDate
+        const tripLengthDays = trip.tripLengthDays || trip.duration || 3
+        
+        // Get all valid start dates (where startDate + (tripLengthDays-1) <= endBound)
+        const validStartDates = []
+        const startDateObj = new Date(startBound + 'T12:00:00')
+        const endBoundObj = new Date(endBound + 'T12:00:00')
+        
+        for (let d = new Date(startDateObj); d <= endBoundObj; d.setDate(d.getDate() + 1)) {
+          const startDateStr = d.toISOString().split('T')[0]
+          const endDateObj = new Date(d)
+          endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
+          const endDateStr = endDateObj.toISOString().split('T')[0]
+          
+          if (endDateStr <= endBound) {
+            validStartDates.push({
+              startDateISO: startDateStr,
+              endDateISO: endDateStr,
+              score: heatmapScores[startDateStr] || 0,
+              breakdown: scoreBreakdown[startDateStr] || { loveCount: 0, canCount: 0, mightCount: 0 }
+            })
+          }
+        }
+        
+        // Sort by score descending, take top 5
+        topCandidates = validStartDates
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5)
+          .map(candidate => ({
+            startDateISO: candidate.startDateISO,
+            endDateISO: candidate.endDateISO,
+            score: candidate.score,
+            loveCount: candidate.breakdown.loveCount,
+            canCount: candidate.breakdown.canCount,
+            mightCount: candidate.breakdown.mightCount
+          }))
+      }
+      
       return handleCORS(NextResponse.json({
         ...trip,
         circle: circle ? { id: circle.id, name: circle.name, ownerId: circle.ownerId } : null,
         availabilities: availabilities.map(({ _id, ...rest }) => rest),
         userAvailability: userAvailability.map(({ _id, ...rest }) => rest),
-        votes: votes.map(({ _id, ...rest }) => rest),
+        votes: votesWithVoters.map(({ _id, ...rest }) => rest),
         userVote: userVote ? { optionKey: userVote.optionKey } : null,
-        consensusOptions,
+        consensusOptions, // Backward compatibility
+        promisingWindows, // New: 2-3 top date windows for refinement
         participants: participantUsers.map(u => ({ id: u.id, name: u.name })),
         isParticipant,
         isCreator: trip.createdBy === auth.user.id,
@@ -717,11 +928,20 @@ async function handleRoute(request, { params }) {
         // Progress tracking stats
         totalMembers,
         respondedCount,
-        votedCount
+        votedCount,
+        // New top3_heatmap scheduling data
+        userDatePicks, // Current user's picks: [{rank:1|2|3, startDateISO}]
+        heatmapScores, // { startDateISO: score }
+        topCandidates // Top 5: [{startDateISO, endDateISO, score, loveCount, canCount, mightCount}]
       }))
     }
     
     // Submit availability - POST /api/trips/:id/availability
+    // Supports three payload formats:
+    // 1. Per-day: { availabilities: [{ day: 'YYYY-MM-DD', status: '...' }] }
+    // 2. Broad: { broadStatus: 'available'|'maybe'|'unavailable' }
+    // 3. Weekly: { weeklyBlocks: [{ startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD', status: '...' }] }
+    // Can combine formats - per-day overrides weekly, which overrides broad
     if (route.match(/^\/trips\/[^/]+\/availability$/) && method === 'POST') {
       const auth = await requireAuth(request)
       if (auth.error) {
@@ -730,7 +950,7 @@ async function handleRoute(request, { params }) {
       
       const tripId = path[1]
       const body = await request.json()
-      const { availabilities } = body // Array of { day: 'YYYY-MM-DD', status: 'available'|'maybe'|'unavailable' }
+      const { availabilities, broadStatus, weeklyBlocks } = body
       
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -740,10 +960,16 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Backward compatibility: default status for old trips without status field
+      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
+      
       // Guard: Cannot submit availability after voting starts or when locked
-      if (trip.status === 'voting' || trip.status === 'locked') {
+      if (tripStatus === 'voting' || tripStatus === 'locked') {
+        const errorMessage = tripStatus === 'voting' 
+          ? 'Availability is frozen while voting is open.'
+          : 'Dates are locked; scheduling is closed.'
         return handleCORS(NextResponse.json(
-          { error: 'Availability cannot be changed after voting has started' },
+          { error: errorMessage },
           { status: 400 }
         ))
       }
@@ -768,27 +994,120 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Validate payload
+      const hasPerDay = availabilities && Array.isArray(availabilities) && availabilities.length > 0
+      const hasBroad = broadStatus && ['available', 'maybe', 'unavailable'].includes(broadStatus)
+      const hasWeekly = weeklyBlocks && Array.isArray(weeklyBlocks) && weeklyBlocks.length > 0
+      
+      if (!hasPerDay && !hasBroad && !hasWeekly) {
+        return handleCORS(NextResponse.json(
+          { error: 'Must provide availabilities, broadStatus, or weeklyBlocks' },
+          { status: 400 }
+        ))
+      }
+      
+      // Validate per-day format
+      if (hasPerDay) {
+        for (const a of availabilities) {
+          if (!a.day || !a.status || !['available', 'maybe', 'unavailable'].includes(a.status)) {
+            return handleCORS(NextResponse.json(
+              { error: 'Invalid per-day availability format. Each item must have day (YYYY-MM-DD) and status (available|maybe|unavailable)' },
+              { status: 400 }
+            ))
+          }
+          // Validate day is within trip range
+          if (a.day < trip.startDate || a.day > trip.endDate) {
+            return handleCORS(NextResponse.json(
+              { error: `Day ${a.day} is outside trip date range (${trip.startDate} to ${trip.endDate})` },
+              { status: 400 }
+            ))
+          }
+        }
+      }
+      
+      // Validate weekly blocks format
+      if (hasWeekly) {
+        for (const block of weeklyBlocks) {
+          if (!block.startDate || !block.endDate || !block.status || 
+              !['available', 'maybe', 'unavailable'].includes(block.status)) {
+            return handleCORS(NextResponse.json(
+              { error: 'Invalid weekly block format. Each block must have startDate, endDate (YYYY-MM-DD), and status (available|maybe|unavailable)' },
+              { status: 400 }
+            ))
+          }
+          // Validate dates are within trip range
+          if (block.startDate < trip.startDate || block.endDate > trip.endDate) {
+            return handleCORS(NextResponse.json(
+              { error: `Weekly block dates (${block.startDate} to ${block.endDate}) must be within trip range (${trip.startDate} to ${trip.endDate})` },
+              { status: 400 }
+            ))
+          }
+          if (block.startDate > block.endDate) {
+            return handleCORS(NextResponse.json(
+              { error: `Weekly block startDate (${block.startDate}) must be <= endDate (${block.endDate})` },
+              { status: 400 }
+            ))
+          }
+        }
+      }
+      
       // Delete existing availability for this user/trip
       await db.collection('availabilities').deleteMany({
         tripId,
         userId: auth.user.id
       })
       
-      // Insert new availabilities
-      const newAvailabilities = availabilities.map(a => ({
-        id: uuidv4(),
-        tripId,
-        userId: auth.user.id,
-        day: a.day,
-        status: a.status,
-        createdAt: new Date().toISOString()
-      }))
+      const newAvailabilities = []
+      const now = new Date().toISOString()
+      
+      // Store broad availability (if provided)
+      if (hasBroad) {
+        newAvailabilities.push({
+          id: uuidv4(),
+          tripId,
+          userId: auth.user.id,
+          day: null, // Broad availability doesn't have a specific day
+          isBroad: true,
+          status: broadStatus,
+          createdAt: now
+        })
+      }
+      
+      // Store weekly blocks (if provided)
+      if (hasWeekly) {
+        weeklyBlocks.forEach(block => {
+          newAvailabilities.push({
+            id: uuidv4(),
+            tripId,
+            userId: auth.user.id,
+            startDate: block.startDate,
+            endDate: block.endDate,
+            isWeekly: true,
+            status: block.status,
+            createdAt: now
+          })
+        })
+      }
+      
+      // Store per-day availabilities (if provided) - these override broad/weekly
+      if (hasPerDay) {
+        availabilities.forEach(a => {
+          newAvailabilities.push({
+            id: uuidv4(),
+            tripId,
+            userId: auth.user.id,
+            day: a.day,
+            status: a.status,
+            createdAt: now
+          })
+        })
+      }
       
       if (newAvailabilities.length > 0) {
         await db.collection('availabilities').insertMany(newAvailabilities)
         
         // Transition from 'proposed' to 'scheduling' when first availability is submitted
-        if (trip.status === 'proposed') {
+        if (tripStatus === 'proposed') {
           await db.collection('trips').updateOne(
             { id: tripId },
             { $set: { status: 'scheduling' } }
@@ -809,7 +1128,14 @@ async function handleRoute(request, { params }) {
       // Note: No system message for individual availability submissions
       // (only state transitions generate system messages)
       
-      return handleCORS(NextResponse.json({ message: 'Availability saved', availabilities: newAvailabilities }))
+      return handleCORS(NextResponse.json({ 
+        message: 'Availability saved', 
+        saved: {
+          broad: hasBroad,
+          weekly: hasWeekly ? weeklyBlocks.length : 0,
+          perDay: hasPerDay ? availabilities.length : 0
+        }
+      }))
     }
     
     // Open voting - POST /api/trips/:id/open-voting
@@ -839,9 +1165,20 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Backward compatibility: default status for old trips
+      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
+      
       // Allow opening voting from 'proposed' or 'scheduling' states
       // This supports leader flexibility - they can move forward even if not everyone responded
-      if (trip.status !== 'proposed' && trip.status !== 'scheduling') {
+      // Guard: Cannot open voting if already voting or locked
+      if (tripStatus === 'voting' || tripStatus === 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: tripStatus === 'voting' ? 'Voting is already open' : 'Cannot open voting for a locked trip' },
+          { status: 400 }
+        ))
+      }
+      
+      if (tripStatus !== 'proposed' && tripStatus !== 'scheduling') {
         return handleCORS(NextResponse.json(
           { error: 'Voting can only be opened during proposed or scheduling phase' },
           { status: 400 }
@@ -892,7 +1229,11 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      if (trip.status !== 'voting') {
+      // Backward compatibility: default status for old trips
+      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
+      
+      // Guard: Voting only allowed during voting phase
+      if (tripStatus !== 'voting') {
         return handleCORS(NextResponse.json(
           { error: 'Voting is not open for this trip' },
           { status: 400 }
@@ -933,7 +1274,149 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ message: 'Vote recorded' }))
     }
     
+    // Submit date picks - POST /api/trips/:id/date-picks (new top3_heatmap scheduling)
+    if (route.match(/^\/trips\/[^/]+\/date-picks$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { picks } = body // Array of {rank: 1|2|3, startDateISO: 'YYYY-MM-DD'}
+      
+      if (!Array.isArray(picks)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Picks must be an array' },
+          { status: 400 }
+        ))
+      }
+      
+      if (picks.length > 3) {
+        return handleCORS(NextResponse.json(
+          { error: 'Maximum 3 picks allowed' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Only allow for top3_heatmap scheduling mode
+      if (trip.schedulingMode !== 'top3_heatmap') {
+        return handleCORS(NextResponse.json(
+          { error: 'Date picks only available for top3_heatmap scheduling mode' },
+          { status: 400 }
+        ))
+      }
+      
+      // Backward compatibility: default status
+      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
+      
+      // Guard: Cannot submit picks when locked
+      if (tripStatus === 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip dates are locked; picks cannot be changed' },
+          { status: 400 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Validate picks
+      const startBound = trip.startBound || trip.startDate
+      const endBound = trip.endBound || trip.endDate
+      const tripLengthDays = trip.tripLengthDays || trip.duration || 3
+      const seenRanks = new Set()
+      const seenDates = new Set()
+      
+      for (const pick of picks) {
+        if (!pick.rank || !pick.startDateISO) {
+          return handleCORS(NextResponse.json(
+            { error: 'Each pick must have rank (1-3) and startDateISO' },
+            { status: 400 }
+          ))
+        }
+        
+        if (![1, 2, 3].includes(pick.rank)) {
+          return handleCORS(NextResponse.json(
+            { error: 'Rank must be 1, 2, or 3' },
+            { status: 400 }
+          ))
+        }
+        
+        if (seenRanks.has(pick.rank)) {
+          return handleCORS(NextResponse.json(
+            { error: `Duplicate rank ${pick.rank}` },
+            { status: 400 }
+          ))
+        }
+        
+        if (seenDates.has(pick.startDateISO)) {
+          return handleCORS(NextResponse.json(
+            { error: `Duplicate start date ${pick.startDateISO}` },
+            { status: 400 }
+          ))
+        }
+        
+        // Validate start date is within bounds
+        if (pick.startDateISO < startBound || pick.startDateISO > endBound) {
+          return handleCORS(NextResponse.json(
+            { error: `Start date ${pick.startDateISO} is outside trip bounds (${startBound} to ${endBound})` },
+            { status: 400 }
+          ))
+        }
+        
+        // Validate window fits within bounds
+        const startDateObj = new Date(pick.startDateISO + 'T12:00:00')
+        const endDateObj = new Date(startDateObj)
+        endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
+        const endDateISO = endDateObj.toISOString().split('T')[0]
+        
+        if (endDateISO > endBound) {
+          return handleCORS(NextResponse.json(
+            { error: `Window starting ${pick.startDateISO} (${tripLengthDays} days) extends beyond end bound ${endBound}` },
+            { status: 400 }
+          ))
+        }
+        
+        seenRanks.add(pick.rank)
+        seenDates.add(pick.startDateISO)
+      }
+      
+      // Upsert user's picks
+      await db.collection('trip_date_picks').updateOne(
+        { tripId, userId: auth.user.id },
+        {
+          $set: {
+            picks: picks.map(p => ({ rank: p.rank, startDateISO: p.startDateISO })),
+            updatedAt: new Date().toISOString()
+          }
+        },
+        { upsert: true }
+      )
+      
+      return handleCORS(NextResponse.json({ message: 'Date picks saved' }))
+    }
+    
     // Lock trip - POST /api/trips/:id/lock
+    // Supports both old format (optionKey) and new format (startDateISO for top3_heatmap)
     if (route.match(/^\/trips\/[^/]+\/lock$/) && method === 'POST') {
       const auth = await requireAuth(request)
       if (auth.error) {
@@ -942,7 +1425,7 @@ async function handleRoute(request, { params }) {
       
       const tripId = path[1]
       const body = await request.json()
-      const { optionKey } = body
+      const { optionKey, startDateISO } = body
       
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -954,6 +1437,9 @@ async function handleRoute(request, { params }) {
       
       const circle = await db.collection('circles').findOne({ id: trip.circleId })
       
+      // Backward compatibility: default status for old trips
+      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
+      
       // Only trip creator or circle owner can lock
       if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
         return handleCORS(NextResponse.json(
@@ -962,14 +1448,60 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      if (trip.status !== 'voting') {
+      // Guard: Cannot lock if already locked (no re-locking)
+      if (tripStatus === 'locked') {
         return handleCORS(NextResponse.json(
-          { error: 'Trip can only be locked during voting phase' },
+          { error: 'Trip is already locked' },
           { status: 400 }
         ))
       }
       
-      const [lockedStartDate, lockedEndDate] = optionKey.split('_')
+      let lockedStartDate, lockedEndDate
+      
+      // New format: top3_heatmap uses startDateISO
+      if (trip.schedulingMode === 'top3_heatmap' && startDateISO) {
+        const startBound = trip.startBound || trip.startDate
+        const endBound = trip.endBound || trip.endDate
+        const tripLengthDays = trip.tripLengthDays || trip.duration || 3
+        
+        if (startDateISO < startBound || startDateISO > endBound) {
+          return handleCORS(NextResponse.json(
+            { error: `Start date ${startDateISO} is outside trip bounds` },
+            { status: 400 }
+          ))
+        }
+        
+        const startDateObj = new Date(startDateISO + 'T12:00:00')
+        const endDateObj = new Date(startDateObj)
+        endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
+        const endDateISO = endDateObj.toISOString().split('T')[0]
+        
+        if (endDateISO > endBound) {
+          return handleCORS(NextResponse.json(
+            { error: `Window extends beyond end bound` },
+            { status: 400 }
+          ))
+        }
+        
+        lockedStartDate = startDateISO
+        lockedEndDate = endDateISO
+      } else if (optionKey) {
+        // Old format: legacy voting uses optionKey
+        // Guard: Locking only allowed during voting phase for legacy trips
+        if (tripStatus !== 'voting') {
+          return handleCORS(NextResponse.json(
+            { error: 'Trip can only be locked during voting phase' },
+            { status: 400 }
+          ))
+        }
+        
+        [lockedStartDate, lockedEndDate] = optionKey.split('_')
+      } else {
+        return handleCORS(NextResponse.json(
+          { error: 'Must provide either optionKey (legacy) or startDateISO (top3_heatmap)' },
+          { status: 400 }
+        ))
+      }
       
       await db.collection('trips').updateOne(
         { id: tripId },

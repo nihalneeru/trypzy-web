@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-        "dev": "NODE_OPTIONS='--max-old-space-size=512' next dev --hostname 0.0.0.0 --port 3000",
+        "dev": "cross-env NODE_OPTIONS=--max-old-space-size=512 next dev --hostname 0.0.0.0 --port 3000",
         "dev:no-reload": "next dev --hostname 0.0.0.0 --port 3000",
         "dev:webpack": "next dev --hostname 0.0.0.0 --port 3000",
         "build": "next build",
@@ -79,6 +79,7 @@
         "@vitejs/plugin-react": "^5.1.2",
         "@vitest/ui": "^4.0.16",
         "autoprefixer": "^10.4.19",
+        "cross-env": "^10.1.0",
         "globals": "^16.2.0",
         "jsdom": "^27.4.0",
         "playwright": "^1.57.0",

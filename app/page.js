@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -2631,13 +2631,512 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
   )
 }
 
+// Top 3 Heatmap Scheduling Component (new MVP)
+function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks, setDatePicks, savingPicks, setSavingPicks }) {
+  const startBound = trip.startBound || trip.startDate
+  const endBound = trip.endBound || trip.endDate
+  const tripLengthDays = trip.tripLengthDays || trip.duration || 3
+  const isLocked = trip.status === 'locked'
+  
+  // Rank selection state
+  const [activeRank, setActiveRank] = useState(null) // 1, 2, 3, or null
+  const [hoveredStartDate, setHoveredStartDate] = useState(null) // ISO string or null
+  
+  // Initialize picks from trip data
+  useEffect(() => {
+    if (trip.userDatePicks) {
+      setDatePicks(trip.userDatePicks)
+    }
+  }, [trip.userDatePicks])
+  
+  // Compute activeRank based on current picks
+  useEffect(() => {
+    if (isLocked) {
+      setActiveRank(null)
+      return
+    }
+    
+    if (datePicks.length === 0) {
+      setActiveRank(1)
+    } else if (datePicks.length === 1) {
+      setActiveRank(datePicks[0].rank === 1 ? 2 : 1)
+    } else if (datePicks.length === 2) {
+      const ranks = datePicks.map(p => p.rank).sort()
+      if (ranks[0] === 1 && ranks[1] === 2) {
+        setActiveRank(3)
+      } else if (ranks[0] === 1) {
+        setActiveRank(2)
+      } else {
+        setActiveRank(1)
+      }
+    } else {
+      // All 3 picks set, activeRank stays as set (or null)
+      // Will be set when user clicks a chip to edit
+    }
+  }, [datePicks, isLocked])
+  
+  // Compute preview window dates for hovered start date
+  const getPreviewWindowDates = useMemo(() => {
+    if (!hoveredStartDate) return new Set()
+    
+    const startDateObj = new Date(hoveredStartDate + 'T12:00:00')
+    const endDateObj = new Date(startDateObj)
+    endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
+    const endDateISO = endDateObj.toISOString().split('T')[0]
+    
+    // Check if window is valid
+    if (hoveredStartDate < startBound || hoveredStartDate > endBound || endDateISO > endBound) {
+      return new Set()
+    }
+    
+    // Generate all dates in the window
+    const windowDates = new Set()
+    for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
+      windowDates.add(d.toISOString().split('T')[0])
+    }
+    return windowDates
+  }, [hoveredStartDate, tripLengthDays, startBound, endBound])
+  
+  // Compute selected window dates (for persistent highlight)
+  const getSelectedWindowDates = useMemo(() => {
+    const selectedWindows = new Map() // startDateISO -> Set of dates in window
+    datePicks.forEach(pick => {
+      const startDateObj = new Date(pick.startDateISO + 'T12:00:00')
+      const endDateObj = new Date(startDateObj)
+      endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
+      const dates = new Set()
+      for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
+        dates.add(d.toISOString().split('T')[0])
+      }
+      selectedWindows.set(pick.startDateISO, dates)
+    })
+    return selectedWindows
+  }, [datePicks, tripLengthDays])
+  
+  // Save picks to backend
+  const savePicks = async () => {
+    setSavingPicks(true)
+    try {
+      await api(`/trips/${trip.id}/date-picks`, {
+        method: 'POST',
+        body: JSON.stringify({ picks: datePicks })
+      }, token)
+      toast.success('Date picks saved!')
+      onRefresh()
+    } catch (error) {
+      toast.error(error.message || 'Failed to save picks')
+    } finally {
+      setSavingPicks(false)
+    }
+  }
+  
+  // Lock a window (owner only)
+  const lockWindow = async (startDateISO) => {
+    try {
+      await api(`/trips/${trip.id}/lock`, {
+        method: 'POST',
+        body: JSON.stringify({ startDateISO })
+      }, token)
+      toast.success('Trip dates locked!')
+      onRefresh()
+    } catch (error) {
+      toast.error(error.message || 'Failed to lock dates')
+    }
+  }
+  
+  // Handle date selection from calendar
+  const handleDateSelect = (dateISO) => {
+    if (isLocked || !activeRank) return
+    
+    // Check if window is valid
+    const startDateObj = new Date(dateISO + 'T12:00:00')
+    const endDateObj = new Date(startDateObj)
+    endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
+    const endDateISO = endDateObj.toISOString().split('T')[0]
+    
+    if (dateISO < startBound || dateISO > endBound || endDateISO > endBound) {
+      return // Invalid window
+    }
+    
+    // Remove existing pick for this rank if any
+    const otherPicks = datePicks.filter(p => p.rank !== activeRank)
+    
+    // Add new pick for activeRank
+    setDatePicks([...otherPicks, { rank: activeRank, startDateISO: dateISO }])
+    
+    // Advance activeRank to next missing rank
+    if (activeRank === 1) {
+      setActiveRank(2)
+    } else if (activeRank === 2) {
+      setActiveRank(3)
+    } else {
+      setActiveRank(null) // All 3 set
+    }
+  }
+  
+  const removePick = (startDateISO) => {
+    if (isLocked) return
+    setDatePicks(datePicks.filter(p => p.startDateISO !== startDateISO))
+    // activeRank will be updated by useEffect
+  }
+  
+  // Handle clicking a pick chip to edit that rank
+  const editPick = (rank) => {
+    if (isLocked) return
+    setActiveRank(rank)
+  }
+  
+  // Generate all months covered by bounds (memoized)
+  const calendarMonths = useMemo(() => {
+    const months = []
+    const startDate = new Date(startBound + 'T12:00:00')
+    const endDate = new Date(endBound + 'T12:00:00')
+    
+    // Iterate through all months in the range
+    let currentMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1)
+    const endMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0)
+    
+    while (currentMonth <= endMonth) {
+      const year = currentMonth.getFullYear()
+      const month = currentMonth.getMonth()
+      const firstDay = new Date(year, month, 1)
+      const lastDay = new Date(year, month + 1, 0)
+      const startDayOfWeek = firstDay.getDay()
+      
+      const days = []
+      
+      // Add padding for days before month start
+      for (let i = 0; i < startDayOfWeek; i++) {
+        days.push(null)
+      }
+      
+      // Add all days in the month
+      for (let d = 1; d <= lastDay.getDate(); d++) {
+        const date = new Date(year, month, d)
+        const dateISO = date.toISOString().split('T')[0]
+        
+        // Check if date is within bounds
+        const isInBounds = dateISO >= startBound && dateISO <= endBound
+        
+        // Check if this date is a valid start date
+        let isValidStart = false
+        if (isInBounds) {
+          const endDateObj = new Date(date)
+          endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
+          const endDateISO = endDateObj.toISOString().split('T')[0]
+          isValidStart = endDateISO <= endBound
+        }
+        
+        days.push({
+          date,
+          dateISO,
+          isInBounds,
+          isValidStart,
+          score: trip.heatmapScores?.[dateISO] || 0
+        })
+      }
+      
+      months.push({
+        year,
+        month,
+        monthName: firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        days
+      })
+      
+      // Move to next month
+      currentMonth = new Date(year, month + 1, 1)
+    }
+    
+    return months
+  }, [startBound, endBound, tripLengthDays, trip.heatmapScores])
+  const maxScore = Math.max(...Object.values(trip.heatmapScores || {}), 1)
+  
+  const getRankLabel = (rank) => {
+    if (rank === 1) return 'Love to go'
+    if (rank === 2) return 'Can go'
+    if (rank === 3) return 'Might be able'
+    return ''
+  }
+  
+  const formatDateRange = (startDateISO) => {
+    const start = new Date(startDateISO + 'T12:00:00')
+    const end = new Date(start)
+    end.setDate(end.getDate() + tripLengthDays - 1)
+    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+  }
+  
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5" />
+            Pick Your Top 3 Date Windows
+          </CardTitle>
+          <CardDescription>
+            Select up to 3 preferred start dates. Hover to preview the full window, then click to set your pick.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLocked ? (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-800 font-medium">
+                Dates locked: {trip.lockedStartDate} to {trip.lockedEndDate}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4 space-y-2">
+                {datePicks.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No picks yet. Hover over dates on the calendar to preview the full {tripLengthDays}-day window, then click to set your first pick.
+                  </p>
+                ) : (
+                  datePicks
+                    .sort((a, b) => a.rank - b.rank)
+                    .map((pick) => (
+                      <div 
+                        key={pick.startDateISO} 
+                        className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                          activeRank === pick.rank 
+                            ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200' 
+                            : 'bg-gray-50 border-gray-200'
+                        } ${!isLocked ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                        onClick={() => !isLocked && editPick(pick.rank)}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={pick.rank === 1 ? 'default' : pick.rank === 2 ? 'secondary' : 'outline'}>
+                              {pick.rank === 1 ? '❤️' : pick.rank === 2 ? '✓' : '~'} {getRankLabel(pick.rank)}
+                            </Badge>
+                            <span className="font-medium">{formatDateRange(pick.startDateISO)}</span>
+                            {activeRank === pick.rank && (
+                              <span className="text-xs text-blue-600">(editing)</span>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removePick(pick.startDateISO)
+                          }}
+                          disabled={isLocked}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                )}
+              </div>
+              
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium">Group Preference Heatmap</h3>
+                  {activeRank && !isLocked && (
+                    <Badge variant="outline" className="text-xs">
+                      Selecting: {getRankLabel(activeRank)}
+                    </Badge>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  {calendarMonths.map((monthData) => (
+                    <div key={`${monthData.year}-${monthData.month}`} className="space-y-1">
+                      <h4 className="text-xs font-semibold text-gray-700 px-1">
+                        {monthData.monthName}
+                      </h4>
+                      <div className="grid grid-cols-7 gap-0.5">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                          <div key={day} className="text-center text-[10px] font-medium text-gray-500 py-0.5">
+                            {day.slice(0, 1)}
+                          </div>
+                        ))}
+                        {monthData.days.map((day, idx) => {
+                          if (!day) {
+                            return <div key={`empty-${idx}`} className="h-9" />
+                          }
+                          
+                          const intensity = day.score > 0 ? Math.min(day.score / maxScore, 1) : 0
+                          const bgColor = intensity > 0.7 ? 'bg-green-600' : intensity > 0.4 ? 'bg-green-400' : intensity > 0 ? 'bg-green-200' : 'bg-gray-100'
+                          const isSelected = datePicks.some(p => p.startDateISO === day.dateISO)
+                          const userPick = datePicks.find(p => p.startDateISO === day.dateISO)
+                          
+                          // Check if this day is in preview window
+                          const isInPreviewWindow = getPreviewWindowDates.has(day.dateISO)
+                          // Check if this day is in any selected window
+                          let isInSelectedWindow = false
+                          let selectedWindowRank = null
+                          for (const [startDateISO, windowDates] of getSelectedWindowDates.entries()) {
+                            if (windowDates.has(day.dateISO)) {
+                              isInSelectedWindow = true
+                              const pick = datePicks.find(p => p.startDateISO === startDateISO)
+                              selectedWindowRank = pick?.rank || null
+                              break
+                            }
+                          }
+                          
+                          // Determine if this is a valid start date for preview
+                          const isValidForPreview = day.isValidStart && activeRank && !isLocked
+                          
+                          // Days outside bounds should be disabled
+                          const isDisabled = !day.isInBounds || !day.isValidStart || isLocked
+                          
+                          return (
+                            <button
+                              key={day.dateISO}
+                              onClick={() => isValidForPreview && handleDateSelect(day.dateISO)}
+                              onMouseEnter={() => isValidForPreview && setHoveredStartDate(day.dateISO)}
+                              onMouseLeave={() => setHoveredStartDate(null)}
+                              disabled={isDisabled}
+                              className={`h-9 w-full rounded text-[11px] font-medium border transition-all relative flex items-center justify-center ${
+                                day.isValidStart && day.isInBounds
+                                  ? isLocked 
+                                    ? 'cursor-not-allowed opacity-50' 
+                                    : 'cursor-pointer'
+                                  : 'cursor-not-allowed opacity-20'
+                              } ${
+                                isInPreviewWindow
+                                  ? 'ring-2 ring-yellow-400 ring-offset-0 shadow-md z-10'
+                                  : isInSelectedWindow
+                                  ? 'ring-2 ring-blue-300 ring-offset-0'
+                                  : isSelected
+                                  ? 'ring-2 ring-blue-500 ring-offset-0'
+                                  : ''
+                              } ${bgColor} ${day.score > 0 ? 'text-white' : 'text-gray-600'}`}
+                              title={day.isValidStart && day.isInBounds
+                                ? `Score: ${day.score}${trip.topCandidates?.find(c => c.startDateISO === day.dateISO) ? ` (Love: ${trip.topCandidates.find(c => c.startDateISO === day.dateISO).loveCount}, Can: ${trip.topCandidates.find(c => c.startDateISO === day.dateISO).canCount}, Might: ${trip.topCandidates.find(c => c.startDateISO === day.dateISO).mightCount})` : ''}`
+                                : !day.isInBounds
+                                ? 'Outside trip bounds'
+                                : 'Invalid start date'
+                              }
+                            >
+                              {day.date.getDate()}
+                              {userPick && (
+                                <div className="absolute top-0.5 text-[8px]">
+                                  {userPick.rank === 1 ? '❤️' : userPick.rank === 2 ? '✓' : '~'}
+                                </div>
+                              )}
+                              {isInPreviewWindow && (
+                                <div className="absolute inset-0 bg-yellow-200 bg-opacity-30 rounded pointer-events-none" />
+                              )}
+                              {isInSelectedWindow && !isInPreviewWindow && (
+                                <div className="absolute inset-0 bg-blue-200 bg-opacity-20 rounded pointer-events-none" />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-gray-100 border rounded" />
+                    <span>No preference</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-green-200 rounded" />
+                    <span>Low</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-green-400 rounded" />
+                    <span>Medium</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-green-600 rounded" />
+                    <span>High</span>
+                  </div>
+                </div>
+              </div>
+              
+              <Button 
+                onClick={savePicks} 
+                disabled={savingPicks || datePicks.length === 0}
+                className="w-full"
+              >
+                {savingPicks ? 'Saving...' : 'Save Picks'}
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      
+      {trip.topCandidates && trip.topCandidates.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Candidates</CardTitle>
+            <CardDescription>
+              Highest-scoring date windows based on group preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {trip.topCandidates.map((candidate, idx) => (
+                <div key={candidate.startDateISO} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="secondary">#{idx + 1}</Badge>
+                      <span className="font-medium">
+                        {formatDateRange(candidate.startDateISO)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Score: {candidate.score} • 
+                      Love: {candidate.loveCount} • 
+                      Can: {candidate.canCount} • 
+                      Might: {candidate.mightCount}
+                    </div>
+                  </div>
+                  {trip.isCreator && !isLocked && (
+                    <Button
+                      size="sm"
+                      onClick={() => lockWindow(candidate.startDateISO)}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Lock className="h-4 w-4 mr-1" />
+                      Lock
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
 // Trip Detail View
 function TripDetailView({ trip, token, user, onRefresh }) {
   const [activeTab, setActiveTab] = useState('planning')
   const [availability, setAvailability] = useState({})
+  const [broadAvailability, setBroadAvailability] = useState('') // 'available' | 'maybe' | 'unavailable' | '' for entire range
+  const [weeklyAvailability, setWeeklyAvailability] = useState({}) // { [weekKey]: 'available'|'maybe'|'unavailable' }
+  const [refinementAvailability, setRefinementAvailability] = useState({}) // Per-day availability for refinement mode
   const [activityIdeas, setActivityIdeas] = useState(['', '', '']) // Idea jar for availability submission
   const [saving, setSaving] = useState(false)
   const [selectedVote, setSelectedVote] = useState(trip.userVote?.optionKey || '')
+  
+  // Sync selectedVote when trip.userVote changes (e.g., after voting opens and trip is refetched)
+  useEffect(() => {
+    const newVoteKey = trip.userVote?.optionKey || ''
+    if (selectedVote !== newVoteKey) {
+      setSelectedVote(newVoteKey)
+    }
+  }, [trip.userVote?.optionKey])
+  
+  // New top3_heatmap scheduling state
+  const [datePicks, setDatePicks] = useState([]) // [{rank: 1|2|3, startDateISO: 'YYYY-MM-DD'}]
+  const [savingPicks, setSavingPicks] = useState(false)
+  
+  // Initialize date picks from trip data
+  useEffect(() => {
+    if (trip.schedulingMode === 'top3_heatmap' && trip.userDatePicks) {
+      setDatePicks(trip.userDatePicks)
+    }
+  }, [trip.userDatePicks, trip.schedulingMode])
   const [messages, setMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
@@ -2657,14 +3156,162 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const [editingItems, setEditingItems] = useState([])
   const [savingItems, setSavingItems] = useState(false)
 
+  // Generate date range - memoize to prevent new array reference on every render
+  const dates = useMemo(() => {
+    const datesArray = []
+    const start = new Date(trip.startDate)
+    const end = new Date(trip.endDate)
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      datesArray.push(new Date(d).toISOString().split('T')[0])
+    }
+    return datesArray
+  }, [trip.startDate, trip.endDate])
+  
+  // Calculate date range length in days
+  const getDateRangeLength = () => {
+    const start = new Date(trip.startDate)
+    const end = new Date(trip.endDate)
+    const diffTime = Math.abs(end - start)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+    return diffDays
+  }
+
+  const dateRangeLength = getDateRangeLength()
+  const BROAD_MODE_THRESHOLD = 30 // Use broad mode for ranges > 30 days
+  const WEEKLY_MODE_THRESHOLD = 90 // Use weekly blocks for ranges > 90 days
+  const useBroadMode = dateRangeLength > BROAD_MODE_THRESHOLD
+  const useWeeklyMode = dateRangeLength > WEEKLY_MODE_THRESHOLD
+
+  // Generate weekly blocks for weekly mode
+  const getWeeklyBlocks = () => {
+    const blocks = []
+    const start = new Date(trip.startDate)
+    const end = new Date(trip.endDate)
+    let currentWeekStart = new Date(start)
+    
+    // Start from the Monday of the week containing start date
+    const dayOfWeek = currentWeekStart.getDay()
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+    currentWeekStart.setDate(currentWeekStart.getDate() - daysToMonday)
+    
+    while (currentWeekStart <= end) {
+      const weekEnd = new Date(currentWeekStart)
+      weekEnd.setDate(weekEnd.getDate() + 6)
+      
+      // Clamp to trip date range
+      const blockStart = currentWeekStart < start ? new Date(start) : new Date(currentWeekStart)
+      const blockEnd = weekEnd > end ? new Date(end) : new Date(weekEnd)
+      
+      const weekKey = `${blockStart.toISOString().split('T')[0]}_${blockEnd.toISOString().split('T')[0]}`
+      
+      blocks.push({
+        key: weekKey,
+        startDate: blockStart.toISOString().split('T')[0],
+        endDate: blockEnd.toISOString().split('T')[0],
+        start: new Date(blockStart),
+        end: new Date(blockEnd)
+      })
+      
+      currentWeekStart.setDate(currentWeekStart.getDate() + 7)
+    }
+    
+    return blocks
+  }
+
+  const weeklyBlocks = useWeeklyMode ? getWeeklyBlocks() : []
+
+  // Get promising windows (use promisingWindows if available, fallback to consensusOptions)
+  // Memoize to prevent new array reference on every render
+  const promisingWindows = useMemo(() => {
+    return trip.promisingWindows || trip.consensusOptions || []
+  }, [trip.promisingWindows, trip.consensusOptions])
+  
+  const hasPromisingWindows = promisingWindows.length > 0 && trip.status !== 'voting' && trip.status !== 'locked'
+  
+  // Helper: Generate all date strings between startDate and endDate (inclusive)
+  // Uses canonical "YYYY-MM-DD" format, avoiding timezone issues by using local date components
+  // This ensures consistency across all date key generation (bulk actions, rendering, refinementDates)
+  const getDateRangeStrings = (startDateStr, endDateStr) => {
+    const dates = []
+    const start = new Date(startDateStr + 'T12:00:00') // Use noon to avoid timezone edge cases
+    const end = new Date(endDateStr + 'T12:00:00')
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      // Format as YYYY-MM-DD using local date components (not UTC)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      dates.push(`${year}-${month}-${day}`)
+    }
+    return dates
+  }
+  
+  // Get all dates within promising windows for refinement mode
+  // CRITICAL: Recompute when windows change OR when trip data updates (new users respond)
+  // Uses canonical date string generation for consistency
+  const refinementDates = useMemo(() => {
+    if (!hasPromisingWindows) return []
+    const refinementDatesSet = new Set()
+    promisingWindows.forEach(window => {
+      // Use the same canonical date generation as bulk actions and rendering
+      const windowDates = getDateRangeStrings(window.startDate, window.endDate)
+      windowDates.forEach(dateStr => refinementDatesSet.add(dateStr))
+    })
+    const result = Array.from(refinementDatesSet).sort()
+    
+    // Dev-only logging: Track when windows are recomputed
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Window Recompute]', {
+        promisingWindowsCount: promisingWindows.length,
+        refinementDatesCount: result.length,
+        tripRespondedCount: trip.respondedCount
+      })
+    }
+    
+    return result
+    // Dependencies: recompute when windows change OR when trip data updates (respondedCount changes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPromisingWindows, promisingWindows, trip.respondedCount])
+
   // Initialize availability from existing data
   useEffect(() => {
     const existingAvail = {}
+    const existingRefinement = {}
     trip.userAvailability?.forEach((a) => {
       existingAvail[a.day] = a.status
+      // Also initialize refinement availability if date is in promising windows
+      if (hasPromisingWindows && refinementDates.includes(a.day)) {
+        existingRefinement[a.day] = a.status
+      }
     })
     setAvailability(existingAvail)
-  }, [trip.userAvailability])
+    setRefinementAvailability(existingRefinement)
+    
+    // Initialize broad availability from existing data
+    // If all days have same status, set broad mode
+    if (useBroadMode && trip.userAvailability?.length > 0) {
+      const statuses = [...new Set(trip.userAvailability.map(a => a.status))]
+      if (statuses.length === 1) {
+        if (useWeeklyMode && weeklyBlocks.length > 0) {
+          // Initialize weekly availability
+          const weekly = {}
+          weeklyBlocks.forEach(block => {
+            // Check if all days in this block have the same status
+            const blockDays = dates.filter(d => d >= block.startDate && d <= block.endDate)
+            const blockStatuses = [...new Set(
+              blockDays.map(day => existingAvail[day]).filter(s => s !== undefined)
+            )]
+            if (blockStatuses.length === 1) {
+              weekly[block.key] = blockStatuses[0]
+            }
+          })
+          setWeeklyAvailability(weekly)
+        } else if (!useWeeklyMode) {
+          setBroadAvailability(statuses[0])
+        }
+      }
+    }
+  }, [trip.userAvailability, useBroadMode, useWeeklyMode, dates, hasPromisingWindows, refinementDates])
 
   // Load messages
   const loadMessages = async () => {
@@ -2730,35 +3377,156 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }, [activeTab])
 
-  // Generate date range
-  const getDatesInRange = () => {
-    const dates = []
-    const start = new Date(trip.startDate)
-    const end = new Date(trip.endDate)
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      dates.push(new Date(d).toISOString().split('T')[0])
-    }
-    return dates
-  }
-
-  const dates = getDatesInRange()
-
   const setDayAvailability = (day, status) => {
     setAvailability({ ...availability, [day]: status })
+  }
+
+  const setRefinementDayAvailability = (day, status) => {
+    setRefinementAvailability({ ...refinementAvailability, [day]: status })
+  }
+
+  // Bulk actions for refinement windows
+  // CRITICAL: Must use the SAME canonical date list as rendering
+  const setWindowBulkAvailability = (window, status) => {
+    // Get canonical date list for this window (same as used in rendering)
+    const canonicalDates = getDateRangeStrings(window.startDate, window.endDate)
+    const updated = { ...refinementAvailability }
+    
+    // Update all dates in the canonical list
+    canonicalDates.forEach(dateStr => {
+      updated[dateStr] = status
+    })
+    
+    // Dev-only assertion: Verify bulk action updates match window date count
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Bulk Action]', {
+        window: `${window.startDate} to ${window.endDate}`,
+        canonicalDatesCount: canonicalDates.length,
+        updatedKeysCount: canonicalDates.length,
+        status
+      })
+      
+      // Verify the dates we're updating match what will be rendered
+      const renderedDates = getDateRangeStrings(window.startDate, window.endDate)
+      if (canonicalDates.length !== renderedDates.length) {
+        console.error(`[Bulk Action ERROR] Canonical dates (${canonicalDates.length}) != Rendered dates (${renderedDates.length})`)
+      }
+    }
+    
+    setRefinementAvailability(updated)
   }
 
   const hasAnyAvailability = () => {
     return Object.values(availability).some(status => status !== undefined && status !== null)
   }
 
+  const hasAnyRefinementAvailability = () => {
+    return Object.values(refinementAvailability).some(status => status !== undefined && status !== null)
+  }
+
+  // Per-user state checks for current logged-in user
+  const hasBroadOrWeeklyResponseForMe = () => {
+    // Check if current user has any broad or weekly availability records
+    if (!trip.availabilities) return false
+    return trip.availabilities.some(avail => 
+      avail.userId === user?.id && (avail.isBroad === true || avail.isWeekly === true)
+    )
+  }
+
+  const hasAnyRefinementForMe = () => {
+    // Check if current user has per-day availability within refinement dates
+    if (!trip.availabilities || !hasPromisingWindows) return false
+    const refinementDateSet = new Set(refinementDates)
+    return trip.availabilities.some(avail => 
+      avail.userId === user?.id && 
+      avail.day && 
+      !avail.isBroad && 
+      !avail.isWeekly &&
+      refinementDateSet.has(avail.day)
+    )
+  }
+
+  const isSchedulingOpenForMe = () => {
+    return (trip.status === 'proposed' || trip.status === 'scheduling') && 
+           trip.status !== 'voting' && 
+           trip.status !== 'locked'
+  }
+
+  // Explicit user-level response state (for progressive narrowing UX)
+  // CRITICAL: These determine UI gating - must be based on CURRENT USER ONLY
+  const hasRespondedBroadly = hasBroadOrWeeklyResponseForMe() || (trip.userAvailability?.length > 0 && !hasAnyRefinementForMe())
+  const hasRefined = hasAnyRefinementForMe()
+  const hasSubmittedAnyAvailability = hasRespondedBroadly || hasRefined || trip.userAvailability?.length > 0
+  
+  // Determine what the current user has submitted (legacy, kept for compatibility)
+  const hasRespondedForMe = hasBroadOrWeeklyResponseForMe() || hasAnyRefinementForMe() || trip.userAvailability?.length > 0
+
+  // Debug logging (temporary - can be removed later)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Scheduling UI] User state:', {
+      hasRespondedBroadly,
+      hasRefined,
+      hasSubmittedAnyAvailability,
+      hasPromisingWindows,
+      tripStatus: trip.status
+    })
+  }
+
   const saveAvailability = async () => {
-    if (!hasAnyAvailability()) {
-      toast.error('Please mark at least one day as available, maybe, or unavailable')
-      return
+    let availabilities = []
+    
+    // If user has refinement availability in local state, save refinement (per-day within promising windows)
+    // This works whether user has responded broadly first or not
+    if (hasPromisingWindows && hasAnyRefinementAvailability()) {
+      availabilities = Object.entries(refinementAvailability)
+        .filter(([day, status]) => status !== undefined && status !== null && refinementDates.includes(day))
+        .map(([day, status]) => ({ day, status }))
+      
+      if (availabilities.length === 0) {
+        toast.error('Please mark at least one day in the promising windows')
+        return
+      }
+    } else if (useBroadMode) {
+      if (useWeeklyMode) {
+        // Weekly mode: generate per-day records from weekly selections
+        if (Object.keys(weeklyAvailability).length === 0) {
+          toast.error('Please mark at least one week as available, maybe, or unavailable')
+          return
+        }
+        weeklyBlocks.forEach(block => {
+          const status = weeklyAvailability[block.key]
+          if (status) {
+            // Generate all days in this week block
+            const blockDays = dates.filter(d => d >= block.startDate && d <= block.endDate)
+            blockDays.forEach(day => {
+              availabilities.push({ day, status })
+            })
+          }
+          // Note: If status is undefined, no records are created for that week
+          // The consensus algorithm will treat missing days as unavailable
+        })
+      } else {
+        // Single broad selector mode
+        if (!broadAvailability) {
+          toast.error('Please select your availability for this date range')
+          return
+        }
+        // Generate per-day records for entire range
+        dates.forEach(day => {
+          availabilities.push({ day, status: broadAvailability })
+        })
+      }
+    } else {
+      // Per-day mode (existing behavior)
+      if (!hasAnyAvailability()) {
+        toast.error('Please mark at least one day as available, maybe, or unavailable')
+        return
+      }
+      availabilities = Object.entries(availability).map(([day, status]) => ({ day, status }))
     }
+    
     setSaving(true)
     try {
-      const availabilities = Object.entries(availability).map(([day, status]) => ({ day, status }))
       await api(`/trips/${trip.id}/availability`, {
         method: 'POST',
         body: JSON.stringify({ availabilities })
@@ -2779,7 +3547,27 @@ function TripDetailView({ trip, token, user, onRefresh }) {
       
       toast.success('Availability saved!')
       setActivityIdeas(['', '', ''])
-      onRefresh()
+      // Reset availability state
+      if (hasPromisingWindows) {
+        setRefinementAvailability({})
+      } else if (useBroadMode) {
+        if (useWeeklyMode) {
+          setWeeklyAvailability({})
+        } else {
+          setBroadAvailability('')
+        }
+      }
+      
+      // Dev-only logging: Track when availability is saved
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Availability Saved]', {
+          availabilitiesCount: availabilities.length,
+          hasPromisingWindows,
+          willRefresh: true
+        })
+      }
+      
+      onRefresh() // This triggers window recalculation on backend
     } catch (error) {
       toast.error(error.message)
     } finally {
@@ -3024,7 +3812,36 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
+  // Calculate refinement count - users who have per-day availability in promising windows
+  const getRefinementCount = () => {
+    if (!hasPromisingWindows || !trip.availabilities) return 0
+    
+    // Get all dates in promising windows
+    const refinementDateSet = new Set(refinementDates)
+    
+    // Get unique users who have per-day availability (not broad/weekly) in refinement dates
+    const usersWithRefinement = new Set()
+    trip.availabilities.forEach(avail => {
+      // Check if it's a per-day record (has day, not isBroad, not isWeekly)
+      if (avail.day && !avail.isBroad && !avail.isWeekly) {
+        // Check if the day is in promising windows
+        if (refinementDateSet.has(avail.day)) {
+          usersWithRefinement.add(avail.userId)
+        }
+      }
+    })
+    
+    return usersWithRefinement.size
+  }
+
+  const refinementCount = hasPromisingWindows ? getRefinementCount() : 0
+
   const getStatusBadge = () => {
+    // Show "Refine" badge when refinement mode is active (promising windows exist and in scheduling phase)
+    if (hasPromisingWindows && trip.status === 'scheduling') {
+      return <Badge className="bg-purple-100 text-purple-800">Refine</Badge>
+    }
+    
     switch (trip.status) {
       case 'proposed':
         return <Badge className="bg-gray-100 text-gray-800">Proposed</Badge>
@@ -3052,6 +3869,31 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   }
 
   const voteCounts = getVoteCounts()
+
+  // Get voters for each option (with names)
+  const getVotersByOption = () => {
+    const votersByOption = {}
+    trip.votes?.forEach((vote) => {
+      if (!votersByOption[vote.optionKey]) {
+        votersByOption[vote.optionKey] = []
+      }
+      votersByOption[vote.optionKey].push({
+        id: vote.userId,
+        name: vote.voterName || 'Unknown'
+      })
+    })
+    return votersByOption
+  }
+
+  const votersByOption = getVotersByOption()
+
+  // Helper: Get initials from name
+  const getInitials = (name) => {
+    if (!name) return '?'
+    const parts = name.trim().split(/\s+/)
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
 
   // Get unique ideas with counts
   const getUniqueIdeas = () => {
@@ -3143,47 +3985,111 @@ function TripDetailView({ trip, token, user, onRefresh }) {
       </div>
 
       {/* Scheduling Progress Panel - Collaborative Trips Only */}
-      {trip.type === 'collaborative' && trip.status !== 'locked' && (
-        <Card className="mb-6 border-blue-200 bg-blue-50/50">
+      {trip.type === 'collaborative' && (
+        <Card className={`mb-6 ${trip.status === 'locked' ? 'border-green-200 bg-green-50/50' : 'border-blue-200 bg-blue-50/50'}`}>
           <CardContent className="py-4">
             <div className="flex items-start justify-between flex-wrap gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
                   <h3 className="font-semibold text-gray-900">Scheduling Progress</h3>
                   {getStatusBadge()}
                 </div>
-                <div className="space-y-2 text-sm">
+                
+                <div className="space-y-2.5 text-sm">
+                  {/* Proposed Phase */}
                   {trip.status === 'proposed' && (
-                    <p className="text-gray-600">
-                      This trip is proposed. Start by marking your availability to help the group find the best dates.
-                    </p>
-                  )}
-                  {trip.status === 'scheduling' && (
                     <>
-                      <p className="text-gray-700 font-medium">
-                        {trip.respondedCount || 0} of {trip.totalMembers || 0} members responded
+                      <p className="text-gray-700">
+                        <span className="font-medium">{trip.totalMembers || 0}</span> member{trip.totalMembers !== 1 ? 's' : ''} in circle
                       </p>
                       <p className="text-gray-600">
-                        {trip.totalMembers - (trip.respondedCount || 0) > 0 
-                          ? `${trip.totalMembers - (trip.respondedCount || 0)} haven't responded yet. We'll proceed with those who did.`
-                          : 'Everyone has responded! Ready to move to voting.'}
+                        Start by marking your availability to help the group find the best dates. <span className="font-medium">Availability ≠ commitment</span> — locking is the only commitment moment.
                       </p>
                     </>
                   )}
+
+                  {/* Scheduling Phase */}
+                  {trip.status === 'scheduling' && (
+                    <>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div>
+                          <p className="text-gray-700 font-semibold text-base">
+                            {trip.respondedCount || 0} / {trip.totalMembers || 0} responded
+                          </p>
+                          {trip.totalMembers > 5 && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {trip.totalMembers - (trip.respondedCount || 0)} pending
+                            </p>
+                          )}
+                        </div>
+                        {hasPromisingWindows && (trip.respondedCount || 0) > 0 && (
+                          <div>
+                            <p className={`font-semibold text-base ${refinementCount > 0 ? 'text-purple-700' : 'text-purple-600'}`}>
+                              {refinementCount} / {trip.respondedCount || 0} refined
+                            </p>
+                            {trip.respondedCount > 5 && refinementCount < (trip.respondedCount || 0) && (
+                              <p className="text-xs text-purple-600 mt-0.5">
+                                {trip.respondedCount - refinementCount} pending refinement
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {trip.totalMembers - (trip.respondedCount || 0) > 0 && (
+                        <p className="text-gray-600 text-xs">
+                          {trip.totalMembers - (trip.respondedCount || 0)} haven't responded yet. We'll proceed with those who did.
+                        </p>
+                      )}
+                      
+                      {hasPromisingWindows ? (
+                        <p className="text-gray-600 text-xs">
+                          <span className="font-medium">Refining helps us lock dates quickly.</span> Focus on the promising windows below.
+                        </p>
+                      ) : (
+                        <p className="text-gray-600 text-xs">
+                          <span className="font-medium">Availability ≠ commitment</span> — approximate is okay. Locking is the only commitment moment.
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {/* Voting Phase */}
                   {trip.status === 'voting' && (
                     <>
-                      <p className="text-gray-700 font-medium">
-                        {trip.votedCount || 0} of {trip.totalMembers || 0} members voted
+                      <div>
+                        <p className="text-gray-700 font-semibold text-base">
+                          {trip.votedCount || 0} vote{trip.votedCount !== 1 ? 's' : ''} cast
+                        </p>
+                        {trip.totalMembers > 5 && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {trip.totalMembers - (trip.votedCount || 0)} haven't voted
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-gray-600 text-xs">
+                        <span className="font-medium">Voting is preference</span> — we'll move forward even if everyone doesn't vote. The trip creator will lock dates based on preferences.
                       </p>
-                      <p className="text-gray-600">
-                        Vote for your preferred dates. The trip creator will lock dates based on preferences.
+                    </>
+                  )}
+
+                  {/* Locked Phase */}
+                  {trip.status === 'locked' && (
+                    <>
+                      <p className="text-green-800 font-semibold text-base">
+                        Dates locked: {trip.lockedStartDate} to {trip.lockedEndDate}
+                      </p>
+                      <p className="text-green-700 text-xs">
+                        <span className="font-medium">Locking is final.</span> Trip dates are confirmed. Time to start planning the details!
                       </p>
                     </>
                   )}
                 </div>
               </div>
+              
+              {/* Action buttons */}
               {trip.status === 'scheduling' && trip.isCreator && (
-                <div className="text-right">
+                <div className="text-right flex-shrink-0">
                   <p className="text-xs text-gray-500 mb-2">
                     Ready to move forward?
                   </p>
@@ -3252,8 +4158,23 @@ function TripDetailView({ trip, token, user, onRefresh }) {
           {/* Collaborative Trip Planning */}
           {trip.type === 'collaborative' && (
             <>
-              {/* Proposed Phase */}
-              {trip.status === 'proposed' && (
+              {/* New top3_heatmap scheduling mode */}
+              {trip.schedulingMode === 'top3_heatmap' ? (
+                <Top3HeatmapScheduling 
+                  trip={trip}
+                  token={token}
+                  user={user}
+                  onRefresh={onRefresh}
+                  datePicks={datePicks}
+                  setDatePicks={setDatePicks}
+                  savingPicks={savingPicks}
+                  setSavingPicks={setSavingPicks}
+                />
+              ) : (
+                <>
+                  {/* Legacy scheduling UI (availability/refinement flow) */}
+                  {/* Proposed Phase */}
+                  {trip.status === 'proposed' && (
                 <div className="space-y-6">
                   <Card>
                     <CardHeader>
@@ -3268,50 +4189,150 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                     <CardContent>
                       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <p className="text-sm text-blue-800">
-                          <strong>Note:</strong> Mark days you're genuinely open. If you don't respond, we'll assume you're unavailable.
+                          <strong>Note:</strong> Approximate is okay — we'll ask for details once dates narrow. If you don't respond, we'll assume you're unavailable.
                         </p>
                       </div>
-                      <div className="space-y-2">
-                        {dates.map((date) => (
-                          <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
-                            <span className="w-32 font-medium text-gray-900">
-                              {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            </span>
-                            <div className="flex gap-2 flex-wrap">
+                      
+                      {useBroadMode ? (
+                        // Broad Availability Mode
+                        useWeeklyMode ? (
+                          // Weekly Blocks Mode
+                          <div className="space-y-4">
+                            <p className="text-sm text-gray-600 mb-4">
+                              Select your availability by week. One click covers the entire week.
+                            </p>
+                            <div className="grid gap-3">
+                              {weeklyBlocks.map((block) => (
+                                <div key={block.key} className="flex items-center gap-4 p-3 border rounded-lg">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900">
+                                      {block.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {block.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2 flex-wrap">
+                                    <Button
+                                      size="sm"
+                                      variant={weeklyAvailability[block.key] === 'available' ? 'default' : 'outline'}
+                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'available' })}
+                                      className={weeklyAvailability[block.key] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                    >
+                                      <Check className="h-4 w-4 mr-1" />
+                                      Available
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={weeklyAvailability[block.key] === 'maybe' ? 'default' : 'outline'}
+                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'maybe' })}
+                                      className={weeklyAvailability[block.key] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                    >
+                                      <HelpCircle className="h-4 w-4 mr-1" />
+                                      Maybe
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={weeklyAvailability[block.key] === 'unavailable' ? 'default' : 'outline'}
+                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'unavailable' })}
+                                      className={weeklyAvailability[block.key] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                    >
+                                      <X className="h-4 w-4 mr-1" />
+                                      Unavailable
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          // Single Broad Selector Mode
+                          <div className="space-y-4">
+                            <p className="text-sm text-gray-600 mb-4">
+                              Select your availability for the entire date range ({dateRangeLength} days). One click covers all dates.
+                            </p>
+                            <div className="flex gap-3 justify-center">
                               <Button
-                                size="sm"
-                                variant={availability[date] === 'available' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'available')}
-                                className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                size="lg"
+                                variant={broadAvailability === 'available' ? 'default' : 'outline'}
+                                onClick={() => setBroadAvailability('available')}
+                                className={broadAvailability === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
                               >
-                                <Check className="h-4 w-4 mr-1" />
+                                <Check className="h-5 w-5 mr-2" />
                                 Available
                               </Button>
                               <Button
-                                size="sm"
-                                variant={availability[date] === 'maybe' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'maybe')}
-                                className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                size="lg"
+                                variant={broadAvailability === 'maybe' ? 'default' : 'outline'}
+                                onClick={() => setBroadAvailability('maybe')}
+                                className={broadAvailability === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
                               >
-                                <HelpCircle className="h-4 w-4 mr-1" />
+                                <HelpCircle className="h-5 w-5 mr-2" />
                                 Maybe
                               </Button>
                               <Button
-                                size="sm"
-                                variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'unavailable')}
-                                className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                size="lg"
+                                variant={broadAvailability === 'unavailable' ? 'default' : 'outline'}
+                                onClick={() => setBroadAvailability('unavailable')}
+                                className={broadAvailability === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
                               >
-                                <X className="h-4 w-4 mr-1" />
+                                <X className="h-5 w-5 mr-2" />
                                 Unavailable
                               </Button>
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        )
+                      ) : (
+                        // Per-Day Mode (existing UI)
+                        <div className="space-y-2">
+                          {dates.map((date) => (
+                            <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
+                              <span className="w-32 font-medium text-gray-900">
+                                {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              </span>
+                              <div className="flex gap-2 flex-wrap">
+                                <Button
+                                  size="sm"
+                                  variant={availability[date] === 'available' ? 'default' : 'outline'}
+                                  onClick={() => setDayAvailability(date, 'available')}
+                                  className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                >
+                                  <Check className="h-4 w-4 mr-1" />
+                                  Available
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={availability[date] === 'maybe' ? 'default' : 'outline'}
+                                  onClick={() => setDayAvailability(date, 'maybe')}
+                                  className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                >
+                                  <HelpCircle className="h-4 w-4 mr-1" />
+                                  Maybe
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
+                                  onClick={() => setDayAvailability(date, 'unavailable')}
+                                  className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                >
+                                  <X className="h-4 w-4 mr-1" />
+                                  Unavailable
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       
                       <div className="mt-6 flex gap-4 flex-wrap">
-                        <Button onClick={saveAvailability} disabled={saving || !hasAnyAvailability()}>
+                        <Button 
+                          onClick={saveAvailability} 
+                          disabled={
+                            saving || 
+                            (useBroadMode 
+                              ? (useWeeklyMode 
+                                  ? Object.keys(weeklyAvailability).length === 0 
+                                  : !broadAvailability)
+                              : !hasAnyAvailability())
+                          }
+                        >
                           {saving ? 'Saving...' : 'Save Availability'}
                         </Button>
                       </div>
@@ -3323,60 +4344,387 @@ function TripDetailView({ trip, token, user, onRefresh }) {
               {/* Scheduling Phase */}
               {trip.status === 'scheduling' && (
                 <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CalendarIcon className="h-5 w-5" />
-                        Submit Your Availability
-                      </CardTitle>
-                      <CardDescription>
-                        Mark days you're genuinely open. If you don't respond, we'll assume you're unavailable.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-800">
-                          <strong>Remember:</strong> Approximate availability is okay now — locking dates is the only commitment moment.
+                  {/* Refinement Mode - ONLY show if current user has responded broadly
+                      This enforces: user must contribute broad availability before seeing refinement */}
+                  {hasPromisingWindows && isSchedulingOpenForMe() && hasRespondedBroadly && (
+                    <Card className={promoteRefinement ? "border-purple-200 bg-purple-50/50" : "border-gray-200 bg-gray-50/50"}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <CalendarIcon className={`h-5 w-5 ${promoteRefinement ? 'text-purple-600' : 'text-gray-600'}`} />
+                          {promoteRefinement ? 'Refine Availability' : 'Suggested Windows'}
+                        </CardTitle>
+                        <CardDescription>
+                          {promoteRefinement 
+                            ? `Based on responses so far, we've identified ${promisingWindows.length} promising date window${promisingWindows.length !== 1 ? 's' : ''}. Refining helps us lock dates quickly.`
+                            : `Based on responses so far, these ${promisingWindows.length} window${promisingWindows.length !== 1 ? 's' : ''} look promising. You can still mark availability outside these windows.`
+                          }
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {promoteRefinement ? (
+                          <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                            <p className="text-sm text-purple-800">
+                              <strong>Note:</strong> We'll only ask for details once dates narrow. Focus on these promising windows.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <p className="text-sm text-gray-700">
+                              <strong>Note:</strong> These are suggestions based on current responses. You can refine these windows or mark availability for any dates in the trip range.
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="space-y-6">
+                          {promisingWindows.map((window, windowIdx) => {
+                            // Get dates for this window using canonical date string generation
+                            // This ensures consistency with bulk actions
+                            const windowDates = getDateRangeStrings(window.startDate, window.endDate)
+
+                            return (
+                              <div key={window.optionKey} className="border rounded-lg p-4 bg-white">
+                                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                                  <div>
+                                    <h4 className="font-semibold text-gray-900">
+                                      Window {windowIdx + 1}: {window.startDate} to {window.endDate}
+                                    </h4>
+                                    <p className="text-sm text-gray-500">
+                                      Compatibility: {(window.score * 100).toFixed(0)}% • {windowDates.length} day{windowDates.length !== 1 ? 's' : ''}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2 flex-wrap">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setWindowBulkAvailability(window, 'available')}
+                                      className="text-green-700 border-green-300 hover:bg-green-50"
+                                      disabled={!isSchedulingOpenForMe()}
+                                    >
+                                      <Check className="h-4 w-4 mr-1" />
+                                      Mark All Available
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setWindowBulkAvailability(window, 'maybe')}
+                                      className="text-yellow-700 border-yellow-300 hover:bg-yellow-50"
+                                      disabled={!isSchedulingOpenForMe()}
+                                    >
+                                      <HelpCircle className="h-4 w-4 mr-1" />
+                                      Mark All Maybe
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setWindowBulkAvailability(window, 'unavailable')}
+                                      className="text-red-700 border-red-300 hover:bg-red-50"
+                                      disabled={!isSchedulingOpenForMe()}
+                                    >
+                                      <X className="h-4 w-4 mr-1" />
+                                      Mark All Unavailable
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2 mt-4 pt-4 border-t">
+                                  {windowDates.map((date) => (
+                                    <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
+                                      <span className="w-32 font-medium text-gray-900">
+                                        {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                      </span>
+                                      <div className="flex gap-2 flex-wrap">
+                                        <Button
+                                          size="sm"
+                                          variant={refinementAvailability[date] === 'available' ? 'default' : 'outline'}
+                                          onClick={() => setRefinementDayAvailability(date, 'available')}
+                                          className={refinementAvailability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                          disabled={!isSchedulingOpenForMe()}
+                                        >
+                                          <Check className="h-4 w-4 mr-1" />
+                                          Available
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant={refinementAvailability[date] === 'maybe' ? 'default' : 'outline'}
+                                          onClick={() => setRefinementDayAvailability(date, 'maybe')}
+                                          className={refinementAvailability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                          disabled={!isSchedulingOpenForMe()}
+                                        >
+                                          <HelpCircle className="h-4 w-4 mr-1" />
+                                          Maybe
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant={refinementAvailability[date] === 'unavailable' ? 'default' : 'outline'}
+                                          onClick={() => setRefinementDayAvailability(date, 'unavailable')}
+                                          className={refinementAvailability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                          disabled={!isSchedulingOpenForMe()}
+                                        >
+                                          <X className="h-4 w-4 mr-1" />
+                                          Unavailable
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        <div className="mt-6 flex gap-4 flex-wrap">
+                          <Button 
+                            onClick={saveAvailability} 
+                            disabled={saving || !isSchedulingOpenForMe() || (!hasAnyRefinementAvailability() && !hasAnyAvailability())}
+                          >
+                            {!isSchedulingOpenForMe()
+                              ? 'Availability Frozen'
+                              : saving ? 'Saving...' : 'Save Refinement'}
+                          </Button>
+                        </div>
+                        {!isSchedulingOpenForMe() && (
+                          <p className="text-xs text-gray-500 mt-2">
+                            {trip.status === 'voting' 
+                              ? 'Availability is frozen while voting is open.'
+                              : 'Dates are locked; scheduling is closed.'}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Informational: Show promising windows as read-only info if user hasn't responded yet
+                      This is informational only - does not block broad input, no interactive elements */}
+                  {hasPromisingWindows && isSchedulingOpenForMe() && !hasRespondedBroadly && (
+                    <Card className="border-gray-200 bg-gray-50/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <CalendarIcon className="h-5 w-5 text-gray-600" />
+                          Suggested Windows (Informational)
+                        </CardTitle>
+                        <CardDescription>
+                          Based on responses so far, these {promisingWindows.length} window{promisingWindows.length !== 1 ? 's' : ''} look promising. Submit your availability above to help refine these suggestions.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {promisingWindows.map((window, windowIdx) => {
+                            const windowDates = getDateRangeStrings(window.startDate, window.endDate)
+                            return (
+                              <div key={window.optionKey} className="border rounded-lg p-3 bg-white">
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">
+                                    Window {windowIdx + 1}: {window.startDate} to {window.endDate}
+                                  </h4>
+                                  <p className="text-sm text-gray-500">
+                                    Compatibility: {(window.score * 100).toFixed(0)}% • {windowDates.length} day{windowDates.length !== 1 ? 's' : ''}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Voting Phase - Availability Frozen Message */}
+                  {trip.status === 'voting' && (
+                    <Card className="border-orange-200 bg-orange-50/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-orange-800">
+                          <Lock className="h-5 w-5" />
+                          Availability Frozen
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-orange-800">
+                          Availability is frozen while voting is open. You can vote for your preferred dates below.
                         </p>
-                      </div>
-                      <div className="space-y-2">
-                        {dates.map((date) => (
-                          <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
-                            <span className="w-32 font-medium text-gray-900">
-                              {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            </span>
-                            <div className="flex gap-2 flex-wrap">
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Locked Phase - Scheduling Closed Message */}
+                  {trip.status === 'locked' && (
+                    <Card className="border-green-200 bg-green-50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-green-800">
+                          <Lock className="h-5 w-5" />
+                          Dates Locked
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-green-800">
+                          Dates are locked; scheduling is closed. Trip dates: {trip.lockedStartDate} to {trip.lockedEndDate}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Standard Availability UI - Show based on CURRENT USER STATE ONLY
+                      Rule 1: If user has NOT submitted ANY availability → Show ONLY broad input
+                      Rule 2: If user HAS submitted broad but NOT refined → Show refinement (broad may be collapsed)
+                      Rule 3: If user HAS refined → Show refinement (editable) */}
+                  {isSchedulingOpenForMe() && !hasSubmittedAnyAvailability && (
+                    <Card className={!hasRespondedBroadly ? "" : "border-gray-200"}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <CalendarIcon className="h-5 w-5" />
+                          {hasRespondedBroadly ? 'Update Your Availability' : 'Submit Your Availability'}
+                        </CardTitle>
+                        <CardDescription>
+                          {hasRespondedBroadly 
+                            ? "You can update your availability for the entire date range. Changes will help refine the promising windows."
+                            : "Mark days you're genuinely open. If you don't respond, we'll assume you're unavailable."
+                          }
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {!hasRespondedBroadly && (
+                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              <strong>Remember:</strong> Approximate is okay — we'll ask for details once dates narrow. If you don't respond, we'll assume you're unavailable.
+                            </p>
+                          </div>
+                        )}
+                      
+                      {useBroadMode ? (
+                        // Broad Availability Mode
+                        useWeeklyMode ? (
+                          // Weekly Blocks Mode
+                          <div className="space-y-4">
+                            <p className="text-sm text-gray-600 mb-4">
+                              Select your availability by week. One click covers the entire week.
+                            </p>
+                            <div className="grid gap-3">
+                              {weeklyBlocks.map((block) => (
+                                <div key={block.key} className="flex items-center gap-4 p-3 border rounded-lg">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900">
+                                      {block.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {block.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2 flex-wrap">
+                                    <Button
+                                      size="sm"
+                                      variant={weeklyAvailability[block.key] === 'available' ? 'default' : 'outline'}
+                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'available' })}
+                                      className={weeklyAvailability[block.key] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                      disabled={!isSchedulingOpenForMe()}
+                                    >
+                                      <Check className="h-4 w-4 mr-1" />
+                                      Available
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={weeklyAvailability[block.key] === 'maybe' ? 'default' : 'outline'}
+                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'maybe' })}
+                                      className={weeklyAvailability[block.key] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                      disabled={!isSchedulingOpenForMe()}
+                                    >
+                                      <HelpCircle className="h-4 w-4 mr-1" />
+                                      Maybe
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={weeklyAvailability[block.key] === 'unavailable' ? 'default' : 'outline'}
+                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'unavailable' })}
+                                      className={weeklyAvailability[block.key] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                      disabled={!isSchedulingOpenForMe()}
+                                    >
+                                      <X className="h-4 w-4 mr-1" />
+                                      Unavailable
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          // Single Broad Selector Mode
+                          <div className="space-y-4">
+                            <p className="text-sm text-gray-600 mb-4">
+                              Select your availability for the entire date range ({dateRangeLength} days). One click covers all dates.
+                            </p>
+                            <div className="flex gap-3 justify-center">
                               <Button
-                                size="sm"
-                                variant={availability[date] === 'available' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'available')}
-                                className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                size="lg"
+                                variant={broadAvailability === 'available' ? 'default' : 'outline'}
+                                onClick={() => setBroadAvailability('available')}
+                                className={broadAvailability === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                disabled={!isSchedulingOpenForMe()}
                               >
-                                <Check className="h-4 w-4 mr-1" />
+                                <Check className="h-5 w-5 mr-2" />
                                 Available
                               </Button>
                               <Button
-                                size="sm"
-                                variant={availability[date] === 'maybe' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'maybe')}
-                                className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                size="lg"
+                                variant={broadAvailability === 'maybe' ? 'default' : 'outline'}
+                                onClick={() => setBroadAvailability('maybe')}
+                                className={broadAvailability === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                disabled={!isSchedulingOpenForMe()}
                               >
-                                <HelpCircle className="h-4 w-4 mr-1" />
+                                <HelpCircle className="h-5 w-5 mr-2" />
                                 Maybe
                               </Button>
                               <Button
-                                size="sm"
-                                variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'unavailable')}
-                                className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                size="lg"
+                                variant={broadAvailability === 'unavailable' ? 'default' : 'outline'}
+                                onClick={() => setBroadAvailability('unavailable')}
+                                className={broadAvailability === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                disabled={!isSchedulingOpenForMe()}
                               >
-                                <X className="h-4 w-4 mr-1" />
+                                <X className="h-5 w-5 mr-2" />
                                 Unavailable
                               </Button>
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        )
+                      ) : (
+                        // Per-Day Mode (existing UI)
+                        <div className="space-y-2">
+                          {dates.map((date) => (
+                            <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
+                              <span className="w-32 font-medium text-gray-900">
+                                {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              </span>
+                              <div className="flex gap-2 flex-wrap">
+                                <Button
+                                  size="sm"
+                                  variant={availability[date] === 'available' ? 'default' : 'outline'}
+                                  onClick={() => setDayAvailability(date, 'available')}
+                                  className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                  disabled={!isSchedulingOpenForMe()}
+                                >
+                                  <Check className="h-4 w-4 mr-1" />
+                                  Available
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={availability[date] === 'maybe' ? 'default' : 'outline'}
+                                  onClick={() => setDayAvailability(date, 'maybe')}
+                                  className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                  disabled={!isSchedulingOpenForMe()}
+                                >
+                                  <HelpCircle className="h-4 w-4 mr-1" />
+                                  Maybe
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
+                                  onClick={() => setDayAvailability(date, 'unavailable')}
+                                  className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                  disabled={!isSchedulingOpenForMe()}
+                                >
+                                  <X className="h-4 w-4 mr-1" />
+                                  Unavailable
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       
                       {/* Optional Activity Ideas (Idea Jar) */}
                       <div className="mt-6 pt-6 border-t">
@@ -3403,8 +4751,20 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                       </div>
                       
                       <div className="mt-6 flex gap-4 flex-wrap">
-                        <Button onClick={saveAvailability} disabled={saving || trip.status === 'voting' || trip.status === 'locked'}>
-                          {trip.status === 'voting' || trip.status === 'locked' 
+                        <Button 
+                          onClick={saveAvailability} 
+                          disabled={
+                            saving || 
+                            trip.status === 'voting' || 
+                            trip.status === 'locked' ||
+                            (useBroadMode 
+                              ? (useWeeklyMode 
+                                  ? Object.keys(weeklyAvailability).length === 0 
+                                  : !broadAvailability)
+                              : !hasAnyAvailability())
+                          }
+                        >
+                          {!isSchedulingOpenForMe()
                             ? 'Availability Frozen' 
                             : saving ? 'Saving...' : 'Save Availability'}
                         </Button>
@@ -3415,16 +4775,19 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                           </Button>
                         )}
                       </div>
-                      {(trip.status === 'voting' || trip.status === 'locked') && (
+                      {!isSchedulingOpenForMe() && (
                         <p className="text-xs text-gray-500 mt-2">
-                          Availability cannot be changed after voting has started.
+                          {trip.status === 'voting' 
+                            ? 'Availability is frozen while voting is open.'
+                            : 'Dates are locked; scheduling is closed.'}
                         </p>
                       )}
                     </CardContent>
                   </Card>
+                  )}
 
-                  {/* Consensus Preview */}
-                  {trip.consensusOptions?.length > 0 && (
+                  {/* Consensus Preview - Only show when not in refinement mode */}
+                  {!hasPromisingWindows && trip.consensusOptions?.length > 0 && (
                     <Card>
                       <CardHeader>
                         <CardTitle>Top Date Options (Preview)</CardTitle>
@@ -3468,25 +4831,58 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                     <CardContent>
                       <RadioGroup value={selectedVote} onValueChange={setSelectedVote}>
                         <div className="space-y-3">
-                          {trip.consensusOptions?.map((option, idx) => (
-                            <div key={option.optionKey} className="flex items-center space-x-3">
-                              <RadioGroupItem value={option.optionKey} id={option.optionKey} />
-                              <Label htmlFor={option.optionKey} className="flex-1 cursor-pointer">
-                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
-                                    <div>
-                                      <p className="font-medium">{option.startDate} to {option.endDate}</p>
-                                      <p className="text-sm text-gray-500">Compatibility: {(option.score * 100).toFixed(0)}%</p>
+                          {trip.consensusOptions?.map((option, idx) => {
+                            const voters = votersByOption[option.optionKey] || []
+                            const voteCount = voteCounts[option.optionKey] || 0
+                            const displayVoters = voters.slice(0, 6)
+                            const remainingCount = voters.length - displayVoters.length
+                            
+                            return (
+                              <div key={option.optionKey} className="flex items-start space-x-3">
+                                <RadioGroupItem value={option.optionKey} id={option.optionKey} className="mt-1" />
+                                <Label htmlFor={option.optionKey} className="flex-1 cursor-pointer">
+                                  <div className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
+                                        <div>
+                                          <p className="font-medium">{option.startDate} to {option.endDate}</p>
+                                          <p className="text-sm text-gray-500">Compatibility: {(option.score * 100).toFixed(0)}%</p>
+                                        </div>
+                                      </div>
+                                      <Badge variant="secondary">
+                                        {voteCount} vote{voteCount !== 1 ? 's' : ''}
+                                      </Badge>
                                     </div>
+                                    {voters.length > 0 && (
+                                      <div className="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-gray-200">
+                                        <span className="text-xs text-gray-500 font-medium">Voted by:</span>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          {displayVoters.map((voter) => (
+                                            <span
+                                              key={voter.id}
+                                              className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800 font-medium"
+                                              title={voter.name}
+                                            >
+                                              {getInitials(voter.name)}
+                                            </span>
+                                          ))}
+                                          {remainingCount > 0 && (
+                                            <span
+                                              className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700 font-medium"
+                                              title={voters.slice(6).map(v => v.name).join(', ')}
+                                            >
+                                              +{remainingCount} more
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                  <Badge variant="secondary">
-                                    {voteCounts[option.optionKey] || 0} votes
-                                  </Badge>
-                                </div>
-                              </Label>
-                            </div>
-                          ))}
+                                </Label>
+                              </div>
+                            )
+                          })}
                         </div>
                       </RadioGroup>
                       <div className="mt-6 flex gap-4 flex-wrap">
@@ -3526,9 +4922,11 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                   </CardContent>
                 </Card>
               )}
+                </>
+              )}
             </>
           )}
-
+          
           {/* Hosted Trip - Just show locked dates */}
           {trip.type === 'hosted' && (
             <Card className="bg-green-50 border-green-200">
@@ -3997,7 +5395,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         </TabsContent>
       </Tabs>
 
-      {/* Lock Confirmation Dialog */}
+      {/* Lock Confirmation Dialog (legacy) */}
       <Dialog open={showLockConfirm} onOpenChange={setShowLockConfirm}>
         <DialogContent>
           <DialogHeader>
