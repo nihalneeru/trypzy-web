@@ -183,3 +183,6 @@ The GET endpoint automatically normalizes availability data. The `userAvailabili
 - `userAvailability`: Normalized per-day records for the current user (for frontend display)
 
 
+
+
+

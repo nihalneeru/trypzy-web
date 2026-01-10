@@ -119,3 +119,6 @@ GET /api/trips/{tripId}
 ✅ Backward compatible (`consensusOptions` still present)
 
 
+
+
+

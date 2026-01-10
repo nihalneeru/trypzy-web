@@ -130,14 +130,25 @@ function AuthPage({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <Compass className="h-10 w-10 text-indigo-600" />
-            <h1 className="text-4xl font-bold text-gray-900">Trypzy</h1>
+            <img 
+              src="/brand/trypzy-logo.png" 
+              alt="Trypzy" 
+              className="h-10 w-auto"
+              onError={(e) => {
+                // Fallback to text if logo not found
+                e.target.style.display = 'none'
+                const fallback = e.target.nextElementSibling
+                if (fallback) fallback.style.display = 'block'
+              }}
+            />
+            <h1 className="text-4xl font-bold text-[#111111]" style={{ display: 'none' }}>Trypzy</h1>
+            <h1 className="text-4xl font-bold text-[#111111]">Trypzy</h1>
           </div>
-          <p className="text-gray-600">Plan trips together with your circles</p>
+          <p className="text-[#6B7280]">Plan trips together with your circles</p>
         </div>
         
         <Card className="shadow-xl border-0">
@@ -232,7 +243,7 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
     switch (timeBlock) {
       case 'morning': return <Sun className="h-3 w-3 text-yellow-500" />
       case 'afternoon': return <Sunset className="h-3 w-3 text-orange-500" />
-      case 'evening': return <Moon className="h-3 w-3 text-indigo-500" />
+      case 'evening': return <Moon className="h-3 w-3 text-[#6B7280]" />
       default: return <Clock className="h-3 w-3 text-gray-400" />
     }
   }
@@ -269,8 +280,8 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
         {/* Author & Date */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-              <span className="text-indigo-600 text-sm font-medium">
+            <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
+              <span className="text-[#111111] text-sm font-medium">
                 {(post.author?.name || post.authorName || 'A').charAt(0).toUpperCase()}
               </span>
             </div>
@@ -304,7 +315,7 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
         
         {/* Destination */}
         {post.destinationText && (
-          <p className="text-sm text-indigo-600 mb-2 flex items-center gap-1">
+          <p className="text-sm text-[#6B7280] mb-2 flex items-center gap-1">
             <MapPin className="h-3 w-3" />
             {post.destinationText}
           </p>
@@ -323,7 +334,7 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
               className="w-full flex items-center justify-between text-left"
             >
               <div className="flex items-center gap-2">
-                <ListTodo className="h-4 w-4 text-indigo-600" />
+                <ListTodo className="h-4 w-4 text-[#6B7280]" />
                 <span className="font-medium text-sm text-gray-900">Itinerary Snapshot</span>
                 <Badge variant="secondary" className="text-xs">
                   {post.itinerarySnapshot.tripLength} days • {post.itinerarySnapshot.style}
@@ -616,10 +627,10 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors"
                 >
                   {uploading ? (
-                    <div className="animate-spin h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                    <div className="animate-spin h-5 w-5 border-2 border-[#FA3823] border-t-transparent rounded-full" />
                   ) : (
                     <Plus className="h-6 w-6 text-gray-400" />
                   )}
@@ -677,17 +688,17 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
           
           {/* Attach Itinerary Section - Only show if trip is selected and has final itinerary */}
           {tripId && tripId !== 'none' && (
-            <div className="space-y-3 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100">
+            <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <ListTodo className="h-5 w-5 text-indigo-600" />
+                  <ListTodo className="h-5 w-5 text-[#6B7280]" />
                   <div>
                     <p className="font-medium text-sm">Attach itinerary to this memory?</p>
                     <p className="text-xs text-gray-500">Share your trip plan to inspire others</p>
                   </div>
                 </div>
                 {loadingItinerary ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                  <div className="animate-spin h-4 w-4 border-2 border-[#FA3823] border-t-transparent rounded-full" />
                 ) : selectedItinerary ? (
                   <Switch
                     checked={attachItinerary}
@@ -699,8 +710,8 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
               </div>
               
               {attachItinerary && selectedItinerary && (
-                <div className="space-y-3 pt-2 border-t border-indigo-100">
-                  <div className="flex items-center gap-2 text-sm text-indigo-700">
+                <div className="space-y-3 pt-2 border-t border-gray-200">
+                  <div className="flex items-center gap-2 text-sm text-[#6B7280]">
                     <Check className="h-4 w-4" />
                     <span>{selectedItinerary.title} ({selectedItinerary.itemCount} activities)</span>
                   </div>
@@ -735,7 +746,7 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-2">
               {discoverable ? (
-                <Globe className="h-5 w-5 text-indigo-600" />
+                <Globe className="h-5 w-5 text-[#6B7280]" />
               ) : (
                 <EyeOff className="h-5 w-5 text-gray-500" />
               )}
@@ -773,7 +784,7 @@ function MemoriesView({ posts, loading, onCreatePost, onDeletePost, onEditPost, 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+        <div className="animate-spin h-8 w-8 border-2 border-[#FA3823] border-t-transparent rounded-full" />
       </div>
     )
   }
@@ -1097,8 +1108,8 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
     <div className="max-w-6xl mx-auto">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <Sparkles className="h-8 w-8 text-indigo-600" />
+          <h1 className="text-3xl font-bold text-[#111111] flex items-center gap-2">
+            <Sparkles className="h-8 w-8 text-[#FA3823]" />
             Discover
           </h1>
           <p className="text-gray-600 mt-1">Travel stories and inspiration from fellow explorers</p>
@@ -1121,7 +1132,7 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
             }}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               scope === 'global'
-                ? 'bg-indigo-600 text-white'
+                ? 'bg-[#FA3823] text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -1132,7 +1143,7 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
               onClick={() => setScope('circle')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 scope === 'circle'
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-[#FA3823] text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -1192,7 +1203,7 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
       {/* Memories Feed */}
       {loading && posts.length === 0 ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+          <div className="animate-spin h-8 w-8 border-2 border-[#FA3823] border-t-transparent rounded-full" />
         </div>
       ) : scope === 'circle' && !viewCircleId && circles && circles.length > 0 ? (
         <Card className="text-center py-12">
@@ -5170,7 +5181,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                   {/* Ideas List */}
                   {loadingIdeas ? (
                     <div className="flex justify-center py-8">
-                      <div className="animate-spin h-6 w-6 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                      <div className="animate-spin h-6 w-6 border-2 border-[#FA3823] border-t-transparent rounded-full" />
                     </div>
                   ) : uniqueIdeas.length === 0 ? (
                     <p className="text-center text-gray-500 py-6">
@@ -5251,7 +5262,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                   
                   {loadingItineraries ? (
                     <div className="flex justify-center py-8">
-                      <div className="animate-spin h-6 w-6 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                      <div className="animate-spin h-6 w-6 border-2 border-[#FA3823] border-t-transparent rounded-full" />
                     </div>
                   ) : itineraries.length === 0 ? (
                     <p className="text-center text-gray-500 py-6">
