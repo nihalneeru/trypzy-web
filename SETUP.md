@@ -15,6 +15,9 @@ MONGO_URL=mongodb://localhost:27017
 DB_NAME=trypzy
 JWT_SECRET=your-secret-key-here
 CORS_ORIGINS=http://localhost:3000
+
+# OpenAI API (for itinerary generation)
+OPENAI_API_KEY=your-openai-api-key-here
 ```
 
 ## Installation

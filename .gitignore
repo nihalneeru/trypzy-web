@@ -35,6 +35,12 @@ dist/
 dist
 
 # Environment files (comprehensive coverage)
+.env
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 *token.json*
 *credentials.json*
 

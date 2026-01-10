@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import { generateItinerary, summarizeFeedback, reviseItinerary } from '@/lib/server/llm.js'
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'trypzy-secret-key-change-in-production'
@@ -590,6 +591,7 @@ async function handleRoute(request, { params }) {
         status: type === 'hosted' ? 'locked' : 'proposed', // proposed, scheduling, voting, locked
         lockedStartDate: type === 'hosted' ? startDate : null,
         lockedEndDate: type === 'hosted' ? endDate : null,
+        itineraryStatus: type === 'hosted' ? 'collecting_ideas' : null, // collecting_ideas, drafting, published, revising
         createdBy: auth.user.id,
         createdAt: new Date().toISOString()
       }
@@ -932,7 +934,9 @@ async function handleRoute(request, { params }) {
         // New top3_heatmap scheduling data
         userDatePicks, // Current user's picks: [{rank:1|2|3, startDateISO}]
         heatmapScores, // { startDateISO: score }
-        topCandidates // Top 5: [{startDateISO, endDateISO, score, loveCount, canCount, mightCount}]
+        topCandidates, // Top 5: [{startDateISO, endDateISO, score, loveCount, canCount, mightCount}]
+        // Itinerary status (for locked trips)
+        itineraryStatus: trip.itineraryStatus || null
       }))
     }
     
@@ -1509,7 +1513,8 @@ async function handleRoute(request, { params }) {
           $set: { 
             status: 'locked',
             lockedStartDate,
-            lockedEndDate
+            lockedEndDate,
+            itineraryStatus: 'collecting_ideas' // Default to collecting ideas when locked
           } 
         }
       )
@@ -3455,6 +3460,662 @@ async function handleRoute(request, { params }) {
         message: 'Itinerary updated',
         items: newItems
       }))
+    }
+
+    // ============ ITINERARY ROUTES ============
+    
+    // Create itinerary idea - POST /api/trips/:tripId/itinerary/ideas
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/ideas$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { title, details, category, constraints, location } = body
+      
+      if (!title || !title.trim()) {
+        return handleCORS(NextResponse.json(
+          { error: 'Title is required' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Guard: Must be locked
+      if (trip.status !== 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary ideas can only be added to locked trips' },
+          { status: 400 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const idea = {
+        id: uuidv4(),
+        tripId,
+        authorId: auth.user.id,
+        title: title.trim(),
+        details: details?.trim() || null,
+        category: category || 'other',
+        constraints: Array.isArray(constraints) ? constraints : (constraints ? constraints.split(',').map(c => c.trim()).filter(c => c) : []),
+        location: location?.trim() || null,
+        priority: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      
+      await db.collection('itinerary_ideas').insertOne(idea)
+      
+      return handleCORS(NextResponse.json(idea))
+    }
+    
+    // List itinerary ideas - GET /api/trips/:tripId/itinerary/ideas
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/ideas$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const ideas = await db.collection('itinerary_ideas')
+        .find({ tripId })
+        .sort({ priority: -1, createdAt: -1 })
+        .toArray()
+      
+      // Get authors
+      const authorIds = [...new Set(ideas.map(i => i.authorId))]
+      const authors = await db.collection('users')
+        .find({ id: { $in: authorIds } })
+        .toArray()
+      
+      const ideasWithAuthors = ideas.map(idea => {
+        const { _id, ...rest } = idea
+        const author = authors.find(a => a.id === idea.authorId)
+        return {
+          ...rest,
+          author: author ? { id: author.id, name: author.name } : null,
+          isAuthor: idea.authorId === auth.user.id
+        }
+      })
+      
+      return handleCORS(NextResponse.json(ideasWithAuthors))
+    }
+    
+    // Upvote itinerary idea - POST /api/trips/:tripId/itinerary/ideas/:ideaId/upvote
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/ideas\/[^/]+\/upvote$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const ideaId = path[4]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const idea = await db.collection('itinerary_ideas').findOne({ id: ideaId, tripId })
+      if (!idea) {
+        return handleCORS(NextResponse.json(
+          { error: 'Idea not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // MVP: Simple increment (no duplicate checking for MVP)
+      await db.collection('itinerary_ideas').updateOne(
+        { id: ideaId },
+        { $inc: { priority: 1 } }
+      )
+      
+      return handleCORS(NextResponse.json({ message: 'Idea upvoted' }))
+    }
+    
+    // List itinerary versions - GET /api/trips/:tripId/itinerary/versions
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/versions$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const versions = await db.collection('itinerary_versions')
+        .find({ tripId })
+        .sort({ version: -1 })
+        .toArray()
+      
+      // Get creators
+      const creatorIds = [...new Set(versions.map(v => v.createdBy))]
+      const creators = await db.collection('users')
+        .find({ id: { $in: creatorIds } })
+        .toArray()
+      
+      const versionsWithCreators = versions.map(version => {
+        const { _id, ...rest } = version
+        const creator = creators.find(c => c.id === version.createdBy)
+        return {
+          ...rest,
+          creator: creator ? { id: creator.id, name: creator.name } : null
+        }
+      })
+      
+      return handleCORS(NextResponse.json(versionsWithCreators))
+    }
+    
+    // Get latest itinerary version - GET /api/trips/:tripId/itinerary/versions/latest
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/versions\/latest$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const version = await db.collection('itinerary_versions')
+        .findOne({ tripId }, { sort: { version: -1 } })
+      
+      if (!version) {
+        return handleCORS(NextResponse.json(
+          { error: 'No itinerary version found' },
+          { status: 404 }
+        ))
+      }
+      
+      const { _id, ...rest } = version
+      return handleCORS(NextResponse.json(rest))
+    }
+    
+    // Generate initial itinerary - POST /api/trips/:tripId/itinerary/generate
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/generate$/) && method === 'POST') {
+      // Debug: Log the route and auth header
+      const authHeader = request.headers.get('Authorization')
+      if (!authHeader) {
+        return handleCORS(NextResponse.json({ error: 'Authorization header missing' }, { status: 401 }))
+      }
+      
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Guard: Must be locked
+      if (trip.status !== 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary can only be generated for locked trips' },
+          { status: 400 }
+        ))
+      }
+      
+      // Only trip creator or circle owner can generate
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator or circle owner can generate an itinerary' },
+          { status: 403 }
+        ))
+      }
+      
+      // MVP: Only allow if no versions exist
+      const existingVersions = await db.collection('itinerary_versions')
+        .find({ tripId })
+        .toArray()
+      
+      if (existingVersions.length > 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary already generated. Use revise endpoint to create new versions.' },
+          { status: 400 }
+        ))
+      }
+      
+      // Update status to drafting
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: { itineraryStatus: 'drafting' } }
+      )
+      
+      try {
+        // Get top ideas by priority
+        const ideas = await db.collection('itinerary_ideas')
+          .find({ tripId })
+          .sort({ priority: -1, createdAt: -1 })
+          .limit(10)
+          .toArray()
+        
+        // Extract all constraints
+        const allConstraints = []
+        ideas.forEach(idea => {
+          if (idea.constraints && Array.isArray(idea.constraints)) {
+            allConstraints.push(...idea.constraints)
+          }
+        })
+        
+        // Get circle for group size
+        const groupSize = (await db.collection('memberships')
+          .find({ circleId: trip.circleId })
+          .toArray()).length
+        
+        // Generate itinerary using LLM
+        const itineraryContent = await generateItinerary({
+          destination: trip.description || trip.name, // Use description or name as destination hint
+          startDate: trip.lockedStartDate || trip.startDate,
+          endDate: trip.lockedEndDate || trip.endDate,
+          groupSize,
+          ideas: ideas.map(idea => ({
+            id: idea.id,
+            title: idea.title,
+            details: idea.details,
+            category: idea.category,
+            constraints: idea.constraints || [],
+            location: idea.location
+          })),
+          constraints: [...new Set(allConstraints)]
+        })
+        
+        // Create version 1
+        const version = {
+          id: uuidv4(),
+          tripId,
+          version: 1,
+          createdBy: auth.user.id,
+          createdAt: new Date().toISOString(),
+          sourceIdeaIds: ideas.map(i => i.id),
+          content: itineraryContent,
+          changeLog: ''
+        }
+        
+        await db.collection('itinerary_versions').insertOne(version)
+        
+        // Update status to published
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { itineraryStatus: 'published' } }
+        )
+        
+        const { _id, ...versionResponse } = version
+        return handleCORS(NextResponse.json(versionResponse))
+      } catch (error) {
+        // Reset status on error
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { itineraryStatus: 'collecting_ideas' } }
+        )
+        throw error
+      }
+    }
+    
+    // Submit feedback - POST /api/trips/:tripId/itinerary/feedback
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/feedback$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { itineraryVersion, message, type, target } = body
+      
+      if (!itineraryVersion || !message || !message.trim()) {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary version and message are required' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Verify version exists
+      const version = await db.collection('itinerary_versions').findOne({
+        tripId,
+        version: parseInt(itineraryVersion)
+      })
+      
+      if (!version) {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary version not found' },
+          { status: 404 }
+        ))
+      }
+      
+      const feedback = {
+        id: uuidv4(),
+        tripId,
+        itineraryVersion: parseInt(itineraryVersion),
+        authorId: auth.user.id,
+        message: message.trim(),
+        type: type || 'suggestion',
+        target: target || null,
+        createdAt: new Date().toISOString()
+      }
+      
+      await db.collection('itinerary_feedback').insertOne(feedback)
+      
+      // Get author info
+      const author = await db.collection('users').findOne({ id: auth.user.id })
+      
+      return handleCORS(NextResponse.json({
+        ...feedback,
+        author: author ? { id: author.id, name: author.name } : null
+      }))
+    }
+    
+    // Get feedback for version - GET /api/trips/:tripId/itinerary/feedback?version=1
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/feedback$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const searchParams = request.nextUrl.searchParams
+      const version = searchParams.get('version')
+      
+      if (!version) {
+        return handleCORS(NextResponse.json(
+          { error: 'Version parameter is required' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const feedbackMessages = await db.collection('itinerary_feedback')
+        .find({ tripId, itineraryVersion: parseInt(version) })
+        .sort({ createdAt: 1 })
+        .toArray()
+      
+      // Get authors
+      const authorIds = [...new Set(feedbackMessages.map(f => f.authorId))]
+      const authors = await db.collection('users')
+        .find({ id: { $in: authorIds } })
+        .toArray()
+      
+      const feedbackWithAuthors = feedbackMessages.map(feedback => {
+        const { _id, ...rest } = feedback
+        const author = authors.find(a => a.id === feedback.authorId)
+        return {
+          ...rest,
+          author: author ? { id: author.id, name: author.name } : null
+        }
+      })
+      
+      return handleCORS(NextResponse.json(feedbackWithAuthors))
+    }
+    
+    // Revise itinerary - POST /api/trips/:tripId/itinerary/revise
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/revise$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Guard: Must be locked
+      if (trip.status !== 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary can only be revised for locked trips' },
+          { status: 400 }
+        ))
+      }
+      
+      // Only trip creator or circle owner can revise
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator or circle owner can revise an itinerary' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get latest version
+      const latestVersion = await db.collection('itinerary_versions')
+        .findOne({ tripId }, { sort: { version: -1 } })
+      
+      if (!latestVersion) {
+        return handleCORS(NextResponse.json(
+          { error: 'No itinerary version found. Generate an initial itinerary first.' },
+          { status: 400 }
+        ))
+      }
+      
+      // Get feedback for latest version
+      const feedbackMessages = await db.collection('itinerary_feedback')
+        .find({ tripId, itineraryVersion: latestVersion.version })
+        .sort({ createdAt: 1 })
+        .toArray()
+      
+      // Get new ideas since last version
+      const newIdeas = await db.collection('itinerary_ideas')
+        .find({ 
+          tripId,
+          createdAt: { $gt: latestVersion.createdAt }
+        })
+        .sort({ priority: -1, createdAt: -1 })
+        .limit(5)
+        .toArray()
+      
+      // Update status to revising
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: { itineraryStatus: 'revising' } }
+      )
+      
+      try {
+        // Summarize feedback
+        const feedbackSummary = await summarizeFeedback(feedbackMessages)
+        
+        // Revise itinerary using LLM
+        const { itinerary: revisedContent, changeLog } = await reviseItinerary({
+          currentItinerary: latestVersion.content,
+          feedbackSummary,
+          newIdeas: newIdeas.map(idea => ({
+            id: idea.id,
+            title: idea.title,
+            details: idea.details,
+            category: idea.category,
+            location: idea.location
+          })),
+          destination: trip.description || trip.name,
+          startDate: trip.lockedStartDate || trip.startDate,
+          endDate: trip.lockedEndDate || trip.endDate
+        })
+        
+        // Create next version
+        const nextVersion = latestVersion.version + 1
+        const sourceIdeaIds = [
+          ...latestVersion.sourceIdeaIds,
+          ...newIdeas.map(i => i.id)
+        ]
+        
+        const newVersion = {
+          id: uuidv4(),
+          tripId,
+          version: nextVersion,
+          createdBy: auth.user.id,
+          createdAt: new Date().toISOString(),
+          sourceIdeaIds: [...new Set(sourceIdeaIds)],
+          content: revisedContent,
+          changeLog: changeLog.trim()
+        }
+        
+        await db.collection('itinerary_versions').insertOne(newVersion)
+        
+        // Update status back to published
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { itineraryStatus: 'published' } }
+        )
+        
+        const { _id, ...versionResponse } = newVersion
+        return handleCORS(NextResponse.json(versionResponse))
+      } catch (error) {
+        // Reset status on error
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { itineraryStatus: 'published' } }
+        )
+        throw error
+      }
     }
 
     // ============ DEV/SEEDING ROUTES ============
