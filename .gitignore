@@ -3,6 +3,8 @@
 # IDE and editors
 .idea/
 .vscode/
+.cursor/
+.emergent/
 
 # Dependencies
 node_modules/
@@ -18,6 +20,8 @@ node_modules/
 
 # Testing
 /coverage
+/test-results/
+/playwright-report/
 
 # Next.js
 /.next/
