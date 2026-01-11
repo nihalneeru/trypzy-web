@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -27,6 +28,68 @@ import {
   ListTodo, Lightbulb, RefreshCw, ChevronUp, ChevronDown, Clock, Sun, Moon, Sunset, Info,
   Circle, CheckCircle2, Home, Luggage, DollarSign
 } from 'lucide-react'
+
+// Trypzy Logo Component
+// Preserves aspect ratio by using height-controlled sizing with width: auto
+function TrypzyLogo({ variant = 'full', className = '' }) {
+  if (variant === 'icon') {
+    // Icon-only variant (square, for spinners - use BrandedSpinner instead)
+    return (
+      <Image
+        src="/brand/trypzy-icon.png"
+        alt="Trypzy"
+        width={32}
+        height={32}
+        className={className || "h-8 w-8"}
+        unoptimized
+      />
+    )
+  }
+  
+  // Full logo variant (for headers/nav)
+  // Aspect ratio: 140:40 = 3.5:1 (matches auth page)
+  // Use height-controlled sizing (h-*) with w-auto to preserve aspect ratio
+  return (
+    <Image
+      src="/brand/trypzy-logo.png"
+      alt="Trypzy"
+      width={140}
+      height={40}
+      className={className || "h-8 w-auto"}
+      unoptimized
+    />
+  )
+}
+
+// Branded Spinner Component
+function BrandedSpinner({ className = '', size = 'default' }) {
+  const sizeClasses = {
+    sm: 'h-4 w-4',
+    default: 'h-5 w-5',
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8'
+  }
+  
+  const dimensions = {
+    sm: 16,
+    default: 20,
+    md: 24,
+    lg: 32
+  }
+  
+  return (
+    <div className={`inline-flex items-center justify-center ${className}`}>
+      <Image
+        src="/brand/trypzy-icon.png"
+        alt="Loading"
+        width={dimensions[size]}
+        height={dimensions[size]}
+        className={`${sizeClasses[size]} animate-spin`}
+        unoptimized
+      />
+    </div>
+  )
+}
 
 // Auth Context
 const useAuth = () => {
@@ -149,22 +212,10 @@ function AuthPage({ onLogin }) {
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <img 
-              src="/brand/trypzy-logo.png" 
-              alt="Trypzy" 
-              className="h-10 w-auto"
-              onError={(e) => {
-                // Fallback to text if logo not found
-                e.target.style.display = 'none'
-                const fallback = e.target.nextElementSibling
-                if (fallback) fallback.style.display = 'block'
-              }}
-            />
-            <h1 className="text-4xl font-bold text-[#111111]" style={{ display: 'none' }}>Trypzy</h1>
-            <h1 className="text-4xl font-bold text-[#111111]">Trypzy</h1>
+          <div className="flex items-center justify-center mb-4">
+            <TrypzyLogo variant="full" className="h-10 w-auto" />
           </div>
-          <p className="text-[#6B7280]">Plan trips together with your circles</p>
+          <p className="text-[#6B7280]">Trips made easy</p>
         </div>
         
         <Card className="shadow-xl border-0">
@@ -211,7 +262,23 @@ function AuthPage({ onLogin }) {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Loading...' : (isSignup ? 'Create Account' : 'Sign In')}
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 shrink-0 animate-spin">
+                      <Image
+                        src="/brand/trypzy-icon.png"
+                        alt="Loading"
+                        width={20}
+                        height={20}
+                        className="object-contain"
+                        unoptimized
+                      />
+                    </div>
+                    <span>Loading...</span>
+                  </div>
+                ) : (
+                  isSignup ? 'Create Account' : 'Sign In'
+                )}
               </Button>
             </form>
           </CardContent>
@@ -646,7 +713,7 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
                   className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors"
                 >
                   {uploading ? (
-                    <div className="animate-spin h-5 w-5 border-2 border-[#FA3823] border-t-transparent rounded-full" />
+                    <BrandedSpinner size="default" />
                   ) : (
                     <Plus className="h-6 w-6 text-gray-400" />
                   )}
@@ -714,7 +781,7 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
                   </div>
                 </div>
                 {loadingItinerary ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-[#FA3823] border-t-transparent rounded-full" />
+                  <BrandedSpinner size="sm" />
                 ) : selectedItinerary ? (
                   <Switch
                     checked={attachItinerary}
@@ -800,7 +867,7 @@ function MemoriesView({ posts, loading, onCreatePost, onDeletePost, onEditPost, 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin h-8 w-8 border-2 border-[#FA3823] border-t-transparent rounded-full" />
+        <BrandedSpinner size="lg" />
       </div>
     )
   }
@@ -1219,7 +1286,7 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
       {/* Memories Feed */}
       {loading && posts.length === 0 ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin h-8 w-8 border-2 border-[#FA3823] border-t-transparent rounded-full" />
+          <BrandedSpinner size="lg" />
         </div>
       ) : scope === 'circle' && !viewCircleId && circles && circles.length > 0 ? (
         <Card className="text-center py-12">
@@ -1562,7 +1629,7 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
                     className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-indigo-500 flex items-center justify-center text-gray-400 hover:text-indigo-500"
                   >
                     {shareUploading ? (
-                      <RefreshCw className="h-6 w-6 animate-spin" />
+                      <BrandedSpinner size="md" />
                     ) : (
                       <ImageIcon className="h-6 w-6" />
                     )}
@@ -1772,7 +1839,7 @@ function Dashboard({ user, token, onLogout }) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Compass className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
+          <BrandedSpinner size="lg" className="mx-auto mb-4" />
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
@@ -1791,9 +1858,8 @@ function Dashboard({ user, token, onLogout }) {
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
               )}
-              <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('circles')}>
-                <Compass className="h-6 w-6 text-indigo-600" />
-                <span className="font-semibold text-xl">Trypzy</span>
+              <div className="flex items-center cursor-pointer" onClick={() => setView('circles')}>
+                <TrypzyLogo variant="full" className="h-8 w-auto" />
               </div>
               
               {/* Nav Links */}
@@ -5397,7 +5463,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                     <ScrollArea className="h-[400px]">
                       {loadingIdeas ? (
                         <div className="flex justify-center py-8">
-                          <div className="animate-spin h-6 w-6 border-2 border-[#FA3823] border-t-transparent rounded-full" />
+                          <BrandedSpinner size="md" />
                         </div>
                       ) : ideas.length === 0 ? (
                         <p className="text-center text-gray-500 py-6 text-sm">
@@ -5468,7 +5534,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                         <Button onClick={generateItinerary} disabled={generating || ideas.length === 0} size="sm">
                           {generating ? (
                             <>
-                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              <BrandedSpinner size="sm" className="mr-2" />
                               Generating...
                             </>
                           ) : (
@@ -5485,7 +5551,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                     <ScrollArea className="h-[500px]">
                       {loadingVersions ? (
                         <div className="flex justify-center py-8">
-                          <div className="animate-spin h-6 w-6 border-2 border-[#FA3823] border-t-transparent rounded-full" />
+                          <BrandedSpinner size="md" />
                         </div>
                       ) : !latestVersion ? (
                         <div className="text-center py-12">
@@ -5495,7 +5561,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                             <Button onClick={generateItinerary} disabled={generating}>
                               {generating ? (
                                 <>
-                                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                  <BrandedSpinner size="sm" className="mr-2" />
                                   Generating...
                                 </>
                               ) : (
@@ -5611,7 +5677,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                         <Button onClick={reviseItinerary} disabled={revising || feedback.length === 0} size="sm" variant="outline">
                           {revising ? (
                             <>
-                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              <BrandedSpinner size="sm" className="mr-2" />
                               Revising...
                             </>
                           ) : (
@@ -5641,7 +5707,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                         <ScrollArea className="flex-1 mb-4">
                           {loadingFeedback ? (
                             <div className="flex justify-center py-8">
-                              <div className="animate-spin h-6 w-6 border-2 border-[#FA3823] border-t-transparent rounded-full" />
+                              <BrandedSpinner size="md" />
                             </div>
                           ) : feedback.length === 0 ? (
                             <p className="text-center text-gray-500 py-8 text-sm">
@@ -5823,7 +5889,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Compass className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
+          <BrandedSpinner size="lg" className="mx-auto mb-4" />
           <p className="text-gray-600">Loading Trypzy...</p>
         </div>
       </div>
