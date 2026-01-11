@@ -15,13 +15,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { toast } from 'sonner'
 import { 
   Users, Plus, LogOut, MapPin, Calendar as CalendarIcon, 
   MessageCircle, Check, X, HelpCircle, Vote, Lock, UserPlus,
   ChevronLeft, Send, Compass, ArrowRight, Image as ImageIcon,
   Camera, Globe, Eye, EyeOff, Trash2, Edit, Search, Flag, Sparkles,
-  ListTodo, Lightbulb, RefreshCw, ChevronUp, ChevronDown, Clock, Sun, Moon, Sunset
+  ListTodo, Lightbulb, RefreshCw, ChevronUp, ChevronDown, Clock, Sun, Moon, Sunset, Info,
+  Circle, CheckCircle2, Home, Luggage, DollarSign
 } from 'lucide-react'
 
 // Auth Context
@@ -2538,7 +2542,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           <Card className="h-[600px] flex flex-col">
             <CardHeader>
               <CardTitle className="text-lg">Circle Chat</CardTitle>
-              <CardDescription>Coordinate with your circle members</CardDescription>
+              <CardDescription>General discussion for everyone in this circle.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
               <ScrollArea className="flex-1 pr-4">
@@ -2650,6 +2654,204 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// Trip Progress Component
+function TripProgress({ trip, token, user, onRefresh }) {
+  const isMobile = useIsMobile()
+  const [progress, setProgress] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [updating, setUpdating] = useState(false)
+  const [isOpen, setIsOpen] = useState(!isMobile) // Open on desktop, closed on mobile by default
+  
+  useEffect(() => {
+    loadProgress()
+  }, [trip.id])
+  
+  const loadProgress = async () => {
+    try {
+      const data = await api(`/trips/${trip.id}/progress`, { method: 'GET' }, token)
+      setProgress(data)
+    } catch (error) {
+      console.error('Failed to load progress:', error)
+      toast.error('Failed to load trip progress')
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  const toggleStep = async (step) => {
+    if (!progress?.canEdit) return
+    if (updating) return
+    
+    const currentValue = progress.steps[step]
+    setUpdating(true)
+    
+    try {
+      const data = await api(`/trips/${trip.id}/progress`, {
+        method: 'PATCH',
+        body: JSON.stringify({ step, completed: !currentValue })
+      }, token)
+      setProgress(data)
+      onRefresh() // Refresh trip data to update chat messages
+    } catch (error) {
+      toast.error(error.message || 'Failed to update progress')
+    } finally {
+      setUpdating(false)
+    }
+  }
+  
+  if (loading || !progress) {
+    return null
+  }
+  
+  const stepConfigs = [
+    {
+      key: 'tripProposed',
+      label: 'Trip Proposed',
+      tooltip: 'The trip has been created and shared with the circle.',
+      manual: false,
+      icon: Flag
+    },
+    {
+      key: 'datesLocked',
+      label: 'Dates Locked',
+      tooltip: 'Trip dates have been finalized and locked.',
+      manual: false,
+      icon: Lock
+    },
+    {
+      key: 'accommodationChosen',
+      label: 'Accommodation Chosen',
+      tooltip: 'Accommodation has been selected for the trip.',
+      manual: true,
+      icon: Home
+    },
+    {
+      key: 'itineraryFinalized',
+      label: 'Itinerary Finalized',
+      tooltip: 'The final itinerary has been selected and approved.',
+      manual: false, // Computed from selected itinerary
+      icon: ListTodo
+    },
+    {
+      key: 'prepStarted',
+      label: 'Prep Started',
+      tooltip: 'Trip preparation has begun (bookings, reservations, etc.).',
+      manual: true,
+      icon: Luggage
+    },
+    {
+      key: 'tripOngoing',
+      label: 'Trip Ongoing',
+      tooltip: 'The trip is currently happening (dates are active).',
+      manual: false,
+      icon: CalendarIcon
+    },
+    {
+      key: 'memoriesShared',
+      label: 'Memories Shared',
+      tooltip: 'Trip memories and photos have been shared.',
+      manual: true,
+      icon: Camera
+    },
+    {
+      key: 'expensesSettled',
+      label: 'Expenses Settled',
+      tooltip: 'All trip expenses have been settled and paid.',
+      manual: true,
+      icon: DollarSign
+    }
+  ]
+  
+  // Find first incomplete step
+  const firstIncompleteStep = stepConfigs.find(step => !progress.steps[step.key])
+  const firstIncompleteKey = firstIncompleteStep?.key
+  
+  const ProgressContent = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Trip Progress</CardTitle>
+        <CardDescription>Track your trip planning milestones</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {stepConfigs.map((stepConfig, index) => {
+          const isComplete = progress.steps[stepConfig.key]
+          const isFirstIncomplete = stepConfig.key === firstIncompleteKey
+          const canToggle = stepConfig.manual && progress.canEdit && (stepConfig.key !== 'itineraryFinalized' || !progress.steps.itineraryFinalized)
+          const StepIcon = stepConfig.icon
+          
+          return (
+            <div
+              key={stepConfig.key}
+              className={`flex items-start gap-3 p-2 rounded-lg transition-colors ${
+                isFirstIncomplete ? 'bg-blue-50 border border-blue-200' : ''
+              }`}
+            >
+              <div className="flex-shrink-0 mt-0.5">
+                {isComplete ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                ) : (
+                  <Circle className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <StepIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className={`text-sm font-medium ${isFirstIncomplete ? 'text-blue-900' : 'text-gray-900'}`}>
+                    {stepConfig.label}
+                  </span>
+                  {isFirstIncomplete && (
+                    <Badge variant="secondary" className="text-xs">Next</Badge>
+                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-gray-400 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-xs">{stepConfig.tooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                {stepConfig.manual && progress.canEdit && (
+                  <Switch
+                    checked={isComplete}
+                    onCheckedChange={() => toggleStep(stepConfig.key)}
+                    disabled={updating}
+                    className="mt-1"
+                  />
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+  
+  if (isMobile) {
+    return (
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mb-6">
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" className="w-full justify-between">
+            <span className="font-medium">Trip Progress</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-4">
+          <ProgressContent />
+        </CollapsibleContent>
+      </Collapsible>
+    )
+  }
+  
+  return (
+    <div className="sticky top-4 self-start">
+      <ProgressContent />
     </div>
   )
 }
@@ -3181,6 +3383,21 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const [loadingFeedback, setLoadingFeedback] = useState(false)
   const [newFeedback, setNewFeedback] = useState({ message: '', type: 'suggestion', target: '' })
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  
+  // Trip Chat hint banner state
+  const [showTripChatHint, setShowTripChatHint] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('tripChatHintDismissed')
+    }
+    return false
+  })
+  
+  const dismissTripChatHint = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tripChatHintDismissed', 'true')
+    }
+    setShowTripChatHint(false)
+  }
 
   // Generate date range - memoize to prevent new array reference on every render
   const dates = useMemo(() => {
@@ -4188,7 +4405,21 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                         )}
                       </div>
                       <p className="text-gray-600 text-xs">
-                        <span className="font-medium">Voting is preference</span> — we'll move forward even if everyone doesn't vote. The trip creator will lock dates based on preferences.
+                        <span className="font-medium">Voting is preference</span> — we'll move forward even if everyone doesn't vote. The{' '}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-1 cursor-help underline decoration-dotted">
+                                <span>Trip Leader</span>
+                                <Info className="h-3 w-3" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs">The Trip Leader moves scheduling forward and can lock dates. This doesn't change circle membership.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        {' '}will lock dates based on preferences.
                       </p>
                     </>
                   )}
@@ -4250,8 +4481,12 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         </Card>
       )}
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      {/* Main Content with Progress Panel */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Main Content */}
+        <div className="flex-1 min-w-0">
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6 flex-wrap">
           <TabsTrigger value="planning">
             <CalendarIcon className="h-4 w-4 mr-2" />
@@ -5481,9 +5716,23 @@ function TripDetailView({ trip, token, user, onRefresh }) {
           <Card className="h-[500px] flex flex-col">
             <CardHeader>
               <CardTitle className="text-lg">Trip Chat</CardTitle>
-              <CardDescription>Discuss trip details with your group</CardDescription>
+              <CardDescription>Decisions and updates for this trip. System updates appear here.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
+              {showTripChatHint && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-3">
+                  <p className="text-sm text-blue-800 flex-1">
+                    Trip Chat is for decisions and updates. For general discussion, use Circle Chat.
+                  </p>
+                  <button
+                    onClick={dismissTripChatHint}
+                    className="flex-shrink-0 text-blue-600 hover:text-blue-800"
+                    aria-label="Dismiss"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <ScrollArea className="flex-1 pr-4">
                 <div className="space-y-4">
                   {messages.length === 0 ? (
@@ -5523,6 +5772,13 @@ function TripDetailView({ trip, token, user, onRefresh }) {
           </Card>
         </TabsContent>
       </Tabs>
+        </div>
+
+        {/* Trip Progress Panel */}
+        <div className="lg:w-[340px] flex-shrink-0">
+          <TripProgress trip={trip} token={token} user={user} onRefresh={onRefresh} />
+        </div>
+      </div>
 
       {/* Lock Confirmation Dialog (legacy) */}
       <Dialog open={showLockConfirm} onOpenChange={setShowLockConfirm}>

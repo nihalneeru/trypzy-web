@@ -24,6 +24,7 @@ Testing documentation, procedures, and results.
 - **[TEST_SUMMARY.md](./tests/TEST_SUMMARY.md)** - Testing infrastructure overview and status
 - **[AVAILABILITY_TEST_STEPS.md](./tests/AVAILABILITY_TEST_STEPS.md)** - Step-by-step testing procedures for availability features
 - **[PROMISING_WINDOWS_TEST.md](./tests/PROMISING_WINDOWS_TEST.md)** - Testing guide for Promising Windows feature
+- **[SYSTEM_MESSAGES_TEST.md](./tests/SYSTEM_MESSAGES_TEST.md)** - Manual test checklist for system messages and chat scope
 - **[test_result.md](./tests/test_result.md)** - Testing protocol and results tracking (for agent communication)
 
 ## Root Documentation

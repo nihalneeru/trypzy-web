@@ -3386,6 +3386,212 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ message: 'Itinerary selected' }))
     }
     
+    // Get trip progress - GET /api/trips/:id/progress
+    if (route.match(/^\/trips\/[^/]+\/progress$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get circle for owner check
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      
+      // Get progress document (or create empty)
+      let progress = await db.collection('trip_progress').findOne({ tripId })
+      if (!progress) {
+        progress = {
+          tripId,
+          accommodationChosenAt: null,
+          prepStartedAt: null,
+          memoriesSharedAt: null,
+          expensesSettledAt: null
+        }
+      }
+      
+      // Check for selected itinerary
+      const selectedItinerary = await db.collection('itineraries').findOne({
+        tripId,
+        status: 'selected'
+      })
+      
+      // Compute step statuses
+      const today = new Date().toISOString().split('T')[0]
+      const isTripOngoing = trip.lockedStartDate && trip.lockedEndDate && 
+        today >= trip.lockedStartDate && today <= trip.lockedEndDate
+      
+      const steps = {
+        tripProposed: true, // Always complete
+        datesLocked: trip.status === 'locked',
+        accommodationChosen: !!progress.accommodationChosenAt,
+        itineraryFinalized: !!selectedItinerary,
+        prepStarted: !!progress.prepStartedAt,
+        tripOngoing: isTripOngoing,
+        memoriesShared: !!progress.memoriesSharedAt,
+        expensesSettled: !!progress.expensesSettledAt
+      }
+      
+      return handleCORS(NextResponse.json({
+        steps,
+        timestamps: {
+          accommodationChosenAt: progress.accommodationChosenAt,
+          prepStartedAt: progress.prepStartedAt,
+          memoriesSharedAt: progress.memoriesSharedAt,
+          expensesSettledAt: progress.expensesSettledAt
+        },
+        canEdit: trip.createdBy === auth.user.id || circle?.ownerId === auth.user.id
+      }))
+    }
+    
+    // Update trip progress - PATCH /api/trips/:id/progress
+    if (route.match(/^\/trips\/[^/]+\/progress$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { step, completed } = body
+      
+      if (!step || typeof completed !== 'boolean') {
+        return handleCORS(NextResponse.json(
+          { error: 'step and completed fields are required' },
+          { status: 400 }
+        ))
+      }
+      
+      const validSteps = ['accommodationChosen', 'prepStarted', 'memoriesShared', 'expensesSettled']
+      if (!validSteps.includes(step)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Invalid step. Valid steps: accommodationChosen, prepStarted, memoriesShared, expensesSettled' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Get circle for owner check
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      
+      // Check authorization: Trip Leader OR Circle Owner
+      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the Trip Leader or Circle Owner can update progress' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get or create progress document
+      let progress = await db.collection('trip_progress').findOne({ tripId })
+      const now = new Date().toISOString()
+      const fieldMap = {
+        accommodationChosen: 'accommodationChosenAt',
+        prepStarted: 'prepStartedAt',
+        memoriesShared: 'memoriesSharedAt',
+        expensesSettled: 'expensesSettledAt'
+      }
+      const timestampField = fieldMap[step]
+      const messageMap = {
+        accommodationChosen: 'Accommodation marked as chosen.',
+        prepStarted: 'Prep marked as started.',
+        memoriesShared: 'Memories marked as shared.',
+        expensesSettled: 'Expenses marked as settled.'
+      }
+      
+      if (!progress) {
+        // Create new progress document
+        progress = {
+          tripId,
+          accommodationChosenAt: null,
+          prepStartedAt: null,
+          memoriesSharedAt: null,
+          expensesSettledAt: null
+        }
+        progress[timestampField] = completed ? now : null
+        await db.collection('trip_progress').insertOne(progress)
+      } else {
+        // Update existing progress document
+        await db.collection('trip_progress').updateOne(
+          { tripId },
+          { $set: { [timestampField]: completed ? now : null } }
+        )
+        progress[timestampField] = completed ? now : null
+      }
+      
+      // Add system message if step was marked complete (toggled ON)
+      if (completed) {
+        await db.collection('trip_messages').insertOne({
+          id: uuidv4(),
+          tripId,
+          userId: null,
+          content: messageMap[step],
+          isSystem: true,
+          createdAt: now
+        })
+      }
+      
+      // Return updated progress (recompute step statuses)
+      const selectedItinerary = await db.collection('itineraries').findOne({
+        tripId,
+        status: 'selected'
+      })
+      
+      const today = new Date().toISOString().split('T')[0]
+      const isTripOngoing = trip.lockedStartDate && trip.lockedEndDate && 
+        today >= trip.lockedStartDate && today <= trip.lockedEndDate
+      
+      const steps = {
+        tripProposed: true,
+        datesLocked: trip.status === 'locked',
+        accommodationChosen: !!progress.accommodationChosenAt,
+        itineraryFinalized: !!selectedItinerary,
+        prepStarted: !!progress.prepStartedAt,
+        tripOngoing: isTripOngoing,
+        memoriesShared: !!progress.memoriesSharedAt,
+        expensesSettled: !!progress.expensesSettledAt
+      }
+      
+      return handleCORS(NextResponse.json({
+        steps,
+        timestamps: {
+          accommodationChosenAt: progress.accommodationChosenAt,
+          prepStartedAt: progress.prepStartedAt,
+          memoriesSharedAt: progress.memoriesSharedAt,
+          expensesSettledAt: progress.expensesSettledAt
+        },
+        canEdit: true
+      }))
+    }
+    
     // Update itinerary items - PATCH /api/trips/:tripId/itineraries/:itineraryId/items
     if (route.match(/^\/trips\/[^/]+\/itineraries\/[^/]+\/items$/) && method === 'PATCH') {
       const auth = await requireAuth(request)
