@@ -4118,6 +4118,28 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // ============ DASHBOARD ROUTES ============
+    
+    // Get dashboard data - GET /api/dashboard
+    if (route === '/dashboard' && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      try {
+        const { getDashboardData } = await import('@/lib/dashboard/getDashboardData.js')
+        const data = await getDashboardData(auth.user.id)
+        return handleCORS(NextResponse.json(data))
+      } catch (error) {
+        console.error('Dashboard error:', error)
+        return handleCORS(NextResponse.json(
+          { error: 'Failed to fetch dashboard data', details: error.message },
+          { status: 500 }
+        ))
+      }
+    }
+    
     // ============ DEV/SEEDING ROUTES ============
     // Note: POST /api/seed/discover is now handled by app/api/seed/discover/route.js
     

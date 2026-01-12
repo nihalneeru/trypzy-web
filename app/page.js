@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -113,6 +114,7 @@ const formatDate = (dateStr) => {
 
 // Auth Page Component
 function AuthPage({ onLogin }) {
+  const router = useRouter()
   const [isSignup, setIsSignup] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -134,6 +136,10 @@ function AuthPage({ onLogin }) {
       
       onLogin(data.user, data.token)
       toast.success(isSignup ? 'Account created!' : 'Welcome back!')
+      
+      // Redirect to /dashboard after successful login
+      // /dashboard is the canonical post-login landing page
+      router.push('/dashboard')
     } catch (error) {
       toast.error(error.message)
     } finally {
@@ -1683,7 +1689,7 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
 }
 
 // Main Dashboard Component
-function Dashboard({ user, token, onLogout }) {
+function Dashboard({ user, token, onLogout, initialTripId }) {
   const [circles, setCircles] = useState([])
   const [selectedCircle, setSelectedCircle] = useState(null)
   const [selectedTrip, setSelectedTrip] = useState(null)
@@ -1705,6 +1711,14 @@ function Dashboard({ user, token, onLogout }) {
   useEffect(() => {
     loadCircles()
   }, [])
+
+  // If initialTripId is provided, load that trip
+  useEffect(() => {
+    if (initialTripId && !selectedTrip) {
+      openTrip(initialTripId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTripId])
 
   // Navigation handlers
   const openCircle = async (circleId) => {
@@ -5560,8 +5574,29 @@ function TripDetailView({ trip, token, user, onRefresh }) {
 }
 
 // Main App
+// NOTE: /dashboard is the canonical post-login landing page.
+// Authenticated users are redirected to /dashboard instead of showing the old Dashboard component.
+// EXCEPTION: If a tripId query param is present, show the old Dashboard to access TripDetailView.
 export default function App() {
+  const router = useRouter()
   const { user, token, loading, login, logout } = useAuth()
+  const [tripId, setTripId] = useState(null)
+
+  // Get tripId from URL query params (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const urlTripId = params.get('tripId')
+      setTripId(urlTripId)
+    }
+  }, [])
+
+  // Redirect authenticated users to /dashboard UNLESS tripId is present
+  useEffect(() => {
+    if (!loading && user && token && !tripId) {
+      router.push('/dashboard')
+    }
+  }, [loading, user, token, router, tripId])
 
   if (loading) {
     return (
@@ -5578,5 +5613,32 @@ export default function App() {
     return <AuthPage onLogin={login} />
   }
 
-  return <Dashboard user={user} token={token} onLogout={logout} />
+  // If tripId is present, show the old Dashboard so users can access TripDetailView
+  if (tripId) {
+    return <LegacyDashboard user={user} token={token} tripId={tripId} onLogout={logout} />
+  }
+
+  // Show loading state while redirecting (should be brief)
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <Compass className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
+        <p className="text-gray-600">Redirecting to dashboard...</p>
+      </div>
+    </div>
+  )
+}
+
+// Legacy Dashboard wrapper that loads a trip when tripId is provided
+function LegacyDashboard({ user, token, tripId, onLogout }) {
+  const [initialized, setInitialized] = useState(false)
+  
+  useEffect(() => {
+    if (tripId && !initialized) {
+      // The Dashboard component will handle loading the trip
+      setInitialized(true)
+    }
+  }, [tripId, initialized])
+
+  return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} />
 }
