@@ -1,0 +1,180 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+/**
+ * Create Trip Dialog Component
+ * @param {Object} props
+ * @param {boolean} props.open
+ * @param {Function} props.onOpenChange
+ * @param {Function} props.onSuccess - Callback when trip is created successfully
+ * @param {string} props.circleId - Circle ID for the trip
+ * @param {string} props.token - Auth token
+ */
+export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, token }) {
+  const [tripForm, setTripForm] = useState({
+    name: '',
+    description: '',
+    type: 'collaborative',
+    startDate: '',
+    endDate: '',
+    duration: 3
+  })
+  const [creating, setCreating] = useState(false)
+
+  // Reset form when dialog opens/closes
+  useEffect(() => {
+    if (!open) {
+      setTripForm({
+        name: '',
+        description: '',
+        type: 'collaborative',
+        startDate: '',
+        endDate: '',
+        duration: 3
+      })
+    }
+  }, [open])
+
+  const handleCreate = async () => {
+    if (!tripForm.name || !tripForm.startDate || !tripForm.endDate) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+    setCreating(true)
+    
+    try {
+      const response = await fetch('/api/trips', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ ...tripForm, circleId })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create trip')
+      }
+      
+      toast.success('Trip created!')
+      onOpenChange(false)
+      if (onSuccess) {
+        onSuccess(data)
+      }
+    } catch (error) {
+      console.error('Create trip error:', error)
+      toast.error(error.message || 'Failed to create trip')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  if (!circleId) {
+    return null
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create a Trip</DialogTitle>
+          <DialogDescription>Plan a new adventure with your circle</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Trip Name</Label>
+            <Input
+              value={tripForm.name}
+              onChange={(e) => setTripForm({ ...tripForm, name: e.target.value })}
+              placeholder="Summer Beach Trip"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Description (optional)</Label>
+            <Textarea
+              value={tripForm.description}
+              onChange={(e) => setTripForm({ ...tripForm, description: e.target.value })}
+              placeholder="A relaxing weekend getaway..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Trip Type</Label>
+            <Select 
+              value={tripForm.type} 
+              onValueChange={(v) => setTripForm({ ...tripForm, type: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="collaborative">Collaborative (everyone votes on dates)</SelectItem>
+                <SelectItem value="hosted">Hosted (fixed dates, join if available)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={tripForm.startDate}
+                onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>End Date</Label>
+              <Input
+                type="date"
+                value={tripForm.endDate}
+                onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+              />
+            </div>
+          </div>
+          {tripForm.type === 'collaborative' && (
+            <div className="space-y-2">
+              <Label>Trip Duration (days)</Label>
+              <Select 
+                value={tripForm.duration.toString()} 
+                onValueChange={(v) => setTripForm({ ...tripForm, duration: parseInt(v) })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2, 3, 4, 5, 6, 7].map((d) => (
+                    <SelectItem key={d} value={d.toString()}>{d} days</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleCreate} disabled={creating}>
+            {creating ? 'Creating...' : 'Create Trip'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
