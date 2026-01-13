@@ -518,22 +518,25 @@ async function handleRoute(request, { params }) {
       // Get trips
       const trips = await db.collection('trips')
         .find({ circleId })
-        .sort({ createdAt: -1 })
         .toArray()
       
-      // Include isCreator flag for each trip
-      const tripsWithCreator = trips.map(trip => {
-        const { _id, ...rest } = trip
-        return {
-          ...rest,
-          isCreator: trip.createdBy === auth.user.id
-        }
-      })
+      // Build trip card data using shared function (same as dashboard)
+      const { buildTripCardDataBatch } = await import('@/lib/trips/buildTripCardData.js')
+      const tripCardData = await buildTripCardDataBatch(
+        trips,
+        auth.user.id,
+        membership.role,
+        db
+      )
+      
+      // Sort trips using shared function (same as dashboard)
+      const { sortTrips } = await import('@/lib/dashboard/sortTrips.js')
+      const sortedTrips = sortTrips(tripCardData)
       
       return handleCORS(NextResponse.json({
         ...circle,
         members: membersWithRoles,
-        trips: tripsWithCreator,
+        trips: sortedTrips,
         isOwner: circle.ownerId === auth.user.id
       }))
     }
@@ -598,14 +601,17 @@ async function handleRoute(request, { params }) {
       
       await db.collection('trips').insertOne(trip)
       
-      // Add system message for trip creation
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
+      // Emit chat event for trip creation
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
         tripId: trip.id,
-        userId: null,
-        content: `✈️ Trip "${name}" was created by ${auth.user.name}`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
+        circleId: circleId,
+        actorUserId: auth.user.id,
+        subtype: 'milestone',
+        text: `✈️ Trip "${name}" was created by ${auth.user.name}`,
+        metadata: {
+          key: 'trip_created'
+        }
       })
       
       // For hosted trips, creator is automatically a participant
@@ -1117,14 +1123,17 @@ async function handleRoute(request, { params }) {
             { $set: { status: 'scheduling' } }
           )
           
-          // Add system message for scheduling phase start
-          await db.collection('trip_messages').insertOne({
-            id: uuidv4(),
+          // Emit chat event for scheduling started milestone
+          const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+          await emitTripChatEvent({
             tripId,
-            userId: null,
-            content: `📅 Scheduling has started! Mark your availability to help find the best dates.`,
-            isSystem: true,
-            createdAt: new Date().toISOString()
+            circleId: trip.circleId,
+            actorUserId: null,
+            subtype: 'milestone',
+            text: `📅 Scheduling has started! Mark your availability to help find the best dates.`,
+            metadata: {
+              key: 'scheduling_started'
+            }
           })
         }
       }
@@ -1194,14 +1203,17 @@ async function handleRoute(request, { params }) {
         { $set: { status: 'voting' } }
       )
       
-      // Add system message for voting phase
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
+      // Emit chat event for voting opened milestone
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
         tripId,
-        userId: null,
-        content: `🗳️ Voting is now open! Choose your preferred dates from the top options.`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
+        circleId: trip.circleId,
+        actorUserId: null,
+        subtype: 'milestone',
+        text: `🗳️ Voting is now open! Choose your preferred dates from the top options.`,
+        metadata: {
+          key: 'voting_opened'
+        }
       })
       
       return handleCORS(NextResponse.json({ message: 'Voting opened' }))
@@ -1523,14 +1535,19 @@ async function handleRoute(request, { params }) {
       const startDateFormatted = new Date(lockedStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       const endDateFormatted = new Date(lockedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       
-      // Add system message for locked dates
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
+      // Emit chat event for dates locked milestone
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
         tripId,
-        userId: null,
-        content: `🔒 Trip dates locked! ${startDateFormatted} to ${endDateFormatted}. Planning can now begin! 🎉`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
+        circleId: trip.circleId,
+        actorUserId: null,
+        subtype: 'milestone',
+        text: `🔒 Trip dates locked! ${startDateFormatted} to ${endDateFormatted}. Planning can now begin! 🎉`,
+        metadata: {
+          key: 'dates_locked',
+          startDate: lockedStartDate,
+          endDate: lockedEndDate
+        }
       })
       
       return handleCORS(NextResponse.json({ message: 'Trip locked', lockedStartDate, lockedEndDate }))
@@ -1593,14 +1610,17 @@ async function handleRoute(request, { params }) {
         joinedAt: new Date().toISOString()
       })
       
-      // Add system message for joining hosted trip
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
+      // Emit chat event for traveler joined
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
         tripId,
-        userId: null,
-        content: `👋 ${auth.user.name} joined the trip!`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'traveler_joined',
+        text: `👋 ${auth.user.name} joined the trip!`,
+        metadata: {
+          userId: auth.user.id
+        }
       })
       
       return handleCORS(NextResponse.json({ message: 'Joined trip successfully' }))
@@ -1628,14 +1648,17 @@ async function handleRoute(request, { params }) {
         userId: auth.user.id
       })
       
-      // Add system message for leaving hosted trip
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
+      // Emit chat event for traveler left
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
         tripId,
-        userId: null,
-        content: `👋 ${auth.user.name} left the trip`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'traveler_left',
+        text: `👋 ${auth.user.name} left the trip`,
+        metadata: {
+          userId: auth.user.id
+        }
       })
       
       return handleCORS(NextResponse.json({ message: 'Left trip successfully' }))
@@ -1785,6 +1808,8 @@ async function handleRoute(request, { params }) {
         id: m.id,
         content: m.content,
         isSystem: m.isSystem,
+        subtype: m.subtype || null,
+        metadata: m.metadata || {},
         createdAt: m.createdAt,
         user: m.userId ? users.find(u => u.id === m.userId) : null
       })).map(m => ({
@@ -2546,14 +2571,18 @@ async function handleRoute(request, { params }) {
         await db.collection('trip_ideas').insertMany(newIdeas)
       }
       
-      // Add system message
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
+      // Emit chat event for trip proposed from discover
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
         tripId: newTrip.id,
-        userId: null,
-        content: `${auth.user.name} proposed this trip inspired by a ${tripLength}-day itinerary. Add your availability and the group will decide the dates!`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
+        circleId: circleId,
+        actorUserId: auth.user.id,
+        subtype: 'milestone',
+        text: `${auth.user.name} proposed this trip inspired by a ${tripLength}-day itinerary. Add your availability and the group will decide the dates!`,
+        metadata: {
+          key: 'trip_proposed_from_discover',
+          source: 'discover_itinerary'
+        }
       })
       
       return handleCORS(NextResponse.json({
@@ -2717,14 +2746,18 @@ async function handleRoute(request, { params }) {
         }
       }
       
-      // Add system message
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
+      // Emit chat event for trip proposed from discover (post-based)
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
         tripId: newTrip.id,
-        userId: null,
-        content: `${auth.user.name} proposed this trip inspired by a traveler's ${tripLength}-day itinerary. This itinerary worked for them - your group can customize it! Add your availability to get started.`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
+        circleId: circleId,
+        actorUserId: auth.user.id,
+        subtype: 'milestone',
+        text: `${auth.user.name} proposed this trip inspired by a traveler's ${tripLength}-day itinerary. This itinerary worked for them - your group can customize it! Add your availability to get started.`,
+        metadata: {
+          key: 'trip_proposed_from_discover',
+          source: 'discover_post'
+        }
       })
       
       return handleCORS(NextResponse.json({
@@ -3372,15 +3405,103 @@ async function handleRoute(request, { params }) {
         { id: itineraryId },
         { $set: { status: 'selected' } }
       )
+
+      // Get itinerary content from version if available, or from itinerary items
+      let itineraryContent = null
+      const latestVersion = await db.collection('itinerary_versions')
+        .findOne({ tripId }, { sort: { version: -1 } })
       
-      // Add system message for itinerary selection
-      await db.collection('trip_messages').insertOne({
-        id: uuidv4(),
+      if (latestVersion && latestVersion.content) {
+        itineraryContent = latestVersion.content
+      } else {
+        // Fallback: build from itinerary items
+        const items = await db.collection('itinerary_items')
+          .find({ itineraryId })
+          .sort({ day: 1, order: 1 })
+          .toArray()
+        
+        if (items.length > 0) {
+          // Group by day
+          const daysMap = new Map()
+          items.forEach(item => {
+            const dayNum = item.day || item.dayNumber || 1
+            if (!daysMap.has(dayNum)) {
+              daysMap.set(dayNum, {
+                date: null, // Will use fallback
+                blocks: []
+              })
+            }
+            daysMap.get(dayNum).blocks.push({
+              location: item.locationText || null,
+              title: item.title || '',
+              timeRange: item.timeBlock || ''
+            })
+          })
+          itineraryContent = {
+            days: Array.from(daysMap.entries()).map(([dayNum, dayData]) => ({
+              date: null,
+              blocks: dayData.blocks
+            }))
+          }
+        }
+      }
+
+      // Sync stay requirements if we have itinerary content
+      if (itineraryContent) {
+        const { syncStayRequirements } = await import('@/lib/itinerary/deriveStayRequirements.js')
+        const syncResult = await syncStayRequirements({
+          tripId,
+          itinerary: itineraryContent,
+          db,
+          fallbackStartDate: trip.lockedStartDate || trip.startDate,
+          fallbackEndDate: trip.lockedEndDate || trip.endDate,
+          fallbackDestination: trip.description || trip.name
+        })
+
+        // Build stay summary for chat
+        const stays = await db.collection('stay_requirements')
+          .find({ tripId, status: { $ne: 'inactive' } })
+          .sort({ startDate: 1 })
+          .toArray()
+        
+        const staySummary = stays.length > 0
+          ? stays.map(s => `${s.locationName} (${s.nights} night${s.nights !== 1 ? 's' : ''})`).join(', ')
+          : 'No stay segments identified'
+
+        // Emit chat event for stay requirements synced
+        if (syncResult.created > 0 || syncResult.updated > 0) {
+          const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+          await emitTripChatEvent({
+            tripId,
+            circleId: trip.circleId,
+            actorUserId: null,
+            subtype: 'stay_requirements_synced',
+            text: `🏨 Accommodation needed: ${staySummary}`,
+            metadata: {
+              segments: stays.map(s => ({
+                locationName: s.locationName,
+                startDate: s.startDate,
+                endDate: s.endDate,
+                nights: s.nights
+              }))
+            }
+          })
+        }
+      }
+      
+      // Emit chat event for itinerary finalized
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
         tripId,
-        userId: null,
-        content: `✅ "${itinerary.title}" itinerary selected as the final plan`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
+        circleId: trip.circleId,
+        actorUserId: null,
+        subtype: 'milestone',
+        text: `✅ "${itinerary.title}" itinerary selected as the final plan`,
+        metadata: {
+          key: 'itinerary_finalized',
+          itineraryId: itineraryId,
+          itineraryTitle: itinerary.title
+        }
       })
       
       return handleCORS(NextResponse.json({ message: 'Itinerary selected' }))
@@ -3437,6 +3558,29 @@ async function handleRoute(request, { params }) {
         status: 'selected'
       })
       
+      // Compute accommodation done: check if all stay requirements have selected accommodations
+      const { computeAccommodationDone } = await import('@/lib/trips/computeAccommodationDone.js')
+      const accommodationDone = await computeAccommodationDone(db, tripId)
+      
+      // Auto-update accommodationChosenAt if accommodation is done but timestamp is missing
+      if (accommodationDone && !progress.accommodationChosenAt) {
+        const now = new Date().toISOString()
+        await db.collection('trip_progress').updateOne(
+          { tripId },
+          { $set: { accommodationChosenAt: now } },
+          { upsert: true }
+        )
+        progress.accommodationChosenAt = now
+      } else if (!accommodationDone && progress.accommodationChosenAt) {
+        // If accommodation is not done but timestamp exists, clear it (manual override was removed)
+        // Actually, keep the timestamp if it was manually set - only auto-update when done
+        // For now, we'll trust the computed value over the timestamp
+      }
+      
+      // Check prep status from trip.prepStatus or progress.prepStartedAt
+      const prepStatus = trip.prepStatus || 'not_started'
+      const prepStarted = prepStatus === 'in_progress' || prepStatus === 'complete' || !!progress.prepStartedAt
+      
       // Compute step statuses
       const today = new Date().toISOString().split('T')[0]
       const isTripOngoing = trip.lockedStartDate && trip.lockedEndDate && 
@@ -3445,9 +3589,9 @@ async function handleRoute(request, { params }) {
       const steps = {
         tripProposed: true, // Always complete
         datesLocked: trip.status === 'locked',
-        accommodationChosen: !!progress.accommodationChosenAt,
         itineraryFinalized: !!selectedItinerary,
-        prepStarted: !!progress.prepStartedAt,
+        accommodationChosen: accommodationDone, // Use computed value
+        prepStarted: prepStarted,
         tripOngoing: isTripOngoing,
         memoriesShared: !!progress.memoriesSharedAt,
         expensesSettled: !!progress.expensesSettledAt
@@ -3547,15 +3691,18 @@ async function handleRoute(request, { params }) {
         progress[timestampField] = completed ? now : null
       }
       
-      // Add system message if step was marked complete (toggled ON)
+      // Emit chat event if step was marked complete (toggled ON)
       if (completed) {
-        await db.collection('trip_messages').insertOne({
-          id: uuidv4(),
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
           tripId,
-          userId: null,
-          content: messageMap[step],
-          isSystem: true,
-          createdAt: now
+          circleId: trip.circleId,
+          actorUserId: null,
+          subtype: 'milestone',
+          text: messageMap[step],
+          metadata: {
+            key: step
+          }
         })
       }
       
@@ -3668,6 +3815,828 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // ============ STAY REQUIREMENTS & ACCOMMODATION ROUTES ============
+    
+    // Get stay requirements - GET /api/trips/:tripId/stays
+    if (route.match(/^\/trips\/[^/]+\/stays$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const stays = await db.collection('stay_requirements')
+        .find({ tripId, status: { $ne: 'inactive' } })
+        .sort({ startDate: 1 })
+        .toArray()
+      
+      return handleCORS(NextResponse.json(stays))
+    }
+    
+    // Sync stay requirements - POST /api/trips/:tripId/stays/sync
+    if (route.match(/^\/trips\/[^/]+\/stays\/sync$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Only trip creator or circle owner can sync
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator or circle owner can sync stay requirements' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get latest itinerary version
+      const latestVersion = await db.collection('itinerary_versions')
+        .findOne({ tripId }, { sort: { version: -1 } })
+      
+      if (!latestVersion || !latestVersion.content) {
+        return handleCORS(NextResponse.json(
+          { error: 'No itinerary found. Generate an itinerary first.' },
+          { status: 400 }
+        ))
+      }
+      
+      const { syncStayRequirements } = await import('@/lib/itinerary/deriveStayRequirements.js')
+      const syncResult = await syncStayRequirements({
+        tripId,
+        itinerary: latestVersion.content,
+        db,
+        fallbackStartDate: trip.lockedStartDate || trip.startDate,
+        fallbackEndDate: trip.lockedEndDate || trip.endDate,
+        fallbackDestination: trip.description || trip.name
+      })
+      
+      return handleCORS(NextResponse.json(syncResult))
+    }
+    
+    // Get accommodation options - GET /api/trips/:tripId/accommodations?stayId=...
+    if (route.match(/^\/trips\/[^/]+\/accommodations$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const searchParams = request.nextUrl.searchParams
+      const stayId = searchParams.get('stayId')
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const query = { tripId }
+      if (stayId) {
+        query.stayRequirementId = stayId
+      }
+      
+      const options = await db.collection('accommodation_options')
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray()
+      
+      // Get user info for addedBy
+      const userIds = [...new Set(options.map(o => o.addedByUserId).filter(Boolean))]
+      const users = await db.collection('users')
+        .find({ id: { $in: userIds } })
+        .toArray()
+      
+      const optionsWithUsers = options.map(option => {
+        const user = users.find(u => u.id === option.addedByUserId)
+        return {
+          ...option,
+          addedBy: user ? { id: user.id, name: user.name } : null
+        }
+      })
+      
+      return handleCORS(NextResponse.json(optionsWithUsers))
+    }
+    
+    // Create accommodation option - POST /api/trips/:tripId/accommodations
+    if (route.match(/^\/trips\/[^/]+\/accommodations$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { stayRequirementId, source, title, url, priceRange, sleepCapacity, notes } = body
+      
+      if (!title || !title.trim()) {
+        return handleCORS(NextResponse.json(
+          { error: 'Title is required' },
+          { status: 400 }
+        ))
+      }
+      
+      if (!source || !['AIRBNB', 'BOOKING', 'VRBO', 'MANUAL', 'OTHER'].includes(source)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Valid source is required (AIRBNB, BOOKING, VRBO, MANUAL, OTHER)' },
+          { status: 400 }
+        ))
+      }
+      
+      if (source !== 'MANUAL' && !url) {
+        return handleCORS(NextResponse.json(
+          { error: 'URL is required for non-manual sources' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Verify stay requirement exists if provided
+      if (stayRequirementId) {
+        const stay = await db.collection('stay_requirements').findOne({
+          id: stayRequirementId,
+          tripId
+        })
+        if (!stay) {
+          return handleCORS(NextResponse.json(
+            { error: 'Stay requirement not found' },
+            { status: 404 }
+          ))
+        }
+      }
+      
+      const option = {
+        id: uuidv4(),
+        tripId,
+        stayRequirementId: stayRequirementId || null,
+        source,
+        title: title.trim(),
+        url: url?.trim() || null,
+        priceRange: priceRange?.trim() || null,
+        sleepCapacity: sleepCapacity ? parseInt(sleepCapacity) : null,
+        notes: notes?.trim() || null,
+        addedByUserId: auth.user.id,
+        status: 'shortlisted',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      
+      await db.collection('accommodation_options').insertOne(option)
+      
+      // Emit chat event for accommodation added
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'accommodation_added',
+        text: `${auth.user.name} added an accommodation option: ${option.title}`,
+        metadata: {
+          optionId: option.id,
+          stayRequirementId: stayRequirementId,
+          source: source
+        }
+      })
+      
+      // Get user info
+      const user = await db.collection('users').findOne({ id: auth.user.id })
+      
+      return handleCORS(NextResponse.json({
+        ...option,
+        addedBy: user ? { id: user.id, name: user.name } : null
+      }))
+    }
+    
+    // Select accommodation option - POST /api/trips/:tripId/accommodations/:optionId/select
+    if (route.match(/^\/trips\/[^/]+\/accommodations\/[^/]+\/select$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const optionId = path[3]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Only trip creator or circle owner can select
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator or circle owner can select an accommodation' },
+          { status: 403 }
+        ))
+      }
+      
+      const option = await db.collection('accommodation_options').findOne({
+        id: optionId,
+        tripId
+      })
+      
+      if (!option) {
+        return handleCORS(NextResponse.json(
+          { error: 'Accommodation option not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Unselect any other options for the same stay requirement
+      if (option.stayRequirementId) {
+        await db.collection('accommodation_options').updateMany(
+          {
+            tripId,
+            stayRequirementId: option.stayRequirementId,
+            id: { $ne: optionId },
+            status: 'selected'
+          },
+          { $set: { status: 'shortlisted', updatedAt: new Date().toISOString() } }
+        )
+        
+        // Mark stay requirement as covered
+        await db.collection('stay_requirements').updateOne(
+          { id: option.stayRequirementId },
+          { $set: { status: 'covered', updatedAt: new Date().toISOString() } }
+        )
+      }
+      
+      // Select this option
+      await db.collection('accommodation_options').updateOne(
+        { id: optionId },
+        { $set: { status: 'selected', updatedAt: new Date().toISOString() } }
+      )
+      
+      // Check if all stay requirements now have selected accommodations
+      const { computeAccommodationDone } = await import('@/lib/trips/computeAccommodationDone.js')
+      const accommodationDone = await computeAccommodationDone(db, tripId)
+      
+      // Auto-update progress if accommodation is now complete
+      if (accommodationDone) {
+        let progress = await db.collection('trip_progress').findOne({ tripId })
+        if (!progress) {
+          progress = {
+            tripId,
+            accommodationChosenAt: null,
+            prepStartedAt: null,
+            memoriesSharedAt: null,
+            expensesSettledAt: null
+          }
+          await db.collection('trip_progress').insertOne(progress)
+        }
+        
+        if (!progress.accommodationChosenAt) {
+          await db.collection('trip_progress').updateOne(
+            { tripId },
+            { $set: { accommodationChosenAt: new Date().toISOString() } }
+          )
+        }
+      }
+      
+      // Emit chat event for accommodation selected
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'accommodation_selected',
+        text: `✅ ${option.title} selected as accommodation${option.stayRequirementId ? ' for this stay segment' : ''}`,
+        metadata: {
+          optionId: option.id,
+          stayRequirementId: option.stayRequirementId,
+          source: option.source
+        }
+      })
+      
+      return handleCORS(NextResponse.json({ message: 'Accommodation selected' }))
+    }
+
+    // ============ PREP ROUTES ============
+    
+    // Get prep data - GET /api/trips/:tripId/prep
+    if (route.match(/^\/trips\/[^/]+\/prep$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get prep status from trip
+      const prepStatus = trip.prepStatus || 'not_started'
+      
+      // Get transport items
+      const transportItems = await db.collection('transport_items')
+        .find({ tripId })
+        .sort({ departAt: 1, createdAt: 1 })
+        .toArray()
+      
+      // Get prep items (packing and documents)
+      const prepItems = await db.collection('prep_items')
+        .find({ tripId })
+        .sort({ category: 1, createdAt: 1 })
+        .toArray()
+      
+      const packingItems = prepItems.filter(item => item.category === 'packing')
+      const documentItems = prepItems.filter(item => item.category === 'documents')
+      
+      return handleCORS(NextResponse.json({
+        prepStatus,
+        transportItems: transportItems.map(({ _id, ...rest }) => rest),
+        packingItems: packingItems.map(({ _id, ...rest }) => rest),
+        documentItems: documentItems.map(({ _id, ...rest }) => rest)
+      }))
+    }
+    
+    // Create/update transport item - POST /api/trips/:tripId/prep/transport
+    if (route.match(/^\/trips\/[^/]+\/prep\/transport$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { mode, fromLocation, toLocation, departAt, arriveAt, bookingRef, provider, link, notes, status } = body
+      
+      if (!fromLocation || !fromLocation.trim() || !toLocation || !toLocation.trim()) {
+        return handleCORS(NextResponse.json(
+          { error: 'From and To locations are required' },
+          { status: 400 }
+        ))
+      }
+      
+      if (!mode || !['flight', 'train', 'bus', 'car', 'other'].includes(mode)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Valid mode is required (flight, train, bus, car, other)' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Generate title
+      const title = `Transport: ${fromLocation.trim()} → ${toLocation.trim()}`
+      
+      const transportItem = {
+        id: uuidv4(),
+        tripId,
+        mode,
+        fromLocation: fromLocation.trim(),
+        toLocation: toLocation.trim(),
+        departAt: departAt || null,
+        arriveAt: arriveAt || null,
+        bookingRef: bookingRef?.trim() || null,
+        provider: provider?.trim() || null,
+        link: link?.trim() || null,
+        notes: notes?.trim() || null,
+        ownerUserId: auth.user.id,
+        status: status || 'planned',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      
+      await db.collection('transport_items').insertOne(transportItem)
+      
+      // Update trip prepStatus to in_progress if currently not_started
+      if (trip.prepStatus === 'not_started' || !trip.prepStatus) {
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { prepStatus: 'in_progress' } }
+        )
+      }
+      
+      // Emit chat event if status is booked
+      if (status === 'booked') {
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: auth.user.id,
+          subtype: 'transport_booked',
+          text: `✈️ ${auth.user.name} booked transport: ${fromLocation} → ${toLocation}`,
+          metadata: {
+            transportItemId: transportItem.id,
+            mode: mode
+          }
+        })
+      }
+      
+      return handleCORS(NextResponse.json(transportItem))
+    }
+    
+    // Create/update prep checklist item - POST /api/trips/:tripId/prep/checklist
+    if (route.match(/^\/trips\/[^/]+\/prep\/checklist$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { category, title, quantity, notes } = body
+      
+      if (!title || !title.trim()) {
+        return handleCORS(NextResponse.json(
+          { error: 'Title is required' },
+          { status: 400 }
+        ))
+      }
+      
+      if (!category || !['packing', 'documents', 'other'].includes(category)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Valid category is required (packing, documents, other)' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const prepItem = {
+        id: uuidv4(),
+        tripId,
+        category,
+        title: title.trim(),
+        quantity: quantity ? parseInt(quantity) : null,
+        notes: notes?.trim() || null,
+        ownerUserId: auth.user.id,
+        status: 'todo',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      
+      await db.collection('prep_items').insertOne(prepItem)
+      
+      // Update trip prepStatus to in_progress if currently not_started
+      if (trip.prepStatus === 'not_started' || !trip.prepStatus) {
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { prepStatus: 'in_progress' } }
+        )
+      }
+      
+      return handleCORS(NextResponse.json(prepItem))
+    }
+    
+    // Update prep checklist item - PATCH /api/trips/:tripId/prep/checklist/:itemId
+    if (route.match(/^\/trips\/[^/]+\/prep\/checklist\/[^/]+$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const itemId = path[3]
+      const body = await request.json()
+      const { status, title, quantity, notes } = body
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      const item = await db.collection('prep_items').findOne({
+        id: itemId,
+        tripId
+      })
+      
+      if (!item) {
+        return handleCORS(NextResponse.json(
+          { error: 'Prep item not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Update fields
+      const updateFields = { updatedAt: new Date().toISOString() }
+      if (status !== undefined) updateFields.status = status
+      if (title !== undefined) updateFields.title = title.trim()
+      if (quantity !== undefined) updateFields.quantity = quantity ? parseInt(quantity) : null
+      if (notes !== undefined) updateFields.notes = notes?.trim() || null
+      
+      await db.collection('prep_items').updateOne(
+        { id: itemId },
+        { $set: updateFields }
+      )
+      
+      return handleCORS(NextResponse.json({ message: 'Prep item updated' }))
+    }
+    
+    // Generate prep suggestions - POST /api/trips/:tripId/prep/suggestions
+    if (route.match(/^\/trips\/[^/]+\/prep\/suggestions$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get latest itinerary version
+      const latestVersion = await db.collection('itinerary_versions')
+        .findOne({ tripId }, { sort: { version: -1 } })
+      
+      if (!latestVersion || !latestVersion.content) {
+        return handleCORS(NextResponse.json(
+          { error: 'No itinerary found. Generate an itinerary first.' },
+          { status: 400 }
+        ))
+      }
+      
+      // Derive suggestions
+      const { derivePrepSuggestionsFromItinerary } = await import('@/lib/prep/derivePrepSuggestionsFromItinerary.js')
+      const suggestions = derivePrepSuggestionsFromItinerary({
+        itinerary: latestVersion.content,
+        fallbackStartDate: trip.lockedStartDate || trip.startDate
+      })
+      
+      let created = 0
+      let skipped = 0
+      
+      // Insert suggestions (idempotent by dedupeKey)
+      for (const suggestion of suggestions) {
+        const existing = await db.collection('transport_items').findOne({
+          tripId,
+          dedupeKey: suggestion.dedupeKey
+        })
+        
+        if (!existing) {
+          const transportItem = {
+            id: uuidv4(),
+            tripId,
+            ...suggestion,
+            ownerUserId: auth.user.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+          
+          await db.collection('transport_items').insertOne(transportItem)
+          created++
+        } else {
+          skipped++
+        }
+      }
+      
+      // Update trip prepStatus to in_progress if currently not_started
+      if (trip.prepStatus === 'not_started' || !trip.prepStatus) {
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { prepStatus: 'in_progress' } }
+        )
+      }
+      
+      // Emit chat event
+      if (created > 0) {
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: auth.user.id,
+          subtype: 'prep_suggestions_generated',
+          text: `✨ Generated ${created} transport suggestion${created !== 1 ? 's' : ''} from itinerary`,
+          metadata: {
+            created,
+            skipped
+          }
+        })
+      }
+      
+      return handleCORS(NextResponse.json({ created, skipped }))
+    }
+    
+    // Mark prep complete - POST /api/trips/:tripId/prep/markComplete
+    if (route.match(/^\/trips\/[^/]+\/prep\/markComplete$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Only trip creator or circle owner can mark complete
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator or circle owner can mark prep complete' },
+          { status: 403 }
+        ))
+      }
+      
+      // Update trip prepStatus
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: { prepStatus: 'complete' } }
+      )
+      
+      // Update progress prepStartedAt if not already set
+      let progress = await db.collection('trip_progress').findOne({ tripId })
+      if (!progress) {
+        progress = {
+          tripId,
+          accommodationChosenAt: null,
+          prepStartedAt: null,
+          memoriesSharedAt: null,
+          expensesSettledAt: null
+        }
+        await db.collection('trip_progress').insertOne(progress)
+      }
+      
+      if (!progress.prepStartedAt) {
+        await db.collection('trip_progress').updateOne(
+          { tripId },
+          { $set: { prepStartedAt: new Date().toISOString() } }
+        )
+      }
+      
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'milestone',
+        text: `✅ Trip preparation marked as complete! Ready to go! 🎒`,
+        metadata: {
+          key: 'prep_complete'
+        }
+      })
+      
+      return handleCORS(NextResponse.json({ message: 'Prep marked as complete' }))
+    }
+
     // ============ ITINERARY ROUTES ============
     
     // Create itinerary idea - POST /api/trips/:tripId/itinerary/ideas
@@ -3732,6 +4701,24 @@ async function handleRoute(request, { params }) {
       }
       
       await db.collection('itinerary_ideas').insertOne(idea)
+      
+      // Emit chat event for itinerary idea submission
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'itinerary_idea',
+        text: `${auth.user.name} added an itinerary idea: ${idea.title}`,
+        metadata: {
+          ideaId: idea.id,
+          title: idea.title,
+          category: idea.category,
+          location: idea.location,
+          href: `/trips/${tripId}?tab=itinerary&idea=${idea.id}`
+        },
+        dedupeKey: `idea:${idea.id}`
+      })
       
       return handleCORS(NextResponse.json(idea))
     }
@@ -4051,6 +5038,60 @@ async function handleRoute(request, { params }) {
           { $set: { itineraryStatus: 'published' } }
         )
         
+        // Sync stay requirements from itinerary
+        const { syncStayRequirements } = await import('@/lib/itinerary/deriveStayRequirements.js')
+        const syncResult = await syncStayRequirements({
+          tripId,
+          itinerary: itineraryContent,
+          db,
+          fallbackStartDate: trip.lockedStartDate || trip.startDate,
+          fallbackEndDate: trip.lockedEndDate || trip.endDate,
+          fallbackDestination: trip.description || trip.name
+        })
+
+        // Build stay summary for chat
+        const stays = await db.collection('stay_requirements')
+          .find({ tripId, status: { $ne: 'inactive' } })
+          .sort({ startDate: 1 })
+          .toArray()
+        
+        const staySummary = stays.length > 0
+          ? stays.map(s => `${s.locationName} (${s.nights} night${s.nights !== 1 ? 's' : ''})`).join(', ')
+          : 'No stay segments identified'
+
+        // Emit chat event for itinerary generated
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: auth.user.id,
+          subtype: 'milestone',
+          text: `✨ Itinerary generated! Check the Itinerary tab to review.`,
+          metadata: {
+            key: 'itinerary_generated',
+            version: version.version
+          }
+        })
+
+        // Emit chat event for stay requirements synced
+        if (syncResult.created > 0 || syncResult.updated > 0) {
+          await emitTripChatEvent({
+            tripId,
+            circleId: trip.circleId,
+            actorUserId: null,
+            subtype: 'stay_requirements_synced',
+            text: `🏨 Accommodation needed: ${staySummary}`,
+            metadata: {
+              segments: stays.map(s => ({
+                locationName: s.locationName,
+                startDate: s.startDate,
+                endDate: s.endDate,
+                nights: s.nights
+              }))
+            }
+          })
+        }
+        
         const { _id, ...versionResponse } = version
         return handleCORS(NextResponse.json(versionResponse))
       } catch (error) {
@@ -4311,6 +5352,60 @@ async function handleRoute(request, { params }) {
           { id: tripId },
           { $set: { itineraryStatus: 'published' } }
         )
+
+        // Sync stay requirements from revised itinerary
+        const { syncStayRequirements } = await import('@/lib/itinerary/deriveStayRequirements.js')
+        const syncResult = await syncStayRequirements({
+          tripId,
+          itinerary: revisedContent,
+          db,
+          fallbackStartDate: trip.lockedStartDate || trip.startDate,
+          fallbackEndDate: trip.lockedEndDate || trip.endDate,
+          fallbackDestination: trip.description || trip.name
+        })
+
+        // Build stay summary for chat
+        const stays = await db.collection('stay_requirements')
+          .find({ tripId, status: { $ne: 'inactive' } })
+          .sort({ startDate: 1 })
+          .toArray()
+        
+        const staySummary = stays.length > 0
+          ? stays.map(s => `${s.locationName} (${s.nights} night${s.nights !== 1 ? 's' : ''})`).join(', ')
+          : 'No stay segments identified'
+        
+        // Emit chat event for itinerary revised
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: auth.user.id,
+          subtype: 'milestone',
+          text: `✨ Itinerary revised (v${newVersion.version})! Check the Itinerary tab to review updates.`,
+          metadata: {
+            key: 'itinerary_revised',
+            version: newVersion.version
+          }
+        })
+
+        // Emit chat event for stay requirements synced if changed
+        if (syncResult.created > 0 || syncResult.updated > 0) {
+          await emitTripChatEvent({
+            tripId,
+            circleId: trip.circleId,
+            actorUserId: null,
+            subtype: 'stay_requirements_synced',
+            text: `🏨 Accommodation needed: ${staySummary}`,
+            metadata: {
+              segments: stays.map(s => ({
+                locationName: s.locationName,
+                startDate: s.startDate,
+                endDate: s.endDate,
+                nights: s.nights
+              }))
+            }
+          })
+        }
         
         const { _id, ...versionResponse } = newVersion
         return handleCORS(NextResponse.json(versionResponse))
