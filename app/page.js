@@ -36,157 +36,19 @@ import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags, TripPrimaryStage, TripTabKey } from '@/lib/trips/stage'
 import { TripTabs } from '@/components/trip/TripTabs/TripTabs'
 
-// Trypzy Logo Component
-// Preserves aspect ratio by using height-controlled sizing with width: auto
-function TrypzyLogo({ variant = 'full', className = '' }) {
-  if (variant === 'icon') {
-    // Icon-only variant (square, for spinners - use BrandedSpinner instead)
-    return (
-      <Image
-        src="/brand/trypzy-icon.png"
-        alt="Trypzy"
-        width={32}
-        height={32}
-        className={className || "h-8 w-8"}
-        unoptimized
-      />
-    )
-  }
-  
-  // Full logo variant (for headers/nav)
-  // Aspect ratio: 140:40 = 3.5:1 (matches auth page)
-  // Use height-controlled sizing (h-*) with w-auto to preserve aspect ratio
-  return (
-    <Image
-      src="/brand/trypzy-logo.png"
-      alt="Trypzy"
-      width={140}
-      height={40}
-      className={className || "h-8 w-auto"}
-      unoptimized
-    />
-  )
-}
+// Import extracted components and utilities
+import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { BrandedSpinner } from '@/components/brand/BrandedSpinner'
+import { AuthPage } from '@/components/auth/AuthPage'
+import { PostCard } from '@/components/posts/PostCard'
+import { CreatePostDialog } from '@/components/posts/CreatePostDialog'
+import { MemoriesView } from '@/components/posts/MemoriesView'
+import { useAuth } from '@/hooks/use-auth'
+import { api } from '@/lib/client/api'
+import { formatDate } from '@/lib/client/formatDate'
 
-// Branded Spinner Component
-function BrandedSpinner({ className = '', size = 'default' }) {
-  const sizeClasses = {
-    sm: 'h-4 w-4',
-    default: 'h-5 w-5',
-    md: 'h-6 w-6',
-    lg: 'h-8 w-8'
-  }
-  
-  const dimensions = {
-    sm: 16,
-    default: 20,
-    md: 24,
-    lg: 32
-  }
-  
-  return (
-    <div className={`inline-flex items-center justify-center ${className}`}>
-      <Image
-        src="/brand/trypzy-icon.png"
-        alt="Loading"
-        width={dimensions[size]}
-        height={dimensions[size]}
-        className={`${sizeClasses[size]} animate-spin`}
-        unoptimized
-      />
-    </div>
-  )
-}
-
-// Auth Context
-const useAuth = () => {
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const storedToken = localStorage.getItem('trypzy_token')
-    const storedUser = localStorage.getItem('trypzy_user')
-    if (storedToken && storedUser) {
-      setToken(storedToken)
-      setUser(JSON.parse(storedUser))
-    }
-    setLoading(false)
-  }, [])
-
-  const login = (userData, authToken) => {
-    localStorage.setItem('trypzy_token', authToken)
-    localStorage.setItem('trypzy_user', JSON.stringify(userData))
-    setToken(authToken)
-    setUser(userData)
-  }
-
-  const logout = () => {
-    localStorage.removeItem('trypzy_token')
-    localStorage.removeItem('trypzy_user')
-    setToken(null)
-    setUser(null)
-  }
-
-  return { user, token, loading, login, logout }
-}
-
-// API Helper
-const api = async (endpoint, options = {}, token = null) => {
-  const headers = {}
-  
-  // Set Content-Type if body exists and is not FormData
-  if (options.body) {
-    if (!(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json'
-    }
-  } else if (options.method && ['POST', 'PUT', 'PATCH'].includes(options.method)) {
-    // For POST/PUT/PATCH without body, still set Content-Type
-    headers['Content-Type'] = 'application/json'
-  }
-  
-  // Always set Authorization if token is provided
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-  
-  const response = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: { ...headers, ...options.headers }
-  })
-  
-  const data = await response.json()
-  
-  if (!response.ok) {
-    throw new Error(data.error || 'Something went wrong')
-  }
-  
-  return data
-}
-
-// Format date for display
-const formatDate = (dateStr) => {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diff = now - date
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) {
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    if (hours === 0) {
-      const mins = Math.floor(diff / (1000 * 60))
-      return mins <= 1 ? 'Just now' : `${mins} min ago`
-    }
-    return hours === 1 ? '1 hour ago' : `${hours} hours ago`
-  }
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-// Auth Page Component
-function AuthPage({ onLogin }) {
+// Auth Page Component (kept for backward compatibility, but should use imported version)
+function AuthPageLegacy({ onLogin }) {
   const router = useRouter()
   const [isSignup, setIsSignup] = useState(false)
   const [email, setEmail] = useState('')
@@ -309,8 +171,8 @@ function AuthPage({ onLogin }) {
   )
 }
 
-// Post Card Component
-function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView = false, onViewItinerary, onProposeTrip }) {
+// Post Card Component (kept for backward compatibility, but should use imported version)
+function PostCardLegacy({ post, onDelete, onEdit, showCircle = false, isDiscoverView = false, onViewItinerary, onProposeTrip }) {
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportReason, setReportReason] = useState('')
   const [reporting, setReporting] = useState(false)
@@ -568,8 +430,8 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
   )
 }
 
-// Create Post Dialog Component
-export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreated }) {
+// Create Post Dialog Component (kept for backward compatibility, but should use imported version)
+export function CreatePostDialogLegacy({ open, onOpenChange, circleId, trips, token, onCreated }) {
   const [uploading, setUploading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [mediaUrls, setMediaUrls] = useState([])
@@ -874,8 +736,8 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
   )
 }
 
-// Memories View Component
-export function MemoriesView({ posts, loading, onCreatePost, onDeletePost, onEditPost, emptyMessage = "No memories yet" }) {
+// Memories View Component (kept for backward compatibility, but should use imported version)
+export function MemoriesViewLegacy({ posts, loading, onCreatePost, onDeletePost, onEditPost, emptyMessage = "No memories yet" }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
