@@ -34,6 +34,8 @@ import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { CircleLink } from '@/components/circles/CircleLink'
 import { TripCard } from '@/components/dashboard/TripCard'
 import { sortTrips } from '@/lib/dashboard/sortTrips'
+import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags, TripPrimaryStage, TripTabKey } from '@/lib/trips/stage'
+import { TripTabs } from '@/components/trip/TripTabs/TripTabs'
 
 // Trypzy Logo Component
 // Preserves aspect ratio by using height-controlled sizing with width: auto
@@ -568,7 +570,7 @@ function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView =
 }
 
 // Create Post Dialog Component
-function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreated }) {
+export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreated }) {
   const [uploading, setUploading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [mediaUrls, setMediaUrls] = useState([])
@@ -874,7 +876,7 @@ function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreate
 }
 
 // Memories View Component
-function MemoriesView({ posts, loading, onCreatePost, onDeletePost, onEditPost, emptyMessage = "No memories yet" }) {
+export function MemoriesView({ posts, loading, onCreatePost, onDeletePost, onEditPost, emptyMessage = "No memories yet" }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1819,6 +1821,17 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId }) {
   const openTrip = async (tripId) => {
     try {
       const data = await api(`/trips/${tripId}`, { method: 'GET' }, token)
+      
+      // Compute stage and set initial tab based on stage
+      const stage = deriveTripPrimaryStage(data)
+      const primaryTab = getPrimaryTabForStage(stage)
+      const progressFlags = computeProgressFlags(data)
+      
+      // Store stage and primary tab in trip data for TripDetailView to use
+      data._computedStage = stage
+      data._primaryTab = primaryTab
+      data._progressFlags = progressFlags
+      
       setSelectedTrip(data)
       setView('trip')
     } catch (error) {
@@ -2676,7 +2689,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
 }
 
 // Trip Progress Component
-function TripProgress({ trip, token, user, onRefresh }) {
+function TripProgress({ trip, token, user, onRefresh, onSwitchTab }) {
   const isMobile = useIsMobile()
   const [progress, setProgress] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -2691,6 +2704,8 @@ function TripProgress({ trip, token, user, onRefresh }) {
     try {
       const data = await api(`/trips/${trip.id}/progress`, { method: 'GET' }, token)
       setProgress(data)
+      // Update trip with progress data for stage computation
+      trip.progress = data
     } catch (error) {
       console.error('Failed to load progress:', error)
       toast.error('Failed to load trip progress')
@@ -2818,7 +2833,7 @@ function TripProgress({ trip, token, user, onRefresh }) {
 }
 
 // Top 3 Heatmap Scheduling Component (new MVP)
-function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks, setDatePicks, savingPicks, setSavingPicks }) {
+export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks, setDatePicks, savingPicks, setSavingPicks }) {
   const startBound = trip.startBound || trip.startDate
   const endBound = trip.endBound || trip.endDate
   const tripLengthDays = trip.tripLengthDays || trip.duration || 3
@@ -3296,7 +3311,33 @@ function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks, setDat
 
 // Trip Detail View
 function TripDetailView({ trip, token, user, onRefresh }) {
-  const [activeTab, setActiveTab] = useState('planning')
+  // Compute stage and primary tab if not already computed
+  const stage = trip._computedStage || deriveTripPrimaryStage(trip)
+  const primaryTab = trip._primaryTab || getPrimaryTabForStage(stage)
+  
+  // Initialize activeTab based on stage (default to primary tab for stage)
+  const [activeTab, setActiveTab] = useState(() => {
+    // If trip has locked dates but user is on planning tab, redirect to itinerary
+    if (trip.status === 'locked' && !trip._initialTab) {
+      return 'itinerary'
+    }
+    return primaryTab
+  })
+  
+  // Store initial tab to prevent redirect loops
+  const [initialTabSet] = useState(() => {
+    trip._initialTab = activeTab
+    return true
+  })
+  
+  // Soft redirect: if user manually navigates to planning tab after dates are locked, redirect to itinerary
+  useEffect(() => {
+    if (activeTab === 'planning' && trip.status === 'locked' && trip._initialTab !== 'planning') {
+      // User manually clicked planning tab after dates locked - redirect to itinerary
+      setActiveTab('itinerary')
+      trip._initialTab = 'itinerary'
+    }
+  }, [activeTab, trip.status])
   const [availability, setAvailability] = useState({})
   const [broadAvailability, setBroadAvailability] = useState('') // 'available' | 'maybe' | 'unavailable' | '' for entire range
   const [weeklyAvailability, setWeeklyAvailability] = useState({}) // { [weekKey]: 'available'|'maybe'|'unavailable' }
@@ -3697,6 +3738,18 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   // Determine what the current user has submitted (legacy, kept for compatibility)
   const hasRespondedForMe = hasBroadOrWeeklyResponseForMe() || hasAnyRefinementForMe() || trip.userAvailability?.length > 0
 
+  // Should we actively promote refinement mode in the UI?
+  // This is true when:
+  // - Promising windows exist
+  // - Trip is in the scheduling phase (refinement mode)
+  // - The current user has responded broadly
+  // - The current user has NOT yet provided any refinement availability
+  const promoteRefinement =
+    hasPromisingWindows &&
+    trip.status === 'scheduling' &&
+    hasRespondedBroadly &&
+    !hasRefined
+
   // Debug logging (temporary - can be removed later)
   if (process.env.NODE_ENV === 'development') {
     console.log('[Scheduling UI] User state:', {
@@ -4017,6 +4070,10 @@ function TripDetailView({ trip, token, user, onRefresh }) {
       toast.success('Itinerary selected as final!')
       loadItineraries()
       setSelectedItinerary(null)
+      // Navigate to Accommodation tab after itinerary is finalized
+      setActiveTab('accommodation')
+      trip._initialTab = 'accommodation'
+      onRefresh() // Refresh to update stage
     } catch (error) {
       toast.error(error.message)
     }
@@ -4489,1297 +4546,122 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         {/* Main Content */}
         <div className="flex-1 min-w-0">
           {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6 flex-wrap">
-          <TabsTrigger value="planning">
-            <CalendarIcon className="h-4 w-4 mr-2" />
-            Planning
-          </TabsTrigger>
-          <TabsTrigger value="itinerary" disabled={trip.status !== 'locked'}>
-            <ListTodo className="h-4 w-4 mr-2" />
-            Itinerary
-            {trip.status !== 'locked' && (
-              <Lock className="h-3 w-3 ml-1 text-gray-400" />
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="memories">
-            <Camera className="h-4 w-4 mr-2" />
-            Memories
-          </TabsTrigger>
-          <TabsTrigger value="chat">
-            <MessageCircle className="h-4 w-4 mr-2" />
-            Chat
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="planning">
-          {/* Collaborative Trip Planning */}
-          {trip.type === 'collaborative' && (
-            <>
-              {/* New top3_heatmap scheduling mode */}
-              {trip.schedulingMode === 'top3_heatmap' ? (
-                <Top3HeatmapScheduling 
-                  trip={trip}
-                  token={token}
-                  user={user}
-                  onRefresh={onRefresh}
-                  datePicks={datePicks}
-                  setDatePicks={setDatePicks}
-                  savingPicks={savingPicks}
-                  setSavingPicks={setSavingPicks}
-                />
-              ) : (
-                <>
-                  {/* Legacy scheduling UI (availability/refinement flow) */}
-                  {/* Proposed Phase */}
-                  {trip.status === 'proposed' && (
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CalendarIcon className="h-5 w-5" />
-                        Mark Your Availability
-                      </CardTitle>
-                      <CardDescription>
-                        Help the group find the best dates. Approximate availability is okay — locking is the only commitment.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-800">
-                          <strong>Note:</strong> Approximate is okay — we'll ask for details once dates narrow. If you don't respond, we'll assume you're unavailable.
-                        </p>
-                      </div>
-                      
-                      {useBroadMode ? (
-                        // Broad Availability Mode
-                        useWeeklyMode ? (
-                          // Weekly Blocks Mode
-                          <div className="space-y-4">
-                            <p className="text-sm text-gray-600 mb-4">
-                              Select your availability by week. One click covers the entire week.
-                            </p>
-                            <div className="grid gap-3">
-                              {weeklyBlocks.map((block) => (
-                                <div key={block.key} className="flex items-center gap-4 p-3 border rounded-lg">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-gray-900">
-                                      {block.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {block.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </p>
-                                  </div>
-                                  <div className="flex gap-2 flex-wrap">
-                                    <Button
-                                      size="sm"
-                                      variant={weeklyAvailability[block.key] === 'available' ? 'default' : 'outline'}
-                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'available' })}
-                                      className={weeklyAvailability[block.key] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                    >
-                                      <Check className="h-4 w-4 mr-1" />
-                                      Available
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant={weeklyAvailability[block.key] === 'maybe' ? 'default' : 'outline'}
-                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'maybe' })}
-                                      className={weeklyAvailability[block.key] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                    >
-                                      <HelpCircle className="h-4 w-4 mr-1" />
-                                      Maybe
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant={weeklyAvailability[block.key] === 'unavailable' ? 'default' : 'outline'}
-                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'unavailable' })}
-                                      className={weeklyAvailability[block.key] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                    >
-                                      <X className="h-4 w-4 mr-1" />
-                                      Unavailable
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          // Single Broad Selector Mode
-                          <div className="space-y-4">
-                            <p className="text-sm text-gray-600 mb-4">
-                              Select your availability for the entire date range ({dateRangeLength} days). One click covers all dates.
-                            </p>
-                            <div className="flex gap-3 justify-center">
-                              <Button
-                                size="lg"
-                                variant={broadAvailability === 'available' ? 'default' : 'outline'}
-                                onClick={() => setBroadAvailability('available')}
-                                className={broadAvailability === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                              >
-                                <Check className="h-5 w-5 mr-2" />
-                                Available
-                              </Button>
-                              <Button
-                                size="lg"
-                                variant={broadAvailability === 'maybe' ? 'default' : 'outline'}
-                                onClick={() => setBroadAvailability('maybe')}
-                                className={broadAvailability === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                              >
-                                <HelpCircle className="h-5 w-5 mr-2" />
-                                Maybe
-                              </Button>
-                              <Button
-                                size="lg"
-                                variant={broadAvailability === 'unavailable' ? 'default' : 'outline'}
-                                onClick={() => setBroadAvailability('unavailable')}
-                                className={broadAvailability === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                              >
-                                <X className="h-5 w-5 mr-2" />
-                                Unavailable
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      ) : (
-                        // Per-Day Mode (existing UI)
-                        <div className="space-y-2">
-                          {dates.map((date) => (
-                            <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
-                              <span className="w-32 font-medium text-gray-900">
-                                {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                              </span>
-                              <div className="flex gap-2 flex-wrap">
-                                <Button
-                                  size="sm"
-                                  variant={availability[date] === 'available' ? 'default' : 'outline'}
-                                  onClick={() => setDayAvailability(date, 'available')}
-                                  className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                >
-                                  <Check className="h-4 w-4 mr-1" />
-                                  Available
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={availability[date] === 'maybe' ? 'default' : 'outline'}
-                                  onClick={() => setDayAvailability(date, 'maybe')}
-                                  className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                >
-                                  <HelpCircle className="h-4 w-4 mr-1" />
-                                  Maybe
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
-                                  onClick={() => setDayAvailability(date, 'unavailable')}
-                                  className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                >
-                                  <X className="h-4 w-4 mr-1" />
-                                  Unavailable
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      <div className="mt-6 flex gap-4 flex-wrap">
-                        <Button 
-                          onClick={saveAvailability} 
-                          disabled={
-                            saving || 
-                            (useBroadMode 
-                              ? (useWeeklyMode 
-                                  ? Object.keys(weeklyAvailability).length === 0 
-                                  : !broadAvailability)
-                              : !hasAnyAvailability())
-                          }
-                        >
-                          {saving ? 'Saving...' : 'Save Availability'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Scheduling Phase */}
-              {trip.status === 'scheduling' && (
-                <div className="space-y-6">
-                  {/* Refinement Mode - ONLY show if current user has responded broadly
-                      This enforces: user must contribute broad availability before seeing refinement */}
-                  {hasPromisingWindows && isSchedulingOpenForMe() && hasRespondedBroadly && (
-                    <Card className={promoteRefinement ? "border-purple-200 bg-purple-50/50" : "border-gray-200 bg-gray-50/50"}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <CalendarIcon className={`h-5 w-5 ${promoteRefinement ? 'text-purple-600' : 'text-gray-600'}`} />
-                          {promoteRefinement ? 'Refine Availability' : 'Suggested Windows'}
-                        </CardTitle>
-                        <CardDescription>
-                          {promoteRefinement 
-                            ? `Based on responses so far, we've identified ${promisingWindows.length} promising date window${promisingWindows.length !== 1 ? 's' : ''}. Refining helps us lock dates quickly.`
-                            : `Based on responses so far, these ${promisingWindows.length} window${promisingWindows.length !== 1 ? 's' : ''} look promising. You can still mark availability outside these windows.`
-                          }
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {promoteRefinement ? (
-                          <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                            <p className="text-sm text-purple-800">
-                              <strong>Note:</strong> We'll only ask for details once dates narrow. Focus on these promising windows.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                            <p className="text-sm text-gray-700">
-                              <strong>Note:</strong> These are suggestions based on current responses. You can refine these windows or mark availability for any dates in the trip range.
-                            </p>
-                          </div>
-                        )}
-
-                        <div className="space-y-6">
-                          {promisingWindows.map((window, windowIdx) => {
-                            // Get dates for this window using canonical date string generation
-                            // This ensures consistency with bulk actions
-                            const windowDates = getDateRangeStrings(window.startDate, window.endDate)
-
-                            return (
-                              <div key={window.optionKey} className="border rounded-lg p-4 bg-white">
-                                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                                  <div>
-                                    <h4 className="font-semibold text-gray-900">
-                                      Window {windowIdx + 1}: {window.startDate} to {window.endDate}
-                                    </h4>
-                                    <p className="text-sm text-gray-500">
-                                      Compatibility: {(window.score * 100).toFixed(0)}% • {windowDates.length} day{windowDates.length !== 1 ? 's' : ''}
-                                    </p>
-                                  </div>
-                                  <div className="flex gap-2 flex-wrap">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setWindowBulkAvailability(window, 'available')}
-                                      className="text-green-700 border-green-300 hover:bg-green-50"
-                                      disabled={!isSchedulingOpenForMe()}
-                                    >
-                                      <Check className="h-4 w-4 mr-1" />
-                                      Mark All Available
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setWindowBulkAvailability(window, 'maybe')}
-                                      className="text-yellow-700 border-yellow-300 hover:bg-yellow-50"
-                                      disabled={!isSchedulingOpenForMe()}
-                                    >
-                                      <HelpCircle className="h-4 w-4 mr-1" />
-                                      Mark All Maybe
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setWindowBulkAvailability(window, 'unavailable')}
-                                      className="text-red-700 border-red-300 hover:bg-red-50"
-                                      disabled={!isSchedulingOpenForMe()}
-                                    >
-                                      <X className="h-4 w-4 mr-1" />
-                                      Mark All Unavailable
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-2 mt-4 pt-4 border-t">
-                                  {windowDates.map((date) => (
-                                    <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
-                                      <span className="w-32 font-medium text-gray-900">
-                                        {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                                      </span>
-                                      <div className="flex gap-2 flex-wrap">
-                                        <Button
-                                          size="sm"
-                                          variant={refinementAvailability[date] === 'available' ? 'default' : 'outline'}
-                                          onClick={() => setRefinementDayAvailability(date, 'available')}
-                                          className={refinementAvailability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                          disabled={!isSchedulingOpenForMe()}
-                                        >
-                                          <Check className="h-4 w-4 mr-1" />
-                                          Available
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant={refinementAvailability[date] === 'maybe' ? 'default' : 'outline'}
-                                          onClick={() => setRefinementDayAvailability(date, 'maybe')}
-                                          className={refinementAvailability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                          disabled={!isSchedulingOpenForMe()}
-                                        >
-                                          <HelpCircle className="h-4 w-4 mr-1" />
-                                          Maybe
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant={refinementAvailability[date] === 'unavailable' ? 'default' : 'outline'}
-                                          onClick={() => setRefinementDayAvailability(date, 'unavailable')}
-                                          className={refinementAvailability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                          disabled={!isSchedulingOpenForMe()}
-                                        >
-                                          <X className="h-4 w-4 mr-1" />
-                                          Unavailable
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-
-                        <div className="mt-6 flex gap-4 flex-wrap">
-                          <Button 
-                            onClick={saveAvailability} 
-                            disabled={saving || !isSchedulingOpenForMe() || (!hasAnyRefinementAvailability() && !hasAnyAvailability())}
-                          >
-                            {!isSchedulingOpenForMe()
-                              ? 'Availability Frozen'
-                              : saving ? 'Saving...' : 'Save Refinement'}
-                          </Button>
-                        </div>
-                        {!isSchedulingOpenForMe() && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            {trip.status === 'voting' 
-                              ? 'Availability is frozen while voting is open.'
-                              : 'Dates are locked; scheduling is closed.'}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Informational: Show promising windows as read-only info if user hasn't responded yet
-                      This is informational only - does not block broad input, no interactive elements */}
-                  {hasPromisingWindows && isSchedulingOpenForMe() && !hasRespondedBroadly && (
-                    <Card className="border-gray-200 bg-gray-50/50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <CalendarIcon className="h-5 w-5 text-gray-600" />
-                          Suggested Windows (Informational)
-                        </CardTitle>
-                        <CardDescription>
-                          Based on responses so far, these {promisingWindows.length} window{promisingWindows.length !== 1 ? 's' : ''} look promising. Submit your availability above to help refine these suggestions.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          {promisingWindows.map((window, windowIdx) => {
-                            const windowDates = getDateRangeStrings(window.startDate, window.endDate)
-                            return (
-                              <div key={window.optionKey} className="border rounded-lg p-3 bg-white">
-                                <div>
-                                  <h4 className="font-semibold text-gray-900">
-                                    Window {windowIdx + 1}: {window.startDate} to {window.endDate}
-                                  </h4>
-                                  <p className="text-sm text-gray-500">
-                                    Compatibility: {(window.score * 100).toFixed(0)}% • {windowDates.length} day{windowDates.length !== 1 ? 's' : ''}
-                                  </p>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Voting Phase - Availability Frozen Message */}
-                  {trip.status === 'voting' && (
-                    <Card className="border-orange-200 bg-orange-50/50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-orange-800">
-                          <Lock className="h-5 w-5" />
-                          Availability Frozen
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-orange-800">
-                          Availability is frozen while voting is open. You can vote for your preferred dates below.
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Locked Phase - Scheduling Closed Message */}
-                  {trip.status === 'locked' && (
-                    <Card className="border-green-200 bg-green-50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-green-800">
-                          <Lock className="h-5 w-5" />
-                          Dates Locked
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-green-800">
-                          Dates are locked; scheduling is closed. Trip dates: {trip.lockedStartDate} to {trip.lockedEndDate}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Standard Availability UI - Show based on CURRENT USER STATE ONLY
-                      Rule 1: If user has NOT submitted ANY availability → Show ONLY broad input
-                      Rule 2: If user HAS submitted broad but NOT refined → Show refinement (broad may be collapsed)
-                      Rule 3: If user HAS refined → Show refinement (editable) */}
-                  {isSchedulingOpenForMe() && !hasSubmittedAnyAvailability && (
-                    <Card className={!hasRespondedBroadly ? "" : "border-gray-200"}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CalendarIcon className="h-5 w-5" />
-                          {hasRespondedBroadly ? 'Update Your Availability' : 'Submit Your Availability'}
-                      </CardTitle>
-                      <CardDescription>
-                          {hasRespondedBroadly 
-                            ? "You can update your availability for the entire date range. Changes will help refine the promising windows."
-                            : "Mark days you're genuinely open. If you don't respond, we'll assume you're unavailable."
-                          }
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {!hasRespondedBroadly && (
-                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-sm text-blue-800">
-                              <strong>Remember:</strong> Approximate is okay — we'll ask for details once dates narrow. If you don't respond, we'll assume you're unavailable.
-                            </p>
-                          </div>
-                        )}
-                      
-                      {useBroadMode ? (
-                        // Broad Availability Mode
-                        useWeeklyMode ? (
-                          // Weekly Blocks Mode
-                          <div className="space-y-4">
-                            <p className="text-sm text-gray-600 mb-4">
-                              Select your availability by week. One click covers the entire week.
-                            </p>
-                            <div className="grid gap-3">
-                              {weeklyBlocks.map((block) => (
-                                <div key={block.key} className="flex items-center gap-4 p-3 border rounded-lg">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-gray-900">
-                                      {block.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {block.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </p>
-                                  </div>
-                                  <div className="flex gap-2 flex-wrap">
-                                    <Button
-                                      size="sm"
-                                      variant={weeklyAvailability[block.key] === 'available' ? 'default' : 'outline'}
-                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'available' })}
-                                      className={weeklyAvailability[block.key] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                      disabled={!isSchedulingOpenForMe()}
-                                    >
-                                      <Check className="h-4 w-4 mr-1" />
-                                      Available
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant={weeklyAvailability[block.key] === 'maybe' ? 'default' : 'outline'}
-                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'maybe' })}
-                                      className={weeklyAvailability[block.key] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                      disabled={!isSchedulingOpenForMe()}
-                                    >
-                                      <HelpCircle className="h-4 w-4 mr-1" />
-                                      Maybe
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant={weeklyAvailability[block.key] === 'unavailable' ? 'default' : 'outline'}
-                                      onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'unavailable' })}
-                                      className={weeklyAvailability[block.key] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                      disabled={!isSchedulingOpenForMe()}
-                                    >
-                                      <X className="h-4 w-4 mr-1" />
-                                      Unavailable
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          // Single Broad Selector Mode
-                          <div className="space-y-4">
-                            <p className="text-sm text-gray-600 mb-4">
-                              Select your availability for the entire date range ({dateRangeLength} days). One click covers all dates.
-                            </p>
-                            <div className="flex gap-3 justify-center">
-                              <Button
-                                size="lg"
-                                variant={broadAvailability === 'available' ? 'default' : 'outline'}
-                                onClick={() => setBroadAvailability('available')}
-                                className={broadAvailability === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                disabled={!isSchedulingOpenForMe()}
-                              >
-                                <Check className="h-5 w-5 mr-2" />
-                                Available
-                              </Button>
-                              <Button
-                                size="lg"
-                                variant={broadAvailability === 'maybe' ? 'default' : 'outline'}
-                                onClick={() => setBroadAvailability('maybe')}
-                                className={broadAvailability === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                disabled={!isSchedulingOpenForMe()}
-                              >
-                                <HelpCircle className="h-5 w-5 mr-2" />
-                                Maybe
-                              </Button>
-                              <Button
-                                size="lg"
-                                variant={broadAvailability === 'unavailable' ? 'default' : 'outline'}
-                                onClick={() => setBroadAvailability('unavailable')}
-                                className={broadAvailability === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                disabled={!isSchedulingOpenForMe()}
-                              >
-                                <X className="h-5 w-5 mr-2" />
-                                Unavailable
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      ) : (
-                        // Per-Day Mode (existing UI)
-                      <div className="space-y-2">
-                        {dates.map((date) => (
-                          <div key={date} className="flex items-center gap-4 py-2 border-b last:border-0 flex-wrap">
-                              <span className="w-32 font-medium text-gray-900">
-                              {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            </span>
-                            <div className="flex gap-2 flex-wrap">
-                              <Button
-                                size="sm"
-                                variant={availability[date] === 'available' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'available')}
-                                className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                  disabled={!isSchedulingOpenForMe()}
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Available
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={availability[date] === 'maybe' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'maybe')}
-                                className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                  disabled={!isSchedulingOpenForMe()}
-                              >
-                                <HelpCircle className="h-4 w-4 mr-1" />
-                                Maybe
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
-                                onClick={() => setDayAvailability(date, 'unavailable')}
-                                className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                  disabled={!isSchedulingOpenForMe()}
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                Unavailable
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      )}
-                      
-                      {/* Optional Activity Ideas (Idea Jar) */}
-                      <div className="mt-6 pt-6 border-t">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Lightbulb className="h-5 w-5 text-yellow-500" />
-                          <span className="font-medium text-sm">Any activity ideas? (optional)</span>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-3">Suggest up to 3 activities you'd like to do on this trip</p>
-                        <div className="grid gap-2">
-                          {activityIdeas.map((idea, idx) => (
-                            <Input
-                              key={idx}
-                              value={idea}
-                              onChange={(e) => {
-                                const newIdeas = [...activityIdeas]
-                                newIdeas[idx] = e.target.value
-                                setActivityIdeas(newIdeas)
-                              }}
-                              placeholder={`Activity idea ${idx + 1}...`}
-                              className="text-sm"
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="mt-6 flex gap-4 flex-wrap">
-                        <Button 
-                          onClick={saveAvailability} 
-                          disabled={
-                            saving || 
-                            trip.status === 'voting' || 
-                            trip.status === 'locked' ||
-                            (useBroadMode 
-                              ? (useWeeklyMode 
-                                  ? Object.keys(weeklyAvailability).length === 0 
-                                  : !broadAvailability)
-                              : !hasAnyAvailability())
-                          }
-                        >
-                          {!isSchedulingOpenForMe()
-                            ? 'Availability Frozen' 
-                            : saving ? 'Saving...' : 'Save Availability'}
-                        </Button>
-                        {trip.isCreator && trip.status === 'scheduling' && (
-                          <Button variant="outline" onClick={openVoting}>
-                            <Vote className="h-4 w-4 mr-2" />
-                            Open Voting
-                          </Button>
-                        )}
-                      </div>
-                      {!isSchedulingOpenForMe() && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          {trip.status === 'voting' 
-                            ? 'Availability is frozen while voting is open.'
-                            : 'Dates are locked; scheduling is closed.'}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                  )}
-
-                  {/* Consensus Preview - Only show when not in refinement mode */}
-                  {!hasPromisingWindows && trip.consensusOptions?.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Top Date Options (Preview)</CardTitle>
-                        <CardDescription>
-                          Based on {trip.availabilities?.length || 0} availability submissions
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          {trip.consensusOptions.map((option, idx) => (
-                            <div key={option.optionKey} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
-                                <div>
-                                  <p className="font-medium">{option.startDate} to {option.endDate}</p>
-                                  <p className="text-sm text-gray-500">Score: {(option.score * 100).toFixed(0)}%</p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              )}
-
-              {/* Voting Phase */}
-              {trip.status === 'voting' && (
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Vote className="h-5 w-5" />
-                        Vote for Your Preferred Dates
-                      </CardTitle>
-                      <CardDescription>
-                        Voting is preference — we'll move forward even if everyone doesn't vote.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <RadioGroup value={selectedVote} onValueChange={setSelectedVote}>
-                        <div className="space-y-3">
-                          {trip.consensusOptions?.map((option, idx) => {
-                            const voters = votersByOption[option.optionKey] || []
-                            const voteCount = voteCounts[option.optionKey] || 0
-                            const displayVoters = voters.slice(0, 6)
-                            const remainingCount = voters.length - displayVoters.length
-                            
-                            return (
-                              <div key={option.optionKey} className="flex items-start space-x-3">
-                                <RadioGroupItem value={option.optionKey} id={option.optionKey} className="mt-1" />
-                              <Label htmlFor={option.optionKey} className="flex-1 cursor-pointer">
-                                  <div className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                                    <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
-                                    <div>
-                                      <p className="font-medium">{option.startDate} to {option.endDate}</p>
-                                      <p className="text-sm text-gray-500">Compatibility: {(option.score * 100).toFixed(0)}%</p>
-                                    </div>
-                                  </div>
-                                  <Badge variant="secondary">
-                                        {voteCount} vote{voteCount !== 1 ? 's' : ''}
-                                  </Badge>
-                                    </div>
-                                    {voters.length > 0 && (
-                                      <div className="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-gray-200">
-                                        <span className="text-xs text-gray-500 font-medium">Voted by:</span>
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          {displayVoters.map((voter) => (
-                                            <span
-                                              key={voter.id}
-                                              className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800 font-medium"
-                                              title={voter.name}
-                                            >
-                                              {getInitials(voter.name)}
-                                            </span>
-                                          ))}
-                                          {remainingCount > 0 && (
-                                            <span
-                                              className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700 font-medium"
-                                              title={voters.slice(6).map(v => v.name).join(', ')}
-                                            >
-                                              +{remainingCount} more
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                </div>
-                              </Label>
-                            </div>
-                            )
-                          })}
-                        </div>
-                      </RadioGroup>
-                      <div className="mt-6 flex gap-4 flex-wrap">
-                        <Button onClick={submitVote} disabled={!selectedVote}>
-                          {trip.userVote ? 'Update Vote' : 'Submit Vote'}
-                        </Button>
-                        {trip.canLock && selectedVote && (
-                          <Button variant="default" onClick={() => lockTrip(selectedVote)}>
-                            <Lock className="h-4 w-4 mr-2" />
-                            Lock Dates
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Locked Phase */}
-              {trip.status === 'locked' && (
-                <Card className="bg-green-50 border-green-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-green-800">
-                      <Lock className="h-5 w-5" />
-                      Trip Dates Locked!
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-8">
-                      <div className="text-4xl font-bold text-green-800 mb-4">
-                        {trip.lockedStartDate} to {trip.lockedEndDate}
-                      </div>
-                      <p className="text-green-700">
-                        Your trip dates are confirmed. Time to start planning the details!
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-                </>
-              )}
-            </>
-          )}
-
-          {/* Hosted Trip - Just show locked dates */}
-          {trip.type === 'hosted' && (
-            <Card className="bg-green-50 border-green-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-800">
-                  <Lock className="h-5 w-5" />
-                  Fixed Trip Dates
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <div className="text-4xl font-bold text-green-800 mb-4">
-                    {trip.lockedStartDate} to {trip.lockedEndDate}
-                  </div>
-                  <p className="text-green-700">
-                    This is a hosted trip with fixed dates. Join if you're available!
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* Memories Tab */}
-        <TabsContent value="memories">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold">Trip Memories</h2>
-            <Button onClick={() => setShowCreatePost(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Memory
-            </Button>
-          </div>
-          
-          <MemoriesView 
-            posts={posts}
-            loading={loadingPosts}
-            onCreatePost={() => setShowCreatePost(true)}
-            onDeletePost={deletePost}
-            emptyMessage="No memories from this trip yet"
-          />
-          
-          <CreatePostDialog
-            open={showCreatePost}
-            onOpenChange={setShowCreatePost}
-            circleId={trip.circleId}
-            trips={[trip]}
+          <TripTabs
+            trip={trip}
             token={token}
-            onCreated={loadPosts}
+            user={user}
+            onRefresh={onRefresh}
+            activeTab={activeTab}
+            setActiveTab={(newTab) => {
+              setActiveTab(newTab)
+              // Update trip's initial tab flag to prevent auto-redirect after manual navigation
+              trip._initialTab = newTab
+            }}
+            primaryTab={primaryTab}
+            stage={stage}
+            accommodationProps={{}}
+            prepProps={{}}
+            planningProps={{
+              availability,
+              setAvailability,
+              broadAvailability,
+              setBroadAvailability,
+              weeklyAvailability,
+              setWeeklyAvailability,
+              refinementAvailability,
+              setRefinementAvailability,
+              activityIdeas,
+              setActivityIdeas,
+              saving,
+              selectedVote,
+              setSelectedVote,
+              datePicks,
+              setDatePicks,
+              savingPicks,
+              setSavingPicks,
+              dates,
+              dateRangeLength,
+              useBroadMode,
+              useWeeklyMode,
+              weeklyBlocks,
+              promisingWindows,
+              hasPromisingWindows,
+              refinementDates,
+              getDateRangeStrings,
+              setDayAvailability,
+              setRefinementDayAvailability,
+              setWindowBulkAvailability,
+              hasAnyAvailability,
+              hasAnyRefinementAvailability,
+              hasRespondedBroadly,
+              hasSubmittedAnyAvailability,
+              isSchedulingOpenForMe,
+              saveAvailability,
+              submitVote,
+              lockTrip,
+              openVoting,
+              promoteRefinement,
+              votersByOption,
+              voteCounts
+            }}
+            itineraryProps={{
+              ideas,
+              setIdeas,
+              newIdea,
+              setNewIdea,
+              addingIdea,
+              addIdea,
+              loadingIdeas,
+              latestVersion,
+              setLatestVersion,
+              loadingVersions,
+              generating,
+              setGenerating,
+              generateItinerary,
+              reviseItinerary,
+              revising,
+              setRevising,
+              feedback,
+              setFeedback,
+              loadingFeedback,
+              newFeedback,
+              setNewFeedback,
+              submittingFeedback,
+              setSubmittingFeedback,
+              submitFeedback,
+              ideaCategories,
+              feedbackTypes,
+              upvoteIdea
+            }}
+            memoriesProps={{
+              posts,
+              loadingPosts,
+              showCreatePost,
+              setShowCreatePost,
+              loadPosts,
+              deletePost
+            }}
+            chatProps={{
+              messages,
+              newMessage,
+              setNewMessage,
+              sendingMessage,
+              sendMessage,
+              showTripChatHint,
+              dismissTripChatHint
+            }}
           />
-        </TabsContent>
-
-        {/* Itinerary Tab - 3-Panel Layout */}
-        <TabsContent value="itinerary">
-          {trip.status === 'locked' ? (
-            <div className="grid lg:grid-cols-3 gap-6">
-              {/* Panel 1: Ideas */}
-              <div className="lg:col-span-1">
-                <Card className="h-full">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-yellow-500" />
-                      Ideas
-                    </CardTitle>
-                    <CardDescription>
-                      Suggest activities for the trip
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Add Idea Form */}
-                    <div className="space-y-2">
-                      <Input
-                        value={newIdea.title}
-                        onChange={(e) => setNewIdea({ ...newIdea, title: e.target.value })}
-                        placeholder="Activity title"
-                        className="text-sm"
-                      />
-                      <Textarea
-                        value={newIdea.details}
-                        onChange={(e) => setNewIdea({ ...newIdea, details: e.target.value })}
-                        placeholder="Details (optional)"
-                        className="text-sm min-h-[60px]"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        <Select value={newIdea.category} onValueChange={(v) => setNewIdea({ ...newIdea, category: v })}>
-                          <SelectTrigger className="text-sm">
-                            <SelectValue placeholder="Category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ideaCategories.map(cat => (
-                              <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          value={newIdea.location}
-                          onChange={(e) => setNewIdea({ ...newIdea, location: e.target.value })}
-                          placeholder="Location (optional)"
-                          className="text-sm"
-                        />
-                      </div>
-                      <Input
-                        value={newIdea.constraints}
-                        onChange={(e) => setNewIdea({ ...newIdea, constraints: e.target.value })}
-                        placeholder="Constraints (comma separated)"
-                        className="text-sm"
-                      />
-                      <Button onClick={addIdea} disabled={addingIdea || !newIdea.title.trim()} className="w-full" size="sm">
-                        {addingIdea ? 'Adding...' : 'Add Idea'}
-                      </Button>
-                    </div>
-                    
-                    {/* Ideas List */}
-                    <ScrollArea className="h-[400px]">
-                      {loadingIdeas ? (
-                        <div className="flex justify-center py-8">
-                          <BrandedSpinner size="md" />
-                        </div>
-                      ) : ideas.length === 0 ? (
-                        <p className="text-center text-gray-500 py-6 text-sm">
-                          No ideas yet. Add some activities!
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {ideas.map((idea) => (
-                            <div 
-                              key={idea.id} 
-                              className="flex items-start justify-between p-2 bg-gray-50 rounded-lg border"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6 text-xs"
-                                    onClick={() => upvoteIdea(idea.id)}
-                                  >
-                                    <Vote className="h-3 w-3" />
-                                  </Button>
-                                  <span className="text-xs font-semibold text-[#FA3823]">{idea.priority || 0}</span>
-                                  <Badge variant="secondary" className="text-xs">
-                                    {ideaCategories.find(c => c.value === idea.category)?.label || idea.category}
-                                  </Badge>
-                                </div>
-                                <p className="font-medium text-sm">{idea.title}</p>
-                                {idea.details && <p className="text-xs text-gray-600 mt-1">{idea.details}</p>}
-                                {idea.location && (
-                                  <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {idea.location}
-                                  </p>
-                                )}
-                                {idea.constraints && idea.constraints.length > 0 && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Constraints: {idea.constraints.join(', ')}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Panel 2: Itinerary Viewer */}
-              <div className="lg:col-span-1">
-                <Card className="h-full">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <ListTodo className="h-5 w-5" />
-                          Itinerary
-                        </CardTitle>
-                        {latestVersion && (
-                          <Badge variant="outline" className="mt-2">
-                            Version {latestVersion.version}
-                          </Badge>
-                        )}
-                      </div>
-                      {trip.isCreator && !latestVersion && (
-                        <Button onClick={generateItinerary} disabled={generating || ideas.length === 0} size="sm">
-                          {generating ? (
-                            <>
-                              <BrandedSpinner size="sm" className="mr-2" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="h-4 w-4 mr-2" />
-                              Generate
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-[500px]">
-                      {loadingVersions ? (
-                        <div className="flex justify-center py-8">
-                          <BrandedSpinner size="md" />
-                        </div>
-                      ) : !latestVersion ? (
-                        <div className="text-center py-12">
-                          <ListTodo className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-500 mb-4">No itinerary generated yet</p>
-                          {trip.isCreator && ideas.length > 0 && (
-                            <Button onClick={generateItinerary} disabled={generating}>
-                              {generating ? (
-                                <>
-                                  <BrandedSpinner size="sm" className="mr-2" />
-                                  Generating...
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles className="h-4 w-4 mr-2" />
-                                  Generate Itinerary
-                                </>
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {latestVersion.changeLog && (
-                            <Accordion type="single" collapsible>
-                              <AccordionItem value="changelog">
-                                <AccordionTrigger className="text-sm">What changed in v{latestVersion.version}?</AccordionTrigger>
-                                <AccordionContent className="text-sm text-gray-600">
-                                  {latestVersion.changeLog}
-                                </AccordionContent>
-                              </AccordionItem>
-                            </Accordion>
-                          )}
-                          
-                          {latestVersion.content?.overview && (
-                            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                              <p className="text-xs font-medium mb-1">Overview</p>
-                              <p className="text-xs text-gray-600">Pace: {latestVersion.content.overview.pace} • Budget: {latestVersion.content.overview.budget}</p>
-                              {latestVersion.content.overview.notes && (
-                                <p className="text-xs text-gray-600 mt-1">{latestVersion.content.overview.notes}</p>
-                              )}
-                            </div>
-                          )}
-                          
-                          {latestVersion.content?.days && (
-                            <Accordion type="multiple" className="w-full">
-                              {latestVersion.content.days.map((day, dayIdx) => (
-                                <AccordionItem key={dayIdx} value={`day-${dayIdx}`}>
-                                  <AccordionTrigger className="hover:no-underline">
-                                    <div className="flex items-center gap-2">
-                                      <CalendarIcon className="h-4 w-4" />
-                                      <span className="font-medium text-sm">
-                                        {new Date(day.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                                      </span>
-                                      {day.title && <span className="text-xs text-gray-500">• {day.title}</span>}
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <div className="space-y-3 pt-2">
-                                      {day.blocks && day.blocks.length > 0 ? (
-                                        day.blocks.map((block, blockIdx) => (
-                                          <div key={blockIdx} className="border rounded-lg p-3 bg-gray-50">
-                                            <div className="flex items-start justify-between mb-2">
-                                              <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                  <span className="text-xs font-medium text-[#FA3823]">{block.timeRange}</span>
-                                                  {block.tags && block.tags.length > 0 && (
-                                                    <div className="flex gap-1">
-                                                      {block.tags.map((tag, tagIdx) => (
-                                                        <Badge key={tagIdx} variant="secondary" className="text-xs">
-                                                          {tag}
-                                                        </Badge>
-                                                      ))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                                <p className="font-medium text-sm">{block.title}</p>
-                                                {block.description && (
-                                                  <p className="text-xs text-gray-600 mt-1">{block.description}</p>
-                                                )}
-                                                {block.location && (
-                                                  <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                                                    <MapPin className="h-3 w-3" />
-                                                    {block.location}
-                                                  </p>
-                                                )}
-                                                {block.estCost && (
-                                                  <p className="text-xs text-green-600 mt-1">Est. {block.estCost}</p>
-                                                )}
-                                                {block.transitNotes && (
-                                                  <p className="text-xs text-gray-500 mt-1 italic">Transit: {block.transitNotes}</p>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <p className="text-xs text-gray-400 italic">No activities planned</p>
-                                      )}
-                                    </div>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              ))}
-                            </Accordion>
-                          )}
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Panel 3: Discussion */}
-              <div className="lg:col-span-1">
-                <Card className="h-full">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <MessageCircle className="h-5 w-5" />
-                        Feedback
-                      </CardTitle>
-                      {trip.isCreator && latestVersion && (
-                        <Button onClick={reviseItinerary} disabled={revising || feedback.length === 0} size="sm" variant="outline">
-                          {revising ? (
-                            <>
-                              <BrandedSpinner size="sm" className="mr-2" />
-                              Revising...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="h-4 w-4 mr-2" />
-                              Revise
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                    {latestVersion && (
-                      <CardDescription>
-                        Feedback for v{latestVersion.version}
-                      </CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="flex flex-col h-full">
-                    {!latestVersion ? (
-                      <div className="text-center py-12">
-                        <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-500 text-sm">No itinerary published yet</p>
-                        <p className="text-gray-400 text-xs mt-2">Feedback will appear here once an itinerary is generated</p>
-                      </div>
-                    ) : (
-                      <>
-                        <ScrollArea className="flex-1 mb-4">
-                          {loadingFeedback ? (
-                            <div className="flex justify-center py-8">
-                              <BrandedSpinner size="md" />
-                            </div>
-                          ) : feedback.length === 0 ? (
-                            <p className="text-center text-gray-500 py-8 text-sm">
-                              No feedback yet. Share your thoughts!
-                            </p>
-                          ) : (
-                            <div className="space-y-3">
-                              {feedback.map((fb) => (
-                                <div key={fb.id} className="p-3 bg-gray-50 rounded-lg border">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs font-medium">{fb.author?.name || 'Anonymous'}</span>
-                                    <Badge variant="secondary" className="text-xs">
-                                      {feedbackTypes.find(t => t.value === fb.type)?.label || fb.type}
-                                    </Badge>
-                                  </div>
-                                  {fb.target && (
-                                    <p className="text-xs text-gray-500 mb-1">Target: {fb.target}</p>
-                                  )}
-                                  <p className="text-sm text-gray-700">{fb.message}</p>
-                                  <p className="text-xs text-gray-400 mt-1">{formatDate(fb.createdAt)}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </ScrollArea>
-                        
-                        <div className="space-y-2 pt-4 border-t">
-                          <Select value={newFeedback.type} onValueChange={(v) => setNewFeedback({ ...newFeedback, type: v })}>
-                            <SelectTrigger className="text-sm">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {feedbackTypes.map(type => (
-                                <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Input
-                            value={newFeedback.target}
-                            onChange={(e) => setNewFeedback({ ...newFeedback, target: e.target.value })}
-                            placeholder="Target (e.g., day2.block3) - optional"
-                            className="text-sm"
-                          />
-                          <Textarea
-                            value={newFeedback.message}
-                            onChange={(e) => setNewFeedback({ ...newFeedback, message: e.target.value })}
-                            placeholder="Your feedback..."
-                            className="text-sm min-h-[80px]"
-                          />
-                          <Button onClick={submitFeedback} disabled={submittingFeedback || !newFeedback.message.trim()} className="w-full" size="sm">
-                            {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="text-center py-12">
-                <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Itinerary planning is only available after dates are locked</p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* Chat Tab */}
-        <TabsContent value="chat">
-          <Card className="h-[500px] flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-lg">Trip Chat</CardTitle>
-              <CardDescription>Decisions and updates for this trip. System updates appear here.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col">
-              {showTripChatHint && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-3">
-                  <p className="text-sm text-blue-800 flex-1">
-                    Trip Chat is for decisions and updates. For general discussion, use Circle Lounge.
-                  </p>
-                  <button
-                    onClick={dismissTripChatHint}
-                    className="flex-shrink-0 text-blue-600 hover:text-blue-800"
-                    aria-label="Dismiss"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-              <ScrollArea className="flex-1 pr-4">
-                <div className="space-y-4">
-                  {messages.length === 0 ? (
-                    <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
-                  ) : (
-                    messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
-                        {msg.isSystem ? (
-                          <div className="bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600">
-                            {msg.content}
-                          </div>
-                        ) : (
-                          <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
-                            {msg.user?.id !== user.id && (
-                              <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
-                            )}
-                            <p>{msg.content}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-              <div className="flex gap-2 mt-4 pt-4 border-t">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                />
-                <Button onClick={sendMessage} disabled={sendingMessage || !newMessage.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
         </div>
 
         {/* Trip Progress Panel */}
         <div className="lg:w-[340px] flex-shrink-0">
-          <TripProgress trip={trip} token={token} user={user} onRefresh={onRefresh} />
+          <TripProgress 
+            trip={trip} 
+            token={token} 
+            user={user} 
+            onRefresh={onRefresh}
+            onSwitchTab={setActiveTab}
+          />
         </div>
       </div>
 
