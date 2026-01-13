@@ -23,7 +23,8 @@ export default function TripDetailRoute() {
     if (!tripId) return
 
     // Redirect to / with tripId query param so the old system can handle it
-    router.push(`/?tripId=${tripId}`)
+    // Use replace instead of push so back button returns to previous page (dashboard) instead of /trips/[tripId]
+    router.replace(`/?tripId=${tripId}`)
   }, [tripId, router])
 
   return (

@@ -31,17 +31,17 @@ import { Separator } from '@/components/ui/separator'
  */
 function NotificationRow({ notification, compact = false }) {
   return (
-    <div className={`flex items-center justify-between gap-4 ${compact ? 'py-2' : 'py-3'} hover:bg-gray-50/50 transition-colors`}>
+    <div className={`flex items-center justify-between gap-4 ${compact ? 'py-1.5' : 'py-2'} hover:bg-gray-50/50 transition-colors`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900">{notification.title}</span>
-          <span className="text-sm text-gray-400">—</span>
-          <span className="text-sm text-gray-600">{notification.ctaLabel}</span>
+          <span className="text-sm font-medium text-gray-900 leading-tight">{notification.title}</span>
+          <span className="text-sm text-gray-400 leading-tight">—</span>
+          <span className="text-sm text-gray-600 leading-tight">{notification.ctaLabel}</span>
         </div>
       </div>
       <Link 
         href={notification.href}
-        className="text-sm text-blue-600 hover:text-blue-700 hover:underline whitespace-nowrap"
+        className="text-sm text-blue-600 hover:text-blue-700 hover:underline whitespace-nowrap leading-tight"
       >
         {notification.ctaLabel}
       </Link>
@@ -60,21 +60,21 @@ export function GlobalNotifications({ notifications }) {
   return (
     <>
       {/* Compact banner section */}
-      <div className="mb-6 border-b border-gray-200 pb-4">
+      <div className="mb-6 border-b border-gray-200 pb-3">
         {/* Header row */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-gray-600" />
-            <span className="text-sm font-medium text-gray-900">Notifications</span>
+            <span className="text-sm font-medium text-gray-900 leading-tight">Notifications</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 leading-tight">
               {notifications.length} {notifications.length === 1 ? 'pending action' : 'pending actions'}
             </span>
             {notifications.length > 0 && (
               <button
                 onClick={() => setSheetOpen(true)}
-                className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                className="text-sm text-blue-600 hover:text-blue-700 hover:underline leading-tight"
               >
                 View all
               </button>
@@ -84,7 +84,7 @@ export function GlobalNotifications({ notifications }) {
 
         {/* Body */}
         {notifications.length === 0 ? (
-          <div className="text-sm text-gray-500 py-1">
+          <div className="text-sm text-gray-500 py-0.5 leading-tight">
             All caught up ✅
           </div>
         ) : (

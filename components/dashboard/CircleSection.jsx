@@ -6,6 +6,7 @@ import { TripCard } from './TripCard'
 import { Button } from '@/components/ui/button'
 import { CreateTripDialog } from './CreateTripDialog'
 import { Plus, Users } from 'lucide-react'
+import { CircleLink } from '@/components/circles/CircleLink'
 
 /**
  * @typedef {Object} TripData
@@ -38,12 +39,14 @@ export function CircleSection({ circle, token, onTripCreated }) {
 
   return (
     <>
-      <Card className="mb-6">
+      <Card id={`circle-${circle.id}`} className="mb-6 scroll-mt-4">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-gray-600" />
-              <h2 className="text-xl font-semibold">{circle.name}</h2>
+              <h2 className="text-xl font-semibold">
+                <CircleLink circleId={circle.id} circleName={circle.name} />
+              </h2>
             </div>
             <Button
               variant="outline"
@@ -67,7 +70,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {circle.trips.map((trip) => (
-                <TripCard key={trip.id} trip={trip} />
+                <TripCard key={trip.id} trip={trip} circleId={circle.id} />
               ))}
             </div>
           )}

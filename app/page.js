@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -26,8 +28,12 @@ import {
   ChevronLeft, Send, Compass, ArrowRight, Image as ImageIcon,
   Camera, Globe, Eye, EyeOff, Trash2, Edit, Search, Flag, Sparkles,
   ListTodo, Lightbulb, RefreshCw, ChevronUp, ChevronDown, Clock, Sun, Moon, Sunset, Info,
-  Circle, CheckCircle2, Home, Luggage, DollarSign
+  Circle, CheckCircle2, Home, Luggage, DollarSign, ChevronRight
 } from 'lucide-react'
+import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
+import { CircleLink } from '@/components/circles/CircleLink'
+import { TripCard } from '@/components/dashboard/TripCard'
+import { sortTrips } from '@/lib/dashboard/sortTrips'
 
 // Trypzy Logo Component
 // Preserves aspect ratio by using height-controlled sizing with width: auto
@@ -1759,7 +1765,8 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
 }
 
 // Main Dashboard Component
-function Dashboard({ user, token, onLogout, initialTripId }) {
+function Dashboard({ user, token, onLogout, initialTripId, initialCircleId }) {
+  const router = useRouter()
   const [circles, setCircles] = useState([])
   const [selectedCircle, setSelectedCircle] = useState(null)
   const [selectedTrip, setSelectedTrip] = useState(null)
@@ -1782,7 +1789,15 @@ function Dashboard({ user, token, onLogout, initialTripId }) {
     loadCircles()
   }, [])
 
-  // If initialTripId is provided, load that trip
+  // If initialCircleId is provided, load that circle first
+  useEffect(() => {
+    if (initialCircleId && !selectedCircle) {
+      openCircle(initialCircleId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCircleId])
+
+  // If initialTripId is provided, load that trip (after circle if circleId was also provided)
   useEffect(() => {
     if (initialTripId && !selectedTrip) {
       openTrip(initialTripId)
@@ -1880,7 +1895,7 @@ function Dashboard({ user, token, onLogout, initialTripId }) {
                 <Button 
                   variant={view === 'circles' || view === 'circle' || view === 'trip' ? 'secondary' : 'ghost'}
                   size="sm"
-                  onClick={() => setView('circles')}
+                  onClick={() => router.push('/dashboard')}
                 >
                   <Users className="h-4 w-4 mr-2" />
                   Circles
@@ -1910,7 +1925,7 @@ function Dashboard({ user, token, onLogout, initialTripId }) {
             variant={view === 'circles' || view === 'circle' || view === 'trip' ? 'secondary' : 'ghost'}
             size="sm"
             className="flex-1"
-            onClick={() => setView('circles')}
+            onClick={() => router.push('/dashboard')}
           >
             <Users className="h-4 w-4 mr-2" />
             Circles
@@ -2127,7 +2142,9 @@ function CirclesView({ circles, token, onOpenCircle, onRefresh }) {
                     <Badge variant="secondary">Owner</Badge>
                   )}
                 </div>
-                <CardTitle className="mt-4">{circle.name}</CardTitle>
+                <CardTitle className="mt-4">
+                  <CircleLink circleId={circle.id} circleName={circle.name} />
+                </CardTitle>
                 {circle.description && (
                   <CardDescription>{circle.description}</CardDescription>
                 )}
@@ -2201,7 +2218,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
   }
 
   useEffect(() => {
-    if (activeTab === 'chat') {
+    if (activeTab === 'chat') { // 'chat' is the tab value, but UI shows "Lounge"
       loadMessages()
       const interval = setInterval(loadMessages, 5000)
       return () => clearInterval(interval)
@@ -2306,19 +2323,6 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     }
   }
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'scheduling':
-        return <Badge className="bg-yellow-100 text-yellow-800">Scheduling</Badge>
-      case 'voting':
-        return <Badge className="bg-blue-100 text-blue-800">Voting</Badge>
-      case 'locked':
-        return <Badge className="bg-green-100 text-green-800">Locked</Badge>
-      default:
-        return null
-    }
-  }
-
   return (
     <div>
       {/* Header */}
@@ -2374,7 +2378,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           </TabsTrigger>
           <TabsTrigger value="chat">
             <MessageCircle className="h-4 w-4 mr-2" />
-            Chat
+            Lounge
           </TabsTrigger>
         </TabsList>
 
@@ -2472,6 +2476,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
             </Dialog>
           </div>
 
+          {/* Uses shared TripCard to keep dashboard + circle detail consistent */}
           {circle.trips.length === 0 ? (
             <Card className="text-center py-12">
               <CardContent>
@@ -2485,76 +2490,9 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {circle.trips.map((trip) => (
-                <Card 
-                  key={trip.id} 
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => onOpenTrip(trip.id)}
-                >
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-lg">{trip.name}</h3>
-                          {getStatusBadge(trip.status)}
-                          <Badge variant="outline">
-                            {trip.type === 'collaborative' ? 'Collaborative' : 'Hosted'}
-                          </Badge>
-                        </div>
-                        {trip.description && (
-                          <p className="text-gray-600 text-sm mb-2">{trip.description}</p>
-                        )}
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <CalendarIcon className="h-4 w-4" />
-                          {trip.status === 'locked' ? (
-                            <span>{trip.lockedStartDate} to {trip.lockedEndDate}</span>
-                          ) : (
-                            <span>Range: {trip.startDate} to {trip.endDate}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        {trip.isCreator && trip.status !== 'locked' && (
-                          <>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleEditTrip?.(trip)
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="text-red-600 hover:text-red-700"
-                              onClick={async (e) => {
-                                e.stopPropagation()
-                                if (confirm('Are you sure you want to delete this trip? This action cannot be undone.')) {
-                                  try {
-                                    await api(`/trips/${trip.id}`, { method: 'DELETE' }, token)
-                                    toast.success('Trip deleted')
-                                    onRefresh?.()
-                                  } catch (error) {
-                                    toast.error(error.message)
-                                  }
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      <Button variant="ghost">
-                        <ArrowRight className="h-5 w-5" />
-                      </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {sortTrips(circle.trips || []).map((trip) => (
+                <TripCard key={trip.id} trip={trip} circleId={circle.id} />
               ))}
             </div>
           )}
@@ -2616,11 +2554,11 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           </div>
         </TabsContent>
 
-        {/* Chat Tab */}
+        {/* Lounge Tab (Circle-level chat) */}
         <TabsContent value="chat">
           <Card className="h-[600px] flex flex-col">
             <CardHeader>
-              <CardTitle className="text-lg">Circle Chat</CardTitle>
+              <CardTitle className="text-lg">Circle Lounge</CardTitle>
               <CardDescription>General discussion for everyone in this circle.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
@@ -2786,64 +2724,8 @@ function TripProgress({ trip, token, user, onRefresh }) {
     return null
   }
   
-  const stepConfigs = [
-    {
-      key: 'tripProposed',
-      label: 'Trip Proposed',
-      tooltip: 'The trip has been created and shared with the circle.',
-      manual: false,
-      icon: Flag
-    },
-    {
-      key: 'datesLocked',
-      label: 'Dates Locked',
-      tooltip: 'Trip dates have been finalized and locked.',
-      manual: false,
-      icon: Lock
-    },
-    {
-      key: 'accommodationChosen',
-      label: 'Accommodation Chosen',
-      tooltip: 'Accommodation has been selected for the trip.',
-      manual: true,
-      icon: Home
-    },
-    {
-      key: 'itineraryFinalized',
-      label: 'Itinerary Finalized',
-      tooltip: 'The final itinerary has been selected and approved.',
-      manual: false, // Computed from selected itinerary
-      icon: ListTodo
-    },
-    {
-      key: 'prepStarted',
-      label: 'Prep Started',
-      tooltip: 'Trip preparation has begun (bookings, reservations, etc.).',
-      manual: true,
-      icon: Luggage
-    },
-    {
-      key: 'tripOngoing',
-      label: 'Trip Ongoing',
-      tooltip: 'The trip is currently happening (dates are active).',
-      manual: false,
-      icon: CalendarIcon
-    },
-    {
-      key: 'memoriesShared',
-      label: 'Memories Shared',
-      tooltip: 'Trip memories and photos have been shared.',
-      manual: true,
-      icon: Camera
-    },
-    {
-      key: 'expensesSettled',
-      label: 'Expenses Settled',
-      tooltip: 'All trip expenses have been settled and paid.',
-      manual: true,
-      icon: DollarSign
-    }
-  ]
+  // Use shared milestone definitions
+  const stepConfigs = TRIP_PROGRESS_STEPS
   
   // Find first incomplete step
   const firstIncompleteStep = stepConfigs.find(step => !progress.steps[step.key])
@@ -2880,7 +2762,7 @@ function TripProgress({ trip, token, user, onRefresh }) {
                 <div className="flex items-center gap-2">
                   <StepIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className={`text-sm font-medium ${isFirstIncomplete ? 'text-blue-900' : 'text-gray-900'}`}>
-                    {stepConfig.label}
+                    {stepConfig.shortLabel}
                   </span>
                   {isFirstIncomplete && (
                     <Badge variant="secondary" className="text-xs">Next</Badge>
@@ -4362,13 +4244,55 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     { value: 'question', label: 'Question' }
   ]
 
+  // Get returnTo from URL params for breadcrumb navigation
+  const [returnTo, setReturnTo] = useState(null)
+  const [circleId, setCircleId] = useState(null)
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const returnToParam = params.get('returnTo')
+      const circleIdParam = params.get('circleId')
+      setReturnTo(returnToParam)
+      setCircleId(circleIdParam || trip.circleId)
+    }
+  }, [trip.circleId])
+  
+  // Build breadcrumb links
+  const dashboardLink = returnTo || '/dashboard'
+  const circleLink = circleId 
+    ? `${dashboardLink}#circle-${circleId}`
+    : dashboardLink
+
   return (
     <div>
+      {/* Breadcrumb Navigation */}
+      <div className="mb-4">
+        <nav className="flex items-center gap-2 text-sm text-gray-600">
+          <Link 
+            href={dashboardLink}
+            className="hover:text-gray-900 hover:underline"
+          >
+            Dashboard
+          </Link>
+          {trip.circle?.name && (
+            <>
+              <ChevronRight className="h-4 w-4 text-gray-400" />
+              <CircleLink 
+                circleId={trip.circle.id}
+                circleName={trip.circle.name}
+                className="hover:text-gray-900"
+                returnTo={returnTo}
+              />
+            </>
+          )}
+          <ChevronRight className="h-4 w-4 text-gray-400" />
+          <span className="text-gray-900 font-medium">{trip.name}</span>
+        </nav>
+      </div>
+      
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-          <span>{trip.circle?.name}</span>
-        </div>
         <div className="flex items-center gap-4 mb-4 flex-wrap">
           <h1 className="text-3xl font-bold text-gray-900">{trip.name}</h1>
           {getStatusBadge()}
@@ -5801,7 +5725,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
               {showTripChatHint && (
                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between gap-3">
                   <p className="text-sm text-blue-800 flex-1">
-                    Trip Chat is for decisions and updates. For general discussion, use Circle Chat.
+                    Trip Chat is for decisions and updates. For general discussion, use Circle Lounge.
                   </p>
                   <button
                     onClick={dismissTripChatHint}
@@ -5897,27 +5821,30 @@ function TripDetailView({ trip, token, user, onRefresh }) {
 // Main App
 // NOTE: /dashboard is the canonical post-login landing page.
 // Authenticated users are redirected to /dashboard instead of showing the old Dashboard component.
-// EXCEPTION: If a tripId query param is present, show the old Dashboard to access TripDetailView.
+// EXCEPTION: If a tripId or circleId query param is present, show the old Dashboard to access TripDetailView or CircleDetailView.
 export default function App() {
   const router = useRouter()
   const { user, token, loading, login, logout } = useAuth()
   const [tripId, setTripId] = useState(null)
+  const [circleId, setCircleId] = useState(null)
 
-  // Get tripId from URL query params (client-side only)
+  // Get tripId and circleId from URL query params (client-side only)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const urlTripId = params.get('tripId')
+      const urlCircleId = params.get('circleId')
       setTripId(urlTripId)
+      setCircleId(urlCircleId)
     }
   }, [])
 
-  // Redirect authenticated users to /dashboard UNLESS tripId is present
+  // Redirect authenticated users to /dashboard UNLESS tripId or circleId is present
   useEffect(() => {
-    if (!loading && user && token && !tripId) {
+    if (!loading && user && token && !tripId && !circleId) {
       router.push('/dashboard')
     }
-  }, [loading, user, token, router, tripId])
+  }, [loading, user, token, router, tripId, circleId])
 
   if (loading) {
     return (
@@ -5934,9 +5861,9 @@ export default function App() {
     return <AuthPage onLogin={login} />
   }
 
-  // If tripId is present, show the old Dashboard so users can access TripDetailView
-  if (tripId) {
-    return <LegacyDashboard user={user} token={token} tripId={tripId} onLogout={logout} />
+  // If tripId or circleId is present, show the old Dashboard so users can access TripDetailView or CircleDetailView
+  if (tripId || circleId) {
+    return <LegacyDashboard user={user} token={token} tripId={tripId} circleId={circleId} onLogout={logout} />
   }
 
   // Show loading state while redirecting (should be brief)
@@ -5950,16 +5877,16 @@ export default function App() {
   )
 }
 
-// Legacy Dashboard wrapper that loads a trip when tripId is provided
-function LegacyDashboard({ user, token, tripId, onLogout }) {
+// Legacy Dashboard wrapper that loads a trip or circle when tripId or circleId is provided
+function LegacyDashboard({ user, token, tripId, circleId, onLogout }) {
   const [initialized, setInitialized] = useState(false)
   
   useEffect(() => {
-    if (tripId && !initialized) {
-      // The Dashboard component will handle loading the trip
+    if ((tripId || circleId) && !initialized) {
+      // The Dashboard component will handle loading the trip or circle
       setInitialized(true)
     }
-  }, [tripId, initialized])
+  }, [tripId, circleId, initialized])
 
-  return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} />
+  return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} initialCircleId={circleId} />
 }
