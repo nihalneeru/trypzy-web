@@ -22,9 +22,20 @@ export default function TripDetailRoute() {
   useEffect(() => {
     if (!tripId) return
 
+    // Get query params from URL to preserve returnTo and circleId
+    const searchParams = new URLSearchParams(window.location.search)
+    const returnTo = searchParams.get('returnTo')
+    const circleId = searchParams.get('circleId')
+    
+    // Build query string with tripId and preserve other params
+    const queryParams = new URLSearchParams()
+    queryParams.set('tripId', tripId)
+    if (returnTo) queryParams.set('returnTo', returnTo)
+    if (circleId) queryParams.set('circleId', circleId)
+
     // Redirect to / with tripId query param so the old system can handle it
     // Use replace instead of push so back button returns to previous page (dashboard) instead of /trips/[tripId]
-    router.replace(`/?tripId=${tripId}`)
+    router.replace(`/?${queryParams.toString()}`)
   }, [tripId, router])
 
   return (

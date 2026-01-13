@@ -36,19 +36,157 @@ import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags, TripPrimaryStage, TripTabKey } from '@/lib/trips/stage'
 import { TripTabs } from '@/components/trip/TripTabs/TripTabs'
 
-// Import extracted components and utilities
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
-import { BrandedSpinner } from '@/components/brand/BrandedSpinner'
-import { AuthPage } from '@/components/auth/AuthPage'
-import { PostCard } from '@/components/posts/PostCard'
-import { CreatePostDialog } from '@/components/posts/CreatePostDialog'
-import { MemoriesView } from '@/components/posts/MemoriesView'
-import { useAuth } from '@/hooks/use-auth'
-import { api } from '@/lib/client/api'
-import { formatDate } from '@/lib/client/formatDate'
+// Trypzy Logo Component
+// Preserves aspect ratio by using height-controlled sizing with width: auto
+function TrypzyLogo({ variant = 'full', className = '' }) {
+  if (variant === 'icon') {
+    // Icon-only variant (square, for spinners - use BrandedSpinner instead)
+    return (
+      <Image
+        src="/brand/trypzy-icon.png"
+        alt="Trypzy"
+        width={32}
+        height={32}
+        className={className || "h-8 w-8"}
+        unoptimized
+      />
+    )
+  }
+  
+  // Full logo variant (for headers/nav)
+  // Aspect ratio: 140:40 = 3.5:1 (matches auth page)
+  // Use height-controlled sizing (h-*) with w-auto to preserve aspect ratio
+  return (
+    <Image
+      src="/brand/trypzy-logo.png"
+      alt="Trypzy"
+      width={140}
+      height={40}
+      className={className || "h-8 w-auto"}
+      unoptimized
+    />
+  )
+}
 
-// Auth Page Component (kept for backward compatibility, but should use imported version)
-function AuthPageLegacy({ onLogin }) {
+// Branded Spinner Component
+function BrandedSpinner({ className = '', size = 'default' }) {
+  const sizeClasses = {
+    sm: 'h-4 w-4',
+    default: 'h-5 w-5',
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8'
+  }
+  
+  const dimensions = {
+    sm: 16,
+    default: 20,
+    md: 24,
+    lg: 32
+  }
+  
+  return (
+    <div className={`inline-flex items-center justify-center ${className}`}>
+      <Image
+        src="/brand/trypzy-icon.png"
+        alt="Loading"
+        width={dimensions[size]}
+        height={dimensions[size]}
+        className={`${sizeClasses[size]} animate-spin`}
+        unoptimized
+      />
+    </div>
+  )
+}
+
+// Auth Context
+const useAuth = () => {
+  const [user, setUser] = useState(null)
+  const [token, setToken] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem('trypzy_token')
+    const storedUser = localStorage.getItem('trypzy_user')
+    if (storedToken && storedUser) {
+      setToken(storedToken)
+      setUser(JSON.parse(storedUser))
+    }
+    setLoading(false)
+  }, [])
+
+  const login = (userData, authToken) => {
+    localStorage.setItem('trypzy_token', authToken)
+    localStorage.setItem('trypzy_user', JSON.stringify(userData))
+    setToken(authToken)
+    setUser(userData)
+  }
+
+  const logout = () => {
+    localStorage.removeItem('trypzy_token')
+    localStorage.removeItem('trypzy_user')
+    setToken(null)
+    setUser(null)
+  }
+
+  return { user, token, loading, login, logout }
+}
+
+// API Helper
+const api = async (endpoint, options = {}, token = null) => {
+  const headers = {}
+  
+  // Set Content-Type if body exists and is not FormData
+  if (options.body) {
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json'
+    }
+  } else if (options.method && ['POST', 'PUT', 'PATCH'].includes(options.method)) {
+    // For POST/PUT/PATCH without body, still set Content-Type
+    headers['Content-Type'] = 'application/json'
+  }
+  
+  // Always set Authorization if token is provided
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  
+  const response = await fetch(`/api${endpoint}`, {
+    ...options,
+    headers: { ...headers, ...options.headers }
+  })
+  
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || 'Something went wrong')
+  }
+  
+  return data
+}
+
+// Format date for display
+const formatDate = (dateStr) => {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now - date
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (days === 0) {
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    if (hours === 0) {
+      const mins = Math.floor(diff / (1000 * 60))
+      return mins <= 1 ? 'Just now' : `${mins} min ago`
+    }
+    return hours === 1 ? '1 hour ago' : `${hours} hours ago`
+  }
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Auth Page Component
+function AuthPage({ onLogin }) {
   const router = useRouter()
   const [isSignup, setIsSignup] = useState(false)
   const [email, setEmail] = useState('')
@@ -171,8 +309,8 @@ function AuthPageLegacy({ onLogin }) {
   )
 }
 
-// Post Card Component (kept for backward compatibility, but should use imported version)
-function PostCardLegacy({ post, onDelete, onEdit, showCircle = false, isDiscoverView = false, onViewItinerary, onProposeTrip }) {
+// Post Card Component
+function PostCard({ post, onDelete, onEdit, showCircle = false, isDiscoverView = false, onViewItinerary, onProposeTrip }) {
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportReason, setReportReason] = useState('')
   const [reporting, setReporting] = useState(false)
@@ -430,8 +568,8 @@ function PostCardLegacy({ post, onDelete, onEdit, showCircle = false, isDiscover
   )
 }
 
-// Create Post Dialog Component (kept for backward compatibility, but should use imported version)
-export function CreatePostDialogLegacy({ open, onOpenChange, circleId, trips, token, onCreated }) {
+// Create Post Dialog Component
+export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreated }) {
   const [uploading, setUploading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [mediaUrls, setMediaUrls] = useState([])
@@ -736,8 +874,8 @@ export function CreatePostDialogLegacy({ open, onOpenChange, circleId, trips, to
   )
 }
 
-// Memories View Component (kept for backward compatibility, but should use imported version)
-export function MemoriesViewLegacy({ posts, loading, onCreatePost, onDeletePost, onEditPost, emptyMessage = "No memories yet" }) {
+// Memories View Component
+export function MemoriesView({ posts, loading, onCreatePost, onDeletePost, onEditPost, emptyMessage = "No memories yet" }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1628,7 +1766,7 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
 }
 
 // Main Dashboard Component
-function Dashboard({ user, token, onLogout, initialTripId, initialCircleId }) {
+function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, returnTo }) {
   const router = useRouter()
   const [circles, setCircles] = useState([])
   const [selectedCircle, setSelectedCircle] = useState(null)
@@ -1702,14 +1840,22 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId }) {
 
   const goBack = () => {
     if (view === 'trip') {
-      setSelectedTrip(null)
-      setView('circle')
+      // Use returnTo if provided, otherwise check initialCircleId
+      if (returnTo) {
+        router.push(returnTo)
+      } else if (initialCircleId) {
+        // If we came from a circle page (initialCircleId exists), go back to that circle
+        router.push(`/circles/${initialCircleId}`)
+      } else {
+        // If no initialCircleId, we came from dashboard, so go back to dashboard
+        router.push('/dashboard')
+      }
     } else if (view === 'circle') {
-      setSelectedCircle(null)
-      setView('circles')
-      loadCircles()
+      // Navigate back to dashboard when on circle view
+      router.push('/dashboard')
     } else if (view === 'discover') {
-      setView('circles')
+      // Navigate back to dashboard when on discover view
+      router.push('/dashboard')
     }
   }
 
@@ -4572,15 +4718,18 @@ export default function App() {
   const { user, token, loading, login, logout } = useAuth()
   const [tripId, setTripId] = useState(null)
   const [circleId, setCircleId] = useState(null)
+  const [returnTo, setReturnTo] = useState(null)
 
-  // Get tripId and circleId from URL query params (client-side only)
+  // Get tripId, circleId, and returnTo from URL query params (client-side only)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const urlTripId = params.get('tripId')
       const urlCircleId = params.get('circleId')
+      const urlReturnTo = params.get('returnTo')
       setTripId(urlTripId)
       setCircleId(urlCircleId)
+      setReturnTo(urlReturnTo)
     }
   }, [])
 
@@ -4608,7 +4757,7 @@ export default function App() {
 
   // If tripId or circleId is present, show the old Dashboard so users can access TripDetailView or CircleDetailView
   if (tripId || circleId) {
-    return <LegacyDashboard user={user} token={token} tripId={tripId} circleId={circleId} onLogout={logout} />
+    return <LegacyDashboard user={user} token={token} tripId={tripId} circleId={circleId} returnTo={returnTo} onLogout={logout} />
   }
 
   // Show loading state while redirecting (should be brief)
@@ -4623,7 +4772,7 @@ export default function App() {
 }
 
 // Legacy Dashboard wrapper that loads a trip or circle when tripId or circleId is provided
-function LegacyDashboard({ user, token, tripId, circleId, onLogout }) {
+function LegacyDashboard({ user, token, tripId, circleId, returnTo, onLogout }) {
   const [initialized, setInitialized] = useState(false)
   
   useEffect(() => {
@@ -4633,5 +4782,5 @@ function LegacyDashboard({ user, token, tripId, circleId, onLogout }) {
     }
   }, [tripId, circleId, initialized])
 
-  return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} initialCircleId={circleId} />
+  return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} initialCircleId={circleId} returnTo={returnTo || null} />
 }
