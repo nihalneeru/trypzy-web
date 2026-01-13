@@ -1,10 +1,16 @@
 'use client'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Users, Calendar, Clock, AlertCircle } from 'lucide-react'
+import { Users, Calendar, Clock, Info } from 'lucide-react'
 import Link from 'next/link'
 import { getTripPrimaryHref } from '@/lib/dashboard/getTripPrimaryHref'
+import { TripProgressMini } from './TripProgressMini'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 /**
  * @typedef {Object} TripData
@@ -34,26 +40,6 @@ function formatDateRange(startDate, endDate) {
   const endFormatted = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   
   return `${startFormatted} - ${endFormatted}`
-}
-
-/**
- * Get status badge variant
- * @param {string} status
- * @returns {string}
- */
-function getStatusBadgeVariant(status) {
-  switch (status) {
-    case 'locked':
-      return 'bg-green-100 text-green-800 border-green-200'
-    case 'voting':
-      return 'bg-blue-100 text-blue-800 border-blue-200'
-    case 'scheduling':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-    case 'proposed':
-      return 'bg-gray-100 text-gray-800 border-gray-200'
-    default:
-      return 'bg-gray-100 text-gray-800 border-gray-200'
-  }
 }
 
 /**
@@ -87,10 +73,10 @@ function formatRelativeTime(timestamp) {
  * @param {Object} props
  * @param {TripData} props.trip
  */
-export function TripCard({ trip }) {
+export function TripCard({ trip, circleId = null }) {
   // Ensure pendingActions exists (default to empty array)
   const pendingActions = trip.pendingActions || []
-  const { href: primaryHref, label: primaryLabel } = getTripPrimaryHref(trip, pendingActions)
+  const { href: primaryHref, label: primaryLabel } = getTripPrimaryHref(trip, pendingActions, circleId)
   
   // Runtime check in dev mode
   if (process.env.NODE_ENV === 'development' && !primaryHref) {
@@ -101,21 +87,28 @@ export function TripCard({ trip }) {
     <Link href={primaryHref || `/trips/${trip.id}`} className="block h-full">
       <Card className="cursor-pointer hover:shadow-lg transition-shadow aspect-square flex flex-col h-full">
         <CardContent className="p-4 flex flex-col h-full">
-          {/* Header with status and pending indicator */}
+          {/* Header with info icon */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-base mb-1 line-clamp-2">{trip.name}</h3>
             </div>
-            {pendingActions.length > 0 && (
-              <AlertCircle className="h-4 w-4 text-orange-500 flex-shrink-0 ml-2" />
-            )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex-shrink-0 ml-2 pointer-events-auto">
+                    <Info className="h-4 w-4 text-gray-400" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Click to open trip</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           
-          {/* Status badge */}
+          {/* Progress indicator */}
           <div className="mb-3">
-            <Badge className={getStatusBadgeVariant(trip.status)}>
-              {trip.status.charAt(0).toUpperCase() + trip.status.slice(1)}
-            </Badge>
+            <TripProgressMini trip={trip} />
           </div>
           
           {/* Traveler count */}

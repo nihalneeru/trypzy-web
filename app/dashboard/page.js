@@ -16,6 +16,8 @@ import {
 import { Compass, Plus, Users, UserPlus, ChevronDown, LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import Image from 'next/image'
+import Link from 'next/link'
 
 // API Helper
 const api = async (endpoint, options = {}, token = null) => {
@@ -148,31 +150,19 @@ export default function DashboardPage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <Compass className="h-6 w-6 text-indigo-600" />
-              <span className="font-semibold text-xl">Trypzy</span>
-            </div>
+            <Link href="/dashboard" className="flex items-center">
+              <Image
+                src="/brand/trypzy-logo.png"
+                alt="Trypzy"
+                width={140}
+                height={40}
+                className="h-8 w-auto object-contain"
+                unoptimized
+                priority
+              />
+              <span className="sr-only">Trypzy</span>
+            </Link>
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowCreateCircle(true)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create circle
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => setShowJoinCircle(true)}
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Join circle
-                </Button>
-              </div>
-              
               {/* User Dropdown */}
               {user && (
                 <DropdownMenu>
@@ -200,6 +190,30 @@ export default function DashboardPage() {
         
         {/* Global Notifications */}
         <GlobalNotifications notifications={dashboardData.globalNotifications || []} />
+        
+        {/* Your Circles Heading */}
+        {dashboardData.circles && dashboardData.circles.length > 0 && (
+          <div className="flex items-center justify-between mb-6 mt-2 flex-wrap gap-3">
+            <h2 className="text-2xl font-semibold text-gray-900">Your Circles</h2>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowJoinCircle(true)}
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Join Circle
+              </Button>
+              <Button 
+                size="sm"
+                onClick={() => setShowCreateCircle(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Circle
+              </Button>
+            </div>
+          </div>
+        )}
         
         {/* Circle Sections */}
         {dashboardData.circles && dashboardData.circles.length === 0 ? (
