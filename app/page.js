@@ -4770,7 +4770,6 @@ export default function App() {
     </div>
   )
 }
-
 // Legacy Dashboard wrapper that loads a trip or circle when tripId or circleId is provided
 function LegacyDashboard({ user, token, tripId, circleId, returnTo, onLogout }) {
   const [initialized, setInitialized] = useState(false)
@@ -4784,3 +4783,4 @@ function LegacyDashboard({ user, token, tripId, circleId, returnTo, onLogout }) 
 
   return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} initialCircleId={circleId} returnTo={returnTo || null} />
 }
+
