@@ -7,7 +7,6 @@ import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Users, MapPin, Compass } from 'lucide-react'
-import { CircleLink } from '@/components/circles/CircleLink'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -144,9 +143,7 @@ export default function CircleDetailPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-gray-600" />
-                <h1 className="text-2xl font-semibold">
-                  <CircleLink circleId={circle.id} circleName={circle.name} />
-                </h1>
+                <h1 className="text-2xl font-semibold">{circle.name}</h1>
               </div>
             </div>
           </CardHeader>

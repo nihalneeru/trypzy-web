@@ -1,13 +1,14 @@
 'use client'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Calendar as CalendarIcon, ListTodo, Camera, MessageCircle, Lock, Home, Luggage } from 'lucide-react'
+import { Calendar as CalendarIcon, ListTodo, Camera, MessageCircle, Lock, Home, Luggage, Users } from 'lucide-react'
 import { PlanningTab } from './tabs/PlanningTab'
 import { ItineraryTab } from './tabs/ItineraryTab'
 import { AccommodationTab } from './tabs/AccommodationTab'
 import { PrepTab } from './tabs/PrepTab'
 import { MemoriesTab } from './tabs/MemoriesTab'
 import { ChatTab } from './tabs/ChatTab'
+import { TravelersTab } from './tabs/TravelersTab'
 
 export function TripTabs({
   trip,
@@ -35,6 +36,13 @@ export function TripTabs({
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <div className="sticky top-0 z-30 mb-4 bg-white/95 backdrop-blur border-b">
         <TabsList className="flex w-full flex-row items-center gap-2 whitespace-nowrap overflow-x-auto max-w-full">
+          <TabsTrigger 
+            value="travelers"
+            className="flex-none"
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Travelers
+          </TabsTrigger>
           <TabsTrigger 
             value="planning"
             className={`flex-none ${primaryTab === 'planning' && activeTab !== 'planning' ? 'relative' : ''}`}
@@ -109,6 +117,13 @@ export function TripTabs({
           </TabsTrigger>
         </TabsList>
       </div>
+
+      <TabsContent value="travelers">
+        <TravelersTab
+          trip={trip}
+          token={token}
+        />
+      </TabsContent>
 
       <TabsContent value="planning">
         <PlanningTab

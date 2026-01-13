@@ -31,7 +31,6 @@ import {
   Circle, CheckCircle2, Home, Luggage, DollarSign, ChevronRight
 } from 'lucide-react'
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
-import { CircleLink } from '@/components/circles/CircleLink'
 import { TripCard } from '@/components/dashboard/TripCard'
 import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags, TripPrimaryStage, TripTabKey } from '@/lib/trips/stage'
@@ -1899,7 +1898,7 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId }) {
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
               )}
-              <div className="flex items-center cursor-pointer" onClick={() => setView('circles')}>
+              <div className="flex items-center cursor-pointer" onClick={() => router.push('/dashboard')}>
                 <TrypzyLogo variant="full" className="h-8 w-auto" />
               </div>
               
@@ -2152,11 +2151,13 @@ function CirclesView({ circles, token, onOpenCircle, onRefresh }) {
                     <Users className="h-6 w-6 text-indigo-600" />
                   </div>
                   {circle.isOwner && (
-                    <Badge variant="secondary">Owner</Badge>
+                    <Badge variant="secondary">Circle Leader</Badge>
                   )}
                 </div>
                 <CardTitle className="mt-4">
-                  <CircleLink circleId={circle.id} circleName={circle.name} />
+                  <Link href={`/dashboard#circle-${circle.id}`} className="hover:underline">
+                    {circle.name}
+                  </Link>
                 </CardTitle>
                 {circle.description && (
                   <CardDescription>{circle.description}</CardDescription>
@@ -2558,7 +2559,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                       </div>
                     </div>
                     {member.role === 'owner' && (
-                      <Badge>Owner</Badge>
+                      <Badge>Circle Leader</Badge>
                     )}
                   </div>
                 </CardContent>
@@ -4335,12 +4336,12 @@ function TripDetailView({ trip, token, user, onRefresh }) {
           {trip.circle?.name && (
             <>
               <ChevronRight className="h-4 w-4 text-gray-400" />
-              <CircleLink 
-                circleId={trip.circle.id}
-                circleName={trip.circle.name}
-                className="hover:text-gray-900"
-                returnTo={returnTo}
-              />
+              <Link 
+                href={`/?circleId=${trip.circle.id}`}
+                className="hover:text-gray-900 hover:underline"
+              >
+                {trip.circle.name}
+              </Link>
             </>
           )}
           <ChevronRight className="h-4 w-4 text-gray-400" />
