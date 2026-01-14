@@ -1735,13 +1735,13 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
 }
 
 // Main Dashboard Component
-function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, returnTo }) {
+function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, returnTo, initialView }) {
   const router = useRouter()
   const [circles, setCircles] = useState([])
   const [selectedCircle, setSelectedCircle] = useState(null)
   const [selectedTrip, setSelectedTrip] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState('circles') // circles, circle, trip, discover
+  const [view, setView] = useState(initialView || 'circles') // circles, circle, trip, discover
 
   // Load circles
   const loadCircles = async () => {
@@ -1765,11 +1765,14 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
       setView('trip')
     } else if (initialCircleId) {
       setView('circle')
+    } else if (initialView) {
+      // Respect the view from URL query params
+      setView(initialView)
     } else {
-      // Only reset to circles if we're not on discover view
-      setView(prevView => prevView === 'discover' ? 'discover' : 'circles')
+      // Default to circles if no specific view is set
+      setView('circles')
     }
-  }, [initialTripId, initialCircleId])
+  }, [initialTripId, initialCircleId, initialView])
 
   // Reactively sync selectedCircle with URL params
   useEffect(() => {
@@ -1932,7 +1935,7 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
                 <Button 
                   variant={view === 'discover' ? 'secondary' : 'ghost'}
                   size="sm"
-                  onClick={() => setView('discover')}
+                  onClick={() => router.push('/?view=discover')}
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
                   Discover
@@ -1969,7 +1972,7 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
             variant={view === 'discover' ? 'secondary' : 'ghost'}
             size="sm"
             className="flex-1"
-            onClick={() => setView('discover')}
+            onClick={() => router.push('/?view=discover')}
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Discover
@@ -4741,17 +4744,18 @@ export default function App() {
   const searchParams = useSearchParams()
   const { user, token, loading, login, logout } = useAuth()
   
-  // Derive tripId, circleId, and returnTo from URL query params reactively
+  // Derive tripId, circleId, returnTo, and view from URL query params reactively
   const tripId = searchParams.get('tripId')
   const circleId = searchParams.get('circleId')
   const returnTo = searchParams.get('returnTo')
+  const view = searchParams.get('view')
 
-  // Redirect authenticated users to /dashboard UNLESS tripId or circleId is present
+  // Redirect authenticated users to /dashboard UNLESS tripId, circleId, or view=discover is present
   useEffect(() => {
-    if (!loading && user && token && !tripId && !circleId) {
+    if (!loading && user && token && !tripId && !circleId && view !== 'discover') {
       router.push('/dashboard')
     }
-  }, [loading, user, token, router, tripId, circleId])
+  }, [loading, user, token, router, tripId, circleId, view])
 
   if (loading) {
     return (
@@ -4769,8 +4773,9 @@ export default function App() {
   }
 
   // If tripId or circleId is present, show the old Dashboard so users can access TripDetailView or CircleDetailView
-  if (tripId || circleId) {
-    return <LegacyDashboard user={user} token={token} tripId={tripId} circleId={circleId} returnTo={returnTo} onLogout={logout} />
+  // Also show Dashboard if view=discover is present
+  if (tripId || circleId || view === 'discover') {
+    return <LegacyDashboard user={user} token={token} tripId={tripId} circleId={circleId} returnTo={returnTo} initialView={view} onLogout={logout} />
   }
 
   // Show loading state while redirecting (should be brief)
@@ -4784,16 +4789,17 @@ export default function App() {
   )
 }
 // Legacy Dashboard wrapper that loads a trip or circle when tripId or circleId is provided
-function LegacyDashboard({ user, token, tripId, circleId, returnTo, onLogout }) {
+// Also handles view=discover query parameter
+function LegacyDashboard({ user, token, tripId, circleId, returnTo, initialView, onLogout }) {
   const [initialized, setInitialized] = useState(false)
   
   useEffect(() => {
-    if ((tripId || circleId) && !initialized) {
-      // The Dashboard component will handle loading the trip or circle
+    if ((tripId || circleId || initialView === 'discover') && !initialized) {
+      // The Dashboard component will handle loading the trip or circle or showing discover view
       setInitialized(true)
     }
-  }, [tripId, circleId, initialized])
+  }, [tripId, circleId, initialView, initialized])
 
-  return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} initialCircleId={circleId} returnTo={returnTo || null} />
+  return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} initialCircleId={circleId} returnTo={returnTo || null} initialView={initialView} />
 }
 
