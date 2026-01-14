@@ -2,25 +2,46 @@
 
 ## Logo Files
 
-- `trypzy-logo.png` - Full logo with text
-- `trypzy-icon.png` - Icon only (square format)
+### Full Logo Variants (SVG)
+- `trypzy-light-background-full-logo-with-spacing.svg` - Full logo for light backgrounds
+- `trypzy-dark-background-full-logo-with-spacing.svg` - Full logo for dark backgrounds
+
+### Small Mark
+- `trypzy-logomark.svg` - Small mark for static icon usage (UI elements, buttons, etc.)
+
+### Legacy Assets
+- `trypzy-logo.png` - Legacy full logo (deprecated, use SVG variants)
+- `trypzy-icon.png` - Icon for loading spinners ONLY (do not use for static icons)
 
 ## Usage Guidelines
 
-### Logo vs Icon
+### Full Logo (Theme-Aware)
 
-**Use the Logo (`trypzy-logo.png`):**
+**Use `<TrypzyLogo variant="full" />` component:**
+- Headers and navigation bars
 - Auth pages (sign in/sign up)
 - Landing pages or marketing contexts
 - Large header contexts where brand presence is primary
-- Default size: 120-160px height (responsive)
+- The component automatically selects the correct SVG based on theme (light/dark)
+- Default size: height 32px (h-8) with width auto to preserve aspect ratio
 
-**Use the Icon (`trypzy-icon.png`):**
-- Navigation bars (navbar)
-- Favicons and app icons
+### Small Mark (Static Icons)
+
+**Use `<TrypzyLogo variant="icon" />` component:**
+- Navigation bars (when space is limited)
+- UI elements and buttons
 - Small contexts where space is limited
-- Loading spinners (animated)
-- Default size: 24-32px in nav, 16-32px for spinners/buttons
+- Default size: 24-32px
+
+**Do NOT use `trypzy-icon.png` for static icons** - use `trypzy-logomark.svg` via the component instead.
+
+### Loading Spinners
+
+**Use `trypzy-icon.png` ONLY for spinners:**
+- Loading spinners (animated) - use `<BrandedSpinner />` component
+- Page-load spinners
+- The `trypzy-icon.png` is specifically designed for rotation animation
+- Default size: 16-32px (varies by context)
 
 ### Implementation
 
@@ -55,4 +76,6 @@
 
 ## Branded Loading Spinner
 
-The `<BrandedSpinner />` component uses the Trypzy icon with a subtle rotation animation. Use it to replace all generic loading spinners for brand consistency.
+The `<BrandedSpinner />` component uses `trypzy-icon.png` with a rotation animation. Use it to replace all generic loading spinners for brand consistency.
+
+**Important:** `trypzy-icon.png` is ONLY for spinners. For static icons, use `trypzy-logomark.svg` via `<TrypzyLogo variant="icon" />`.
