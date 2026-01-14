@@ -9,9 +9,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Users, UserPlus, LogOut, Sparkles } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
+import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import Image from 'next/image'
 import Link from 'next/link'
 
 // API Helper
@@ -147,15 +147,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <Link href="/dashboard" className="flex items-center">
-                <Image
-                  src="/brand/trypzy-logo.png"
-                  alt="Trypzy"
-                  width={140}
-                  height={40}
-                  className="h-8 w-auto object-contain"
-                  unoptimized
-                  priority
-                />
+                <TrypzyLogo variant="full" className="h-8 w-auto" />
                 <span className="sr-only">Trypzy</span>
               </Link>
               <div className="hidden md:flex items-center gap-1 ml-8">
