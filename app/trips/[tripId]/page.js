@@ -12,7 +12,7 @@
 
 import { useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Compass } from 'lucide-react'
+import { BrandedSpinner } from '@/app/HomeClient'
 
 export default function TripDetailRoute() {
   const params = useParams()
@@ -41,7 +41,7 @@ export default function TripDetailRoute() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center">
-        <Compass className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
+        <BrandedSpinner size="lg" className="mx-auto mb-4" />
         <p className="text-gray-600">Loading trip...</p>
       </div>
     </div>

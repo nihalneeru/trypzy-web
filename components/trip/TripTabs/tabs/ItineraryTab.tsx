@@ -9,37 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Lightbulb, ListTodo, MessageCircle, Vote, MapPin, Calendar as CalendarIcon, Lock, Sparkles, RefreshCw } from 'lucide-react'
-import Image from 'next/image'
-
-// BrandedSpinner component (copied from app/page.js for self-contained component)
-function BrandedSpinner({ className = '', size = 'default' }: { className?: string; size?: 'sm' | 'default' | 'md' | 'lg' }) {
-  const sizeClasses = {
-    sm: 'h-4 w-4',
-    default: 'h-5 w-5',
-    md: 'h-6 w-6',
-    lg: 'h-8 w-8'
-  }
-  
-  const dimensions = {
-    sm: 16,
-    default: 20,
-    md: 24,
-    lg: 32
-  }
-  
-  return (
-    <div className={`inline-flex items-center justify-center ${className}`}>
-      <Image
-        src="/brand/trypzy-icon.png"
-        alt="Loading"
-        width={dimensions[size]}
-        height={dimensions[size]}
-        className={`${sizeClasses[size]} animate-spin`}
-        unoptimized
-      />
-    </div>
-  )
-}
+import { BrandedSpinner } from '@/app/HomeClient'
 
 // formatDate helper (copied from app/page.js)
 function formatDate(dateStr: string) {

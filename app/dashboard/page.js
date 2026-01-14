@@ -7,13 +7,8 @@ import { CreateCircleDialog } from '@/components/dashboard/CreateCircleDialog'
 import { JoinCircleDialog } from '@/components/dashboard/JoinCircleDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Compass, Plus, Users, UserPlus, ChevronDown, LogOut, Sparkles } from 'lucide-react'
+import { Plus, Users, UserPlus, LogOut, Sparkles } from 'lucide-react'
+import { BrandedSpinner } from '@/app/HomeClient'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Image from 'next/image'
@@ -121,7 +116,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Compass className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
+          <BrandedSpinner size="lg" className="mx-auto mb-4" />
           <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
@@ -182,24 +177,17 @@ export default function DashboardPage() {
                 </Button>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* User Dropdown */}
-              {user && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                      <span className="text-sm text-gray-700">{user.name}</span>
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleLogout}>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Log out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 hidden sm:block">Hi, {user?.name}</span>
+              <Link 
+                href="/settings/privacy"
+                className="text-sm text-gray-600 hover:text-gray-900 hidden sm:block"
+              >
+                Privacy
+              </Link>
+              <Button variant="ghost" size="icon" onClick={handleLogout}>
+                <LogOut className="h-5 w-5" />
+              </Button>
             </div>
           </div>
         </div>

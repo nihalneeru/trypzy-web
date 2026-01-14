@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { 
   CheckCircle2, Calendar as CalendarIcon, Check, X, HelpCircle, Vote, Lock, Lightbulb 
 } from 'lucide-react'
-import { Top3HeatmapScheduling } from '@/app/page'
+import { Top3HeatmapScheduling } from '@/app/HomeClient'
 
 // Helper function for getting initials (copied from app/page.js)
 function getInitials(name: string) {
@@ -69,6 +69,9 @@ export function PlanningTab({
   votersByOption,
   voteCounts
 }: any) {
+  // Check if user can participate (hasn't left the trip)
+  const canParticipate = trip?.viewer?.isActiveParticipant === true
+  
   // Show completed summary if dates are locked
   if (trip.status === 'locked') {
     return (
@@ -92,6 +95,17 @@ export function PlanningTab({
 
   return (
     <>
+      {/* Left Trip Banner */}
+      {!canParticipate && trip?.viewer?.participantStatus === 'left' && (
+        <Card className="mb-6 border-orange-200 bg-orange-50">
+          <CardContent className="py-4">
+            <p className="text-sm text-orange-800">
+              <strong>You have left this trip</strong> — planning actions are disabled. You can still view the trip, but cannot participate in scheduling or planning.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      
       {/* Collaborative Trip Planning */}
       {trip.type === 'collaborative' && (
         <>
@@ -106,6 +120,7 @@ export function PlanningTab({
               setDatePicks={setDatePicks}
               savingPicks={savingPicks}
               setSavingPicks={setSavingPicks}
+              canParticipate={canParticipate}
             />
           ) : (
             <>
@@ -152,6 +167,7 @@ export function PlanningTab({
                                       variant={weeklyAvailability[block.key] === 'available' ? 'default' : 'outline'}
                                       onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'available' })}
                                       className={weeklyAvailability[block.key] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                      disabled={!canParticipate}
                                     >
                                       <Check className="h-4 w-4 mr-1" />
                                       Available
@@ -161,6 +177,7 @@ export function PlanningTab({
                                       variant={weeklyAvailability[block.key] === 'maybe' ? 'default' : 'outline'}
                                       onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'maybe' })}
                                       className={weeklyAvailability[block.key] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                      disabled={!canParticipate}
                                     >
                                       <HelpCircle className="h-4 w-4 mr-1" />
                                       Maybe
@@ -170,6 +187,7 @@ export function PlanningTab({
                                       variant={weeklyAvailability[block.key] === 'unavailable' ? 'default' : 'outline'}
                                       onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'unavailable' })}
                                       className={weeklyAvailability[block.key] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                      disabled={!canParticipate}
                                     >
                                       <X className="h-4 w-4 mr-1" />
                                       Unavailable
@@ -191,6 +209,7 @@ export function PlanningTab({
                                 variant={broadAvailability === 'available' ? 'default' : 'outline'}
                                 onClick={() => setBroadAvailability('available')}
                                 className={broadAvailability === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                disabled={!canParticipate}
                               >
                                 <Check className="h-5 w-5 mr-2" />
                                 Available
@@ -200,6 +219,7 @@ export function PlanningTab({
                                 variant={broadAvailability === 'maybe' ? 'default' : 'outline'}
                                 onClick={() => setBroadAvailability('maybe')}
                                 className={broadAvailability === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                disabled={!canParticipate}
                               >
                                 <HelpCircle className="h-5 w-5 mr-2" />
                                 Maybe
@@ -209,6 +229,7 @@ export function PlanningTab({
                                 variant={broadAvailability === 'unavailable' ? 'default' : 'outline'}
                                 onClick={() => setBroadAvailability('unavailable')}
                                 className={broadAvailability === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                disabled={!canParticipate}
                               >
                                 <X className="h-5 w-5 mr-2" />
                                 Unavailable
@@ -230,6 +251,7 @@ export function PlanningTab({
                                   variant={availability[date] === 'available' ? 'default' : 'outline'}
                                   onClick={() => setDayAvailability(date, 'available')}
                                   className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                  disabled={!canParticipate}
                                 >
                                   <Check className="h-4 w-4 mr-1" />
                                   Available
@@ -239,6 +261,7 @@ export function PlanningTab({
                                   variant={availability[date] === 'maybe' ? 'default' : 'outline'}
                                   onClick={() => setDayAvailability(date, 'maybe')}
                                   className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                                  disabled={!canParticipate}
                                 >
                                   <HelpCircle className="h-4 w-4 mr-1" />
                                   Maybe
@@ -248,6 +271,7 @@ export function PlanningTab({
                                   variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
                                   onClick={() => setDayAvailability(date, 'unavailable')}
                                   className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                  disabled={!canParticipate}
                                 >
                                   <X className="h-4 w-4 mr-1" />
                                   Unavailable
@@ -262,6 +286,7 @@ export function PlanningTab({
                         <Button 
                           onClick={saveAvailability} 
                           disabled={
+                            !canParticipate ||
                             saving || 
                             (useBroadMode 
                               ? (useWeeklyMode 
@@ -332,7 +357,7 @@ export function PlanningTab({
                                       variant="outline"
                                       onClick={() => setWindowBulkAvailability(window, 'available')}
                                       className="text-green-700 border-green-300 hover:bg-green-50"
-                                      disabled={!isSchedulingOpenForMe()}
+                                      disabled={!canParticipate || !isSchedulingOpenForMe()}
                                     >
                                       <Check className="h-4 w-4 mr-1" />
                                       Mark All Available
@@ -342,7 +367,7 @@ export function PlanningTab({
                                       variant="outline"
                                       onClick={() => setWindowBulkAvailability(window, 'maybe')}
                                       className="text-yellow-700 border-yellow-300 hover:bg-yellow-50"
-                                      disabled={!isSchedulingOpenForMe()}
+                                      disabled={!canParticipate || !isSchedulingOpenForMe()}
                                     >
                                       <HelpCircle className="h-4 w-4 mr-1" />
                                       Mark All Maybe
@@ -352,7 +377,7 @@ export function PlanningTab({
                                       variant="outline"
                                       onClick={() => setWindowBulkAvailability(window, 'unavailable')}
                                       className="text-red-700 border-red-300 hover:bg-red-50"
-                                      disabled={!isSchedulingOpenForMe()}
+                                      disabled={!canParticipate || !isSchedulingOpenForMe()}
                                     >
                                       <X className="h-4 w-4 mr-1" />
                                       Mark All Unavailable
@@ -372,7 +397,7 @@ export function PlanningTab({
                                           variant={refinementAvailability[date] === 'available' ? 'default' : 'outline'}
                                           onClick={() => setRefinementDayAvailability(date, 'available')}
                                           className={refinementAvailability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                          disabled={!isSchedulingOpenForMe()}
+                                          disabled={!canParticipate || !isSchedulingOpenForMe()}
                                         >
                                           <Check className="h-4 w-4 mr-1" />
                                           Available
@@ -382,7 +407,7 @@ export function PlanningTab({
                                           variant={refinementAvailability[date] === 'maybe' ? 'default' : 'outline'}
                                           onClick={() => setRefinementDayAvailability(date, 'maybe')}
                                           className={refinementAvailability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                          disabled={!isSchedulingOpenForMe()}
+                                          disabled={!canParticipate || !isSchedulingOpenForMe()}
                                         >
                                           <HelpCircle className="h-4 w-4 mr-1" />
                                           Maybe
@@ -392,7 +417,7 @@ export function PlanningTab({
                                           variant={refinementAvailability[date] === 'unavailable' ? 'default' : 'outline'}
                                           onClick={() => setRefinementDayAvailability(date, 'unavailable')}
                                           className={refinementAvailability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                          disabled={!isSchedulingOpenForMe()}
+                                          disabled={!canParticipate || !isSchedulingOpenForMe()}
                                         >
                                           <X className="h-4 w-4 mr-1" />
                                           Unavailable
@@ -409,9 +434,11 @@ export function PlanningTab({
                         <div className="mt-6 flex gap-4 flex-wrap">
                           <Button 
                             onClick={saveAvailability} 
-                            disabled={saving || !isSchedulingOpenForMe() || (!hasAnyRefinementAvailability() && !hasAnyAvailability())}
+                            disabled={!canParticipate || saving || !isSchedulingOpenForMe() || (!hasAnyRefinementAvailability() && !hasAnyAvailability())}
                           >
-                            {!isSchedulingOpenForMe()
+                            {!canParticipate
+                              ? 'You have left this trip'
+                              : !isSchedulingOpenForMe()
                               ? 'Availability Frozen'
                               : saving ? 'Saving...' : 'Save Refinement'}
                           </Button>
@@ -539,7 +566,7 @@ export function PlanningTab({
                                         variant={weeklyAvailability[block.key] === 'available' ? 'default' : 'outline'}
                                         onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'available' })}
                                         className={weeklyAvailability[block.key] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                        disabled={!isSchedulingOpenForMe()}
+                                        disabled={!canParticipate || !isSchedulingOpenForMe()}
                                       >
                                         <Check className="h-4 w-4 mr-1" />
                                         Available
@@ -549,7 +576,7 @@ export function PlanningTab({
                                         variant={weeklyAvailability[block.key] === 'maybe' ? 'default' : 'outline'}
                                         onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'maybe' })}
                                         className={weeklyAvailability[block.key] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                        disabled={!isSchedulingOpenForMe()}
+                                        disabled={!canParticipate || !isSchedulingOpenForMe()}
                                       >
                                         <HelpCircle className="h-4 w-4 mr-1" />
                                         Maybe
@@ -559,7 +586,7 @@ export function PlanningTab({
                                         variant={weeklyAvailability[block.key] === 'unavailable' ? 'default' : 'outline'}
                                         onClick={() => setWeeklyAvailability({ ...weeklyAvailability, [block.key]: 'unavailable' })}
                                         className={weeklyAvailability[block.key] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                        disabled={!isSchedulingOpenForMe()}
+                                        disabled={!canParticipate || !isSchedulingOpenForMe()}
                                       >
                                         <X className="h-4 w-4 mr-1" />
                                         Unavailable
@@ -580,7 +607,7 @@ export function PlanningTab({
                                   variant={broadAvailability === 'available' ? 'default' : 'outline'}
                                   onClick={() => setBroadAvailability('available')}
                                   className={broadAvailability === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                  disabled={!isSchedulingOpenForMe()}
+                                  disabled={!canParticipate || !isSchedulingOpenForMe()}
                                 >
                                   <Check className="h-5 w-5 mr-2" />
                                   Available
@@ -590,7 +617,7 @@ export function PlanningTab({
                                   variant={broadAvailability === 'maybe' ? 'default' : 'outline'}
                                   onClick={() => setBroadAvailability('maybe')}
                                   className={broadAvailability === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                  disabled={!isSchedulingOpenForMe()}
+                                  disabled={!canParticipate || !isSchedulingOpenForMe()}
                                 >
                                   <HelpCircle className="h-5 w-5 mr-2" />
                                   Maybe
@@ -600,7 +627,7 @@ export function PlanningTab({
                                   variant={broadAvailability === 'unavailable' ? 'default' : 'outline'}
                                   onClick={() => setBroadAvailability('unavailable')}
                                   className={broadAvailability === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                  disabled={!isSchedulingOpenForMe()}
+                                  disabled={!canParticipate || !isSchedulingOpenForMe()}
                                 >
                                   <X className="h-5 w-5 mr-2" />
                                   Unavailable
@@ -621,7 +648,7 @@ export function PlanningTab({
                                     variant={availability[date] === 'available' ? 'default' : 'outline'}
                                     onClick={() => setDayAvailability(date, 'available')}
                                     className={availability[date] === 'available' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                    disabled={!isSchedulingOpenForMe()}
+                                    disabled={!canParticipate || !isSchedulingOpenForMe()}
                                   >
                                     <Check className="h-4 w-4 mr-1" />
                                     Available
@@ -631,7 +658,7 @@ export function PlanningTab({
                                     variant={availability[date] === 'maybe' ? 'default' : 'outline'}
                                     onClick={() => setDayAvailability(date, 'maybe')}
                                     className={availability[date] === 'maybe' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                                    disabled={!isSchedulingOpenForMe()}
+                                    disabled={!canParticipate || !isSchedulingOpenForMe()}
                                   >
                                     <HelpCircle className="h-4 w-4 mr-1" />
                                     Maybe
@@ -641,7 +668,7 @@ export function PlanningTab({
                                     variant={availability[date] === 'unavailable' ? 'default' : 'outline'}
                                     onClick={() => setDayAvailability(date, 'unavailable')}
                                     className={availability[date] === 'unavailable' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                    disabled={!isSchedulingOpenForMe()}
+                                    disabled={!canParticipate || !isSchedulingOpenForMe()}
                                   >
                                     <X className="h-4 w-4 mr-1" />
                                     Unavailable
@@ -680,6 +707,7 @@ export function PlanningTab({
                           <Button 
                             onClick={saveAvailability} 
                             disabled={
+                              !canParticipate ||
                               saving || 
                               trip.status === 'voting' || 
                               trip.status === 'locked' ||
@@ -690,11 +718,13 @@ export function PlanningTab({
                                 : !hasAnyAvailability())
                             }
                           >
-                            {!isSchedulingOpenForMe()
+                            {!canParticipate
+                              ? 'You have left this trip'
+                              : !isSchedulingOpenForMe()
                               ? 'Availability Frozen' 
                               : saving ? 'Saving...' : 'Save Availability'}
                           </Button>
-                          {trip.isCreator && trip.status === 'scheduling' && (
+                          {trip.isCreator && trip.status === 'scheduling' && canParticipate && (
                             <Button variant="outline" onClick={openVoting}>
                               <Vote className="h-4 w-4 mr-2" />
                               Open Voting
@@ -812,10 +842,10 @@ export function PlanningTab({
                         </div>
                       </RadioGroup>
                       <div className="mt-6 flex gap-4 flex-wrap">
-                        <Button onClick={submitVote} disabled={!selectedVote}>
-                          {trip.userVote ? 'Update Vote' : 'Submit Vote'}
+                        <Button onClick={submitVote} disabled={!canParticipate || !selectedVote}>
+                          {!canParticipate ? 'You have left this trip' : trip.userVote ? 'Update Vote' : 'Submit Vote'}
                         </Button>
-                        {trip.canLock && selectedVote && (
+                        {trip.canLock && selectedVote && canParticipate && (
                           <Button variant="default" onClick={() => lockTrip(selectedVote)}>
                             <Lock className="h-4 w-4 mr-2" />
                             Lock Dates

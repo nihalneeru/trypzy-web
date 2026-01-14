@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Plus, Home, ExternalLink, Check, Lock } from 'lucide-react'
 import { buildAirbnbSearchUrl } from '@/lib/accommodations/buildAirbnbSearchUrl'
+import { BrandedSpinner } from '@/app/HomeClient'
 
 // API Helper (local to this component)
 const api = async (endpoint, options = {}, token = null) => {
@@ -185,6 +186,7 @@ export function AccommodationTab({
       {loading ? (
         <Card>
           <CardContent className="text-center py-12">
+            <BrandedSpinner size="md" className="mx-auto mb-4" />
             <p className="text-gray-500">Loading...</p>
           </CardContent>
         </Card>

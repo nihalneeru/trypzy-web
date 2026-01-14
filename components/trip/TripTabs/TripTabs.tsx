@@ -10,6 +10,16 @@ import { MemoriesTab } from './tabs/MemoriesTab'
 import { ChatTab } from './tabs/ChatTab'
 import { TravelersTab } from './tabs/TravelersTab'
 
+// Helper to check if trip is completed
+function isTripCompleted(trip) {
+  if (!trip) return false
+  if (trip.status === 'completed') return true
+  
+  const today = new Date().toISOString().split('T')[0]
+  const endDate = trip.lockedEndDate || trip.endDate
+  return endDate && endDate < today
+}
+
 export function TripTabs({
   trip,
   token,
@@ -32,6 +42,9 @@ export function TripTabs({
   // Chat props
   chatProps
 }: any) {
+  const completed = isTripCompleted(trip)
+  const peopleTabLabel = completed ? 'Went' : 'Going'
+  
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <div className="sticky top-0 z-30 mb-4 bg-white/95 backdrop-blur border-b">
@@ -41,7 +54,7 @@ export function TripTabs({
             className="flex-none"
           >
             <Users className="h-4 w-4 mr-2" />
-            Travelers
+            {peopleTabLabel}
           </TabsTrigger>
           <TabsTrigger 
             value="planning"
@@ -122,6 +135,8 @@ export function TripTabs({
         <TravelersTab
           trip={trip}
           token={token}
+          user={user}
+          onRefresh={onRefresh}
         />
       </TabsContent>
 

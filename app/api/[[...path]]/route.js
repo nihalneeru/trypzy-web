@@ -61,6 +61,49 @@ function generateInviteCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase()
 }
 
+// Privacy helper: Get user privacy with defaults applied
+function getUserPrivacyWithDefaults(userDoc) {
+  if (!userDoc) return null
+  
+  const privacy = userDoc.privacy || {}
+  return {
+    profileVisibility: privacy.profileVisibility || 'circle',
+    tripsVisibility: privacy.tripsVisibility || 'circle',
+    allowTripJoinRequests: privacy.allowTripJoinRequests !== undefined ? privacy.allowTripJoinRequests : true,
+    showTripDetailsLevel: privacy.showTripDetailsLevel || 'limited'
+  }
+}
+
+// Privacy helper: Get shared circle IDs between two users
+async function getSharedCircleIds(db, viewerId, ownerId) {
+  if (viewerId === ownerId) {
+    // User viewing their own profile - return all their circles
+    const memberships = await db.collection('memberships')
+      .find({ userId: ownerId })
+      .toArray()
+    return memberships.map(m => m.circleId)
+  }
+  
+  // Get both users' circle memberships
+  const [viewerMemberships, ownerMemberships] = await Promise.all([
+    db.collection('memberships').find({ userId: viewerId }).toArray(),
+    db.collection('memberships').find({ userId: ownerId }).toArray()
+  ])
+  
+  const viewerCircleIds = new Set(viewerMemberships.map(m => m.circleId))
+  const ownerCircleIds = new Set(ownerMemberships.map(m => m.circleId))
+  
+  // Intersect the sets
+  const sharedCircleIds = []
+  for (const circleId of viewerCircleIds) {
+    if (ownerCircleIds.has(circleId)) {
+      sharedCircleIds.push(circleId)
+    }
+  }
+  
+  return sharedCircleIds
+}
+
 // Normalize availability to effective per-day view
 // Handles broad, weekly, and per-day availability with precedence: per-day > weekly > broad
 // Returns array of { day: 'YYYY-MM-DD', status: 'available'|'maybe'|'unavailable', userId: string }
@@ -786,16 +829,90 @@ async function handleRoute(request, { params }) {
         })
       }
       
-      // Get participants (for hosted trips)
-      const participants = await db.collection('trip_participants')
+      // Get circle members (for collaborative trips - base set of participants)
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      const allCircleMemberships = await db.collection('memberships')
+        .find({ circleId: trip.circleId })
+        .toArray()
+      const circleMemberUserIds = new Set(allCircleMemberships.map(m => m.userId))
+      
+      // Get participant records (overrides for collaborative trips, authoritative for hosted trips)
+      const allParticipants = await db.collection('trip_participants')
         .find({ tripId })
         .toArray()
       
-      // Get participant user details
-      const participantUserIds = participants.map(p => p.userId)
-      const participantUsers = await db.collection('users')
-        .find({ id: { $in: participantUserIds } })
-        .toArray()
+      // Build status map from participant records
+      const statusByUserId = new Map()
+      allParticipants.forEach(p => {
+        statusByUserId.set(p.userId, p.status || 'active')
+      })
+      
+      // Derive active participants based on trip type
+      let effectiveActiveUserIds
+      let participantsWithStatus
+      
+      if (trip.type === 'collaborative') {
+        // Collaborative trips: Circle membership is base set, trip_participants are overrides
+        // Start with all circle members as active
+        effectiveActiveUserIds = new Set(circleMemberUserIds)
+        
+        // Apply trip_participants overrides
+        statusByUserId.forEach((status, userId) => {
+          if (status === 'left' || status === 'removed') {
+            // Remove from active set
+            effectiveActiveUserIds.delete(userId)
+          } else if (status === 'active') {
+            // Ensure in active set (may have been added via circle membership already)
+            effectiveActiveUserIds.add(userId)
+          }
+        })
+        
+        // Build participantsWithStatus: include ALL circle members with their status
+        const allUserIds = Array.from(circleMemberUserIds)
+        const participantUsers = await db.collection('users')
+          .find({ id: { $in: allUserIds } })
+          .toArray()
+        const userMap = new Map(participantUsers.map(u => [u.id, u]))
+        
+        participantsWithStatus = allUserIds.map(userId => {
+          const participantRecord = allParticipants.find(p => p.userId === userId)
+          const user = userMap.get(userId)
+          const status = statusByUserId.get(userId) || 'active'
+          
+          return {
+            id: participantRecord?.id || null,
+            tripId,
+            userId,
+            status,
+            user: user ? { id: user.id, name: user.name } : null,
+            joinedAt: participantRecord?.joinedAt || null
+          }
+        })
+      } else {
+        // Hosted trips: trip_participants is authoritative
+        const activeParticipants = allParticipants.filter(p => {
+          const status = p.status || 'active'
+          return status === 'active'
+        })
+        
+        effectiveActiveUserIds = new Set(activeParticipants.map(p => p.userId))
+        
+        // Get user details for participants
+        const participantUserIds = allParticipants.map(p => p.userId)
+        const participantUsers = await db.collection('users')
+          .find({ id: { $in: participantUserIds } })
+          .toArray()
+        const userMap = new Map(participantUsers.map(u => [u.id, u]))
+        
+        participantsWithStatus = allParticipants.map(p => {
+          const user = userMap.get(p.userId)
+          return {
+            ...p,
+            user: user ? { id: user.id, name: user.name } : null,
+            status: p.status || 'active'
+          }
+        })
+      }
       
       // Normalize availabilities to per-day view for consensus calculation
       const normalizedAvailabilities = trip.status !== 'locked' && trip.type === 'collaborative'
@@ -820,25 +937,26 @@ async function handleRoute(request, { params }) {
       // Get user's vote
       const userVote = votes.find(v => v.userId === auth.user.id)
       
-      // Check if user is participant (for hosted trips)
-      const isParticipant = participants.some(p => p.userId === auth.user.id)
+      // Check if user is active participant
+      const userParticipant = allParticipants.find(p => p.userId === auth.user.id)
+      const userParticipantStatus = userParticipant ? (userParticipant.status || 'active') : null
       
-      // Get circle info and member count for progress tracking
-      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      // Determine if user is active participant using derived activeUserIds
+      const isActiveParticipant = effectiveActiveUserIds.has(auth.user.id)
+      const isParticipant = trip.type === 'collaborative' 
+        ? circleMemberUserIds.has(auth.user.id) // Circle member = participant
+        : !!userParticipant // Hosted: must have record
       
-      // Get all circle members for progress calculation
-      const allMemberships = await db.collection('memberships')
-        .find({ circleId: trip.circleId })
-        .toArray()
-      const totalMembers = allMemberships.length
+      // Use effectiveActiveUserIds for all count calculations
+      const totalMembers = effectiveActiveUserIds.size
       
-      // Count unique users who have submitted availability
+      // Count unique ACTIVE users who have submitted availability
       const usersWithAvailability = [...new Set(availabilities.map(a => a.userId))]
-      const respondedCount = usersWithAvailability.length
+      const respondedCount = usersWithAvailability.filter(userId => effectiveActiveUserIds.has(userId)).length
       
-      // Count unique users who have voted
+      // Count unique ACTIVE users who have voted
       const usersWithVotes = [...new Set(votes.map(v => v.userId))]
-      const votedCount = usersWithVotes.length
+      const votedCount = usersWithVotes.filter(userId => effectiveActiveUserIds.has(userId)).length
       
       // New scheduling mode: top3_heatmap - aggregate date picks into heatmap
       let heatmapScores = {}
@@ -856,11 +974,17 @@ async function handleRoute(request, { params }) {
         userDatePicks = userPicksDoc ? userPicksDoc.picks : []
         
         // Compute heatmap scores: weight = {1:3, 2:2, 3:1}
+        // Only count picks from active participants
         const weightMap = { 1: 3, 2: 2, 3: 1 }
         heatmapScores = {}
         const scoreBreakdown = {} // { startDate: { loveCount, canCount, mightCount } }
         
         allPicks.forEach(pickDoc => {
+          // Only count picks from active participants
+          if (!effectiveActiveUserIds.has(pickDoc.userId)) {
+            return
+          }
+          
           pickDoc.picks.forEach(pick => {
             const startDate = pick.startDateISO
             const rank = pick.rank
@@ -929,12 +1053,23 @@ async function handleRoute(request, { params }) {
         userVote: userVote ? { optionKey: userVote.optionKey } : null,
         consensusOptions, // Backward compatibility
         promisingWindows, // New: 2-3 top date windows for refinement
-        participants: participantUsers.map(u => ({ id: u.id, name: u.name })),
+        participants: participantsWithStatus.map(p => ({ id: p.user?.id || p.userId, name: p.user?.name || 'Unknown' })),
+        participantsWithStatus, // Include status info for UI
         isParticipant,
+        isActiveParticipant, // New: whether user is active participant
         isCreator: trip.createdBy === auth.user.id,
         canLock: (trip.createdBy === auth.user.id || circle?.ownerId === auth.user.id) && trip.status === 'voting',
+        // Viewer participation info for UI
+        viewer: {
+          isTripLeader: trip.createdBy === auth.user.id,
+          isCircleLeader: circle ? (circle.ownerId === auth.user.id) : false,
+          hasParticipantRecord: !!userParticipant,
+          participantStatus: userParticipantStatus || (trip.type === 'collaborative' && circleMemberUserIds.has(auth.user.id) ? 'active' : null),
+          isActiveParticipant
+        },
         // Progress tracking stats
         totalMembers,
+        activeTravelerCount: effectiveActiveUserIds.size, // Explicit count for UI
         respondedCount,
         votedCount,
         // New top3_heatmap scheduling data
@@ -1269,6 +1404,23 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Check if user is active participant (hasn't left)
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      
+      if (userParticipant) {
+        const status = userParticipant.status || 'active'
+        if (status !== 'active') {
+          return handleCORS(NextResponse.json(
+            { error: 'You have left this trip.' },
+            { status: 403 }
+          ))
+        }
+      }
+      // If no participant record exists for collaborative trips, user is implicitly active (backward compatibility)
+      
       // Upsert vote
       await db.collection('votes').updateOne(
         { tripId, userId: auth.user.id },
@@ -1354,6 +1506,23 @@ async function handleRoute(request, { params }) {
           { status: 403 }
         ))
       }
+      
+      // Check if user is active participant (hasn't left)
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      
+      if (userParticipant) {
+        const status = userParticipant.status || 'active'
+        if (status !== 'active') {
+          return handleCORS(NextResponse.json(
+            { error: 'You have left this trip.' },
+            { status: 403 }
+          ))
+        }
+      }
+      // If no participant record exists for collaborative trips, user is implicitly active (backward compatibility)
       
       // Validate picks
       const startBound = trip.startBound || trip.startDate
@@ -1627,6 +1796,7 @@ async function handleRoute(request, { params }) {
     }
     
     // Leave hosted trip - POST /api/trips/:id/leave
+    // Leave trip - POST /api/trips/:tripId/leave
     if (route.match(/^\/trips\/[^/]+\/leave$/) && method === 'POST') {
       const auth = await requireAuth(request)
       if (auth.error) {
@@ -1643,10 +1813,79 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      await db.collection('trip_participants').deleteOne({
+      // Check membership (circle-first requirement)
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Check if user is Trip Leader
+      if (trip.createdBy === auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip Leader cannot leave the trip. Transfer leadership first.' },
+          { status: 403 }
+        ))
+      }
+      
+      // Find participant record (may not exist for collaborative trips created before this feature)
+      let participant = await db.collection('trip_participants').findOne({
         tripId,
         userId: auth.user.id
       })
+      
+      // If no participant record exists, create one with status "left"
+      // This handles collaborative trips where participants weren't explicitly tracked
+      if (!participant) {
+        // For collaborative trips: if user is circle member, they are a virtual participant
+        // For hosted trips: user must have an existing record to leave
+        if (trip.type === 'collaborative') {
+          // User is circle member (already verified above), so create left record
+          participant = {
+            id: uuidv4(),
+            tripId,
+            userId: auth.user.id,
+            status: 'left',
+            leftAt: new Date().toISOString(),
+            removedAt: null,
+            removedBy: null,
+            joinedAt: new Date().toISOString() // Estimate - they were implicitly a participant
+          }
+          await db.collection('trip_participants').insertOne(participant)
+        } else {
+          // Hosted trip - user must have a participant record to leave
+          return handleCORS(NextResponse.json(
+            { error: 'You are not a participant in this trip' },
+            { status: 403 }
+          ))
+        }
+      } else {
+        // Check if user is already left/removed
+        const currentStatus = participant.status || 'active'
+        if (currentStatus !== 'active') {
+          return handleCORS(NextResponse.json(
+            { error: `You have already ${currentStatus === 'left' ? 'left' : 'been removed from'} this trip` },
+            { status: 403 }
+          ))
+        }
+        
+        // Update participant record to mark as left
+        await db.collection('trip_participants').updateOne(
+          { tripId, userId: auth.user.id },
+          {
+            $set: {
+              status: 'left',
+              leftAt: new Date().toISOString()
+            }
+          }
+        )
+      }
       
       // Emit chat event for traveler left
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
@@ -1655,13 +1894,335 @@ async function handleRoute(request, { params }) {
         circleId: trip.circleId,
         actorUserId: auth.user.id,
         subtype: 'traveler_left',
-        text: `👋 ${auth.user.name} left the trip`,
+        text: `${auth.user.name} left the trip`,
         metadata: {
           userId: auth.user.id
         }
       })
       
       return handleCORS(NextResponse.json({ message: 'Left trip successfully' }))
+    }
+    
+    // ============ TRIP JOIN REQUESTS ROUTES ============
+    
+    // Create join request - POST /api/trips/:tripId/join-requests
+    if (route.match(/^\/trips\/[^/]+\/join-requests$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const body = await request.json()
+      const { message } = body
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check requester is a member of trip.circleId
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You must be a member of this circle to request to join the trip' },
+          { status: 403 }
+        ))
+      }
+      
+      // Check if requester is already an active participant
+      const existingParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      
+      let isActiveParticipant = false
+      if (trip.type === 'collaborative') {
+        // For collaborative trips, circle membership means active participant unless overridden
+        if (!existingParticipant || !existingParticipant.status || existingParticipant.status === 'active') {
+          isActiveParticipant = true
+        }
+      } else {
+        // For hosted trips, must have active participant record
+        if (existingParticipant && (!existingParticipant.status || existingParticipant.status === 'active')) {
+          isActiveParticipant = true
+        }
+      }
+      
+      if (isActiveParticipant) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are already an active participant on this trip' },
+          { status: 400 }
+        ))
+      }
+      
+      // Check for existing pending request (idempotent)
+      const existingRequest = await db.collection('trip_join_requests').findOne({
+        tripId,
+        requesterId: auth.user.id,
+        status: 'pending'
+      })
+      
+      if (existingRequest) {
+        return handleCORS(NextResponse.json({
+          request: existingRequest,
+          status: 'pending'
+        }))
+      }
+      
+      // Create new join request
+      const joinRequest = {
+        id: uuidv4(),
+        tripId,
+        circleId: trip.circleId,
+        requesterId: auth.user.id,
+        message: message || null,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        decidedAt: null,
+        decidedBy: null
+      }
+      
+      await db.collection('trip_join_requests').insertOne(joinRequest)
+      
+      // Add system message to trip chat
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'join_request',
+        text: `${auth.user.name} requested to join the trip`,
+        metadata: { requestId: joinRequest.id }
+      })
+      
+      return handleCORS(NextResponse.json({
+        request: joinRequest,
+        status: 'pending'
+      }))
+    }
+    
+    // Get join requests for trip (Trip Leader only) - GET /api/trips/:tripId/join-requests
+    if (route.match(/^\/trips\/[^/]+\/join-requests$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Only Trip Leader can view join requests
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the Trip Leader can view join requests' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get pending requests
+      const requests = await db.collection('trip_join_requests')
+        .find({ tripId, status: 'pending' })
+        .sort({ createdAt: 1 })
+        .toArray()
+      
+      // Get requester user info
+      const requesterIds = [...new Set(requests.map(r => r.requesterId))]
+      const requesters = await db.collection('users')
+        .find({ id: { $in: requesterIds } })
+        .toArray()
+      const requesterMap = new Map(requesters.map(u => [u.id, u]))
+      
+      const requestsWithUsers = requests.map(req => ({
+        id: req.id,
+        requesterId: req.requesterId,
+        requesterName: requesterMap.get(req.requesterId)?.name || 'Unknown',
+        message: req.message,
+        createdAt: req.createdAt
+      }))
+      
+      return handleCORS(NextResponse.json(requestsWithUsers))
+    }
+    
+    // Get current user's join request status - GET /api/trips/:tripId/join-requests/me
+    if (route.match(/^\/trips\/[^/]+\/join-requests\/me$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Get user's most recent request
+      const request = await db.collection('trip_join_requests')
+        .findOne(
+          { tripId, requesterId: auth.user.id },
+          { sort: { createdAt: -1 } }
+        )
+      
+      if (!request) {
+        return handleCORS(NextResponse.json({ status: 'none' }))
+      }
+      
+      return handleCORS(NextResponse.json({
+        status: request.status,
+        requestId: request.id
+      }))
+    }
+    
+    // Approve/reject join request - PATCH /api/trips/:tripId/join-requests/:requestId
+    if (route.match(/^\/trips\/[^/]+\/join-requests\/[^/]+$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      const requestId = path[3]
+      const body = await request.json()
+      const { action } = body
+      
+      if (!action || (action !== 'approve' && action !== 'reject')) {
+        return handleCORS(NextResponse.json(
+          { error: 'Action must be "approve" or "reject"' },
+          { status: 400 }
+        ))
+      }
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Only Trip Leader can approve/reject
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the Trip Leader can approve or reject join requests' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get the request
+      const joinRequest = await db.collection('trip_join_requests').findOne({
+        id: requestId,
+        tripId
+      })
+      
+      if (!joinRequest) {
+        return handleCORS(NextResponse.json(
+          { error: 'Join request not found' },
+          { status: 404 }
+        ))
+      }
+      
+      if (joinRequest.status !== 'pending') {
+        return handleCORS(NextResponse.json(
+          { error: 'This request has already been processed' },
+          { status: 400 }
+        ))
+      }
+      
+      const now = new Date().toISOString()
+      
+      if (action === 'approve') {
+        // Update request status
+        await db.collection('trip_join_requests').updateOne(
+          { id: requestId },
+          {
+            $set: {
+              status: 'approved',
+              decidedAt: now,
+              decidedBy: auth.user.id
+            }
+          }
+        )
+        
+        // Upsert trip_participants record
+        await db.collection('trip_participants').updateOne(
+          { tripId, userId: joinRequest.requesterId },
+          {
+            $set: {
+              tripId,
+              userId: joinRequest.requesterId,
+              status: 'active',
+              role: 'member',
+              joinedAt: now,
+              leftAt: null,
+              removedAt: null
+            }
+          },
+          { upsert: true }
+        )
+        
+        // Add system message
+        const requester = await db.collection('users').findOne({ id: joinRequest.requesterId })
+        const requesterName = requester?.name || 'Unknown'
+        
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: joinRequest.requesterId,
+          subtype: 'traveler_joined',
+          text: `${requesterName} joined the trip`,
+          metadata: { requestId }
+        })
+      } else {
+        // Reject
+        await db.collection('trip_join_requests').updateOne(
+          { id: requestId },
+          {
+            $set: {
+              status: 'rejected',
+              decidedAt: now,
+              decidedBy: auth.user.id
+            }
+          }
+        )
+        
+        // Optional: Add system message for rejection
+        const requester = await db.collection('users').findOne({ id: joinRequest.requesterId })
+        const requesterName = requester?.name || 'Unknown'
+        
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: null,
+          subtype: 'join_request_rejected',
+          text: `Join request from ${requesterName} was declined`,
+          metadata: { requestId, requesterId: joinRequest.requesterId }
+        })
+      }
+      
+      // Return updated request
+      const updatedRequest = await db.collection('trip_join_requests').findOne({ id: requestId })
+      return handleCORS(NextResponse.json(updatedRequest))
     }
 
     // ============ CHAT ROUTES ============
@@ -3014,6 +3575,23 @@ async function handleRoute(request, { params }) {
           { status: 403 }
         ))
       }
+      
+      // Check if user is active participant (hasn't left)
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      
+      if (userParticipant) {
+        const status = userParticipant.status || 'active'
+        if (status !== 'active') {
+          return handleCORS(NextResponse.json(
+            { error: 'You have left this trip.' },
+            { status: 403 }
+          ))
+        }
+      }
+      // If no participant record exists for collaborative trips, user is implicitly active (backward compatibility)
       
       // Check for duplicate (same user, same title for this trip)
       const existingIdea = await db.collection('trip_ideas').findOne({
@@ -4686,6 +5264,23 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Check if user is active participant (hasn't left)
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      
+      if (userParticipant) {
+        const status = userParticipant.status || 'active'
+        if (status !== 'active') {
+          return handleCORS(NextResponse.json(
+            { error: 'You have left this trip.' },
+            { status: 403 }
+          ))
+        }
+      }
+      // If no participant record exists for collaborative trips, user is implicitly active (backward compatibility)
+      
       const idea = {
         id: uuidv4(),
         tripId,
@@ -5159,13 +5754,30 @@ async function handleRoute(request, { params }) {
         userId: auth.user.id,
         circleId: trip.circleId
       })
-      
+
       if (!membership) {
         return handleCORS(NextResponse.json(
           { error: 'You are not a member of this circle' },
           { status: 403 }
         ))
       }
+      
+      // Check if user is active participant (hasn't left)
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      
+      if (userParticipant) {
+        const status = userParticipant.status || 'active'
+        if (status !== 'active') {
+          return handleCORS(NextResponse.json(
+            { error: 'You have left this trip.' },
+            { status: 403 }
+          ))
+        }
+      }
+      // If no participant record exists for collaborative trips, user is implicitly active (backward compatibility)
       
       // Verify version exists
       const version = await db.collection('itinerary_versions').findOne({
@@ -5467,6 +6079,341 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // ============ USER PRIVACY ROUTES ============
+    
+    // Get current user's privacy settings - GET /api/users/me/privacy
+    if (route === '/users/me/privacy' && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const privacy = getUserPrivacyWithDefaults(auth.user)
+      return handleCORS(NextResponse.json({ privacy }))
+    }
+    
+    // Update current user's privacy settings - PATCH /api/users/me/privacy
+    if (route === '/users/me/privacy' && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const body = await request.json()
+      
+      // Validate enum values
+      const validProfileVisibility = ['circle', 'public', 'private']
+      const validTripsVisibility = ['circle', 'public', 'private']
+      const validShowTripDetailsLevel = ['limited', 'full']
+      
+      const allowedKeys = ['profileVisibility', 'tripsVisibility', 'allowTripJoinRequests', 'showTripDetailsLevel']
+      const updateData = {}
+      
+      for (const key of Object.keys(body)) {
+        if (!allowedKeys.includes(key)) {
+          return handleCORS(NextResponse.json(
+            { error: `Unknown key: ${key}` },
+            { status: 400 }
+          ))
+        }
+        
+        if (key === 'profileVisibility') {
+          if (!validProfileVisibility.includes(body[key])) {
+            return handleCORS(NextResponse.json(
+              { error: `Invalid profileVisibility: ${body[key]}. Must be one of: ${validProfileVisibility.join(', ')}` },
+              { status: 400 }
+            ))
+          }
+          updateData[`privacy.${key}`] = body[key]
+        } else if (key === 'tripsVisibility') {
+          if (!validTripsVisibility.includes(body[key])) {
+            return handleCORS(NextResponse.json(
+              { error: `Invalid tripsVisibility: ${body[key]}. Must be one of: ${validTripsVisibility.join(', ')}` },
+              { status: 400 }
+            ))
+          }
+          updateData[`privacy.${key}`] = body[key]
+        } else if (key === 'allowTripJoinRequests') {
+          if (typeof body[key] !== 'boolean') {
+            return handleCORS(NextResponse.json(
+              { error: `Invalid allowTripJoinRequests: must be boolean` },
+              { status: 400 }
+            ))
+          }
+          updateData[`privacy.${key}`] = body[key]
+        } else if (key === 'showTripDetailsLevel') {
+          if (!validShowTripDetailsLevel.includes(body[key])) {
+            return handleCORS(NextResponse.json(
+              { error: `Invalid showTripDetailsLevel: ${body[key]}. Must be one of: ${validShowTripDetailsLevel.join(', ')}` },
+              { status: 400 }
+            ))
+          }
+          updateData[`privacy.${key}`] = body[key]
+        }
+      }
+      
+      if (Object.keys(updateData).length === 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'No valid fields to update' },
+          { status: 400 }
+        ))
+      }
+      
+      // Update user document
+      await db.collection('users').updateOne(
+        { id: auth.user.id },
+        { $set: updateData }
+      )
+      
+      // Fetch updated user to return privacy with defaults
+      const updatedUser = await db.collection('users').findOne({ id: auth.user.id })
+      const privacy = getUserPrivacyWithDefaults(updatedUser)
+      
+      return handleCORS(NextResponse.json({ privacy }))
+    }
+    
+    // Get user profile (safe) - GET /api/users/:userId/profile
+    if (route.match(/^\/users\/[^/]+\/profile$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const userId = path[1]
+      const viewerId = auth.user.id
+      const ownerId = userId
+      
+      // Fetch owner user
+      const owner = await db.collection('users').findOne({ id: ownerId })
+      if (!owner) {
+        return handleCORS(NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Always allow if viewing own profile
+      if (viewerId === ownerId) {
+        const privacy = getUserPrivacyWithDefaults(owner)
+        const sharedCircleIds = await getSharedCircleIds(db, viewerId, ownerId)
+        const sharedCircles = await Promise.all(
+          sharedCircleIds.map(async (circleId) => {
+            const circle = await db.collection('circles').findOne({ id: circleId })
+            return circle ? { id: circle.id, name: circle.name } : null
+          })
+        )
+        
+        return handleCORS(NextResponse.json({
+          id: owner.id,
+          name: owner.name,
+          avatarUrl: owner.avatarUrl || null,
+          sharedCircles: sharedCircles.filter(c => c !== null),
+          privacySummary: {
+            tripsVisibility: privacy.tripsVisibility,
+            allowTripJoinRequests: privacy.allowTripJoinRequests,
+            showTripDetailsLevel: privacy.showTripDetailsLevel
+          }
+        }))
+      }
+      
+      // Check access based on privacy settings
+      const privacy = getUserPrivacyWithDefaults(owner)
+      let canViewProfile = false
+      
+      if (privacy.profileVisibility === 'public') {
+        canViewProfile = true
+      } else if (privacy.profileVisibility === 'circle') {
+        const sharedCircleIds = await getSharedCircleIds(db, viewerId, ownerId)
+        canViewProfile = sharedCircleIds.length > 0
+      } else if (privacy.profileVisibility === 'private') {
+        canViewProfile = false
+      }
+      
+      if (!canViewProfile) {
+        return handleCORS(NextResponse.json(
+          { error: 'This profile is private.' },
+          { status: 403 }
+        ))
+      }
+      
+      // User can view profile - return safe profile
+      const sharedCircleIds = await getSharedCircleIds(db, viewerId, ownerId)
+      const sharedCircles = await Promise.all(
+        sharedCircleIds.map(async (circleId) => {
+          const circle = await db.collection('circles').findOne({ id: circleId })
+          return circle ? { id: circle.id, name: circle.name } : null
+        })
+      )
+      
+      return handleCORS(NextResponse.json({
+        id: owner.id,
+        name: owner.name,
+        avatarUrl: owner.avatarUrl || null,
+        sharedCircles: sharedCircles.filter(c => c !== null),
+        privacySummary: {
+          tripsVisibility: privacy.tripsVisibility,
+          allowTripJoinRequests: privacy.allowTripJoinRequests,
+          showTripDetailsLevel: privacy.showTripDetailsLevel
+        }
+      }))
+    }
+    
+    // Get user's upcoming trips - GET /api/users/:userId/upcoming-trips
+    if (route.match(/^\/users\/[^/]+\/upcoming-trips$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const userId = path[1]
+      const viewerId = auth.user.id
+      const targetId = userId
+      
+      // Fetch target user
+      const target = await db.collection('users').findOne({ id: targetId })
+      if (!target) {
+        return handleCORS(NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        ))
+      }
+      
+      // Check tripsVisibility privacy
+      const privacy = getUserPrivacyWithDefaults(target)
+      let canViewTrips = false
+      
+      if (viewerId === targetId) {
+        canViewTrips = true
+      } else if (privacy.tripsVisibility === 'public') {
+        canViewTrips = true
+      } else if (privacy.tripsVisibility === 'circle') {
+        const sharedCircleIds = await getSharedCircleIds(db, viewerId, targetId)
+        canViewTrips = sharedCircleIds.length > 0
+      } else if (privacy.tripsVisibility === 'private') {
+        canViewTrips = false
+      }
+      
+      if (!canViewTrips) {
+        return handleCORS(NextResponse.json(
+          { error: 'Upcoming trips are private.' },
+          { status: 403 }
+        ))
+      }
+      
+      // Get shared circles (for filtering trips)
+      const sharedCircleIds = await getSharedCircleIds(db, viewerId, targetId)
+      
+      if (sharedCircleIds.length === 0) {
+        // No shared circles - return empty list (circle-first MVP)
+        return handleCORS(NextResponse.json({ trips: [] }))
+      }
+      
+      // Get all trips in shared circles
+      const allTrips = await db.collection('trips')
+        .find({ circleId: { $in: sharedCircleIds } })
+        .toArray()
+      
+      // Filter to upcoming trips (endDate >= today - 1 day)
+      const today = new Date()
+      today.setDate(today.getDate() - 1)
+      today.setHours(0, 0, 0, 0)
+      const todayStr = today.toISOString().split('T')[0]
+      
+      const upcomingTrips = allTrips.filter(trip => {
+        const endDate = trip.lockedEndDate || trip.endDate
+        return endDate && endDate >= todayStr
+      })
+      
+      // Get all trip_participants for these trips
+      const tripIds = upcomingTrips.map(t => t.id)
+      const allParticipants = await db.collection('trip_participants')
+        .find({ tripId: { $in: tripIds } })
+        .toArray()
+      
+      // Get circle memberships for collaborative trips
+      const circleMembershipsMap = new Map()
+      for (const circleId of sharedCircleIds) {
+        const memberships = await db.collection('memberships')
+          .find({ circleId })
+          .toArray()
+        circleMembershipsMap.set(circleId, new Set(memberships.map(m => m.userId)))
+      }
+      
+      // Filter trips where target user is an active traveler
+      const tripsWithActiveTarget = upcomingTrips.filter(trip => {
+        const circleMemberUserIds = circleMembershipsMap.get(trip.circleId) || new Set()
+        const tripParticipants = allParticipants.filter(p => p.tripId === trip.id)
+        const statusByUserId = new Map()
+        tripParticipants.forEach(p => {
+          statusByUserId.set(p.userId, p.status || 'active')
+        })
+        
+        if (trip.type === 'collaborative') {
+          // Collaborative: circle members are base, trip_participants are overrides
+          if (!circleMemberUserIds.has(targetId)) {
+            return false // Not a circle member
+          }
+          const status = statusByUserId.get(targetId) || 'active'
+          return status === 'active' // Active if no override or explicitly active
+        } else {
+          // Hosted: trip_participants is authoritative
+          const participant = tripParticipants.find(p => p.userId === targetId)
+          if (!participant) {
+            return false // No participant record
+          }
+          const status = participant.status || 'active'
+          return status === 'active'
+        }
+      })
+      
+      // Get circle names for response
+      const circles = await db.collection('circles')
+        .find({ id: { $in: sharedCircleIds } })
+        .toArray()
+      const circleMap = new Map(circles.map(c => [c.id, c.name]))
+      
+      // Calculate activeTravelerCount for each trip
+      const tripsWithCounts = await Promise.all(
+        tripsWithActiveTarget.map(async (trip) => {
+          const circleMemberUserIds = circleMembershipsMap.get(trip.circleId) || new Set()
+          const tripParticipants = allParticipants.filter(p => p.tripId === trip.id)
+          
+          let activeTravelerCount
+          if (trip.type === 'collaborative') {
+            // Start with circle members
+            let activeCount = circleMemberUserIds.size
+            // Subtract those who left/removed
+            tripParticipants.forEach(p => {
+              const status = p.status || 'active'
+              if ((status === 'left' || status === 'removed') && circleMemberUserIds.has(p.userId)) {
+                activeCount--
+              }
+            })
+            activeTravelerCount = activeCount
+          } else {
+            // Hosted: count active participants
+            activeTravelerCount = tripParticipants.filter(p => {
+              const status = p.status || 'active'
+              return status === 'active'
+            }).length
+          }
+          
+          return {
+            id: trip.id,
+            name: trip.name,
+            circleId: trip.circleId,
+            circleName: circleMap.get(trip.circleId) || 'Unknown Circle',
+            status: trip.status || (trip.type === 'hosted' ? 'locked' : 'proposed'),
+            startDate: trip.lockedStartDate || trip.startDate || null,
+            endDate: trip.lockedEndDate || trip.endDate || null,
+            activeTravelerCount
+          }
+        })
+      )
+      
+      return handleCORS(NextResponse.json({ trips: tripsWithCounts }))
+    }
+    
     // ============ DASHBOARD ROUTES ============
     
     // Get dashboard data - GET /api/dashboard

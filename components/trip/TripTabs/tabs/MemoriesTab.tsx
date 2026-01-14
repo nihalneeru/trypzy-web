@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
-import { MemoriesView, CreatePostDialog } from '@/app/page'
+import { MemoriesView, CreatePostDialog } from '@/app/HomeClient'
 
 export function MemoriesTab({ 
   trip, 

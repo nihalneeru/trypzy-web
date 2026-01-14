@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, Luggage, Plane, Train, Car, Bus, Lock, Sparkles, Check } from 'lucide-react'
+import { BrandedSpinner } from '@/app/HomeClient'
 
 // API Helper (local to this component)
 const api = async (endpoint, options = {}, token = null) => {
@@ -249,6 +250,7 @@ export function PrepTab({
     return (
       <Card>
         <CardContent className="text-center py-12">
+          <BrandedSpinner size="md" className="mx-auto mb-4" />
           <p className="text-gray-500">Loading...</p>
         </CardContent>
       </Card>

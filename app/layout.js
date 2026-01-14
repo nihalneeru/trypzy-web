@@ -2,7 +2,7 @@ import './globals.css'
 import { Toaster } from 'sonner'
 
 export const metadata = {
-  title: 'Trypzy - Plan Trips Together',
+  title: 'Trypzy - Trips made easy',
   description: 'Private, trust-based trip planning for friend groups',
 }
 

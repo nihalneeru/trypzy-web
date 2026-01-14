@@ -6,7 +6,8 @@ import { TripCard } from '@/components/dashboard/TripCard'
 import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Users, MapPin, Compass } from 'lucide-react'
+import { Plus, Users, MapPin } from 'lucide-react'
+import { BrandedSpinner } from '@/app/HomeClient'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -82,7 +83,7 @@ export default function CircleDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Compass className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
+          <BrandedSpinner size="lg" className="mx-auto mb-4" />
           <p className="text-gray-600">Loading circle...</p>
         </div>
       </div>
