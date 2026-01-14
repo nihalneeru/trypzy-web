@@ -56,6 +56,12 @@ function formatDate(dateStr: string) {
   return `${Math.floor(days / 365)} years ago`
 }
 
+// Parse YYYY-MM-DD date string as local date to avoid timezone issues
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export function ItineraryTab({
   trip,
   ideas,
@@ -294,7 +300,7 @@ export function ItineraryTab({
                             <div className="flex items-center gap-2">
                               <CalendarIcon className="h-4 w-4" />
                               <span className="font-medium text-sm">
-                                {new Date(day.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                {parseLocalDate(day.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                               </span>
                               {day.title && <span className="text-xs text-gray-500">• {day.title}</span>}
                             </div>
