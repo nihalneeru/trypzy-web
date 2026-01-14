@@ -2,105 +2,80 @@
 
 ## Logo Files
 
-### Full Logos (Theme-Aware SVG)
-- `trypzy-light-background-full-logo-with-spacing.svg` - Full logo for light theme
-- `trypzy-dark-background-full-logo-with-spacing.svg` - Full logo for dark theme
+### Full Logo Variants (SVG)
+- `trypzy-light-background-full-logo-with-spacing.svg` - Full logo for light backgrounds
+- `trypzy-dark-background-full-logo-with-spacing.svg` - Full logo for dark backgrounds
 
-### Legacy Full Logo (PNG - fallback)
-- `trypzy-logo.png` - Full logo with text (used as fallback until SVG files are added)
+### Small Mark
+- `trypzy-logomark.svg` - Small mark for static icon usage (UI elements, buttons, etc.)
 
-### Logomark (SVG)
-- `trypzy-logomark.svg` - Icon-only logomark (for icon-sized renders)
-
-### Legacy Icon (PNG - fallback)
-- `trypzy-icon.png` - Icon only (square format, used as fallback until SVG logomark is added)
+### Legacy Assets
+- `trypzy-logo.png` - Legacy full logo (deprecated, use SVG variants)
+- `trypzy-icon.png` - Icon for loading spinners ONLY (do not use for static icons)
 
 ## Usage Guidelines
 
-### Component Usage
+### Full Logo (Theme-Aware)
 
-**Always use the `<TrypzyLogo />` component** from `@/components/brand/TrypzyLogo` instead of directly using Image components with logo files.
-
-```jsx
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
-
-// Full logo variant (default)
-<TrypzyLogo variant="full" className="h-8 w-auto" />
-
-// Icon/logomark variant
-<TrypzyLogo variant="icon" className="h-8 w-8" />
-```
-
-The `TrypzyLogo` component:
-- Automatically switches between light/dark full logo variants when SVG files are available
-- Uses the logomark SVG for icon variants when available
-- Falls back to PNG files for compatibility
-
-### Logo Variants
-
-**Use the Full Logo (`variant="full"`):**
+**Use `<TrypzyLogo variant="full" />` component:**
+- Headers and navigation bars
 - Auth pages (sign in/sign up)
 - Landing pages or marketing contexts
 - Large header contexts where brand presence is primary
-- Headers/navigation bars
-- Default size: 120-160px height (responsive), or `h-8 w-auto` for headers
+- The component automatically selects the correct SVG based on theme (light/dark)
+- Default size: height 32px (h-8) with width auto to preserve aspect ratio
 
-**Use the Logomark/Icon (`variant="icon"`):**
-- Small icon contexts (though `BrandedSpinner` is preferred for spinners)
-- Icon-sized renders where full logo would be too large
+### Small Mark (Static Icons)
+
+**Use `<TrypzyLogo variant="icon" />` component:**
+- Navigation bars (when space is limited)
+- UI elements and buttons
+- Small contexts where space is limited
 - Default size: 24-32px
+
+**Do NOT use `trypzy-icon.png` for static icons** - use `trypzy-logomark.svg` via the component instead.
+
+### Loading Spinners
+
+**Use `trypzy-icon.png` ONLY for spinners:**
+- Loading spinners (animated) - use `<BrandedSpinner />` component
+- Page-load spinners
+- The `trypzy-icon.png` is specifically designed for rotation animation
+- Default size: 16-32px (varies by context)
 
 ### Implementation
 
-- **Always use the `TrypzyLogo` component** - do not use Image components directly with logo files
-- The component handles theme detection and asset selection automatically
-- Maintain aspect ratio - do not stretch or distort (use `h-*` with `w-auto` for full logos)
+- Always use Next.js `Image` component for brand assets
+- Set `unoptimized={true}` if needed for local development
+- Use `priority` prop for above-the-fold logos
+- Maintain aspect ratio - do not stretch or distort
 - Preserve clear space around logos (minimum 10% padding)
 
 ### Sizing Guidelines
 
-- **Auth pages**: Logo height 120-160px (responsive) - use `h-32` or similar
-- **Headers/Navbar**: Full logo `h-8 w-auto` (32px height)
-- **Icon contexts**: Logomark `h-8 w-8` (32px square)
-- **Loading spinners**: Use `BrandedSpinner` component instead (16-32px varies by context)
+- **Auth pages**: Logo height 120-160px (responsive)
+- **Navbar**: Icon 24-32px
+- **Buttons/Inline**: Icon 16-20px
+- **Loading spinners**: Icon 16-32px (varies by context)
+- **Modal headers**: Icon 24px if used
 
 ### Do's and Don'ts
 
 ✅ **Do:**
-- Use `TrypzyLogo` component for all logo displays
-- Use `BrandedSpinner` component for loading states
+- Use Next/Image for all brand assets
 - Maintain consistent sizing within contexts
-- Use full logo in headers/nav, logomark for icon contexts
+- Use logo on auth, icon in nav
 - Keep brand usage tasteful and minimal
 
 ❌ **Don't:**
-- Use Image components directly with logo files
 - Recolor, distort, rotate, or crop logos
 - Add shadows, gradients, outlines, or filters
 - Use generic placeholders instead of brand assets
-- Use the logomark for animated spinners (use `BrandedSpinner` instead)
 - Over-brand (keep it subtle and clean)
 - Use both logo and icon in the same context (choose one)
 
 ## Branded Loading Spinner
 
-The `<BrandedSpinner />` component (exported from `@/app/HomeClient`) uses the Trypzy icon with a rotation animation. Use it to replace all generic loading spinners for brand consistency.
+The `<BrandedSpinner />` component uses `trypzy-icon.png` with a rotation animation. Use it to replace all generic loading spinners for brand consistency.
 
-**Do not use the logomark/icon variant of TrypzyLogo for spinners** - use `BrandedSpinner` instead.
-
-```jsx
-import { BrandedSpinner } from '@/app/HomeClient'
-
-<BrandedSpinner size="default" />  // sizes: sm, default, md, lg
-```
-
-## Asset Status
-
-**Current State:**
-- PNG fallback files are in use (`trypzy-logo.png`, `trypzy-icon.png`)
-- SVG logo files (`trypzy-light-background-full-logo-with-spacing.svg`, `trypzy-dark-background-full-logo-with-spacing.svg`, `trypzy-logomark.svg`) are expected but not yet added
-- The `TrypzyLogo` component is structured to automatically use SVG files when they become available
-
-**Future:**
-- When SVG files are added, the component will automatically switch to theme-aware SVG variants
-- No code changes will be needed - the component handles asset selection internally
+**Important:** `trypzy-icon.png` is ONLY for spinners. For static icons, use `trypzy-logomark.svg` via `<TrypzyLogo variant="icon" />`.
