@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, Users, MapPin, Compass } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 
 // API Helper
 const api = async (endpoint, options = {}, token = null) => {
@@ -118,15 +119,7 @@ export default function CircleDetailPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link href="/dashboard" className="flex items-center">
-              <Image
-                src="/brand/trypzy-logo.png"
-                alt="Trypzy"
-                width={140}
-                height={40}
-                className="h-8 w-auto object-contain"
-                unoptimized
-                priority
-              />
+              <TrypzyLogo variant="full" className="h-8 w-auto" />
               <span className="sr-only">Trypzy</span>
             </Link>
             <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">

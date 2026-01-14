@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import Link from 'next/link'
+import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 
 // API Helper
 const api = async (endpoint, options = {}, token = null) => {
@@ -152,15 +153,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <Link href="/dashboard" className="flex items-center">
-                <Image
-                  src="/brand/trypzy-logo.png"
-                  alt="Trypzy"
-                  width={140}
-                  height={40}
-                  className="h-8 w-auto object-contain"
-                  unoptimized
-                  priority
-                />
+                <TrypzyLogo variant="full" className="h-8 w-auto" />
                 <span className="sr-only">Trypzy</span>
               </Link>
               <div className="hidden md:flex items-center gap-1 ml-8">
