@@ -385,7 +385,7 @@ export function ItineraryTab({
               </CardDescription>
             )}
           </CardHeader>
-          <CardContent className="flex flex-col h-full">
+          <CardContent className="flex flex-col" style={{ maxHeight: '600px' }}>
             {!latestVersion ? (
               <div className="text-center py-12">
                 <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -394,7 +394,7 @@ export function ItineraryTab({
               </div>
             ) : (
               <>
-                <ScrollArea className="flex-1 mb-4">
+                <ScrollArea className="flex-1 mb-4 pr-4" style={{ maxHeight: '300px' }}>
                   {loadingFeedback ? (
                     <div className="flex justify-center py-8">
                       <BrandedSpinner size="md" />
@@ -404,7 +404,7 @@ export function ItineraryTab({
                       No feedback yet. Share your thoughts!
                     </p>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-3 pr-2">
                       {feedback.map((fb: any) => (
                         <div key={fb.id} className="p-3 bg-gray-50 rounded-lg border">
                           <div className="flex items-center justify-between mb-1">
@@ -424,28 +424,30 @@ export function ItineraryTab({
                   )}
                 </ScrollArea>
                 
-                <div className="space-y-2 pt-4 border-t">
-                  <Select value={newFeedback.type} onValueChange={(v) => setNewFeedback({ ...newFeedback, type: v })}>
-                    <SelectTrigger className="text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {feedbackTypes.map((type: any) => (
-                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={newFeedback.target}
-                    onChange={(e) => setNewFeedback({ ...newFeedback, target: e.target.value })}
-                    placeholder="Target (e.g., day2.block3) - optional"
-                    className="text-sm"
-                  />
+                <div className="space-y-2.5 pt-4 border-t bg-white">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={newFeedback.type} onValueChange={(v) => setNewFeedback({ ...newFeedback, type: v })}>
+                      <SelectTrigger className="text-sm h-9">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {feedbackTypes.map((type: any) => (
+                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={newFeedback.target}
+                      onChange={(e) => setNewFeedback({ ...newFeedback, target: e.target.value })}
+                      placeholder="Target (optional)"
+                      className="text-sm h-9"
+                    />
+                  </div>
                   <Textarea
                     value={newFeedback.message}
                     onChange={(e) => setNewFeedback({ ...newFeedback, message: e.target.value })}
                     placeholder="Your feedback..."
-                    className="text-sm min-h-[80px]"
+                    className="text-sm min-h-[70px] resize-none"
                   />
                   <Button onClick={submitFeedback} disabled={submittingFeedback || !newFeedback.message.trim()} className="w-full" size="sm">
                     {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}

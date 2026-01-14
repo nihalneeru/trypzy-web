@@ -4369,25 +4369,6 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         {trip.description && (
           <p className="text-gray-600 mb-4">{trip.description}</p>
         )}
-        
-        {/* Trip Info Card */}
-        <Card className={trip.status === 'locked' ? 'bg-green-50 border-green-200' : ''}>
-          <CardContent className="py-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <CalendarIcon className="h-5 w-5 text-gray-500" />
-              {trip.status === 'locked' ? (
-                <span className="font-medium text-green-800">
-                  Locked: {trip.lockedStartDate} to {trip.lockedEndDate}
-                </span>
-              ) : (
-                <span>Date Range: {trip.startDate} to {trip.endDate}</span>
-              )}
-              {trip.type === 'collaborative' && trip.status !== 'locked' && (
-                <span className="text-gray-500">• {trip.duration} day trip</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Scheduling Progress Panel - Collaborative Trips Only */}

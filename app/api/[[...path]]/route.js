@@ -4945,10 +4945,33 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Guard: Must be locked
+      // Guard: Must be locked with valid dates
       if (trip.status !== 'locked') {
         return handleCORS(NextResponse.json(
           { error: 'Itinerary can only be generated for locked trips' },
+          { status: 400 }
+        ))
+      }
+      
+      // Validate locked dates exist
+      const lockedStartDate = trip.lockedStartDate || trip.startDate
+      const lockedEndDate = trip.lockedEndDate || trip.endDate
+      
+      if (!lockedStartDate || !lockedEndDate) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip must have locked start and end dates to generate itinerary' },
+          { status: 400 }
+        ))
+      }
+      
+      // Build canonical date list
+      const { buildTripDateList } = await import('@/lib/itinerary/buildTripDateList.js')
+      let dateList
+      try {
+        dateList = buildTripDateList(lockedStartDate, lockedEndDate)
+      } catch (error) {
+        return handleCORS(NextResponse.json(
+          { error: `Invalid trip dates: ${error.message}` },
           { status: 400 }
         ))
       }
@@ -5004,8 +5027,9 @@ async function handleRoute(request, { params }) {
         // Generate itinerary using LLM
         const itineraryContent = await generateItinerary({
           destination: trip.description || trip.name, // Use description or name as destination hint
-          startDate: trip.lockedStartDate || trip.startDate,
-          endDate: trip.lockedEndDate || trip.endDate,
+          startDate: lockedStartDate,
+          endDate: lockedEndDate,
+          dateList, // Pass canonical date list
           groupSize,
           ideas: ideas.map(idea => ({
             id: idea.id,
@@ -5257,10 +5281,33 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Guard: Must be locked
+      // Guard: Must be locked with valid dates
       if (trip.status !== 'locked') {
         return handleCORS(NextResponse.json(
           { error: 'Itinerary can only be revised for locked trips' },
+          { status: 400 }
+        ))
+      }
+      
+      // Validate locked dates exist
+      const lockedStartDate = trip.lockedStartDate || trip.startDate
+      const lockedEndDate = trip.lockedEndDate || trip.endDate
+      
+      if (!lockedStartDate || !lockedEndDate) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip must have locked start and end dates to revise itinerary' },
+          { status: 400 }
+        ))
+      }
+      
+      // Build canonical date list
+      const { buildTripDateList } = await import('@/lib/itinerary/buildTripDateList.js')
+      let dateList
+      try {
+        dateList = buildTripDateList(lockedStartDate, lockedEndDate)
+      } catch (error) {
+        return handleCORS(NextResponse.json(
+          { error: `Invalid trip dates: ${error.message}` },
           { status: 400 }
         ))
       }
@@ -5323,8 +5370,9 @@ async function handleRoute(request, { params }) {
             location: idea.location
           })),
           destination: trip.description || trip.name,
-          startDate: trip.lockedStartDate || trip.startDate,
-          endDate: trip.lockedEndDate || trip.endDate
+          startDate: lockedStartDate,
+          endDate: lockedEndDate,
+          dateList // Pass canonical date list to preserve exact date range
         })
         
         // Create next version
