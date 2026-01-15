@@ -563,10 +563,15 @@ async function handleRoute(request, { params }) {
         .find({ circleId })
         .toArray()
       
+      // Filter trips based on trip owner's privacy settings
+      // Private trips are excluded unless viewer is the owner
+      const { filterTripsByPrivacy } = await import('@/lib/trips/filterTripsByPrivacy.js')
+      const visibleTrips = await filterTripsByPrivacy(db, trips, auth.user.id)
+      
       // Build trip card data using shared function (same as dashboard)
       const { buildTripCardDataBatch } = await import('@/lib/trips/buildTripCardData.js')
       const tripCardData = await buildTripCardDataBatch(
-        trips,
+        visibleTrips,
         auth.user.id,
         membership.role,
         db
@@ -687,20 +692,82 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Only trip creator can delete
-      if (trip.createdBy !== auth.user.id) {
+      // Get circle and membership
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
         return handleCORS(NextResponse.json(
-          { error: 'Only the trip creator can delete this trip' },
+          { error: 'You are not a member of this circle' },
           { status: 403 }
         ))
       }
       
-      // Delete related data
-      await db.collection('availabilities').deleteMany({ tripId })
-      await db.collection('votes').deleteMany({ tripId })
-      await db.collection('trip_participants').deleteMany({ tripId })
-      await db.collection('posts').deleteMany({ tripId })
-      await db.collection('trip_messages').deleteMany({ tripId })
+      // Get active participant count
+      const allParticipants = await db.collection('trip_participants')
+        .find({ tripId })
+        .toArray()
+      
+      let activeMemberCount
+      if (trip.type === 'collaborative') {
+        // For collaborative trips: count circle members minus those who left/removed
+        const circleMemberships = await db.collection('memberships')
+          .find({ circleId: trip.circleId })
+          .toArray()
+        const circleMemberUserIds = new Set(circleMemberships.map(m => m.userId))
+        
+        // Subtract those who left/removed
+        let activeCount = circleMemberUserIds.size
+        allParticipants.forEach(p => {
+          const status = p.status || 'active'
+          if ((status === 'left' || status === 'removed') && circleMemberUserIds.has(p.userId)) {
+            activeCount--
+          }
+        })
+        activeMemberCount = activeCount
+      } else {
+        // Hosted trips: count active participants
+        activeMemberCount = allParticipants.filter(p => {
+          const status = p.status || 'active'
+          return status === 'active'
+        }).length
+      }
+      
+      // SOLO TRIP: Only the solo member can delete
+      // MULTI-MEMBER TRIP: Only the trip leader can delete
+      if (activeMemberCount === 1) {
+        // Solo trip: must be the only member
+        if (trip.createdBy !== auth.user.id) {
+          return handleCORS(NextResponse.json(
+            { error: 'Only the trip owner can delete this trip' },
+            { status: 403 }
+          ))
+        }
+      } else {
+        // Multi-member trip: only trip leader can delete
+        if (trip.createdBy !== auth.user.id) {
+          return handleCORS(NextResponse.json(
+            { error: 'Only the Trip Leader can delete this trip' },
+            { status: 403 }
+          ))
+        }
+      }
+      
+      // Delete related data (destructive operation)
+      await Promise.all([
+        db.collection('availabilities').deleteMany({ tripId }),
+        db.collection('votes').deleteMany({ tripId }),
+        db.collection('trip_participants').deleteMany({ tripId }),
+        db.collection('posts').deleteMany({ tripId }),
+        db.collection('trip_messages').deleteMany({ tripId }),
+        db.collection('circle_messages').deleteMany({ tripId }),
+        db.collection('itineraries').deleteMany({ tripId }),
+        db.collection('trip_date_picks').deleteMany({ tripId }),
+        db.collection('join_requests').deleteMany({ tripId })
+      ])
       
       // Delete trip
       await db.collection('trips').deleteOne({ id: tripId })
@@ -947,8 +1014,9 @@ async function handleRoute(request, { params }) {
         ? circleMemberUserIds.has(auth.user.id) // Circle member = participant
         : !!userParticipant // Hosted: must have record
       
-      // Use effectiveActiveUserIds for all count calculations
-      const totalMembers = effectiveActiveUserIds.size
+        // Use effectiveActiveUserIds for all count calculations
+        const totalMembers = effectiveActiveUserIds.size
+        const memberCount = totalMembers // Exported for UI logic
       
       // Count unique ACTIVE users who have submitted availability
       const usersWithAvailability = [...new Set(availabilities.map(a => a.userId))]
@@ -1055,6 +1123,7 @@ async function handleRoute(request, { params }) {
         promisingWindows, // New: 2-3 top date windows for refinement
         participants: participantsWithStatus.map(p => ({ id: p.user?.id || p.userId, name: p.user?.name || 'Unknown' })),
         participantsWithStatus, // Include status info for UI
+        memberCount: totalMembers, // Active member count for UI logic (solo vs multi-member)
         isParticipant,
         isActiveParticipant, // New: whether user is active participant
         isCreator: trip.createdBy === auth.user.id,
@@ -1795,8 +1864,8 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ message: 'Joined trip successfully' }))
     }
     
-    // Leave hosted trip - POST /api/trips/:id/leave
     // Leave trip - POST /api/trips/:tripId/leave
+    // For multi-member trips, leaders must transfer leadership before leaving
     if (route.match(/^\/trips\/[^/]+\/leave$/) && method === 'POST') {
       const auth = await requireAuth(request)
       if (auth.error) {
@@ -1804,6 +1873,8 @@ async function handleRoute(request, { params }) {
       }
       
       const tripId = path[1]
+      const body = await request.json().catch(() => ({})) // Optional body for transferToUserId
+      const transferToUserId = body.transferToUserId
       
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -1826,12 +1897,78 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Check if user is Trip Leader
-      if (trip.createdBy === auth.user.id) {
+      // Get active participant count
+      const allParticipants = await db.collection('trip_participants')
+        .find({ tripId })
+        .toArray()
+      
+      let activeMemberCount
+      let effectiveActiveUserIds
+      
+      if (trip.type === 'collaborative') {
+        // For collaborative trips: count circle members minus those who left/removed
+        const circleMemberships = await db.collection('memberships')
+          .find({ circleId: trip.circleId })
+          .toArray()
+        effectiveActiveUserIds = new Set(circleMemberships.map(m => m.userId))
+        
+        // Subtract those who left/removed
+        allParticipants.forEach(p => {
+          const status = p.status || 'active'
+          if ((status === 'left' || status === 'removed') && effectiveActiveUserIds.has(p.userId)) {
+            effectiveActiveUserIds.delete(p.userId)
+          }
+        })
+        activeMemberCount = effectiveActiveUserIds.size
+      } else {
+        // Hosted trips: count active participants
+        const activeParticipants = allParticipants.filter(p => {
+          const status = p.status || 'active'
+          return status === 'active'
+        })
+        effectiveActiveUserIds = new Set(activeParticipants.map(p => p.userId))
+        activeMemberCount = effectiveActiveUserIds.size
+      }
+      
+      const isTripLeader = trip.createdBy === auth.user.id
+      
+      // SOLO TRIP: Cannot leave, must delete
+      if (activeMemberCount === 1) {
         return handleCORS(NextResponse.json(
-          { error: 'Trip Leader cannot leave the trip. Transfer leadership first.' },
+          { error: 'Cannot leave a solo trip. Delete the trip instead.' },
           { status: 403 }
         ))
+      }
+      
+      // MULTI-MEMBER TRIP: Leader must transfer before leaving
+      if (isTripLeader) {
+        if (!transferToUserId) {
+          return handleCORS(NextResponse.json(
+            { error: 'Trip Leader must transfer leadership before leaving. Please select a new leader.' },
+            { status: 400 }
+          ))
+        }
+        
+        // Validate transferToUserId is an active member (and not the current leader)
+        if (transferToUserId === auth.user.id) {
+          return handleCORS(NextResponse.json(
+            { error: 'Cannot transfer leadership to yourself' },
+            { status: 400 }
+          ))
+        }
+        
+        if (!effectiveActiveUserIds.has(transferToUserId)) {
+          return handleCORS(NextResponse.json(
+            { error: 'New leader must be an active member of the trip' },
+            { status: 403 }
+          ))
+        }
+        
+        // Transfer leadership: update trip.createdBy
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { createdBy: transferToUserId } }
+        )
       }
       
       // Find participant record (may not exist for collaborative trips created before this feature)
@@ -1887,8 +2024,24 @@ async function handleRoute(request, { params }) {
         )
       }
       
-      // Emit chat event for traveler left
+      // Emit chat event for traveler left (and leadership transfer if applicable)
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      if (isTripLeader && transferToUserId) {
+        // Emit leadership transfer event
+        const newLeader = await db.collection('users').findOne({ id: transferToUserId })
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: auth.user.id,
+          subtype: 'leadership_transferred',
+          text: `${auth.user.name} transferred trip leadership to ${newLeader?.name || 'another member'}`,
+          metadata: {
+            previousLeaderId: auth.user.id,
+            newLeaderId: transferToUserId
+          }
+        })
+      }
+      
       await emitTripChatEvent({
         tripId,
         circleId: trip.circleId,
@@ -1900,7 +2053,14 @@ async function handleRoute(request, { params }) {
         }
       })
       
-      return handleCORS(NextResponse.json({ message: 'Left trip successfully' }))
+      // Return success with transfer info if applicable
+      const response = { message: 'Left trip successfully' }
+      if (isTripLeader && transferToUserId) {
+        response.leadershipTransferred = true
+        response.newLeaderId = transferToUserId
+      }
+      
+      return handleCORS(NextResponse.json(response))
     }
     
     // ============ TRIP JOIN REQUESTS ROUTES ============
@@ -2475,9 +2635,14 @@ async function handleRoute(request, { params }) {
         .find({ id: { $in: userIds } })
         .toArray()
       
-      const trips = tripIds.length > 0 
+      const allTrips = tripIds.length > 0 
         ? await db.collection('trips').find({ id: { $in: tripIds } }).toArray()
         : []
+      
+      // Filter trips based on trip owner's privacy settings
+      // Private trips are excluded unless viewer is the owner
+      const { filterTripsByPrivacy } = await import('@/lib/trips/filterTripsByPrivacy.js')
+      const trips = await filterTripsByPrivacy(db, allTrips, auth.user.id)
       
       const postsWithDetails = posts.map(post => ({
         id: post.id,
@@ -6339,8 +6504,13 @@ async function handleRoute(request, { params }) {
         circleMembershipsMap.set(circleId, new Set(memberships.map(m => m.userId)))
       }
       
-      // Filter trips where target user is an active traveler
-      const tripsWithActiveTarget = upcomingTrips.filter(trip => {
+      // First, filter trips based on trip owner's privacy settings
+      // Private trips are excluded unless viewer is the owner
+      const { filterTripsByPrivacy } = await import('@/lib/trips/filterTripsByPrivacy.js')
+      const visibleTrips = await filterTripsByPrivacy(db, upcomingTrips, viewerId)
+      
+      // Then filter trips where target user is an active traveler
+      const tripsWithActiveTarget = visibleTrips.filter(trip => {
         const circleMemberUserIds = circleMembershipsMap.get(trip.circleId) || new Set()
         const tripParticipants = allParticipants.filter(p => p.tripId === trip.id)
         const statusByUserId = new Map()
