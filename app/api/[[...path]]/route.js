@@ -1680,6 +1680,56 @@ async function handleRoute(request, { params }) {
       const hadExistingPicks = existingPicksDoc && existingPicksDoc.picks && existingPicksDoc.picks.length > 0
       const isFirstTimeSave = !hadExistingPicks && picks.length > 0
       
+      // Compute effectiveActiveUserIds (needed for both first-time save event and completion detection)
+      let effectiveActiveUserIds
+      
+      if (trip.type === 'collaborative') {
+        const allCircleMemberships = await db.collection('memberships')
+          .find({ circleId: trip.circleId })
+          .toArray()
+        const circleMemberUserIds = new Set(allCircleMemberships.map(m => m.userId))
+        
+        const allParticipants = await db.collection('trip_participants')
+          .find({ tripId })
+          .toArray()
+        
+        effectiveActiveUserIds = new Set(circleMemberUserIds)
+        
+        // Apply trip_participants overrides
+        allParticipants.forEach(p => {
+          const status = p.status || 'active'
+          if (status === 'left' || status === 'removed') {
+            effectiveActiveUserIds.delete(p.userId)
+          } else if (status === 'active') {
+            effectiveActiveUserIds.add(p.userId)
+          }
+        })
+      } else {
+        // Hosted trips: only active participants
+        const allParticipants = await db.collection('trip_participants')
+          .find({ tripId })
+          .toArray()
+        const activeParticipants = allParticipants.filter(p => {
+          const status = p.status || 'active'
+          return status === 'active'
+        })
+        effectiveActiveUserIds = new Set(activeParticipants.map(p => p.userId))
+      }
+      
+      // Compute previous pick progress BEFORE saving (to detect transition)
+      const allPicksBeforeSave = await db.collection('trip_date_picks')
+        .find({ tripId })
+        .toArray()
+      
+      const previousRespondedUserIds = new Set()
+      allPicksBeforeSave.forEach(pickDoc => {
+        if (effectiveActiveUserIds.has(pickDoc.userId) && pickDoc.picks && pickDoc.picks.length > 0) {
+          previousRespondedUserIds.add(pickDoc.userId)
+        }
+      })
+      const previousRespondedCount = previousRespondedUserIds.size
+      const totalCount = effectiveActiveUserIds.size
+      
       // Upsert user's picks
       await db.collection('trip_date_picks').updateOne(
         { tripId, userId: auth.user.id },
@@ -1692,59 +1742,22 @@ async function handleRoute(request, { params }) {
         { upsert: true }
       )
       
+      // Compute pick progress AFTER save
+      const allPicksAfterSave = await db.collection('trip_date_picks')
+        .find({ tripId })
+        .toArray()
+      
+      const respondedUserIds = new Set()
+      allPicksAfterSave.forEach(pickDoc => {
+        if (effectiveActiveUserIds.has(pickDoc.userId) && pickDoc.picks && pickDoc.picks.length > 0) {
+          respondedUserIds.add(pickDoc.userId)
+        }
+      })
+      
+      const respondedCount = respondedUserIds.size
+      
       // Emit system chat event for first-time save
       if (isFirstTimeSave) {
-        // Compute effectiveActiveUserIds (reuse logic from GET handler)
-        let effectiveActiveUserIds
-        
-        if (trip.type === 'collaborative') {
-          const allCircleMemberships = await db.collection('memberships')
-            .find({ circleId: trip.circleId })
-            .toArray()
-          const circleMemberUserIds = new Set(allCircleMemberships.map(m => m.userId))
-          
-          const allParticipants = await db.collection('trip_participants')
-            .find({ tripId })
-            .toArray()
-          
-          effectiveActiveUserIds = new Set(circleMemberUserIds)
-          
-          // Apply trip_participants overrides
-          allParticipants.forEach(p => {
-            const status = p.status || 'active'
-            if (status === 'left' || status === 'removed') {
-              effectiveActiveUserIds.delete(p.userId)
-            } else if (status === 'active') {
-              effectiveActiveUserIds.add(p.userId)
-            }
-          })
-        } else {
-          // Hosted trips: only active participants
-          const allParticipants = await db.collection('trip_participants')
-            .find({ tripId })
-            .toArray()
-          const activeParticipants = allParticipants.filter(p => {
-            const status = p.status || 'active'
-            return status === 'active'
-          })
-          effectiveActiveUserIds = new Set(activeParticipants.map(p => p.userId))
-        }
-        
-        // Compute pick progress after save
-        const allPicksAfterSave = await db.collection('trip_date_picks')
-          .find({ tripId })
-          .toArray()
-        
-        const respondedUserIds = new Set()
-        allPicksAfterSave.forEach(pickDoc => {
-          if (effectiveActiveUserIds.has(pickDoc.userId) && pickDoc.picks && pickDoc.picks.length > 0) {
-            respondedUserIds.add(pickDoc.userId)
-          }
-        })
-        
-        const respondedCount = respondedUserIds.size
-        const totalCount = effectiveActiveUserIds.size
-        
         // Get user display name
         const userDoc = await db.collection('users').findOne({ id: auth.user.id })
         const displayName = userDoc?.name || auth.user.name || 'Someone'
@@ -1764,6 +1777,37 @@ async function handleRoute(request, { params }) {
           },
           dedupeKey: `scheduling_picks_saved_${tripId}_${auth.user.id}`
         })
+      }
+      
+      // Detect transition to "everyone responded" and emit one-time completion event
+      const everyoneResponded = respondedCount === totalCount && totalCount > 0
+      const wasIncomplete = previousRespondedCount < totalCount
+      const transitionToComplete = everyoneResponded && wasIncomplete
+      
+      if (transitionToComplete) {
+        // Check if a "scheduling_all_responded" event already exists for this trip
+        const existingCompletionEvent = await db.collection('trip_messages').findOne({
+          tripId,
+          isSystem: true,
+          subtype: 'scheduling_all_responded'
+        })
+        
+        // Only emit if no prior completion event exists (one-time only)
+        if (!existingCompletionEvent) {
+          const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+          await emitTripChatEvent({
+            tripId,
+            circleId: trip.circleId,
+            actorUserId: null,
+            subtype: 'scheduling_all_responded',
+            text: '🎉 Everyone has saved date picks — ready to lock dates.',
+            metadata: {
+              respondedCount,
+              totalCount
+            },
+            dedupeKey: `scheduling_all_responded_${tripId}`
+          })
+        }
       }
       
       return handleCORS(NextResponse.json({ message: 'Date picks saved' }))
