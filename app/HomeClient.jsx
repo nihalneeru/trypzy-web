@@ -36,6 +36,7 @@ import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags, TripPrimaryStage, TripTabKey } from '@/lib/trips/stage'
 import { TripTabs } from '@/components/trip/TripTabs/TripTabs'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/routes'
 
 // Branded Spinner Component
 export function BrandedSpinner({ className = '', size = 'default' }) {
@@ -4756,9 +4757,9 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const dashboardLink = returnTo && returnTo.startsWith('/circles/') 
     ? '/dashboard'  // If coming from circle, dashboard link should be plain dashboard
     : (returnTo || '/dashboard')
-  // Circle link: use /circles/[circleId] format if we have circleId
+  // Circle link: use dashboard with circleId selected (canonical parent behavior)
   const circleLink = circleId 
-    ? `/circles/${circleId}`
+    ? dashboardCircleHref(circleId)
     : dashboardLink
 
   return (
@@ -4777,6 +4778,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
               <ChevronRight className="h-4 w-4 text-gray-400" />
               <Link 
                 href={circleLink}
+                prefetch={false}
                 className="hover:text-gray-900 hover:underline"
               >
                 {trip.circle.name}
