@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, Users, UserPlus, LogOut, Sparkles } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -43,6 +43,7 @@ const api = async (endpoint, options = {}, token = null) => {
 // All authenticated users should land here after login.
 export default function DashboardPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -53,6 +54,13 @@ export default function DashboardPage() {
   const [showCreateCircle, setShowCreateCircle] = useState(false)
   const [showJoinCircle, setShowJoinCircle] = useState(false)
 
+  // Dev-only navigation tracing
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[NAV] dashboard page mounted', { pathname, hasToken: !!token, hasUser: !!user })
+    }
+  }, [pathname, token, user])
+
   useEffect(() => {
     const loadDashboard = async () => {
       try {
@@ -60,7 +68,8 @@ export default function DashboardPage() {
         const userValue = localStorage.getItem('trypzy_user')
         
         if (!tokenValue) {
-          router.push('/')
+          // Auth gate: redirect to login if not authenticated
+          router.replace('/')
           return
         }
         
@@ -74,9 +83,9 @@ export default function DashboardPage() {
       } catch (err) {
         console.error('Dashboard error:', err)
         setError(err.message)
-        // If unauthorized, redirect to login
+        // If unauthorized, redirect to login with clean URL
         if (err.message.includes('Unauthorized')) {
-          router.push('/')
+          router.replace('/')
         }
       } finally {
         setLoading(false)
@@ -109,7 +118,8 @@ export default function DashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem('trypzy_token')
     localStorage.removeItem('trypzy_user')
-    router.push('/')
+    // MVP policy: logout always goes to clean /login URL (which is / for this app)
+    router.replace('/')
   }
 
   if (loading) {

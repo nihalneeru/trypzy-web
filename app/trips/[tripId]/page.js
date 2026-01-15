@@ -11,16 +11,31 @@
  */
 
 import { useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, usePathname } from 'next/navigation'
 import { BrandedSpinner } from '@/app/HomeClient'
 
 export default function TripDetailRoute() {
   const params = useParams()
   const router = useRouter()
+  const pathname = usePathname()
   const tripId = params?.tripId
+
+  // Dev-only navigation tracing
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[NAV] trip page mounted', { pathname, tripId })
+    }
+  }, [pathname, tripId])
 
   useEffect(() => {
     if (!tripId) return
+
+    // Auth gate: redirect to login if not authenticated
+    const tokenValue = typeof window !== 'undefined' ? localStorage.getItem('trypzy_token') : null
+    if (!tokenValue) {
+      router.replace('/')
+      return
+    }
 
     // Get query params from URL to preserve returnTo and circleId
     const searchParams = new URLSearchParams(window.location.search)
