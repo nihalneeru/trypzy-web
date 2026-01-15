@@ -1139,6 +1139,7 @@ async function handleRoute(request, { params }) {
         // Progress tracking stats
         totalMembers,
         activeTravelerCount: effectiveActiveUserIds.size, // Explicit count for UI
+        effectiveActiveVoterCount: effectiveActiveUserIds.size, // Count of active participants for heatmap scaling
         respondedCount,
         votedCount,
         // New top3_heatmap scheduling data

@@ -3387,8 +3387,8 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
       
       // Add all days in the month
       for (let d = 1; d <= lastDay.getDate(); d++) {
-        const date = new Date(year, month, d)
-        const dateISO = date.toISOString().split('T')[0]
+        const dateISO = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        const date = new Date(dateISO + 'T12:00:00')
         
         // Check if date is within bounds
         const isInBounds = dateISO >= startBound && dateISO <= endBound
@@ -3424,7 +3424,10 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
     
     return months
   }, [startBound, endBound, tripLengthDays, trip.heatmapScores])
-  const maxScore = Math.max(...Object.values(trip.heatmapScores || {}), 1)
+  
+  // Stabilize heat intensity scaling using expected max score
+  const activeVoterCount = trip.effectiveActiveVoterCount ?? 1
+  const expectedMaxScore = Math.max(3 * activeVoterCount, 1)
   
   const getRankLabel = (rank) => {
     if (rank === 1) return 'Love to go'
@@ -3532,10 +3535,22 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                             return <div key={`empty-${idx}`} className="h-9" />
                           }
                           
-                          const intensity = day.score > 0 ? Math.min(day.score / maxScore, 1) : 0
-                          const bgColor = intensity > 0.7 ? 'bg-green-600' : intensity > 0.4 ? 'bg-green-400' : intensity > 0 ? 'bg-green-200' : 'bg-gray-100'
+                          // Determine background color based on bounds and validity
+                          let bgColor
+                          if (!day.isInBounds) {
+                            bgColor = 'bg-transparent'
+                          } else if (!day.isValidStart) {
+                            bgColor = 'bg-gray-50'
+                          } else {
+                            // Valid start date - compute heat intensity
+                            const intensity = day.score > 0 ? Math.min(day.score / expectedMaxScore, 1) : 0
+                            bgColor = intensity > 0.7 ? 'bg-green-600' : intensity > 0.4 ? 'bg-green-400' : intensity > 0 ? 'bg-green-200' : 'bg-gray-100'
+                          }
                           const isSelected = datePicks.some(p => p.startDateISO === day.dateISO)
                           const userPick = datePicks.find(p => p.startDateISO === day.dateISO)
+                          
+                          // Optimize tooltip: compute topCandidate once per cell
+                          const topCandidate = trip.topCandidates?.find(c => c.startDateISO === day.dateISO)
                           
                           // Check if this day is in preview window
                           const isInPreviewWindow = getPreviewWindowDates.has(day.dateISO)
@@ -3556,6 +3571,19 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                           
                           // Days outside bounds should be disabled
                           const isDisabled = !day.isInBounds || !day.isValidStart || isLocked || !canParticipate
+                          
+                          // Build tooltip string
+                          let tooltipText = ''
+                          if (day.isValidStart && day.isInBounds) {
+                            tooltipText = `Score: ${day.score}`
+                            if (topCandidate) {
+                              tooltipText += ` (Love: ${topCandidate.loveCount}, Can: ${topCandidate.canCount}, Might: ${topCandidate.mightCount})`
+                            }
+                          } else if (!day.isInBounds) {
+                            tooltipText = 'Outside trip bounds'
+                          } else {
+                            tooltipText = 'Invalid start date'
+                          }
                           
                           return (
                             <button
@@ -3578,13 +3606,8 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                                   : isSelected
                                   ? 'ring-2 ring-blue-500 ring-offset-0'
                                   : ''
-                              } ${bgColor} ${day.score > 0 ? 'text-white' : 'text-gray-600'}`}
-                              title={day.isValidStart && day.isInBounds
-                                ? `Score: ${day.score}${trip.topCandidates?.find(c => c.startDateISO === day.dateISO) ? ` (Love: ${trip.topCandidates.find(c => c.startDateISO === day.dateISO).loveCount}, Can: ${trip.topCandidates.find(c => c.startDateISO === day.dateISO).canCount}, Might: ${trip.topCandidates.find(c => c.startDateISO === day.dateISO).mightCount})` : ''}`
-                                : !day.isInBounds
-                                ? 'Outside trip bounds'
-                                : 'Invalid start date'
-                              }
+                              } ${bgColor} ${bgColor.startsWith('bg-green') ? 'text-white' : 'text-gray-600'}`}
+                              title={tooltipText}
                             >
                               {day.date.getDate()}
                               {userPick && (
