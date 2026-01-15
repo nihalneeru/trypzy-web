@@ -17,8 +17,18 @@ export function ChatTab({
   sendMessage,
   showTripChatHint,
   dismissTripChatHint,
-  stage
+  stage,
+  setActiveTab
 }: any) {
+  // Check if scheduling progress banner should be shown
+  const showSchedulingBanner = trip.pickProgress && 
+    trip.pickProgress.respondedCount < trip.pickProgress.totalCount &&
+    trip.status !== 'locked'
+  
+  const waitingCount = trip.pickProgress 
+    ? trip.pickProgress.totalCount - trip.pickProgress.respondedCount 
+    : 0
+  
   return (
     <Card className="h-[500px] flex flex-col">
       <CardHeader>
@@ -44,6 +54,24 @@ export function ChatTab({
             >
               <X className="h-4 w-4" />
             </button>
+          </div>
+        )}
+        
+        {showSchedulingBanner && (
+          <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between gap-3">
+            <p className="text-sm text-gray-700 flex-1">
+              Dates: {trip.pickProgress.respondedCount}/{trip.pickProgress.totalCount} have saved picks. Waiting on {waitingCount} {waitingCount === 1 ? 'person' : 'people'}.
+            </p>
+            {setActiveTab && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab('planning')}
+                className="flex-shrink-0"
+              >
+                Go to Dates
+              </Button>
+            )}
           </div>
         )}
         <ScrollArea className="flex-1 pr-4">
