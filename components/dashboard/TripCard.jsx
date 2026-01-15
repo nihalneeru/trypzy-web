@@ -72,6 +72,7 @@ function formatRelativeTime(timestamp) {
 /**
  * @param {Object} props
  * @param {TripData} props.trip
+ * @param {string} [props.circleId] - Optional circle ID for returnTo parameter
  */
 export function TripCard({ trip, circleId = null }) {
   // Ensure pendingActions exists (default to empty array)
@@ -84,9 +85,9 @@ export function TripCard({ trip, circleId = null }) {
   }
   
   return (
-    <Link href={primaryHref || `/trips/${trip.id}`} className="block h-full">
-      <Card className="cursor-pointer hover:shadow-lg transition-shadow aspect-square flex flex-col h-full">
-        <CardContent className="p-4 flex flex-col h-full">
+    <Link href={primaryHref || `/trips/${trip.id}`} className="block h-full min-w-0">
+      <Card className="cursor-pointer hover:shadow-lg transition-shadow aspect-square flex flex-col h-full min-w-0">
+        <CardContent className="p-4 flex flex-col h-full min-w-0">
           {/* Header with info icon */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">

@@ -1857,7 +1857,8 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
         router.push(returnTo)
       } else if (initialCircleId) {
         // If we came from a circle page (initialCircleId exists), go back to that circle
-        router.push(`/circles/${initialCircleId}`)
+        // Navigate to dashboard view with circle selected, not the separate circle page
+        router.push(`/?circleId=${initialCircleId}`)
       } else {
         // If no initialCircleId, we came from dashboard, so go back to dashboard
         router.push('/dashboard')

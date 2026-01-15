@@ -60,7 +60,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-w-0 w-full">
           {circle.trips.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <p className="text-sm mb-4">No trips yet in this circle</p>
@@ -70,7 +70,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
               {circle.trips.map((trip) => (
                 <TripCard key={trip.id} trip={trip} circleId={circle.id} />
               ))}
