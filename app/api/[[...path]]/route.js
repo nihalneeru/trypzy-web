@@ -915,23 +915,26 @@ async function handleRoute(request, { params }) {
       })
       
       // Derive active participants based on trip type
+      // Authoritative: Build effectiveActiveUserIds strictly from participants where status === 'active'
       let effectiveActiveUserIds
       let participantsWithStatus
       
       if (trip.type === 'collaborative') {
-        // Collaborative trips: Circle membership is base set, trip_participants are overrides
-        // Start with all circle members as active
-        effectiveActiveUserIds = new Set(circleMemberUserIds)
+        // Collaborative trips: Circle members are eligible, but only active participants count
+        // Start with empty set - only add users who are active
+        effectiveActiveUserIds = new Set()
         
-        // Apply trip_participants overrides
-        statusByUserId.forEach((status, userId) => {
-          if (status === 'left' || status === 'removed') {
-            // Remove from active set
-            effectiveActiveUserIds.delete(userId)
-          } else if (status === 'active') {
-            // Ensure in active set (may have been added via circle membership already)
+        // Add circle members who are active participants
+        // A circle member is active if:
+        // 1. They have no trip_participants record (implicitly active)
+        // 2. Their trip_participants status is 'active'
+        circleMemberUserIds.forEach(userId => {
+          const participantStatus = statusByUserId.get(userId)
+          // If no record or status is 'active', they're active
+          if (!participantStatus || participantStatus === 'active') {
             effectiveActiveUserIds.add(userId)
           }
+          // If status is 'left' or 'removed', they are NOT active (don't add)
         })
         
         // Build participantsWithStatus: include ALL circle members with their status
@@ -957,6 +960,7 @@ async function handleRoute(request, { params }) {
         })
       } else {
         // Hosted trips: trip_participants is authoritative
+        // Only include participants where status === 'active'
         const activeParticipants = allParticipants.filter(p => {
           const status = p.status || 'active'
           return status === 'active'
@@ -1681,6 +1685,7 @@ async function handleRoute(request, { params }) {
       const isFirstTimeSave = !hadExistingPicks && picks.length > 0
       
       // Compute effectiveActiveUserIds (needed for both first-time save event and completion detection)
+      // Authoritative: Build strictly from participants where status === 'active'
       let effectiveActiveUserIds
       
       if (trip.type === 'collaborative') {
@@ -1693,19 +1698,30 @@ async function handleRoute(request, { params }) {
           .find({ tripId })
           .toArray()
         
-        effectiveActiveUserIds = new Set(circleMemberUserIds)
-        
-        // Apply trip_participants overrides
+        // Build status map
+        const statusByUserId = new Map()
         allParticipants.forEach(p => {
-          const status = p.status || 'active'
-          if (status === 'left' || status === 'removed') {
-            effectiveActiveUserIds.delete(p.userId)
-          } else if (status === 'active') {
-            effectiveActiveUserIds.add(p.userId)
+          statusByUserId.set(p.userId, p.status || 'active')
+        })
+        
+        // Start with empty set - only add users who are active
+        effectiveActiveUserIds = new Set()
+        
+        // Add circle members who are active participants
+        // A circle member is active if:
+        // 1. They have no trip_participants record (implicitly active)
+        // 2. Their trip_participants status is 'active'
+        circleMemberUserIds.forEach(userId => {
+          const participantStatus = statusByUserId.get(userId)
+          // If no record or status is 'active', they're active
+          if (!participantStatus || participantStatus === 'active') {
+            effectiveActiveUserIds.add(userId)
           }
+          // If status is 'left' or 'removed', they are NOT active (don't add)
         })
       } else {
         // Hosted trips: only active participants
+        // Only include participants where status === 'active'
         const allParticipants = await db.collection('trip_participants')
           .find({ tripId })
           .toArray()
