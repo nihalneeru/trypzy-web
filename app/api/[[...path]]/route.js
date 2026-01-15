@@ -1030,6 +1030,7 @@ async function handleRoute(request, { params }) {
       let heatmapScores = {}
       let topCandidates = []
       let userDatePicks = null
+      let pickProgress = undefined
       
       if (trip.schedulingMode === 'top3_heatmap') {
         // Get all date picks for this trip
@@ -1040,6 +1041,21 @@ async function handleRoute(request, { params }) {
         // Get current user's picks
         const userPicksDoc = allPicks.find(p => p.userId === auth.user.id)
         userDatePicks = userPicksDoc ? userPicksDoc.picks : []
+        
+        // Compute pick progress: who has saved picks
+        const respondedUserIds = new Set()
+        allPicks.forEach(pickDoc => {
+          // Only count active participants who have picks
+          if (effectiveActiveUserIds.has(pickDoc.userId) && pickDoc.picks && pickDoc.picks.length > 0) {
+            respondedUserIds.add(pickDoc.userId)
+          }
+        })
+        
+        pickProgress = {
+          respondedCount: respondedUserIds.size,
+          totalCount: effectiveActiveUserIds.size,
+          respondedUserIds: Array.from(respondedUserIds)
+        }
         
         // Compute heatmap scores: weight = {1:3, 2:2, 3:1}
         // Only count picks from active participants
@@ -1146,6 +1162,7 @@ async function handleRoute(request, { params }) {
         userDatePicks, // Current user's picks: [{rank:1|2|3, startDateISO}]
         heatmapScores, // { startDateISO: score }
         topCandidates, // Top 5: [{startDateISO, endDateISO, score, loveCount, canCount, mightCount}]
+        pickProgress, // { respondedCount, totalCount, respondedUserIds } - only for top3_heatmap
         // Itinerary status (for locked trips)
         itineraryStatus: trip.itineraryStatus || null
       }))

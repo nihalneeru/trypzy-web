@@ -3429,6 +3429,20 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
   const activeVoterCount = trip.effectiveActiveVoterCount ?? 1
   const expectedMaxScore = Math.max(3 * activeVoterCount, 1)
   
+  // Compute last valid start date (memoized)
+  const lastValidStartISO = useMemo(() => {
+    const endBoundObj = new Date(endBound + 'T12:00:00')
+    const lastValidStartObj = new Date(endBoundObj)
+    lastValidStartObj.setDate(lastValidStartObj.getDate() - (tripLengthDays - 1))
+    return lastValidStartObj.toISOString().split('T')[0]
+  }, [endBound, tripLengthDays])
+  
+  // Format date for display (Mon D, YYYY)
+  const formatDisplayDate = (dateISO) => {
+    const date = new Date(dateISO + 'T12:00:00')
+    return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', year: 'numeric' })
+  }
+  
   const getRankLabel = (rank) => {
     if (rank === 1) return 'Love to go'
     if (rank === 2) return 'Can go'
@@ -3510,12 +3524,64 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
               </div>
               
               <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium">Group Preference Heatmap</h3>
+                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h3 className="text-sm font-medium">Group Preference Heatmap</h3>
+                    {trip.pickProgress && (
+                      <Badge variant="secondary" className="text-xs">
+                        Picks saved: {trip.pickProgress.respondedCount}/{trip.pickProgress.totalCount}
+                      </Badge>
+                    )}
+                  </div>
                   {activeRank && !isLocked && canParticipate && (
                     <Badge variant="outline" className="text-xs">
                       Selecting: {getRankLabel(activeRank)}
                     </Badge>
+                  )}
+                </div>
+                
+                {/* Trip bounds info */}
+                <div className="mb-3 text-xs text-gray-600 space-y-1">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <span>
+                      <strong>Bounds:</strong> {formatDisplayDate(startBound)} – {formatDisplayDate(endBound)}
+                    </span>
+                    <span>
+                      <strong>Window length:</strong> {tripLengthDays} day{tripLengthDays !== 1 ? 's' : ''}
+                    </span>
+                    <span>
+                      <strong>Last valid start:</strong> {formatDisplayDate(lastValidStartISO)}
+                    </span>
+                  </div>
+                  {trip.pickProgress && trip.pickProgress.respondedCount > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-gray-500">Saved by:</span>
+                      {(() => {
+                        // Map respondedUserIds to names using trip.participants
+                        const participantMap = new Map()
+                        if (trip.participants) {
+                          trip.participants.forEach(p => {
+                            participantMap.set(p.id, p.name)
+                          })
+                        }
+                        
+                        const displayNames = trip.pickProgress.respondedUserIds
+                          .slice(0, 3)
+                          .map(userId => participantMap.get(userId) || userId)
+                        const remainingCount = trip.pickProgress.respondedUserIds.length - 3
+                        
+                        return (
+                          <>
+                            {displayNames.map((name, idx) => (
+                              <span key={idx} className="text-gray-700 font-medium">{name}</span>
+                            ))}
+                            {remainingCount > 0 && (
+                              <span className="text-gray-500">+{remainingCount} more</span>
+                            )}
+                          </>
+                        )
+                      })()}
+                    </div>
                   )}
                 </div>
                 <div className="space-y-4">
