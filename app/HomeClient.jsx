@@ -2539,7 +2539,11 @@ function CirclesView({ circles, token, onOpenCircle, onRefresh }) {
 
 // Circle Detail View
 function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
-  const [activeTab, setActiveTab] = useState('trips')
+  // MVP: always open Members tab on circle page.
+  // Helper to get initial tab (MVP always returns "members")
+  const getInitialCircleTab = () => 'members'
+  
+  const [activeTab, setActiveTab] = useState(getInitialCircleTab())
   const [showCreateTrip, setShowCreateTrip] = useState(false)
   const [showCreatePost, setShowCreatePost] = useState(false)
   const [tripForm, setTripForm] = useState({
@@ -2579,6 +2583,11 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
       setLoadingPosts(false)
     }
   }
+
+  // MVP: Reset to Members tab whenever circle changes
+  useEffect(() => {
+    setActiveTab(getInitialCircleTab())
+  }, [circle.id])
 
   useEffect(() => {
     if (activeTab === 'chat') { // 'chat' is the tab value, but UI shows "Lounge"
