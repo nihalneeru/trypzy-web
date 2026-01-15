@@ -1672,6 +1672,14 @@ async function handleRoute(request, { params }) {
         seenDates.add(pick.startDateISO)
       }
       
+      // Check if this is a first-time save (before upserting)
+      const existingPicksDoc = await db.collection('trip_date_picks').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      const hadExistingPicks = existingPicksDoc && existingPicksDoc.picks && existingPicksDoc.picks.length > 0
+      const isFirstTimeSave = !hadExistingPicks && picks.length > 0
+      
       // Upsert user's picks
       await db.collection('trip_date_picks').updateOne(
         { tripId, userId: auth.user.id },
@@ -1683,6 +1691,80 @@ async function handleRoute(request, { params }) {
         },
         { upsert: true }
       )
+      
+      // Emit system chat event for first-time save
+      if (isFirstTimeSave) {
+        // Compute effectiveActiveUserIds (reuse logic from GET handler)
+        let effectiveActiveUserIds
+        
+        if (trip.type === 'collaborative') {
+          const allCircleMemberships = await db.collection('memberships')
+            .find({ circleId: trip.circleId })
+            .toArray()
+          const circleMemberUserIds = new Set(allCircleMemberships.map(m => m.userId))
+          
+          const allParticipants = await db.collection('trip_participants')
+            .find({ tripId })
+            .toArray()
+          
+          effectiveActiveUserIds = new Set(circleMemberUserIds)
+          
+          // Apply trip_participants overrides
+          allParticipants.forEach(p => {
+            const status = p.status || 'active'
+            if (status === 'left' || status === 'removed') {
+              effectiveActiveUserIds.delete(p.userId)
+            } else if (status === 'active') {
+              effectiveActiveUserIds.add(p.userId)
+            }
+          })
+        } else {
+          // Hosted trips: only active participants
+          const allParticipants = await db.collection('trip_participants')
+            .find({ tripId })
+            .toArray()
+          const activeParticipants = allParticipants.filter(p => {
+            const status = p.status || 'active'
+            return status === 'active'
+          })
+          effectiveActiveUserIds = new Set(activeParticipants.map(p => p.userId))
+        }
+        
+        // Compute pick progress after save
+        const allPicksAfterSave = await db.collection('trip_date_picks')
+          .find({ tripId })
+          .toArray()
+        
+        const respondedUserIds = new Set()
+        allPicksAfterSave.forEach(pickDoc => {
+          if (effectiveActiveUserIds.has(pickDoc.userId) && pickDoc.picks && pickDoc.picks.length > 0) {
+            respondedUserIds.add(pickDoc.userId)
+          }
+        })
+        
+        const respondedCount = respondedUserIds.size
+        const totalCount = effectiveActiveUserIds.size
+        
+        // Get user display name
+        const userDoc = await db.collection('users').findOne({ id: auth.user.id })
+        const displayName = userDoc?.name || auth.user.name || 'Someone'
+        
+        // Emit system chat event
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: auth.user.id,
+          subtype: 'scheduling_picks_saved',
+          text: `✅ ${displayName} saved date picks (${respondedCount}/${totalCount} responded)`,
+          metadata: {
+            userId: auth.user.id,
+            respondedCount,
+            totalCount
+          },
+          dedupeKey: `scheduling_picks_saved_${tripId}_${auth.user.id}`
+        })
+      }
       
       return handleCORS(NextResponse.json({ message: 'Date picks saved' }))
     }
