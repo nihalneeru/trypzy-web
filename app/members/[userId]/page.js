@@ -122,6 +122,7 @@ export default function MemberProfilePage() {
       setTrips(data.trips || [])
       
       // Load join request statuses for each trip
+      // Also check if viewer is already a traveler (by attempting to detect participant status)
       const statuses = {}
       await Promise.all(
         data.trips.map(async (trip) => {
@@ -129,8 +130,13 @@ export default function MemberProfilePage() {
             const statusData = await api(`/trips/${trip.id}/join-requests/me`, { method: 'GET' }, token)
             statuses[trip.id] = statusData.status
           } catch (err) {
-            // If error, assume no request
-            statuses[trip.id] = 'none'
+            // If error, check if it's because user is already a participant
+            if (err.message && err.message.includes('already an active participant')) {
+              statuses[trip.id] = 'approved' // User is already on the trip
+            } else {
+              // Otherwise assume no request
+              statuses[trip.id] = 'none'
+            }
           }
         })
       )
@@ -150,6 +156,16 @@ export default function MemberProfilePage() {
     if (e?.target?.closest('.join-button-container')) {
       return
     }
+    
+    // Privacy check: Only allow navigation if viewer is a traveler on this trip
+    const requestStatus = joinRequestStatuses[trip.id] || 'none'
+    const isViewerTraveler = isViewingOwnProfile || requestStatus === 'approved'
+    
+    if (!isViewerTraveler) {
+      // Viewer is not a traveler - don't navigate (privacy protection)
+      return
+    }
+    
     router.push(`/?tripId=${trip.id}&circleId=${trip.circleId}`)
   }
   
@@ -369,11 +385,14 @@ export default function MemberProfilePage() {
                   const showRejected = requestStatus === 'rejected' && !showJoinButton
                   const showOnTrip = isViewingOwnProfile || requestStatus === 'approved'
                   
+                  // Privacy: Only make trip card clickable if viewer is a traveler
+                  const isClickable = showOnTrip
+                  
                   return (
                     <Card 
                       key={trip.id}
-                      className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={(e) => handleTripClick(trip, e)}
+                      className={isClickable ? "cursor-pointer hover:shadow-md transition-shadow" : "cursor-default"}
+                      onClick={isClickable ? (e) => handleTripClick(trip, e) : undefined}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4">
@@ -420,7 +439,7 @@ export default function MemberProfilePage() {
                               <Badge variant="default">On this trip</Badge>
                             )}
                             <Badge variant={trip.status === 'locked' ? 'default' : 'secondary'}>
-                              {trip.status === 'locked' ? 'Locked' : 
+                              {trip.status === 'locked' ? 'Finalized' : 
                                trip.status === 'voting' ? 'Voting' :
                                trip.status === 'scheduling' ? 'Scheduling' :
                                trip.status === 'proposed' ? 'Proposed' : trip.status}
