@@ -3583,6 +3583,11 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                       })()}
                     </div>
                   )}
+                  {trip.pickProgress && trip.pickProgress.respondedCount < trip.pickProgress.totalCount && (
+                    <div className="text-xs text-gray-500 italic">
+                      Waiting on {trip.pickProgress.totalCount - trip.pickProgress.respondedCount} {trip.pickProgress.totalCount - trip.pickProgress.respondedCount === 1 ? 'person' : 'people'} — ping them to speed up locking.
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-4">
                   {calendarMonths.map((monthData) => (
