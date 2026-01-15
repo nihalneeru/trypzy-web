@@ -1742,6 +1742,16 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
   const [selectedTrip, setSelectedTrip] = useState(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState(initialView || 'circles') // circles, circle, trip, discover
+  
+  // Dev-only guardrail: warn if invalid view is set
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      const validViews = ['circles', 'circle', 'trip', 'discover']
+      if (view && !validViews.includes(view)) {
+        console.warn(`[Navigation Guardrail] Invalid view value: "${view}". Valid views are:`, validViews)
+      }
+    }
+  }, [view])
 
   // Load circles
   const loadCircles = async () => {
@@ -1854,11 +1864,12 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
     if (view === 'trip') {
       // Use returnTo if provided, otherwise check initialCircleId
       if (returnTo) {
+        // returnTo should already be in the correct format (/circles/[id] or /dashboard)
         router.push(returnTo)
       } else if (initialCircleId) {
         // If we came from a circle page (initialCircleId exists), go back to that circle
-        // Navigate to dashboard view with circle selected, not the separate circle page
-        router.push(`/?circleId=${initialCircleId}`)
+        // Use /circles/[circleId] format for proper routing
+        router.push(`/circles/${initialCircleId}`)
       } else {
         // If no initialCircleId, we came from dashboard, so go back to dashboard
         router.push('/dashboard')
@@ -4361,9 +4372,13 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   }, [trip.circleId])
   
   // Build breadcrumb links
-  const dashboardLink = returnTo || '/dashboard'
+  // If returnTo is a circle page, use it directly; otherwise use dashboard
+  const dashboardLink = returnTo && returnTo.startsWith('/circles/') 
+    ? '/dashboard'  // If coming from circle, dashboard link should be plain dashboard
+    : (returnTo || '/dashboard')
+  // Circle link: use /circles/[circleId] format if we have circleId
   const circleLink = circleId 
-    ? `${dashboardLink}#circle-${circleId}`
+    ? `/circles/${circleId}`
     : dashboardLink
 
   return (
@@ -4381,13 +4396,8 @@ function TripDetailView({ trip, token, user, onRefresh }) {
             <>
               <ChevronRight className="h-4 w-4 text-gray-400" />
               <Link 
-                href={`/?circleId=${trip.circle.id}`}
+                href={circleLink}
                 className="hover:text-gray-900 hover:underline"
-                onClick={(e) => {
-                  // Navigate to circle home, removing tripId from URL
-                  e.preventDefault()
-                  router.push(`/?circleId=${trip.circle.id}`)
-                }}
               >
                 {trip.circle.name}
               </Link>
