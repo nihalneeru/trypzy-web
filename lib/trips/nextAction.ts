@@ -6,7 +6,7 @@
  */
 
 import { deriveTripPrimaryStage, TripPrimaryStage, TripTabKey } from './stage.js'
-import { computeTripProgressSnapshot } from './progressSnapshot.js'
+import { computeTripProgressSnapshot } from './progressSnapshot'
 
 /**
  * NextAction represents a suggested action for the user based on trip state
