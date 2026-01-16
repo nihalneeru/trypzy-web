@@ -3,7 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Users, Calendar, Clock, Info } from 'lucide-react'
 import Link from 'next/link'
-import { getTripPrimaryHref } from '@/lib/dashboard/getTripPrimaryHref'
+import { tripHref } from '@/lib/navigation/routes'
 import { TripProgressMini } from './TripProgressMini'
 import {
   Tooltip,
@@ -77,15 +77,18 @@ function formatRelativeTime(timestamp) {
 export function TripCard({ trip, circleId = null }) {
   // Ensure pendingActions exists (default to empty array)
   const pendingActions = trip.pendingActions || []
-  const { href: primaryHref, label: primaryLabel } = getTripPrimaryHref(trip, pendingActions, circleId)
   
-  // Runtime check in dev mode
-  if (process.env.NODE_ENV === 'development' && !primaryHref) {
-    console.warn('TripCard: Missing primaryHref for trip', trip.id)
-  }
+  // Use tripHref without tab query - always land on Chat tab by default
+  // Deep-links should be explicit via ?tab= query, not inferred from pending actions
+  const tripUrl = tripHref(trip.id)
+  
+  // Get primary label from pending actions if available, otherwise default
+  const primaryLabel = pendingActions.length > 0 
+    ? pendingActions[0].label 
+    : 'View Trip'
   
   return (
-    <Link href={primaryHref || `/trips/${trip.id}`} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`}>
+    <Link href={tripUrl} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`}>
       <Card className="cursor-pointer hover:shadow-lg transition-shadow aspect-square flex flex-col h-full min-w-0">
         <CardContent className="p-4 flex flex-col h-full min-w-0">
           {/* Header with info icon */}
