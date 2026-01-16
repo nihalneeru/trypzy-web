@@ -37,7 +37,7 @@ export function CircleOnboardingInterstitial({
   onSkip 
 }) {
   const router = useRouter()
-  const [mode, setMode] = useState<'interstitial' | 'create-trip' | 'invite'>('interstitial')
+  const [mode, setMode] = useState('interstitial')
   const [tripForm, setTripForm] = useState({
     name: '',
     description: '',
