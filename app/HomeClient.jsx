@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
@@ -88,13 +88,24 @@ const useAuth = () => {
     localStorage.setItem('trypzy_user', JSON.stringify(userData))
     setToken(authToken)
     setUser(userData)
+    // MVP policy: login always redirects to /dashboard (do not restore previous deep link)
+    // Navigation will be handled by App component's useEffect
   }
 
-  const logout = () => {
+  const logout = (router = null) => {
+    // Clear auth state
     localStorage.removeItem('trypzy_token')
     localStorage.removeItem('trypzy_user')
     setToken(null)
     setUser(null)
+    
+    // MVP POLICY: Logout ALWAYS returns to clean "/" (no query params, no deep URL preservation)
+    // Immediately navigate to login if router is provided
+    // This ensures instant navigation without waiting for useEffect
+    if (router && typeof window !== 'undefined') {
+      // Use replace to ensure clean URL with no query params
+      router.replace('/')
+    }
   }
 
   return { user, token, loading, login, logout }
@@ -178,10 +189,11 @@ function AuthPage({ onLogin }) {
       
       onLogin(data.user, data.token)
       toast.success(isSignup ? 'Account created!' : 'Welcome back!')
-      
-      // Redirect to /dashboard after successful login
-      // /dashboard is the canonical post-login landing page
-      router.push('/dashboard')
+
+      // MVP policy: login ALWAYS redirects to /dashboard (clean URL, no deep link restore)
+      // This overrides any deep URL that might exist (e.g., ?tripId=...) for internal testing consistency
+      // Use replace to avoid adding login page to history
+      router.replace('/dashboard')
     } catch (error) {
       toast.error(error.message)
     } finally {
@@ -229,6 +241,7 @@ function AuthPage({ onLogin }) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
+                  data-testid="login-email"
                 />
               </div>
               <div className="space-y-2">
@@ -240,9 +253,10 @@ function AuthPage({ onLogin }) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
+                  data-testid="login-password"
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading} data-testid="login-submit">
                 {loading ? (
                   <div className="flex items-center gap-2">
                     <div className="h-5 w-5 shrink-0 animate-spin">
@@ -1737,11 +1751,55 @@ function DiscoverPage({ token, circles, onCreateTrip, onNavigateToTrip }) {
 // Main Dashboard Component
 function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, returnTo, initialView }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [circles, setCircles] = useState([])
   const [selectedCircle, setSelectedCircle] = useState(null)
   const [selectedTrip, setSelectedTrip] = useState(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState(initialView || 'circles') // circles, circle, trip, discover
+  
+  // Hydration guards: prevent duplicate loading of trip/circle from query params
+  // These refs ensure we only hydrate once from URL params, preventing race conditions
+  const tripHydratedRef = useRef(false)
+  const circleHydratedRef = useRef(false)
+  
+  // Browser back/forward navigation: track last handled URL to prevent loops
+  const lastHandledUrlRef = useRef(null)
+  const isHandlingPopRef = useRef(false)
+  
+  // Wrap onLogout to pass router for immediate navigation
+  const handleLogout = () => {
+    // Clear selection state to prevent any stale navigation
+    setSelectedCircle(null)
+    setSelectedTrip(null)
+    // Call logout with router for immediate navigation
+    onLogout(router)
+  }
+  
+  // Dev-only navigation tracing
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[NAV] Dashboard component', { 
+        pathname, 
+        initialTripId, 
+        initialCircleId, 
+        returnTo, 
+        view, 
+        selectedTripId: selectedTrip?.id,
+        selectedCircleId: selectedCircle?.id
+      })
+    }
+  }, [pathname, initialTripId, initialCircleId, returnTo, view, selectedTrip?.id, selectedCircle?.id])
+  
+  // Dev-only guardrail: warn if invalid view is set
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      const validViews = ['circles', 'circle', 'trip', 'discover']
+      if (view && !validViews.includes(view)) {
+        console.warn(`[Navigation Guardrail] Invalid view value: "${view}". Valid views are:`, validViews)
+      }
+    }
+  }, [view])
 
   // Load circles
   const loadCircles = async () => {
@@ -1758,6 +1816,123 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
   useEffect(() => {
     loadCircles()
   }, [])
+  
+  // Initialize lastHandledUrlRef with current URL on mount to prevent initial popstate conflicts
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const currentPath = window.location.pathname
+      const currentSearch = window.location.search || ''
+      lastHandledUrlRef.current = currentPath + currentSearch
+    }
+  }, [])
+  
+  // Browser back/forward button handler: sync UI state with URL changes
+  // This ensures when user clicks browser back/forward, the Dashboard view updates accordingly
+  useEffect(() => {
+    const handlePopState = () => {
+      // Prevent infinite loops: don't handle if we're already handling or if this is from our own navigation
+      if (isHandlingPopRef.current || typeof window === 'undefined') {
+        return
+      }
+      
+      isHandlingPopRef.current = true
+      
+      try {
+        const currentUrl = new URL(window.location.href)
+        const currentPath = currentUrl.pathname
+        const currentSearch = currentUrl.search
+        const tripIdParam = currentUrl.searchParams.get('tripId')
+        const circleIdParam = currentUrl.searchParams.get('circleId')
+        const viewParam = currentUrl.searchParams.get('view')
+        const returnToParam = currentUrl.searchParams.get('returnTo')
+        
+        // Build a normalized URL string for comparison (pathname + search)
+        const normalizedUrl = currentPath + currentSearch
+        
+        // Skip if this is the same URL we just handled (prevents duplicate processing)
+        if (lastHandledUrlRef.current === normalizedUrl) {
+          isHandlingPopRef.current = false
+          return
+        }
+        
+        lastHandledUrlRef.current = normalizedUrl
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[NAV] Dashboard: popstate handler', { 
+            pathname: currentPath,
+            tripId: tripIdParam, 
+            circleId: circleIdParam, 
+            view: viewParam,
+            currentSearch,
+            normalizedUrl
+          })
+        }
+        
+        // If we navigated to a route-based page (/dashboard, /circles/[id]), 
+        // the App component will handle the redirect, so just clear state
+        if (currentPath === '/dashboard' || currentPath.startsWith('/circles/')) {
+          // We're on a route-based page - clear legacy dashboard state
+          setView('circles')
+          setSelectedTrip(null)
+          setSelectedCircle(null)
+          isHandlingPopRef.current = false
+          return
+        }
+        
+        // Handle legacy query-param routes (only when on root path)
+        if (currentPath === '/') {
+          // Handle trip view
+          if (tripIdParam) {
+            // Trip ID exists in URL - ensure trip is loaded and view is set
+            if (!selectedTrip || selectedTrip.id !== tripIdParam) {
+              // Trip changed or not loaded - load it (skip URL update since URL already matches)
+              openTrip(tripIdParam, true) // skipUrlUpdate=true prevents redundant URL navigation
+            } else {
+              // Trip already loaded, just ensure view is correct
+              setView('trip')
+            }
+          } else if (circleIdParam) {
+            // No trip, but circle exists - show circle view
+            if (!selectedCircle || selectedCircle.id !== circleIdParam) {
+              // Circle changed or not loaded - need to load it
+              // Note: openCircle will update URL if needed, but since URL already has circleId,
+              // the URL check in openCircle should prevent redundant navigation
+              openCircle(circleIdParam)
+            } else {
+              // Circle already loaded, just ensure view is correct
+              setView('circle')
+            }
+          } else if (viewParam === 'discover') {
+            // Discover view
+            setView('discover')
+            setSelectedTrip(null)
+            setSelectedCircle(null)
+          } else {
+            // Default to circles view
+            setView('circles')
+            setSelectedTrip(null)
+            setSelectedCircle(null)
+          }
+        }
+      } catch (error) {
+        console.error('[NAV] Dashboard: popstate handler error', error)
+      } finally {
+        // Reset handling flag after a short delay to allow state updates to complete
+        setTimeout(() => {
+          isHandlingPopRef.current = false
+        }, 100)
+      }
+    }
+    
+    // Add popstate listener for browser back/forward buttons
+    window.addEventListener('popstate', handlePopState)
+    
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTrip, selectedCircle]) // Dependencies: selectedTrip and selectedCircle to check if they match URL
 
   // Sync view state with URL params reactively
   useEffect(() => {
@@ -1775,32 +1950,79 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
   }, [initialTripId, initialCircleId, initialView])
 
   // Reactively sync selectedCircle with URL params
+  // STRICT GUARD: Do NOT sync circle if we're on a trip view (prevents bounce)
+  // Multiple guard conditions ensure circle sync never interferes with trip loading
   useEffect(() => {
+    // Dev-only tracing
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[NAV] Dashboard effect: sync selectedCircle', { 
+        initialCircleId, 
+        initialTripId, 
+        selectedCircleId: selectedCircle?.id,
+        view,
+        shouldSkip: !!initialTripId || view === 'trip' || !!selectedTrip 
+      })
+    }
+    
+    // GUARD 1: Trip takes absolute precedence - if tripId exists, NEVER sync circle
+    // This prevents the bounce where circle sync fires after trip loads and overrides the trip view
+    if (initialTripId) {
+      return
+    }
+    
+    // GUARD 2: If view is already 'trip', don't sync circle (defensive check)
+    if (view === 'trip') {
+      return
+    }
+    
+    // GUARD 3: If selectedTrip exists, don't sync circle (trip is active)
+    // This defensive check ensures we never load circle state when trip is already loaded
+    if (selectedTrip) {
+      return
+    }
+    
+    // Only sync circle if all guards pass (we're NOT in a trip context)
     if (initialCircleId) {
-      // Only load if we don't have it or if it changed
-      if (!selectedCircle || selectedCircle.id !== initialCircleId) {
+      // Only load if we haven't hydrated this circle yet, or if it changed
+      if (!circleHydratedRef.current || !selectedCircle || selectedCircle.id !== initialCircleId) {
+        circleHydratedRef.current = true
         openCircle(initialCircleId)
       }
     } else {
-      // Clear circle if circleId is removed from URL
-      if (selectedCircle) {
+      // Clear circle if circleId is removed from URL (only if not in trip context)
+      if (selectedCircle && view !== 'trip' && !selectedTrip) {
         setSelectedCircle(null)
+        circleHydratedRef.current = false
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCircleId])
+  }, [initialCircleId, initialTripId, view, selectedTrip])
 
   // Reactively sync selectedTrip with URL params
+  // Hydration guard prevents duplicate loading when query param changes
   useEffect(() => {
+    // Dev-only tracing
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[NAV] Dashboard effect: sync selectedTrip', { 
+        initialTripId, 
+        selectedTripId: selectedTrip?.id,
+        tripHydrated: tripHydratedRef.current,
+        shouldLoad: initialTripId && (!tripHydratedRef.current || !selectedTrip || selectedTrip.id !== initialTripId)
+      })
+    }
+    
     if (initialTripId) {
-      // Only load if we don't have it or if it changed
-      if (!selectedTrip || selectedTrip.id !== initialTripId) {
+      // Only load if we haven't hydrated this trip yet, or if tripId changed
+      // tripHydratedRef ensures we only call openTrip once per tripId
+      if (!tripHydratedRef.current || !selectedTrip || selectedTrip.id !== initialTripId) {
+        tripHydratedRef.current = true
         openTrip(initialTripId)
       }
     } else {
       // Clear trip if tripId is removed from URL
       if (selectedTrip) {
         setSelectedTrip(null)
+        tripHydratedRef.current = false
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1809,21 +2031,70 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
   // Navigation handlers
   const openCircle = async (circleId) => {
     try {
+      // Dev-only tracing
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[NAV] Dashboard: openCircle called', { circleId, pathname, view, hasSelectedTrip: !!selectedTrip })
+      }
+      
+      // Additional guard: don't open circle if we're currently in trip view
+      // This prevents circle from being loaded when trip takes precedence
+      if (view === 'trip' || selectedTrip) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[NAV] Dashboard: openCircle blocked (in trip view)')
+        }
+        return
+      }
+      
       const data = await api(`/circles/${circleId}`, { method: 'GET' }, token)
       setSelectedCircle(data)
       // Update URL to reflect circle view (remove tripId if present)
-      // Only update URL if it's different to avoid redundant updates
-      const currentUrl = new URL(window.location.href)
-      if (currentUrl.searchParams.get('circleId') !== circleId || currentUrl.searchParams.get('tripId')) {
-        router.push(`/?circleId=${circleId}`)
+      // Guard: Only update URL if we're NOT currently on a trip route
+      // This prevents openCircle from overriding trip view when called from trip sync
+      if (typeof window !== 'undefined') {
+        const currentUrl = new URL(window.location.href)
+        const currentPath = currentUrl.pathname
+        const hasTripId = currentUrl.searchParams.get('tripId')
+        
+        // Don't navigate away from trip view
+        if (currentPath.startsWith('/trips/') || hasTripId) {
+          // We're on a trip - don't override with circle view
+          // Just set the state, don't navigate
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[NAV] Dashboard: openCircle skipped navigation (on trip view)')
+          }
+          return
+        }
+        
+        // Only update URL if it's different to avoid redundant updates
+        // Use replace to avoid history churn (don't add entry to browser history)
+        const newCircleUrl = `/?circleId=${circleId}`
+        const currentSearch = currentUrl.search || ''
+        const expectedSearch = newCircleUrl.replace('/?', '?')
+        if (currentSearch !== expectedSearch) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[NAV] Dashboard: openCircle navigating', { to: newCircleUrl })
+          }
+          // Update lastHandledUrlRef to prevent popstate handler from re-processing this URL
+          // Use normalized format (pathname + search) for consistency
+          lastHandledUrlRef.current = currentPath + expectedSearch
+          router.replace(newCircleUrl)
+        } else {
+          // URL already matches - update lastHandledUrlRef to prevent popstate conflicts
+          lastHandledUrlRef.current = currentPath + (currentSearch || '')
+        }
       }
     } catch (error) {
       toast.error(error.message)
     }
   }
 
-  const openTrip = async (tripId) => {
+  const openTrip = async (tripId, skipUrlUpdate = false) => {
     try {
+      // Dev-only tracing
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[NAV] Dashboard: openTrip called', { tripId, pathname, skipUrlUpdate })
+      }
+      
       const data = await api(`/trips/${tripId}`, { method: 'GET' }, token)
       
       // Compute stage and set initial tab based on stage
@@ -1837,13 +2108,54 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
       data._progressFlags = progressFlags
       
       setSelectedTrip(data)
+      
+      // Skip URL update if flag is set (used by popstate handler to avoid redundant navigation)
+      if (skipUrlUpdate) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[NAV] Dashboard: openTrip skipping URL update (skipUrlUpdate=true)')
+        }
+        return
+      }
+      
       // Update URL to reflect trip view (include circleId if available)
-      // Only update URL if it's different to avoid redundant updates
-      const currentUrl = new URL(window.location.href)
-      const circleIdParam = data.circleId ? `&circleId=${data.circleId}` : ''
-      const newUrl = `/?tripId=${tripId}${circleIdParam}`
-      if (currentUrl.search !== newUrl.replace('/?', '?')) {
-        router.push(newUrl)
+      // Guard: Only update URL if we're on root path with query params (legacy route)
+      // If we're on /trips/[tripId], the route page handles navigation
+      if (typeof window !== 'undefined') {
+        const currentUrl = new URL(window.location.href)
+        const currentPath = currentUrl.pathname
+        
+        // If we're already on /trips/[tripId], don't update URL (route page handles it)
+        if (currentPath.startsWith('/trips/')) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[NAV] Dashboard: openTrip skipped navigation (already on /trips route)')
+          }
+          return
+        }
+        
+        // Only update URL if it's different to avoid redundant updates
+        // Use replace for URL normalization (not user-initiated navigation) to avoid history churn
+        // This prevents back button from navigating through intermediate redirect states
+        // Preserve returnTo if it exists in current URL (from trip card href)
+        const currentReturnTo = currentUrl.searchParams.get('returnTo')
+        const circleIdParam = data.circleId ? `&circleId=${data.circleId}` : ''
+        const returnToParam = currentReturnTo ? `&returnTo=${encodeURIComponent(currentReturnTo)}` : ''
+        const newUrl = `/?tripId=${tripId}${circleIdParam}${returnToParam}`
+        const currentSearch = currentUrl.search || ''
+        const expectedSearch = newUrl.replace('/?', '?')
+        
+        // Only replace if URL actually differs (prevents unnecessary navigation)
+        if (currentSearch !== expectedSearch) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[NAV] Dashboard: openTrip normalizing URL', { to: newUrl, currentSearch, expectedSearch })
+          }
+          // Update lastHandledUrlRef to prevent popstate handler from re-processing this URL
+          // Use normalized format (pathname + search) for consistency
+          lastHandledUrlRef.current = currentPath + expectedSearch
+          router.replace(newUrl)
+        } else {
+          // URL already matches - update lastHandledUrlRef to prevent popstate conflicts
+          lastHandledUrlRef.current = currentPath + (currentSearch || '')
+        }
       }
     } catch (error) {
       toast.error(error.message)
@@ -1854,20 +2166,27 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
     if (view === 'trip') {
       // Use returnTo if provided, otherwise check initialCircleId
       if (returnTo) {
+        // returnTo should already be in the correct format (/circles/[id] or /dashboard)
+        // Update lastHandledUrlRef to prevent popstate conflicts (will be set when navigation completes)
+        lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
         router.push(returnTo)
       } else if (initialCircleId) {
         // If we came from a circle page (initialCircleId exists), go back to that circle
-        // Navigate to dashboard view with circle selected, not the separate circle page
-        router.push(`/?circleId=${initialCircleId}`)
+        // Use /circles/[circleId] format for proper routing
+        lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
+        router.push(`/circles/${initialCircleId}`)
       } else {
         // If no initialCircleId, we came from dashboard, so go back to dashboard
+        lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
         router.push('/dashboard')
       }
     } else if (view === 'circle') {
       // Navigate back to dashboard when on circle view
+      lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
       router.push('/dashboard')
     } else if (view === 'discover') {
       // Navigate back to dashboard when on discover view
+      lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
       router.push('/dashboard')
     }
   }
@@ -1919,7 +2238,7 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
               )}
-              <div className="flex items-center cursor-pointer" onClick={() => router.push('/dashboard')}>
+              <div className="flex items-center cursor-pointer" onClick={() => router.push('/dashboard')} data-testid="logo-home">
                 <TrypzyLogo variant="full" className="h-8 w-auto" />
               </div>
               
@@ -1951,7 +2270,7 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
               >
                 Privacy
               </Link>
-              <Button variant="ghost" size="icon" onClick={onLogout}>
+              <Button variant="ghost" size="icon" onClick={handleLogout} data-testid="logout">
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>
@@ -2001,12 +2320,14 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
           />
         )}
         {view === 'trip' && selectedTrip && (
-          <TripDetailView
-            trip={selectedTrip}
-            token={token}
-            user={user}
-            onRefresh={() => openTrip(selectedTrip.id)}
-          />
+          <div data-testid="trip-page">
+            <TripDetailView
+              trip={selectedTrip}
+              token={token}
+              user={user}
+              onRefresh={() => openTrip(selectedTrip.id)}
+            />
+          </div>
         )}
         {view === 'discover' && (
           <DiscoverPage 
@@ -4361,9 +4682,13 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   }, [trip.circleId])
   
   // Build breadcrumb links
-  const dashboardLink = returnTo || '/dashboard'
+  // If returnTo is a circle page, use it directly; otherwise use dashboard
+  const dashboardLink = returnTo && returnTo.startsWith('/circles/') 
+    ? '/dashboard'  // If coming from circle, dashboard link should be plain dashboard
+    : (returnTo || '/dashboard')
+  // Circle link: use /circles/[circleId] format if we have circleId
   const circleLink = circleId 
-    ? `${dashboardLink}#circle-${circleId}`
+    ? `/circles/${circleId}`
     : dashboardLink
 
   return (
@@ -4381,13 +4706,8 @@ function TripDetailView({ trip, token, user, onRefresh }) {
             <>
               <ChevronRight className="h-4 w-4 text-gray-400" />
               <Link 
-                href={`/?circleId=${trip.circle.id}`}
+                href={circleLink}
                 className="hover:text-gray-900 hover:underline"
-                onClick={(e) => {
-                  // Navigate to circle home, removing tripId from URL
-                  e.preventDefault()
-                  router.push(`/?circleId=${trip.circle.id}`)
-                }}
               >
                 {trip.circle.name}
               </Link>
@@ -4742,6 +5062,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
 // EXCEPTION: If a tripId or circleId query param is present, show the old Dashboard to access TripDetailView or CircleDetailView.
 export default function App() {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const { user, token, loading, login, logout } = useAuth()
   
@@ -4751,12 +5072,47 @@ export default function App() {
   const returnTo = searchParams.get('returnTo')
   const view = searchParams.get('view')
 
-  // Redirect authenticated users to /dashboard UNLESS tripId, circleId, or view=discover is present
+  // Dev-only navigation tracing
   useEffect(() => {
-    if (!loading && user && token && !tripId && !circleId && view !== 'discover') {
-      router.push('/dashboard')
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[NAV] App component', { 
+        pathname, 
+        tripId, 
+        circleId, 
+        returnTo, 
+        view, 
+        hasUser: !!user, 
+        hasToken: !!token,
+        loading 
+      })
     }
-  }, [loading, user, token, router, tripId, circleId, view])
+  }, [pathname, tripId, circleId, returnTo, view, user, token, loading])
+
+  // Auth gate: redirect unauthenticated users to login
+  // This prevents unauthenticated access to protected routes and ensures logout always lands on login
+  useEffect(() => {
+    if (!loading && !user && !token) {
+      // Only redirect if we're not already on login page (prevent loops)
+      const currentPath = pathname || (typeof window !== 'undefined' ? window.location.pathname : '/')
+      if (currentPath !== '/' && !currentPath.startsWith('/login')) {
+        // User is not authenticated and not on login page - redirect to login with clean URL
+        router.replace('/')
+      }
+    }
+  }, [loading, user, token, pathname, router])
+
+  // Redirect authenticated users to /dashboard UNLESS tripId, circleId, or view=discover is present
+  // Only redirect if we're on root path with no query params (not already on a protected route)
+  useEffect(() => {
+    if (!loading && user && token) {
+      const currentPath = pathname || (typeof window !== 'undefined' ? window.location.pathname : '/')
+      // Only redirect to dashboard if we're on root path with no trip/circle/view params
+      if (currentPath === '/' && !tripId && !circleId && view !== 'discover') {
+        // Clear any stale query params before redirecting to dashboard
+        router.replace('/dashboard')
+      }
+    }
+  }, [loading, user, token, router, tripId, circleId, view, pathname])
 
   if (loading) {
     return (

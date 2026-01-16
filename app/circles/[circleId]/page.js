@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, usePathname } from 'next/navigation'
 import { TripCard } from '@/components/dashboard/TripCard'
 import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -42,19 +42,28 @@ const api = async (endpoint, options = {}, token = null) => {
 export default function CircleDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const pathname = usePathname()
   const circleId = params?.circleId
   const [circle, setCircle] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [token, setToken] = useState(null)
   
+  // Dev-only navigation tracing
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[NAV] circle page mounted', { pathname, circleId, hasToken: !!token })
+    }
+  }, [pathname, circleId, token])
+
   useEffect(() => {
     const loadCircle = async () => {
       try {
         const tokenValue = localStorage.getItem('trypzy_token')
         
         if (!tokenValue) {
-          router.push('/')
+          // Auth gate: redirect to login if not authenticated
+          router.replace('/')
           return
         }
         
@@ -65,9 +74,9 @@ export default function CircleDetailPage() {
       } catch (err) {
         console.error('Circle detail error:', err)
         setError(err.message)
-        // If unauthorized, redirect to login
+        // If unauthorized, redirect to login or dashboard
         if (err.message.includes('Unauthorized') || err.message.includes('not a member')) {
-          router.push('/dashboard')
+          router.replace('/dashboard')
         }
       } finally {
         setLoading(false)
@@ -113,12 +122,12 @@ export default function CircleDetailPage() {
   const sortedTrips = sortTrips(circle.trips || [])
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" data-testid="circle-page">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Link href="/dashboard" className="flex items-center">
+            <Link href="/dashboard" className="flex items-center" data-testid="logo-home">
               <TrypzyLogo variant="full" className="h-8 w-auto" />
               <span className="sr-only">Trypzy</span>
             </Link>

@@ -85,7 +85,7 @@ export function TripCard({ trip, circleId = null }) {
   }
   
   return (
-    <Link href={primaryHref || `/trips/${trip.id}`} className="block h-full min-w-0">
+    <Link href={primaryHref || `/trips/${trip.id}`} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`}>
       <Card className="cursor-pointer hover:shadow-lg transition-shadow aspect-square flex flex-col h-full min-w-0">
         <CardContent className="p-4 flex flex-col h-full min-w-0">
           {/* Header with info icon */}

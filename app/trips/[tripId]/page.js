@@ -11,30 +11,51 @@
  */
 
 import { useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, usePathname } from 'next/navigation'
 import { BrandedSpinner } from '@/app/HomeClient'
 
 export default function TripDetailRoute() {
   const params = useParams()
   const router = useRouter()
+  const pathname = usePathname()
   const tripId = params?.tripId
+
+  // Dev-only navigation tracing
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[NAV] trip page mounted', { pathname, tripId })
+    }
+  }, [pathname, tripId])
 
   useEffect(() => {
     if (!tripId) return
 
+    // Auth gate: redirect to login if not authenticated
+    const tokenValue = typeof window !== 'undefined' ? localStorage.getItem('trypzy_token') : null
+    if (!tokenValue) {
+      router.replace('/')
+      return
+    }
+
     // Get query params from URL to preserve returnTo and circleId
+    // Ensure no duplicate params by using URLSearchParams (deduplicates automatically)
     const searchParams = new URLSearchParams(window.location.search)
     const returnTo = searchParams.get('returnTo')
     const circleId = searchParams.get('circleId')
     
-    // Build query string with tripId and preserve other params
+    // Build query string with tripId and preserve other params (no duplicates)
     const queryParams = new URLSearchParams()
     queryParams.set('tripId', tripId)
-    if (returnTo) queryParams.set('returnTo', returnTo)
-    if (circleId) queryParams.set('circleId', circleId)
+    if (returnTo) {
+      queryParams.set('returnTo', returnTo)
+    }
+    if (circleId) {
+      queryParams.set('circleId', circleId)
+    }
 
     // Redirect to / with tripId query param so the old system can handle it
-    // Use replace instead of push so back button returns to previous page (dashboard) instead of /trips/[tripId]
+    // Use replace to avoid history churn: back button goes to previous page (dashboard/circle), not /trips/[tripId]
+    // This prevents intermediate redirect URLs from appearing in browser history
     router.replace(`/?${queryParams.toString()}`)
   }, [tripId, router])
 
