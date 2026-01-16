@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { CreateTripDialog } from './CreateTripDialog'
 import { Plus, Users } from 'lucide-react'
 import Link from 'next/link'
+import { dashboardCircleHref } from '@/lib/navigation/routes'
 
 /**
  * @typedef {Object} TripData
@@ -45,7 +46,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-gray-600" />
               <h2 className="text-xl font-semibold">
-                <Link href={`/?circleId=${circle.id}`} className="hover:underline">
+                <Link href={dashboardCircleHref(circle.id)} className="hover:underline">
                   {circle.name}
                 </Link>
               </h2>

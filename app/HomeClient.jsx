@@ -24,9 +24,9 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { toast } from 'sonner'
 import { 
   Users, Plus, LogOut, MapPin, Calendar as CalendarIcon, 
-  MessageCircle, Check, X, HelpCircle, Vote, Lock, UserPlus,
+  MessageCircle, Check, X, HelpCircle, Vote, Lock, UserPlus, Trash2, AlertTriangle,
   ChevronLeft, Send, Compass, ArrowRight, Image as ImageIcon,
-  Camera, Globe, Eye, EyeOff, Trash2, Edit, Search, Flag, Sparkles,
+  Camera, Globe, Eye, EyeOff, Edit, Search, Flag, Sparkles,
   ListTodo, Lightbulb, RefreshCw, ChevronUp, ChevronDown, Clock, Sun, Moon, Sunset, Info,
   Circle, CheckCircle2, Home, Luggage, DollarSign, ChevronRight
 } from 'lucide-react'
@@ -36,6 +36,7 @@ import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags, TripPrimaryStage, TripTabKey } from '@/lib/trips/stage'
 import { TripTabs } from '@/components/trip/TripTabs/TripTabs'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/routes'
 
 // Branded Spinner Component
 export function BrandedSpinner({ className = '', size = 'default' }) {
@@ -2538,7 +2539,11 @@ function CirclesView({ circles, token, onOpenCircle, onRefresh }) {
 
 // Circle Detail View
 function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
-  const [activeTab, setActiveTab] = useState('trips')
+  // MVP: always open Members tab on circle page.
+  // Helper to get initial tab (MVP always returns "members")
+  const getInitialCircleTab = () => 'members'
+  
+  const [activeTab, setActiveTab] = useState(getInitialCircleTab())
   const [showCreateTrip, setShowCreateTrip] = useState(false)
   const [showCreatePost, setShowCreatePost] = useState(false)
   const [tripForm, setTripForm] = useState({
@@ -2578,6 +2583,11 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
       setLoadingPosts(false)
     }
   }
+
+  // MVP: Reset to Members tab whenever circle changes
+  useEffect(() => {
+    setActiveTab(getInitialCircleTab())
+  }, [circle.id])
 
   useEffect(() => {
     if (activeTab === 'chat') { // 'chat' is the tab value, but UI shows "Lounge"
@@ -4257,6 +4267,11 @@ function TripDetailView({ trip, token, user, onRefresh }) {
 
   const [showLockConfirm, setShowLockConfirm] = useState(false)
   const [pendingLockOption, setPendingLockOption] = useState(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showTransferLeadership, setShowTransferLeadership] = useState(false)
+  const [selectedNewLeader, setSelectedNewLeader] = useState('')
+  const [leaving, setLeaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const lockTrip = async (optionKey) => {
     setPendingLockOption(optionKey)
@@ -4292,14 +4307,79 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
-  const leaveTrip = async () => {
+  const deleteTrip = async () => {
+    setDeleting(true)
     try {
-      await api(`/trips/${trip.id}/leave`, { method: 'POST' }, token)
-      toast.success('Left trip')
-      onRefresh()
+      await api(`/trips/${trip.id}`, { method: 'DELETE' }, token)
+      toast.success('Trip deleted')
+      // Redirect to dashboard or circle page
+      if (trip.circleId) {
+        router.push(`/circles/${trip.circleId}`)
+      } else {
+        router.push('/dashboard')
+      }
     } catch (error) {
-      toast.error(error.message)
+      toast.error(error.message || 'Failed to delete trip')
+      setDeleting(false)
     }
+  }
+
+  const handleLeaveTrip = () => {
+    // Check if user is trip leader
+    const isTripLeader = trip.isCreator || trip.viewer?.isTripLeader
+    const memberCount = trip.memberCount || trip.participants?.length || 0
+    
+    // SOLO TRIP: Show delete confirmation instead
+    if (memberCount === 1) {
+      setShowDeleteConfirm(true)
+      return
+    }
+    
+    // MULTI-MEMBER TRIP: Leader must transfer leadership
+    if (isTripLeader) {
+      setShowTransferLeadership(true)
+      return
+    }
+    
+    // Non-leader can leave directly
+    leaveTrip()
+  }
+
+  const leaveTrip = async (transferToUserId = null) => {
+    setLeaving(true)
+    try {
+      const body = transferToUserId ? { transferToUserId } : undefined
+      const response = await api(`/trips/${trip.id}/leave`, { 
+        method: 'POST',
+        body: body ? JSON.stringify(body) : undefined
+      }, token)
+      
+      if (response.leadershipTransferred) {
+        toast.success('Leadership transferred and left trip')
+      } else {
+        toast.success('Left trip')
+      }
+      
+      // Redirect to dashboard or circle page
+      if (trip.circleId) {
+        router.push(`/circles/${trip.circleId}`)
+      } else {
+        router.push('/dashboard')
+      }
+    } catch (error) {
+      toast.error(error.message || 'Failed to leave trip')
+      setLeaving(false)
+    }
+  }
+
+  const confirmLeaveWithTransfer = async () => {
+    if (!selectedNewLeader) {
+      toast.error('Please select a new leader')
+      return
+    }
+    
+    setShowTransferLeadership(false)
+    await leaveTrip(selectedNewLeader)
   }
 
   const sendMessage = async () => {
@@ -4686,9 +4766,9 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const dashboardLink = returnTo && returnTo.startsWith('/circles/') 
     ? '/dashboard'  // If coming from circle, dashboard link should be plain dashboard
     : (returnTo || '/dashboard')
-  // Circle link: use /circles/[circleId] format if we have circleId
+  // Circle link: use dashboard with circleId selected (canonical parent behavior)
   const circleLink = circleId 
-    ? `/circles/${circleId}`
+    ? dashboardCircleHref(circleId)
     : dashboardLink
 
   return (
@@ -4707,6 +4787,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
               <ChevronRight className="h-4 w-4 text-gray-400" />
               <Link 
                 href={circleLink}
+                prefetch={false}
                 className="hover:text-gray-900 hover:underline"
               >
                 {trip.circle.name}
@@ -4871,27 +4952,70 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         </Card>
       )}
 
-      {/* Hosted Trip Actions */}
-      {trip.type === 'hosted' && (
+      {/* Trip Actions (Hosted and Collaborative) */}
+      {(trip.type === 'hosted' || trip.type === 'collaborative') && (
         <Card className="mb-6">
           <CardContent className="py-4">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
-                <h3 className="font-semibold">Participants ({trip.participants?.length || 0})</h3>
+                <h3 className="font-semibold">Participants ({trip.participants?.length || trip.memberCount || 0})</h3>
                 <p className="text-sm text-gray-500">
                   {trip.participants?.map((p) => p.name).join(', ') || 'No participants yet'}
                 </p>
               </div>
-              {trip.isParticipant ? (
-                <Button variant="outline" onClick={leaveTrip}>
-                  Leave Trip
-                </Button>
-              ) : (
-                <Button onClick={joinTrip}>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Join Trip
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {trip.isParticipant ? (
+                  <>
+                    {/* SOLO TRIP: Show Delete only, hide Leave */}
+                    {trip.memberCount === 1 ? (
+                      <Button 
+                        variant="destructive" 
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={deleting}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {deleting ? 'Deleting...' : 'Delete Trip'}
+                      </Button>
+                    ) : (
+                      <>
+                        {/* MULTI-MEMBER TRIP: Show Delete (leader only) and/or Leave */}
+                        {trip.isCreator || trip.viewer?.isTripLeader ? (
+                          <>
+                            <Button 
+                              variant="outline" 
+                              onClick={handleLeaveTrip}
+                              disabled={leaving || deleting}
+                            >
+                              {leaving ? 'Leaving...' : 'Leave Trip'}
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              onClick={() => setShowDeleteConfirm(true)}
+                              disabled={leaving || deleting}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Trip
+                            </Button>
+                          </>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            onClick={handleLeaveTrip}
+                            disabled={leaving}
+                          >
+                            {leaving ? 'Leaving...' : 'Leave Trip'}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </>
+                ) : trip.type === 'hosted' ? (
+                  <Button onClick={joinTrip}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Join Trip
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -5048,6 +5172,86 @@ function TripDetailView({ trip, token, user, onRefresh }) {
             <Button onClick={confirmLockTrip} className="bg-green-600 hover:bg-green-700">
               <Lock className="h-4 w-4 mr-2" />
               Lock Dates
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Trip Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Delete Trip
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete the trip for all members.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete <strong>{trip.name}</strong>? This action cannot be undone.
+            </p>
+            <p className="text-sm text-red-600">
+              All trip data including itineraries, availability, messages, and memories will be permanently deleted.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={deleteTrip} disabled={deleting}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              {deleting ? 'Deleting...' : 'Delete Trip'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Leadership Dialog */}
+      <Dialog open={showTransferLeadership} onOpenChange={setShowTransferLeadership}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign a new trip leader before leaving</DialogTitle>
+            <DialogDescription>
+              You must transfer leadership to another active member before leaving this trip.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="new-leader">Select new leader</Label>
+            <Select value={selectedNewLeader} onValueChange={setSelectedNewLeader}>
+              <SelectTrigger id="new-leader" className="mt-2">
+                <SelectValue placeholder="Choose a member..." />
+              </SelectTrigger>
+              <SelectContent>
+                {trip.participantsWithStatus
+                  ?.filter(p => p.user?.id !== user?.id && p.status === 'active')
+                  .map((participant) => (
+                    <SelectItem key={participant.user?.id || participant.userId} value={participant.user?.id || participant.userId}>
+                      {participant.user?.name || 'Unknown'}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            {!selectedNewLeader && (
+              <p className="text-xs text-gray-500 mt-2">
+                Please select a new leader to continue
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowTransferLeadership(false)
+              setSelectedNewLeader('')
+            }} disabled={leaving}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={confirmLeaveWithTransfer} 
+              disabled={!selectedNewLeader || leaving}
+            >
+              {leaving ? 'Leaving...' : 'Transfer & Leave'}
             </Button>
           </DialogFooter>
         </DialogContent>
