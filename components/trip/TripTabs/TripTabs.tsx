@@ -192,7 +192,9 @@ export function TripTabs({
       <TabsContent value="chat">
         <ChatTab
           trip={trip}
+          token={token}
           user={user}
+          onRefresh={onRefresh}
           stage={stage}
           setActiveTab={setActiveTab}
           {...chatProps}

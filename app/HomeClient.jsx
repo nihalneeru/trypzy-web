@@ -3072,7 +3072,7 @@ function TripProgress({ trip, token, user, onRefresh, onSwitchTab }) {
   
   useEffect(() => {
     loadProgress()
-  }, [trip.id])
+  }, [trip.id, trip.status, trip.lockedStartDate])
   
   const loadProgress = async () => {
     try {
