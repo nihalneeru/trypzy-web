@@ -71,7 +71,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch">
               {circle.trips.map((trip) => (
                 <TripCard key={trip.id} trip={trip} circleId={circle.id} />
               ))}
