@@ -5059,74 +5059,8 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         </Card>
       )}
 
-      {/* Trip Actions (Hosted and Collaborative) */}
-      {(trip.type === 'hosted' || trip.type === 'collaborative') && (
-        <Card className="mb-6">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div>
-                <h3 className="font-semibold">Participants ({trip.participants?.length || trip.memberCount || 0})</h3>
-                <p className="text-sm text-gray-500">
-                  {trip.participants?.map((p) => p.name).join(', ') || 'No participants yet'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {trip.isParticipant ? (
-                  <>
-                    {/* SOLO TRIP: Show Delete only, hide Leave */}
-                    {trip.memberCount === 1 ? (
-                      <Button 
-                        variant="destructive" 
-                        onClick={() => setShowDeleteConfirm(true)}
-                        disabled={deleting}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        {deleting ? 'Deleting...' : 'Delete Trip'}
-                      </Button>
-                    ) : (
-                      <>
-                        {/* MULTI-MEMBER TRIP: Show Delete (leader only) and/or Leave */}
-                        {trip.isCreator || trip.viewer?.isTripLeader ? (
-                          <>
-                            <Button 
-                              variant="outline" 
-                              onClick={handleLeaveTrip}
-                              disabled={leaving || deleting}
-                            >
-                              {leaving ? 'Leaving...' : 'Leave Trip'}
-                            </Button>
-                            <Button 
-                              variant="destructive" 
-                              onClick={() => setShowDeleteConfirm(true)}
-                              disabled={leaving || deleting}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Trip
-                            </Button>
-                          </>
-                        ) : (
-                          <Button 
-                            variant="outline" 
-                            onClick={handleLeaveTrip}
-                            disabled={leaving}
-                          >
-                            {leaving ? 'Leaving...' : 'Leave Trip'}
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </>
-                ) : trip.type === 'hosted' ? (
-                  <Button onClick={joinTrip}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Join Trip
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Trip Actions (Hosted and Collaborative) - Participant panel removed per requirements */}
+      {/* Trip management actions moved to header area if needed */}
 
       {/* Main Content with Progress Panel */}
       <div className="flex flex-col lg:flex-row gap-6">

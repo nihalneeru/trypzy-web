@@ -5,6 +5,7 @@ import { GlobalNotifications } from '@/components/dashboard/GlobalNotifications'
 import { CircleSection } from '@/components/dashboard/CircleSection'
 import { CreateCircleDialog } from '@/components/dashboard/CreateCircleDialog'
 import { JoinCircleDialog } from '@/components/dashboard/JoinCircleDialog'
+import { CircleOnboardingInterstitial } from '@/components/dashboard/CircleOnboardingInterstitial'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Users, UserPlus, LogOut, Sparkles } from 'lucide-react'
@@ -53,6 +54,7 @@ export default function DashboardPage() {
   // Dialog states
   const [showCreateCircle, setShowCreateCircle] = useState(false)
   const [showJoinCircle, setShowJoinCircle] = useState(false)
+  const [newCircle, setNewCircle] = useState(null) // For onboarding interstitial
 
   // Dev-only navigation tracing
   useEffect(() => {
@@ -107,8 +109,16 @@ export default function DashboardPage() {
     }
   }
 
-  const handleCreateCircleSuccess = () => {
+  const handleCreateCircleSuccess = (circleData) => {
+    // Show onboarding interstitial instead of immediately reloading
+    setNewCircle(circleData)
     reloadDashboard()
+  }
+
+  const handleOnboardingSkip = () => {
+    setNewCircle(null)
+    // Optionally navigate to circle page if needed
+    // For now, user stays on dashboard
   }
 
   const handleJoinCircleSuccess = () => {
@@ -270,6 +280,15 @@ export default function DashboardPage() {
             onOpenChange={setShowJoinCircle}
             onSuccess={handleJoinCircleSuccess}
             token={token}
+          />
+          <CircleOnboardingInterstitial
+            open={!!newCircle}
+            onOpenChange={(open) => {
+              if (!open) setNewCircle(null)
+            }}
+            circle={newCircle}
+            token={token}
+            onSkip={handleOnboardingSkip}
           />
         </>
       )}

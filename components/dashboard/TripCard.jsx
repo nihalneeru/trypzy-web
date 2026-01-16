@@ -89,8 +89,8 @@ export function TripCard({ trip, circleId = null }) {
   
   return (
     <Link href={tripUrl} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`}>
-      <Card className="cursor-pointer hover:shadow-lg transition-shadow aspect-square flex flex-col h-full min-w-0">
-        <CardContent className="p-4 flex flex-col h-full min-w-0">
+      <Card className="cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full min-w-0">
+        <CardContent className="p-4 flex flex-col h-full min-w-0 flex-1">
           {/* Header with info icon */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
@@ -129,7 +129,7 @@ export function TripCard({ trip, circleId = null }) {
           
           {/* Latest activity */}
           {trip.latestActivity && (
-            <div className="flex items-start gap-1 text-xs text-gray-500 mb-3 flex-1">
+            <div className="flex items-start gap-1 text-xs text-gray-500 mb-3 min-w-0">
               <Clock className="h-3 w-3 mt-0.5 flex-shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-2">{trip.latestActivity.text}</p>
@@ -142,8 +142,11 @@ export function TripCard({ trip, circleId = null }) {
             </div>
           )}
           
+          {/* Spacer to push CTA to bottom */}
+          <div className="flex-1" />
+          
           {/* Primary CTA - Use span styled as button since card is already a Link */}
-          <div className="mt-auto pt-2">
+          <div className="pt-2">
             <div 
               className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors w-full h-8 px-3 ${
                 pendingActions.length > 0

@@ -6,6 +6,7 @@
  */
 
 import { deriveTripPrimaryStage, TripPrimaryStage, TripTabKey } from './stage.js'
+import { computeTripProgressSnapshot } from './progressSnapshot'
 
 /**
  * NextAction represents a suggested action for the user based on trip state
@@ -28,15 +29,79 @@ export type NextAction = {
  * @param {Object} params
  * @param {Object} params.trip - Trip object
  * @param {Object} params.user - User object
+ * @param {Object} [params.options] - Additional context
+ * @param {Array} [params.options.joinRequests] - Pending join requests (for leaders)
+ * @param {Object} [params.options.pickProgress] - Pick progress data (respondedCount, totalCount)
  * @returns {NextAction|null} Next action or null if no action needed
  */
-export function getNextAction({ trip, user }: { trip: any; user: any }): NextAction | null {
+export function getNextAction({ 
+  trip, 
+  user,
+  options = {}
+}: { 
+  trip: any
+  user: any
+  options?: {
+    joinRequests?: Array<any>
+    pickProgress?: { respondedCount: number; totalCount: number }
+  }
+}): NextAction | null {
   if (!trip || !user) {
     return null
   }
 
-  // Derive the trip stage
-  const stage = deriveTripPrimaryStage(trip)
+  // Compute progress snapshot for unified state
+  const snapshot = computeTripProgressSnapshot(trip, user, options)
+
+  // Handle availability/scheduling state first
+  if (trip.type === 'collaborative' && !snapshot.datesLocked) {
+    // Check if user is invited (should show invite CTA, not availability CTA)
+    const userParticipantStatus = trip.viewer?.participantStatus
+    if (userParticipantStatus === 'invited') {
+      // User is invited - no action needed here (handled by ChatTab invite CTA)
+      // Return null so ChatTab can show its own invite card
+      return null
+    }
+    
+    if (!snapshot.everyoneResponded) {
+      // Still waiting for responses - show availability CTA only while pending
+      // everyoneResponded now accounts for INVITED participants (no INVITED remaining)
+      return {
+        id: 'availability-pending',
+        title: 'Discuss dates',
+        description: 'Share your availability and coordinate dates',
+        ctaLabel: 'Go to Planning',
+        kind: 'deeplink',
+        deeplinkTab: TripTabKey.PLANNING,
+        priority: 1
+      }
+    } else if (snapshot.leaderNeedsToLock) {
+      // Everyone responded (no INVITED remaining) AND all active participants have responded
+      // Leader needs to lock
+      return {
+        id: 'lock-dates',
+        title: 'Lock dates',
+        description: 'Everyone has responded. Lock the trip dates.',
+        ctaLabel: 'Lock Dates',
+        kind: 'inline',
+        priority: 1
+      }
+    } else if (!snapshot.isTripLeader) {
+      // Non-leader waiting for lock
+      return {
+        id: 'waiting-for-lock',
+        title: 'Waiting for leader',
+        description: 'Waiting for trip leader to lock dates',
+        ctaLabel: 'View Planning',
+        kind: 'deeplink',
+        deeplinkTab: TripTabKey.PLANNING,
+        priority: 2
+      }
+    }
+  }
+
+  // Derive the trip stage from snapshot
+  const stage = snapshot.stage
 
   // Map stage to next action based on existing primary tab logic
   // This matches the behavior of getPrimaryTabForStage
