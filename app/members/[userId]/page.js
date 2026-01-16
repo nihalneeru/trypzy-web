@@ -19,6 +19,7 @@ import { Users, Calendar, MapPin, ArrowLeft, Shield, UserPlus } from 'lucide-rea
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
+import { dashboardCircleHref } from '@/lib/navigation/routes'
 
 const api = async (endpoint, options = {}, token) => {
   const response = await fetch(`/api${endpoint}`, {
@@ -122,6 +123,7 @@ export default function MemberProfilePage() {
       setTrips(data.trips || [])
       
       // Load join request statuses for each trip
+      // Also check if viewer is already a traveler (by attempting to detect participant status)
       const statuses = {}
       await Promise.all(
         data.trips.map(async (trip) => {
@@ -129,8 +131,13 @@ export default function MemberProfilePage() {
             const statusData = await api(`/trips/${trip.id}/join-requests/me`, { method: 'GET' }, token)
             statuses[trip.id] = statusData.status
           } catch (err) {
-            // If error, assume no request
-            statuses[trip.id] = 'none'
+            // If error, check if it's because user is already a participant
+            if (err.message && err.message.includes('already an active participant')) {
+              statuses[trip.id] = 'approved' // User is already on the trip
+            } else {
+              // Otherwise assume no request
+              statuses[trip.id] = 'none'
+            }
           }
         })
       )
@@ -150,6 +157,16 @@ export default function MemberProfilePage() {
     if (e?.target?.closest('.join-button-container')) {
       return
     }
+    
+    // Privacy check: Only allow navigation if viewer is a traveler on this trip
+    const requestStatus = joinRequestStatuses[trip.id] || 'none'
+    const isViewerTraveler = isViewingOwnProfile || requestStatus === 'approved'
+    
+    if (!isViewerTraveler) {
+      // Viewer is not a traveler - don't navigate (privacy protection)
+      return
+    }
+    
     router.push(`/?tripId=${trip.id}&circleId=${trip.circleId}`)
   }
   
@@ -310,11 +327,27 @@ export default function MemberProfilePage() {
                   <div className="flex items-center gap-2 flex-wrap mb-3">
                     <Users className="h-4 w-4 text-gray-500" />
                     <span className="text-sm text-gray-600">Shared circles:</span>
-                    {profile.sharedCircles.map((circle) => (
-                      <Badge key={circle.id} variant="secondary">
-                        {circle.name}
-                      </Badge>
-                    ))}
+                    {profile.sharedCircles.map((circle) => {
+                      // Build returnTo URL: current page path with query params
+                      const currentPath = typeof window !== 'undefined' ? window.location.pathname : `/members/${userId}`
+                      const currentSearch = typeof window !== 'undefined' ? window.location.search : ''
+                      const returnTo = `${currentPath}${currentSearch}`
+                      
+                      return (
+                        <Link
+                          key={circle.id}
+                          href={dashboardCircleHref(circle.id, { returnTo })}
+                          prefetch={false}
+                        >
+                          <Badge 
+                            variant="secondary" 
+                            className="cursor-pointer hover:bg-secondary/80 transition-colors"
+                          >
+                            {circle.name}
+                          </Badge>
+                        </Link>
+                      )
+                    })}
                   </div>
                 )}
                 
@@ -369,11 +402,14 @@ export default function MemberProfilePage() {
                   const showRejected = requestStatus === 'rejected' && !showJoinButton
                   const showOnTrip = isViewingOwnProfile || requestStatus === 'approved'
                   
+                  // Privacy: Only make trip card clickable if viewer is a traveler
+                  const isClickable = showOnTrip
+                  
                   return (
                     <Card 
                       key={trip.id}
-                      className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={(e) => handleTripClick(trip, e)}
+                      className={isClickable ? "cursor-pointer hover:shadow-md transition-shadow" : "cursor-default"}
+                      onClick={isClickable ? (e) => handleTripClick(trip, e) : undefined}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4">
@@ -420,7 +456,7 @@ export default function MemberProfilePage() {
                               <Badge variant="default">On this trip</Badge>
                             )}
                             <Badge variant={trip.status === 'locked' ? 'default' : 'secondary'}>
-                              {trip.status === 'locked' ? 'Locked' : 
+                              {trip.status === 'locked' ? 'Finalized' : 
                                trip.status === 'voting' ? 'Voting' :
                                trip.status === 'scheduling' ? 'Scheduling' :
                                trip.status === 'proposed' ? 'Proposed' : trip.status}

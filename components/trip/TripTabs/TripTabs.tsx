@@ -194,6 +194,7 @@ export function TripTabs({
           trip={trip}
           user={user}
           stage={stage}
+          setActiveTab={setActiveTab}
           {...chatProps}
         />
       </TabsContent>
