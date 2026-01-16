@@ -20,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
  * @param {Object} props
  * @param {boolean} props.open
  * @param {Function} props.onOpenChange
- * @param {Function} props.onSuccess - Callback when circle is created successfully
+ * @param {Function} props.onSuccess - Callback when circle is created successfully (receives circle data)
  * @param {string} props.token - Auth token
  */
 export function CreateCircleDialog({ open, onOpenChange, onSuccess, token }) {
@@ -52,6 +52,7 @@ export function CreateCircleDialog({ open, onOpenChange, onSuccess, token }) {
       setName('')
       setDescription('')
       onOpenChange(false)
+      // Pass circle data to onSuccess callback (for onboarding interstitial)
       if (onSuccess) {
         onSuccess(data)
       }
