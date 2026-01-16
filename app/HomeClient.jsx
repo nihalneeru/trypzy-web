@@ -3781,17 +3781,27 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
 // Trip Detail View
 function TripDetailView({ trip, token, user, onRefresh }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  
   // Compute stage and primary tab if not already computed
   const stage = trip._computedStage || deriveTripPrimaryStage(trip)
   const primaryTab = trip._primaryTab || getPrimaryTabForStage(stage)
   
-  // Initialize activeTab based on stage (default to primary tab for stage)
+  // Initialize activeTab: check URL for tab param, otherwise default to 'chat'
   const [activeTab, setActiveTab] = useState(() => {
-    // If trip has locked dates but user is on planning tab, redirect to itinerary
-    if (trip.status === 'locked' && !trip._initialTab) {
-      return 'itinerary'
+    // Check for explicit tab parameter in URL (preserves deep-links)
+    const urlTab = searchParams.get('tab')
+    if (urlTab) {
+      // Validate tab value
+      const validTabs = ['travelers', 'planning', 'itinerary', 'accommodation', 'prep', 'memories', 'chat']
+      if (validTabs.includes(urlTab)) {
+        return urlTab
+      }
     }
-    return primaryTab
+    
+    // No explicit tab in URL: default to 'chat' (chat-first landing)
+    // Pending actions are now handled via CTAs, not auto-navigation
+    return 'chat'
   })
   
   // Store initial tab to prevent redirect loops
@@ -3800,14 +3810,17 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     return true
   })
   
-  // Soft redirect: if user manually navigates to planning tab after dates are locked, redirect to itinerary
+  // Sync activeTab with URL tab parameter (handles browser back/forward navigation)
   useEffect(() => {
-    if (activeTab === 'planning' && trip.status === 'locked' && trip._initialTab !== 'planning') {
-      // User manually clicked planning tab after dates locked - redirect to itinerary
-      setActiveTab('itinerary')
-      trip._initialTab = 'itinerary'
+    const urlTab = searchParams.get('tab')
+    if (urlTab && urlTab !== activeTab) {
+      const validTabs = ['travelers', 'planning', 'itinerary', 'accommodation', 'prep', 'memories', 'chat']
+      if (validTabs.includes(urlTab)) {
+        setActiveTab(urlTab)
+        trip._initialTab = urlTab
+      }
     }
-  }, [activeTab, trip.status])
+  }, [searchParams, activeTab, trip])
   const [availability, setAvailability] = useState({})
   const [broadAvailability, setBroadAvailability] = useState('') // 'available' | 'maybe' | 'unavailable' | '' for entire range
   const [weeklyAvailability, setWeeklyAvailability] = useState({}) // { [weekKey]: 'available'|'maybe'|'unavailable' }
@@ -5064,6 +5077,20 @@ function TripDetailView({ trip, token, user, onRefresh }) {
               setActiveTab(newTab)
               // Update trip's initial tab flag to prevent auto-redirect after manual navigation
               trip._initialTab = newTab
+              
+              // Update URL to include tab parameter (preserves deep-links)
+              if (typeof window !== 'undefined') {
+                const currentUrl = new URL(window.location.href)
+                const params = new URLSearchParams(currentUrl.search)
+                
+                // Only update tab param if it's different from current
+                if (params.get('tab') !== newTab) {
+                  params.set('tab', newTab)
+                  const newSearch = params.toString()
+                  const newUrl = `${currentUrl.pathname}?${newSearch}`
+                  router.replace(newUrl)
+                }
+              }
             }}
             primaryTab={primaryTab}
             stage={stage}

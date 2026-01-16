@@ -29,6 +29,9 @@ export type NextAction = {
  * @param {Object} params
  * @param {Object} params.trip - Trip object
  * @param {Object} params.user - User object
+ * @param {Object} [params.options] - Additional context
+ * @param {Array} [params.options.joinRequests] - Pending join requests (for leaders)
+ * @param {Object} [params.options.pickProgress] - Pick progress data (respondedCount, totalCount)
  * @returns {NextAction|null} Next action or null if no action needed
  */
 export function getNextAction({ 
@@ -52,8 +55,17 @@ export function getNextAction({
 
   // Handle availability/scheduling state first
   if (trip.type === 'collaborative' && !snapshot.datesLocked) {
+    // Check if user is invited (should show invite CTA, not availability CTA)
+    const userParticipantStatus = trip.viewer?.participantStatus
+    if (userParticipantStatus === 'invited') {
+      // User is invited - no action needed here (handled by ChatTab invite CTA)
+      // Return null so ChatTab can show its own invite card
+      return null
+    }
+    
     if (!snapshot.everyoneResponded) {
       // Still waiting for responses - show availability CTA only while pending
+      // everyoneResponded now accounts for INVITED participants (no INVITED remaining)
       return {
         id: 'availability-pending',
         title: 'Discuss dates',
@@ -64,7 +76,8 @@ export function getNextAction({
         priority: 1
       }
     } else if (snapshot.leaderNeedsToLock) {
-      // Everyone responded, leader needs to lock
+      // Everyone responded (no INVITED remaining) AND all active participants have responded
+      // Leader needs to lock
       return {
         id: 'lock-dates',
         title: 'Lock dates',
@@ -87,7 +100,7 @@ export function getNextAction({
     }
   }
 
-  // Derive the trip stage
+  // Derive the trip stage from snapshot
   const stage = snapshot.stage
 
   // Map stage to next action based on existing primary tab logic
