@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -187,6 +187,95 @@ export function ChatTab({
   const [selectedLockWindow, setSelectedLockWindow] = useState<string | null>(null)
   const [locking, setLocking] = useState(false)
 
+  // Join requests state
+  const [joinRequests, setJoinRequests] = useState<any[]>([])
+  const [loadingJoinRequests, setLoadingJoinRequests] = useState(false)
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null)
+
+  // Check if user is trip leader
+  const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
+
+  // Fetch join requests for trip leader
+  const fetchJoinRequests = useCallback(async () => {
+    if (!trip?.id || !isTripLeader || !token) {
+      setJoinRequests([])
+      return
+    }
+    
+    setLoadingJoinRequests(true)
+    try {
+      const data = await api(`/trips/${trip.id}/join-requests`, { method: 'GET' }, token)
+      setJoinRequests(data || [])
+    } catch (error: any) {
+      // Silently fail if not authorized or no requests
+      if (error.message?.includes('403') || error.message?.includes('404')) {
+        setJoinRequests([])
+      } else {
+        console.error('Failed to fetch join requests:', error)
+      }
+    } finally {
+      setLoadingJoinRequests(false)
+    }
+  }, [trip?.id, isTripLeader, token])
+
+  useEffect(() => {
+    fetchJoinRequests()
+  }, [fetchJoinRequests])
+
+  // Handle approve join request
+  const handleApproveRequest = async (requestId: string) => {
+    if (!requestId || !trip?.id) return
+    
+    setProcessingRequest(requestId)
+    try {
+      await api(`/trips/${trip.id}/join-requests/${requestId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'approve' })
+      }, token)
+      
+      // Refresh join requests list (removes processed request, shows any new ones)
+      await fetchJoinRequests()
+      
+      // Refresh trip data to update progress pane
+      if (onRefresh) {
+        onRefresh()
+      }
+      
+      toast.success('Join request approved')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to approve request')
+    } finally {
+      setProcessingRequest(null)
+    }
+  }
+
+  // Handle deny join request
+  const handleDenyRequest = async (requestId: string) => {
+    if (!requestId || !trip?.id) return
+    
+    setProcessingRequest(requestId)
+    try {
+      await api(`/trips/${trip.id}/join-requests/${requestId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'reject' })
+      }, token)
+      
+      // Refresh join requests list (removes processed request, shows any new ones)
+      await fetchJoinRequests()
+      
+      // Refresh trip data to update progress pane
+      if (onRefresh) {
+        onRefresh()
+      }
+      
+      toast.success('Join request declined')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to decline request')
+    } finally {
+      setProcessingRequest(null)
+    }
+  }
+
   // Get candidate windows for locking
   // For top3_heatmap: use topCandidates
   // For legacy: use promisingWindows or consensusOptions
@@ -293,11 +382,56 @@ export function ChatTab({
           </div>
         </ScrollArea>
         
-        {/* Sticky CTA section above message composer */}
-        {showActionCard && (
+        {/* Sticky section: Join Requests + ActionCard above message composer */}
+        {(isTripLeader && joinRequests.length > 0) || showActionCard ? (
           <div className="sticky bottom-0 bg-white pt-4 border-t z-10">
-            {/* Inline action panel */}
-            {nextAction.kind === 'inline' && (
+            {/* Join Request Cards (Trip Leader only) */}
+            {isTripLeader && joinRequests.length > 0 && (
+              <div className="mb-4 space-y-3">
+                {joinRequests.map((request: any) => (
+                  <div
+                    key={request.id}
+                    className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                          {request.requesterName} requested to join this trip
+                        </h3>
+                        {request.message && (
+                          <p className="text-sm text-gray-700 mt-1">{request.message}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleApproveRequest(request.id)}
+                        disabled={processingRequest === request.id}
+                        size="sm"
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                      >
+                        {processingRequest === request.id ? 'Processing...' : 'Approve'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleDenyRequest(request.id)}
+                        disabled={processingRequest === request.id}
+                        size="sm"
+                        className="flex-1"
+                      >
+                        {processingRequest === request.id ? 'Processing...' : 'Deny'}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* ActionCard */}
+            {showActionCard && (
+              <>
+                {/* Inline action panel */}
+                {nextAction.kind === 'inline' && (
               <Collapsible open={isInlinePanelOpen} onOpenChange={setIsInlinePanelOpen}>
                 <CollapsibleContent className="mb-4">
                   <div className="p-4 bg-white border border-gray-200 rounded-lg">
@@ -454,16 +588,18 @@ export function ChatTab({
               </DialogContent>
             </Dialog>
             
-            {/* ActionCard - sticky above composer */}
-            <div className="mb-4">
-              <ActionCard
-                action={nextAction}
-                onDismiss={handleDismiss}
-                onAction={handleAction}
-              />
-            </div>
+                {/* ActionCard */}
+                <div className="mb-4">
+                  <ActionCard
+                    action={nextAction}
+                    onDismiss={handleDismiss}
+                    onAction={handleAction}
+                  />
+                </div>
+              </>
+            )}
           </div>
-        )}
+        ) : null}
         
         <div className={`flex gap-2 ${showActionCard ? 'pt-0' : 'mt-4 pt-4'} border-t`}>
           <Input
