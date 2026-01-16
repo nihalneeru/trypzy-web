@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { X, ChevronRight } from 'lucide-react'
+import { X } from 'lucide-react'
 
 /**
  * ActionCard displays a contextual CTA card for next actions
@@ -10,13 +10,11 @@ import { X, ChevronRight } from 'lucide-react'
  * @param {Object} props.action - NextAction object from getNextAction
  * @param {Function} props.onDismiss - Callback when card is dismissed
  * @param {Function} props.onAction - Callback when primary button is clicked
- * @param {Function} [props.onSeeDetails] - Optional callback for "See details" link
  */
 export function ActionCard({
   action,
   onDismiss,
-  onAction,
-  onSeeDetails
+  onAction
 }: {
   action: {
     id: string
@@ -28,7 +26,6 @@ export function ActionCard({
   }
   onDismiss: () => void
   onAction: () => void
-  onSeeDetails?: () => void
 }) {
   return (
     <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg flex flex-col gap-3">
@@ -58,16 +55,6 @@ export function ActionCard({
         >
           {action.ctaLabel}
         </Button>
-        {/* "See details" link only shown for inline actions */}
-        {action.kind === 'inline' && onSeeDetails && (
-          <button
-            onClick={onSeeDetails}
-            className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
-          >
-            See details
-            <ChevronRight className="h-3 w-3" />
-          </button>
-        )}
       </div>
     </div>
   )
