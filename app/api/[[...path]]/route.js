@@ -497,6 +497,59 @@ async function handleRoute(request, { params }) {
         joinedAt: new Date().toISOString()
       })
       
+      // Backfill: Add user as traveler to all existing collaborative trips in this circle
+      // This ensures late joiners can see existing trips consistently
+      // For collaborative trips, circle members are travelers, so we explicitly add them
+      const existingTrips = await db.collection('trips')
+        .find({ circleId: circle.id, type: 'collaborative' })
+        .toArray()
+      
+      if (existingTrips.length > 0) {
+        const tripIds = existingTrips.map(t => t.id)
+        const now = new Date().toISOString()
+        
+        // Get existing trip_participants records for this user in these trips
+        const existingParticipants = await db.collection('trip_participants')
+          .find({
+            tripId: { $in: tripIds },
+            userId: auth.user.id
+          })
+          .toArray()
+        
+        const existingByTripId = new Map(existingParticipants.map(p => [p.tripId, p]))
+        
+        // Process each trip: update existing records to 'active' or insert new ones
+        for (const trip of existingTrips) {
+          const existing = existingByTripId.get(trip.id)
+          
+          if (existing) {
+            // User already has a record - update to 'active' if it's not already active
+            // This handles the case where user previously left (status='left') and is rejoining
+            if (existing.status !== 'active') {
+              await db.collection('trip_participants').updateOne(
+                { tripId: trip.id, userId: auth.user.id },
+                { 
+                  $set: { 
+                    status: 'active',
+                    joinedAt: now,
+                    updatedAt: now
+                  }
+                }
+              )
+            }
+          } else {
+            // No existing record - insert new one
+            await db.collection('trip_participants').insertOne({
+              tripId: trip.id,
+              userId: auth.user.id,
+              status: 'active',
+              joinedAt: now,
+              createdAt: now
+            })
+          }
+        }
+      }
+      
       // Add system message for joining circle
       await db.collection('circle_messages').insertOne({
         id: uuidv4(),
@@ -559,19 +612,17 @@ async function handleRoute(request, { params }) {
       }))
       
       // Get trips
+      // NOTE: In self contexts (circle pages, dashboard), we do NOT filter by trip owner's privacy.
+      // "Upcoming Trips Visibility" only affects what others see on member profile pages.
+      // All trips in user's circles are visible here based on membership/access.
       const trips = await db.collection('trips')
         .find({ circleId })
         .toArray()
       
-      // Filter trips based on trip owner's privacy settings
-      // Private trips are excluded unless viewer is the owner
-      const { filterTripsByPrivacy } = await import('@/lib/trips/filterTripsByPrivacy.js')
-      const visibleTrips = await filterTripsByPrivacy(db, trips, auth.user.id)
-      
       // Build trip card data using shared function (same as dashboard)
       const { buildTripCardDataBatch } = await import('@/lib/trips/buildTripCardData.js')
       const tripCardData = await buildTripCardDataBatch(
-        visibleTrips,
+        trips,
         auth.user.id,
         membership.role,
         db
@@ -2641,14 +2692,16 @@ async function handleRoute(request, { params }) {
       }
       
       // Get all trips in this circle
+      // NOTE: In self contexts (circle pages, dashboard), we do NOT filter by trip owner's privacy.
+      // "Upcoming Trips Visibility" only affects what others see on member profile pages.
+      // All trips in user's circles are visible here based on membership/access.
       const trips = await db.collection('trips')
         .find({ circleId })
         .sort({ createdAt: -1 })
         .toArray()
       
-      // Filter trips based on privacy settings
-      const { filterTripsByPrivacy } = await import('@/lib/trips/filterTripsByPrivacy.js')
-      const visibleTrips = await filterTripsByPrivacy(db, trips, auth.user.id)
+      // Use all trips directly (no privacy filtering in self context)
+      const visibleTrips = trips
       
       // Get trip creators/leaders
       const tripCreatorIds = [...new Set(visibleTrips.map(t => t.createdBy).filter(Boolean))]
@@ -3038,10 +3091,10 @@ async function handleRoute(request, { params }) {
         ? await db.collection('trips').find({ id: { $in: tripIds } }).toArray()
         : []
       
-      // Filter trips based on trip owner's privacy settings
-      // Private trips are excluded unless viewer is the owner
-      const { filterTripsByPrivacy } = await import('@/lib/trips/filterTripsByPrivacy.js')
-      const trips = await filterTripsByPrivacy(db, allTrips, auth.user.id)
+      // NOTE: In self contexts (circle pages, dashboard), we do NOT filter by trip owner's privacy.
+      // "Upcoming Trips Visibility" only affects what others see on member profile pages.
+      // All trips in user's circles are visible here based on membership/access.
+      const trips = allTrips
       
       const postsWithDetails = posts.map(post => ({
         id: post.id,
@@ -6885,10 +6938,13 @@ async function handleRoute(request, { params }) {
       }
       
       // Check tripsVisibility privacy
+      // IMPORTANT: For self-views (viewerId === targetId), always allow access
+      // The user's own privacy setting does NOT prevent them from seeing their own trips
       const privacy = getUserPrivacyWithDefaults(target)
       let canViewTrips = false
       
       if (viewerId === targetId) {
+        // Self-view: user always sees their own trips regardless of privacy setting
         canViewTrips = true
       } else if (privacy.tripsVisibility === 'public') {
         canViewTrips = true
@@ -6896,6 +6952,7 @@ async function handleRoute(request, { params }) {
         const sharedCircleIds = await getSharedCircleIds(db, viewerId, targetId)
         canViewTrips = sharedCircleIds.length > 0
       } else if (privacy.tripsVisibility === 'private') {
+        // Target user's privacy is 'private' - only they can see their trips
         canViewTrips = false
       }
       
@@ -6945,13 +7002,8 @@ async function handleRoute(request, { params }) {
         circleMembershipsMap.set(circleId, new Set(memberships.map(m => m.userId)))
       }
       
-      // First, filter trips based on trip owner's privacy settings
-      // Private trips are excluded unless viewer is the owner
-      const { filterTripsByPrivacy } = await import('@/lib/trips/filterTripsByPrivacy.js')
-      const visibleTrips = await filterTripsByPrivacy(db, upcomingTrips, viewerId)
-      
-      // Then filter trips where target user is an active traveler
-      const tripsWithActiveTarget = visibleTrips.filter(trip => {
+      // Filter trips where target user is an active traveler (before privacy filtering)
+      const tripsWithActiveTarget = upcomingTrips.filter(trip => {
         const circleMemberUserIds = circleMembershipsMap.get(trip.circleId) || new Set()
         const tripParticipants = allParticipants.filter(p => p.tripId === trip.id)
         const statusByUserId = new Map()
@@ -6983,9 +7035,21 @@ async function handleRoute(request, { params }) {
         .toArray()
       const circleMap = new Map(circles.map(c => [c.id, c.name]))
       
+      // Apply profile privacy (only for other-user profile views)
+      // In self contexts, no privacy filtering is applied
+      const { applyProfileTripPrivacy } = await import('@/lib/trips/applyProfileTripPrivacy.js')
+      const context = viewerId === targetId ? 'SELF_PROFILE' : 'PROFILE_VIEW'
+      const { filteredTrips, applyDetailsLevel } = await applyProfileTripPrivacy({
+        viewerId,
+        ownerId: targetId,
+        ownerPrivacy: privacy,
+        trips: tripsWithActiveTarget,
+        context
+      })
+      
       // Calculate activeTravelerCount and viewerIsTraveler for each trip
       const tripsWithCounts = await Promise.all(
-        tripsWithActiveTarget.map(async (trip) => {
+        filteredTrips.map(async (trip) => {
           const circleMemberUserIds = circleMembershipsMap.get(trip.circleId) || new Set()
           const tripParticipants = allParticipants.filter(p => p.tripId === trip.id)
           
@@ -7027,17 +7091,25 @@ async function handleRoute(request, { params }) {
             }
           }
           
-          return {
+          // Apply Trip Details Level only in profile views for non-owners
+          // If applyDetailsLevel is true, return limited metadata
+          const tripData = {
             id: trip.id,
             name: trip.name,
             circleId: trip.circleId,
             circleName: circleMap.get(trip.circleId) || 'Unknown Circle',
             status: trip.status || (trip.type === 'hosted' ? 'locked' : 'proposed'),
-            startDate: trip.lockedStartDate || trip.startDate || null,
-            endDate: trip.lockedEndDate || trip.endDate || null,
             activeTravelerCount,
             viewerIsTraveler
           }
+          
+          // Only include dates if full details or viewer is traveler/owner
+          if (!applyDetailsLevel || viewerIsTraveler || trip.createdBy === viewerId) {
+            tripData.startDate = trip.lockedStartDate || trip.startDate || null
+            tripData.endDate = trip.lockedEndDate || trip.endDate || null
+          }
+          
+          return tripData
         })
       )
       
