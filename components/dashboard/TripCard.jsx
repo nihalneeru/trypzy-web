@@ -146,7 +146,15 @@ export function TripCard({ trip, circleId = null }) {
           <div className="flex-1" />
           
           {/* Primary CTA - Use span styled as button since card is already a Link */}
-          <div className="pt-2">
+          <div className="pt-2 space-y-2">
+            {/* "Waiting on you" badge - shown when action required */}
+            {trip.actionRequired && (
+              <div className="flex items-center justify-center">
+                <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-indigo-600 border border-indigo-100">
+                  Waiting on you
+                </span>
+              </div>
+            )}
             <div 
               className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors w-full h-8 px-3 ${
                 pendingActions.length > 0
