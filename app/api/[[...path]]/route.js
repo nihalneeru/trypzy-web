@@ -643,6 +643,7 @@ async function handleRoute(request, { params }) {
         lockedStartDate: type === 'hosted' ? startDate : null,
         lockedEndDate: type === 'hosted' ? endDate : null,
         itineraryStatus: type === 'hosted' ? 'collecting_ideas' : null, // collecting_ideas, drafting, published, revising
+        destinationHint: body.destinationHint?.trim() || null, // Optional destination hint
         createdBy: auth.user.id,
         createdAt: new Date().toISOString()
       }
@@ -792,7 +793,7 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Only trip creator can edit (unless status is locked)
+      // Only trip creator can edit
       if (trip.createdBy !== auth.user.id) {
         return handleCORS(NextResponse.json(
           { error: 'Only the trip creator can edit this trip' },
@@ -800,22 +801,35 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Can't edit locked trips
-      if (trip.status === 'locked') {
-        return handleCORS(NextResponse.json(
-          { error: 'Cannot edit a locked trip' },
-          { status: 400 }
-        ))
-      }
-      
       const body = await request.json()
       const updateFields = {}
       
-      if (body.name !== undefined) updateFields.name = body.name.trim()
-      if (body.description !== undefined) updateFields.description = body.description?.trim() || null
-      if (body.startDate !== undefined) updateFields.startDate = body.startDate
-      if (body.endDate !== undefined) updateFields.endDate = body.endDate
-      if (body.duration !== undefined) updateFields.duration = parseInt(body.duration)
+      // destinationHint can be edited even on locked trips (for clarity and future LLM prompting)
+      const canEditDestinationHint = true
+      const canEditOtherFields = trip.status !== 'locked'
+      
+      if (canEditOtherFields) {
+        // Regular fields can only be edited when trip is not locked
+        if (body.name !== undefined) updateFields.name = body.name.trim()
+        if (body.description !== undefined) updateFields.description = body.description?.trim() || null
+        if (body.startDate !== undefined) updateFields.startDate = body.startDate
+        if (body.endDate !== undefined) updateFields.endDate = body.endDate
+        if (body.duration !== undefined) updateFields.duration = parseInt(body.duration)
+      } else {
+        // If trip is locked, only allow editing destinationHint
+        const onlyDestinationHint = Object.keys(body).every(key => key === 'destinationHint' || key === 'destinationHint' || Object.keys(updateFields).length === 0)
+        if (!onlyDestinationHint && Object.keys(body).some(key => key !== 'destinationHint')) {
+          return handleCORS(NextResponse.json(
+            { error: 'Cannot edit trip details when trip is locked. Only destination hint can be updated.' },
+            { status: 400 }
+          ))
+        }
+      }
+      
+      // destinationHint can always be edited by trip leader
+      if (canEditDestinationHint && body.destinationHint !== undefined) {
+        updateFields.destinationHint = body.destinationHint?.trim() || null
+      }
       
       updateFields.updatedAt = new Date().toISOString()
       
@@ -5776,11 +5790,19 @@ async function handleRoute(request, { params }) {
       
       const tripId = path[1]
       const body = await request.json()
-      const { title, details, category, constraints, location } = body
+      const { text } = body
       
-      if (!title || !title.trim()) {
+      if (!text || !text.trim()) {
         return handleCORS(NextResponse.json(
-          { error: 'Title is required' },
+          { error: 'Idea text is required' },
+          { status: 400 }
+        ))
+      }
+      
+      // Character limit: 120
+      if (text.trim().length > 120) {
+        return handleCORS(NextResponse.json(
+          { error: 'Idea text must be 120 characters or less' },
           { status: 400 }
         ))
       }
@@ -5793,10 +5815,10 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Guard: Must be locked
+      // Guard: Must be locked (dates locked)
       if (trip.status !== 'locked') {
         return handleCORS(NextResponse.json(
-          { error: 'Itinerary ideas can only be added to locked trips' },
+          { error: 'Itinerary ideas can only be added after dates are locked' },
           { status: 400 }
         ))
       }
@@ -5831,18 +5853,25 @@ async function handleRoute(request, { params }) {
       }
       // If no participant record exists for collaborative trips, user is implicitly active (backward compatibility)
       
+      // Enforce max 3 ideas per user per trip
+      const existingIdeas = await db.collection('itinerary_ideas')
+        .find({ tripId, authorUserId: auth.user.id })
+        .toArray()
+      
+      if (existingIdeas.length >= 3) {
+        return handleCORS(NextResponse.json(
+          { error: 'Maximum 3 ideas per user. Delete an existing idea to submit a new one.' },
+          { status: 400 }
+        ))
+      }
+      
       const idea = {
         id: uuidv4(),
         tripId,
-        authorId: auth.user.id,
-        title: title.trim(),
-        details: details?.trim() || null,
-        category: category || 'other',
-        constraints: Array.isArray(constraints) ? constraints : (constraints ? constraints.split(',').map(c => c.trim()).filter(c => c) : []),
-        location: location?.trim() || null,
-        priority: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        authorUserId: auth.user.id,
+        text: text.trim(),
+        likes: [], // Array of userIds who liked this idea
+        createdAt: new Date().toISOString()
       }
       
       await db.collection('itinerary_ideas').insertOne(idea)
@@ -5854,13 +5883,10 @@ async function handleRoute(request, { params }) {
         circleId: trip.circleId,
         actorUserId: auth.user.id,
         subtype: 'itinerary_idea',
-        text: `${auth.user.name} added an itinerary idea: ${idea.title}`,
+        text: `${auth.user.name} added an itinerary idea`,
         metadata: {
           ideaId: idea.id,
-          title: idea.title,
-          category: idea.category,
-          location: idea.location,
-          href: `/trips/${tripId}?tab=itinerary&idea=${idea.id}`
+          href: `/trips/${tripId}?tab=itinerary`
         },
         dedupeKey: `idea:${idea.id}`
       })
@@ -5900,30 +5926,48 @@ async function handleRoute(request, { params }) {
       
       const ideas = await db.collection('itinerary_ideas')
         .find({ tripId })
-        .sort({ priority: -1, createdAt: -1 })
         .toArray()
       
       // Get authors
-      const authorIds = [...new Set(ideas.map(i => i.authorId))]
+      const authorIds = [...new Set(ideas.map(i => i.authorUserId || i.authorId))]
       const authors = await db.collection('users')
         .find({ id: { $in: authorIds } })
         .toArray()
       
       const ideasWithAuthors = ideas.map(idea => {
         const { _id, ...rest } = idea
-        const author = authors.find(a => a.id === idea.authorId)
+        const authorUserId = idea.authorUserId || idea.authorId
+        const author = authors.find(a => a.id === authorUserId)
+        const likes = Array.isArray(idea.likes) ? idea.likes : []
+        const likeCount = likes.length
+        
         return {
-          ...rest,
+          id: idea.id,
+          tripId: idea.tripId,
+          authorUserId,
+          text: idea.text || idea.title || '', // Support both old and new format
+          likes,
+          likeCount,
+          createdAt: idea.createdAt,
           author: author ? { id: author.id, name: author.name } : null,
-          isAuthor: idea.authorId === auth.user.id
+          isAuthor: authorUserId === auth.user.id,
+          userLiked: likes.includes(auth.user.id)
         }
+      })
+      
+      // Sort by like count (desc), then by recency (desc)
+      ideasWithAuthors.sort((a, b) => {
+        if (b.likeCount !== a.likeCount) {
+          return b.likeCount - a.likeCount
+        }
+        return new Date(b.createdAt) - new Date(a.createdAt)
       })
       
       return handleCORS(NextResponse.json(ideasWithAuthors))
     }
     
-    // Upvote itinerary idea - POST /api/trips/:tripId/itinerary/ideas/:ideaId/upvote
-    if (route.match(/^\/trips\/[^/]+\/itinerary\/ideas\/[^/]+\/upvote$/) && method === 'POST') {
+    // Like/unlike itinerary idea - POST /api/trips/:tripId/itinerary/ideas/:ideaId/like
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/ideas\/[^/]+\/like$/) && method === 'POST') {
       const auth = await requireAuth(request)
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
@@ -5961,13 +6005,25 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // MVP: Simple increment (no duplicate checking for MVP)
+      // Get current likes array (support both old and new format)
+      const currentLikes = Array.isArray(idea.likes) ? idea.likes : []
+      const userLiked = currentLikes.includes(auth.user.id)
+      
+      // Toggle like: remove if present, add if absent
+      const updatedLikes = userLiked
+        ? currentLikes.filter(userId => userId !== auth.user.id)
+        : [...currentLikes, auth.user.id]
+      
       await db.collection('itinerary_ideas').updateOne(
         { id: ideaId },
-        { $inc: { priority: 1 } }
+        { $set: { likes: updatedLikes } }
       )
       
-      return handleCORS(NextResponse.json({ message: 'Idea upvoted' }))
+      return handleCORS(NextResponse.json({ 
+        message: userLiked ? 'Idea unliked' : 'Idea liked',
+        likes: updatedLikes,
+        likeCount: updatedLikes.length
+      }))
     }
     
     // List itinerary versions - GET /api/trips/:tripId/itinerary/versions

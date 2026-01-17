@@ -8,8 +8,10 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Lightbulb, ListTodo, MessageCircle, Vote, MapPin, Calendar as CalendarIcon, Lock, Sparkles, RefreshCw } from 'lucide-react'
+import { Lightbulb, ListTodo, MessageCircle, Vote, MapPin, Calendar as CalendarIcon, Lock, Sparkles, RefreshCw, Edit2, Save, X } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
+import { useState } from 'react'
+import { toast } from 'sonner'
 
 // formatDate helper (copied from app/page.js)
 function formatDate(dateStr: string) {
@@ -54,8 +56,47 @@ export function ItineraryTab({
   submitFeedback,
   ideaCategories,
   feedbackTypes,
-  upvoteIdea
+  upvoteIdea,
+  likeIdea,
+  userIdeaCount,
+  onRefresh,
+  api,
+  token
 }: any) {
+  // Destination hint editing state
+  const [editingDestinationHint, setEditingDestinationHint] = useState(false)
+  const [destinationHintValue, setDestinationHintValue] = useState(trip.destinationHint || '')
+  const [savingDestinationHint, setSavingDestinationHint] = useState(false)
+  
+  const handleSaveDestinationHint = async () => {
+    if (!api || !token) {
+      toast.error('Unable to save: API not available')
+      return
+    }
+    
+    setSavingDestinationHint(true)
+    try {
+      await api(`/trips/${trip.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ destinationHint: destinationHintValue })
+      }, token)
+      toast.success('Destination hint updated')
+      setEditingDestinationHint(false)
+      if (onRefresh) {
+        onRefresh()
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update destination hint')
+    } finally {
+      setSavingDestinationHint(false)
+    }
+  }
+  
+  const handleCancelDestinationHint = () => {
+    setDestinationHintValue(trip.destinationHint || '')
+    setEditingDestinationHint(false)
+  }
+  
   if (trip.status !== 'locked') {
     return (
       <Card>
@@ -82,48 +123,99 @@ export function ItineraryTab({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Add Idea Form */}
-            <div className="space-y-2">
-              <Input
-                value={newIdea.title}
-                onChange={(e) => setNewIdea({ ...newIdea, title: e.target.value })}
-                placeholder="Activity title"
-                className="text-sm"
-              />
-              <Textarea
-                value={newIdea.details}
-                onChange={(e) => setNewIdea({ ...newIdea, details: e.target.value })}
-                placeholder="Details (optional)"
-                className="text-sm min-h-[60px]"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <Select value={newIdea.category} onValueChange={(v) => setNewIdea({ ...newIdea, category: v })}>
-                  <SelectTrigger className="text-sm">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ideaCategories.map((cat: any) => (
-                      <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={newIdea.location}
-                  onChange={(e) => setNewIdea({ ...newIdea, location: e.target.value })}
-                  placeholder="Location (optional)"
-                  className="text-sm"
-                />
+            {/* Destination Hint - Display/Edit */}
+            {trip.destinationHint || trip.isCreator ? (
+              <div className="pb-3 border-b">
+                {editingDestinationHint && trip.isCreator ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={destinationHintValue}
+                      onChange={(e) => setDestinationHintValue(e.target.value)}
+                      placeholder="Kenya (Nairobi + Maasai Mara)"
+                      className="text-sm"
+                      disabled={savingDestinationHint}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={handleSaveDestinationHint}
+                        disabled={savingDestinationHint}
+                        className="h-7"
+                      >
+                        <Save className="h-3 w-3 mr-1" />
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleCancelDestinationHint}
+                        disabled={savingDestinationHint}
+                        className="h-7"
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-2">
+                    {trip.destinationHint ? (
+                      <p className="text-sm text-gray-700 flex-1">{trip.destinationHint}</p>
+                    ) : (
+                      <p className="text-sm text-gray-400 italic flex-1">No destination hint set</p>
+                    )}
+                    {trip.isCreator && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setDestinationHintValue(trip.destinationHint || '')
+                          setEditingDestinationHint(true)
+                        }}
+                        className="h-7"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-              <Input
-                value={newIdea.constraints}
-                onChange={(e) => setNewIdea({ ...newIdea, constraints: e.target.value })}
-                placeholder="Constraints (comma separated)"
-                className="text-sm"
-              />
-              <Button onClick={addIdea} disabled={addingIdea || !newIdea.title.trim()} className="w-full" size="sm">
-                {addingIdea ? 'Adding...' : 'Add Idea'}
-              </Button>
-            </div>
+            ) : null}
+            
+            {/* Add Idea Form */}
+            {userIdeaCount === undefined || userIdeaCount < 3 ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={newIdea.text || ''}
+                  onChange={(e) => setNewIdea({ text: e.target.value })}
+                  placeholder="E.g., Visit the local market, Try authentic street food, Go hiking in the mountains..."
+                  className="text-sm min-h-[80px]"
+                  maxLength={120}
+                />
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{(newIdea.text || '').length}/120 characters</span>
+                  {userIdeaCount !== undefined && userIdeaCount < 3 && (
+                    <span>{userIdeaCount}/3 ideas submitted</span>
+                  )}
+                </div>
+                <Button 
+                  onClick={addIdea} 
+                  disabled={addingIdea || !newIdea.text?.trim()} 
+                  className="w-full" 
+                  size="sm"
+                >
+                  {addingIdea ? 'Adding...' : 'Submit Idea'}
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center py-4 px-2 bg-gray-50 rounded-lg border">
+                <p className="text-sm text-gray-600 mb-2">You've submitted 3 ideas</p>
+                <Button onClick={() => {/* Scroll to ideas list */}} variant="outline" size="sm">
+                  View Ideas
+                </Button>
+              </div>
+            )}
             
             {/* Ideas List */}
             <ScrollArea className="h-[400px]">
@@ -136,40 +228,32 @@ export function ItineraryTab({
                   No ideas yet. Add some activities!
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {ideas.map((idea: any) => (
                     <div 
                       key={idea.id} 
-                      className="flex items-start justify-between p-2 bg-gray-50 rounded-lg border"
+                      className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border"
                     >
+                      <Button
+                        size="icon"
+                        variant={idea.userLiked ? "default" : "ghost"}
+                        className="h-8 w-8 flex-shrink-0"
+                        onClick={() => (likeIdea || upvoteIdea)(idea.id)}
+                      >
+                        <Vote className={`h-4 w-4 ${idea.userLiked ? 'text-white' : ''}`} />
+                      </Button>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6 text-xs"
-                            onClick={() => upvoteIdea(idea.id)}
-                          >
-                            <Vote className="h-3 w-3" />
-                          </Button>
-                          <span className="text-xs font-semibold text-[#FA3823]">{idea.priority || 0}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {ideaCategories.find((c: any) => c.value === idea.category)?.label || idea.category}
-                          </Badge>
+                        <p className="text-sm text-gray-900 mb-1">{idea.text || idea.title}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          {idea.author && (
+                            <span>by {idea.author.name}</span>
+                          )}
+                          {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0)) > 0 && (
+                            <span className="text-gray-600">
+                              • {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0))} {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0)) === 1 ? 'like' : 'likes'}
+                            </span>
+                          )}
                         </div>
-                        <p className="font-medium text-sm">{idea.title}</p>
-                        {idea.details && <p className="text-xs text-gray-600 mt-1">{idea.details}</p>}
-                        {idea.location && (
-                          <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {idea.location}
-                          </p>
-                        )}
-                        {idea.constraints && idea.constraints.length > 0 && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Constraints: {idea.constraints.join(', ')}
-                          </p>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -197,19 +281,22 @@ export function ItineraryTab({
                 )}
               </div>
               {trip.isCreator && !latestVersion && (
-                <Button onClick={generateItinerary} disabled={generating || ideas.length === 0} size="sm">
-                  {generating ? (
-                    <>
-                      <BrandedSpinner size="sm" className="mr-2" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Generate
-                    </>
-                  )}
-                </Button>
+                <div className="flex flex-col gap-2">
+                  {/* Leader stats */}
+                  <div className="text-xs text-gray-500">
+                    {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length} {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length === 1 ? 'traveler' : 'travelers'}
+                  </div>
+                  <Button 
+                    onClick={generateItinerary} 
+                    disabled={true} 
+                    size="sm"
+                    title="Generate itinerary (coming soon)"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate Itinerary
+                  </Button>
+                  <p className="text-xs text-gray-500">Waiting for more ideas from travelers</p>
+                </div>
               )}
             </div>
           </CardHeader>
@@ -223,20 +310,17 @@ export function ItineraryTab({
                 <div className="text-center py-12">
                   <ListTodo className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500 mb-4">No itinerary generated yet</p>
-                  {trip.isCreator && ideas.length > 0 && (
-                    <Button onClick={generateItinerary} disabled={generating}>
-                      {generating ? (
-                        <>
-                          <BrandedSpinner size="sm" className="mr-2" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Generate Itinerary
-                        </>
-                      )}
-                    </Button>
+                  {trip.isCreator && (
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-500 mb-2">
+                        {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length} {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length === 1 ? 'traveler' : 'travelers'}
+                      </div>
+                      <Button onClick={generateItinerary} disabled={true} title="Generate itinerary (coming soon)">
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate Itinerary
+                      </Button>
+                      <p className="text-xs text-gray-500">Waiting for more ideas from travelers</p>
+                    </div>
                   )}
                 </div>
               ) : (
