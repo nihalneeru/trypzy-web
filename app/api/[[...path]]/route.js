@@ -6983,7 +6983,7 @@ async function handleRoute(request, { params }) {
         .toArray()
       const circleMap = new Map(circles.map(c => [c.id, c.name]))
       
-      // Calculate activeTravelerCount for each trip
+      // Calculate activeTravelerCount and viewerIsTraveler for each trip
       const tripsWithCounts = await Promise.all(
         tripsWithActiveTarget.map(async (trip) => {
           const circleMemberUserIds = circleMembershipsMap.get(trip.circleId) || new Set()
@@ -7009,6 +7009,24 @@ async function handleRoute(request, { params }) {
             }).length
           }
           
+          // Determine if viewer is a traveler on this trip
+          let viewerIsTraveler = false
+          if (trip.type === 'collaborative') {
+            // Collaborative: viewer is a traveler if they're a circle member and not left/removed
+            if (circleMemberUserIds.has(viewerId)) {
+              const viewerStatus = tripParticipants.find(p => p.userId === viewerId)
+              const status = viewerStatus?.status || 'active'
+              viewerIsTraveler = status === 'active'
+            }
+          } else {
+            // Hosted: viewer is a traveler if they have an active participant record
+            const viewerParticipant = tripParticipants.find(p => p.userId === viewerId)
+            if (viewerParticipant) {
+              const status = viewerParticipant.status || 'active'
+              viewerIsTraveler = status === 'active'
+            }
+          }
+          
           return {
             id: trip.id,
             name: trip.name,
@@ -7017,7 +7035,8 @@ async function handleRoute(request, { params }) {
             status: trip.status || (trip.type === 'hosted' ? 'locked' : 'proposed'),
             startDate: trip.lockedStartDate || trip.startDate || null,
             endDate: trip.lockedEndDate || trip.endDate || null,
-            activeTravelerCount
+            activeTravelerCount,
+            viewerIsTraveler
           }
         })
       )

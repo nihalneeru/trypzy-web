@@ -122,24 +122,20 @@ export default function MemberProfilePage() {
       const data = await api(`/users/${userId}/upcoming-trips`, { method: 'GET' }, token)
       setTrips(data.trips || [])
       
-      // Load join request statuses for each trip
-      // Also check if viewer is already a traveler (by attempting to detect participant status)
+      // Load join request statuses for each trip (only for trips where viewer is NOT already a traveler)
       const statuses = {}
       await Promise.all(
-        data.trips.map(async (trip) => {
-          try {
-            const statusData = await api(`/trips/${trip.id}/join-requests/me`, { method: 'GET' }, token)
-            statuses[trip.id] = statusData.status
-          } catch (err) {
-            // If error, check if it's because user is already a participant
-            if (err.message && err.message.includes('already an active participant')) {
-              statuses[trip.id] = 'approved' // User is already on the trip
-            } else {
-              // Otherwise assume no request
+        data.trips
+          .filter(trip => !trip.viewerIsTraveler) // Only check status for trips viewer is not on
+          .map(async (trip) => {
+            try {
+              const statusData = await api(`/trips/${trip.id}/join-requests/me`, { method: 'GET' }, token)
+              statuses[trip.id] = statusData.status
+            } catch (err) {
+              // If error, assume no request
               statuses[trip.id] = 'none'
             }
-          }
-        })
+          })
       )
       setJoinRequestStatuses(statuses)
     } catch (error) {
@@ -159,8 +155,8 @@ export default function MemberProfilePage() {
     }
     
     // Privacy check: Only allow navigation if viewer is a traveler on this trip
-    const requestStatus = joinRequestStatuses[trip.id] || 'none'
-    const isViewerTraveler = isViewingOwnProfile || requestStatus === 'approved'
+    const viewerIsTraveler = trip.viewerIsTraveler === true
+    const isViewerTraveler = isViewingOwnProfile || viewerIsTraveler
     
     if (!isViewerTraveler) {
       // Viewer is not a traveler - don't navigate (privacy protection)
@@ -394,13 +390,22 @@ export default function MemberProfilePage() {
             ) : (
               <div className="space-y-3">
                 {trips.map((trip) => {
+                  // Use viewerIsTraveler from trip data (computed server-side)
+                  const viewerIsTraveler = trip.viewerIsTraveler === true
                   const requestStatus = joinRequestStatuses[trip.id] || 'none'
+                  
+                  // Only show "Request to join" if:
+                  // - Not viewing own profile
+                  // - Viewer is NOT already a traveler
+                  // - Privacy allows join requests
+                  // - No pending request exists (or request was rejected)
                   const showJoinButton = !isViewingOwnProfile && 
+                                         !viewerIsTraveler &&
                                          profile?.privacySummary?.allowTripJoinRequests !== false &&
                                          (requestStatus === 'none' || requestStatus === 'rejected')
                   const showPending = requestStatus === 'pending'
                   const showRejected = requestStatus === 'rejected' && !showJoinButton
-                  const showOnTrip = isViewingOwnProfile || requestStatus === 'approved'
+                  const showOnTrip = isViewingOwnProfile || viewerIsTraveler
                   
                   // Privacy: Only make trip card clickable if viewer is a traveler
                   const isClickable = showOnTrip
