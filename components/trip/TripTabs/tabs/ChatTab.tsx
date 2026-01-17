@@ -15,6 +15,7 @@ import { getNextAction } from '@/lib/trips/nextAction'
 import { ActionCard } from '@/components/trip/chat/ActionCard'
 import { toast } from 'sonner'
 import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
+import { getBlockingUsers } from '@/lib/trips/getBlockingUsers'
 
 // API helper (local to this component)
 const api = async (endpoint, options = {}, token = null) => {
@@ -438,6 +439,12 @@ export function ChatTab({
   // Get countdown label if dates are locked
   const countdownLabel = trip ? getTripCountdownLabel(trip, trip.name) : null
   
+  // Get blocking users for "waiting on..." clarity message
+  const blockingInfo = useMemo(() => {
+    if (!trip || !user) return null
+    return getBlockingUsers(trip, user)
+  }, [trip, user])
+  
   return (
     <Card className="h-[500px] flex flex-col">
       <CardHeader>
@@ -452,6 +459,15 @@ export function ChatTab({
       <CardContent className="flex-1 flex flex-col">
         <ScrollArea className="flex-1 pr-4">
           <div className="space-y-4">
+            {/* Waiting on... clarity message (system style, at top) */}
+            {blockingInfo && (
+              <div className="flex justify-center">
+                <div className="bg-blue-50 border border-blue-200 rounded-full px-4 py-2 text-sm text-blue-700">
+                  ⏳ {blockingInfo.message}
+                </div>
+              </div>
+            )}
+            
             {messages.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
             ) : (
