@@ -164,6 +164,9 @@ export default function PrivacySettingsPage() {
               <p className="text-sm text-gray-600">
                 Who can see your upcoming trips?
               </p>
+              <p className="text-xs text-gray-500 italic">
+                This controls what others see on your profile. You will always see your own trips.
+              </p>
               <RadioGroup
                 value={privacy.tripsVisibility}
                 onValueChange={(value) => setPrivacy({ ...privacy, tripsVisibility: value })}
