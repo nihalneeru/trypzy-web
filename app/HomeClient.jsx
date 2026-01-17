@@ -4004,7 +4004,11 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const [addingIdea, setAddingIdea] = useState(false)
   
   // Calculate user's idea count
-  const userIdeaCount = ideas.filter((idea: any) => idea.isAuthor || (idea.authorUserId && idea.authorUserId === user?.id) || (idea.authorId && idea.authorId === user?.id)).length
+  const userIdeaCount = (ideas || []).filter((idea) =>
+    idea?.isAuthor ||
+    idea?.authorUserId === user?.id ||
+    idea?.authorId === user?.id
+  ).length
   const [itineraryVersions, setItineraryVersions] = useState([])
   const [latestVersion, setLatestVersion] = useState(null)
   const [loadingVersions, setLoadingVersions] = useState(false)
