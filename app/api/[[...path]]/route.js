@@ -2595,23 +2595,23 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(messagesWithUsers))
     }
     
-    // Send circle message - POST /api/circles/:id/messages
+    // Send circle message - POST /api/circles/:id/messages (DISABLED - Circle Lounge removed)
     if (route.match(/^\/circles\/[^/]+\/messages$/) && method === 'POST') {
+      return handleCORS(NextResponse.json(
+        { error: 'Circle Lounge chat has been removed. Use Trip Chat instead.' },
+        { status: 410 }
+      ))
+    }
+    
+    // Get circle updates - GET /api/circles/:id/updates
+    // Derived read-only digest from trip activity (trip creation, status changes, joins, votes)
+    if (route.match(/^\/circles\/[^/]+\/updates$/) && method === 'GET') {
       const auth = await requireAuth(request)
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
       
       const circleId = path[1]
-      const body = await request.json()
-      const { content } = body
-      
-      if (!content || !content.trim()) {
-        return handleCORS(NextResponse.json(
-          { error: 'Message content is required' },
-          { status: 400 }
-        ))
-      }
       
       // Check membership
       const membership = await db.collection('memberships').findOne({
@@ -2626,21 +2626,175 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      const message = {
-        id: uuidv4(),
-        circleId,
-        userId: auth.user.id,
-        content: content.trim(),
-        isSystem: false,
-        createdAt: new Date().toISOString()
+      // Get all trips in this circle
+      const trips = await db.collection('trips')
+        .find({ circleId })
+        .sort({ createdAt: -1 })
+        .toArray()
+      
+      // Filter trips based on privacy settings
+      const { filterTripsByPrivacy } = await import('@/lib/trips/filterTripsByPrivacy.js')
+      const visibleTrips = await filterTripsByPrivacy(db, trips, auth.user.id)
+      
+      // Get trip creators/leaders
+      const tripCreatorIds = [...new Set(visibleTrips.map(t => t.createdBy).filter(Boolean))]
+      const creators = tripCreatorIds.length > 0
+        ? await db.collection('users')
+            .find({ id: { $in: tripCreatorIds } })
+            .toArray()
+        : []
+      const creatorMap = new Map(creators.map(u => [u.id, u.name]))
+      
+      // Build updates from trips
+      const updates = []
+      
+      for (const trip of visibleTrips) {
+        const tripName = trip.name
+        const leaderName = creatorMap.get(trip.createdBy) || 'Unknown'
+        
+        // Update: Trip created
+        if (trip.createdAt) {
+          updates.push({
+            id: `trip-created-${trip.id}`,
+            type: 'trip_created',
+            timestamp: trip.createdAt,
+            tripId: trip.id,
+            tripName,
+            actorName: leaderName,
+            message: `${tripName} created by ${leaderName}`
+          })
+        }
+        
+        // Update: Status changes (scheduling -> locked, dates locked)
+        // Check if trip has locked dates (status = 'locked' or has lockedStartDate/lockedEndDate)
+        const datesLocked = trip.status === 'locked' || (trip.lockedStartDate && trip.lockedEndDate)
+        if (datesLocked && trip.updatedAt) {
+          // Only show if updatedAt is more recent than createdAt (status actually changed)
+          if (new Date(trip.updatedAt) > new Date(trip.createdAt || trip.updatedAt)) {
+            updates.push({
+              id: `trip-locked-${trip.id}`,
+              type: 'dates_locked',
+              timestamp: trip.updatedAt,
+              tripId: trip.id,
+              tripName,
+              actorName: null,
+              message: `${tripName} moved to Dates Locked`
+            })
+          }
+        }
+        
+        // Update: Itinerary finalized
+        if (trip.itineraryStatus === 'selected' || trip.itineraryStatus === 'published') {
+          if (trip.updatedAt && new Date(trip.updatedAt) > new Date(trip.createdAt || trip.updatedAt)) {
+            updates.push({
+              id: `trip-itinerary-${trip.id}`,
+              type: 'itinerary_finalized',
+              timestamp: trip.updatedAt,
+              tripId: trip.id,
+              tripName,
+              actorName: null,
+              message: `${tripName} itinerary finalized`
+            })
+          }
+        }
+        
+        // Update: Accommodation chosen (check if all stay requirements have selected accommodations)
+        // For simplicity, we'll derive this from trip.updatedAt when accommodation is done
+        // This is a lightweight check - full derivation would require checking accommodation_options
+        // We'll check this via progress snapshot if available
+        if (trip.status === 'locked') {
+          const itineraryStatus = trip.itineraryStatus
+          if (itineraryStatus === 'selected' || itineraryStatus === 'published') {
+            // Accommodation is chosen when progress.steps.accommodationChosen is true
+            // For now, we'll derive from updatedAt if accommodation exists
+            // This is a simplified check - full implementation would check accommodation_options collection
+          }
+        }
       }
       
-      await db.collection('circle_messages').insertOne(message)
+      // Get participants who joined trips (for collaborative trips, all circle members are participants)
+      const allParticipants = await db.collection('trip_participants')
+        .find({ tripId: { $in: visibleTrips.map(t => t.id) } })
+        .sort({ joinedAt: -1 })
+        .toArray()
       
-      return handleCORS(NextResponse.json({
-        ...message,
-        user: { id: auth.user.id, name: auth.user.name }
-      }))
+      // Get user details for participants
+      const participantUserIds = [...new Set(allParticipants.map(p => p.userId).filter(Boolean))]
+      const participantUsers = participantUserIds.length > 0
+        ? await db.collection('users')
+            .find({ id: { $in: participantUserIds } })
+            .toArray()
+        : []
+      const participantUserMap = new Map(participantUsers.map(u => [u.id, u.name]))
+      
+      // Add join events (only for explicit joins via trip_participants, not circle membership)
+      for (const participant of allParticipants) {
+        if (participant.joinedAt && participant.status === 'active') {
+          const trip = visibleTrips.find(t => t.id === participant.tripId)
+          if (trip) {
+            // Only show if trip is collaborative and this is an explicit join (not just circle membership)
+            // For hosted trips, all participants are explicit joins
+            if (trip.type === 'hosted' || (trip.type === 'collaborative' && participant.joinedAt)) {
+              const userName = participantUserMap.get(participant.userId) || 'Unknown'
+              updates.push({
+                id: `join-${participant.tripId}-${participant.userId}`,
+                type: 'user_joined',
+                timestamp: participant.joinedAt,
+                tripId: participant.tripId,
+                tripName: trip.name,
+                actorName: userName,
+                message: `${userName} joined ${trip.name}`
+              })
+            }
+          }
+        }
+      }
+      
+      // Get votes
+      const votes = await db.collection('votes')
+        .find({ tripId: { $in: visibleTrips.map(t => t.id) } })
+        .sort({ createdAt: -1 })
+        .toArray()
+      
+      // Get user details for voters
+      const voterIds = [...new Set(votes.map(v => v.userId).filter(Boolean))]
+      const voters = voterIds.length > 0
+        ? await db.collection('users')
+            .find({ id: { $in: voterIds } })
+            .toArray()
+        : []
+      const voterMap = new Map(voters.map(u => [u.id, u.name]))
+      
+      // Add vote events (only most recent vote per user per trip)
+      const voteMap = new Map()
+      for (const vote of votes) {
+        const key = `${vote.tripId}-${vote.userId}`
+        if (!voteMap.has(key) || new Date(vote.createdAt) > new Date(voteMap.get(key).createdAt)) {
+          voteMap.set(key, vote)
+        }
+      }
+      
+      for (const vote of voteMap.values()) {
+        const trip = visibleTrips.find(t => t.id === vote.tripId)
+        if (trip && vote.createdAt) {
+          const userName = voterMap.get(vote.userId) || 'Unknown'
+          updates.push({
+            id: `vote-${vote.tripId}-${vote.userId}`,
+            type: 'user_voted',
+            timestamp: vote.createdAt,
+            tripId: vote.tripId,
+            tripName: trip.name,
+            actorName: userName,
+            message: `${userName} voted on dates for ${trip.name}`
+          })
+        }
+      }
+      
+      // Sort updates by timestamp (most recent first)
+      updates.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      
+      // Limit to 50 most recent updates
+      return handleCORS(NextResponse.json(updates.slice(0, 50)))
     }
     
     // Get trip messages - GET /api/trips/:id/messages
