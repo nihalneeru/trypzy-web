@@ -14,6 +14,7 @@ import { MessageCircle, Send, X, Lock } from 'lucide-react'
 import { getNextAction } from '@/lib/trips/nextAction'
 import { ActionCard } from '@/components/trip/chat/ActionCard'
 import { toast } from 'sonner'
+import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 
 // API helper (local to this component)
 const api = async (endpoint, options = {}, token = null) => {
@@ -340,11 +341,19 @@ export function ChatTab({
     }
   }, [nextAction?.id, isDismissed, trip?.id])
   
+  // Get countdown label if dates are locked
+  const countdownLabel = trip ? getTripCountdownLabel(trip, trip.name) : null
+  
   return (
     <Card className="h-[500px] flex flex-col">
       <CardHeader>
         <CardTitle className="text-lg">Trip Chat</CardTitle>
-        <CardDescription>Decisions and updates for this trip. System updates appear here.</CardDescription>
+        <CardDescription>
+          Decisions and updates for this trip. System updates appear here.
+          {countdownLabel && (
+            <span className="ml-2 text-gray-500">• {countdownLabel}</span>
+          )}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">
         <ScrollArea className="flex-1 pr-4">
