@@ -2539,6 +2539,8 @@ function CirclesView({ circles, token, onOpenCircle, onRefresh }) {
 
 // Circle Detail View
 function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
+  const router = useRouter()
+  
   // MVP: always open Members tab on circle page.
   // Helper to get initial tab (MVP always returns "members")
   const getInitialCircleTab = () => 'members'
@@ -2555,19 +2557,21 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     duration: 3
   })
   const [creating, setCreating] = useState(false)
-  const [messages, setMessages] = useState([])
-  const [newMessage, setNewMessage] = useState('')
-  const [sendingMessage, setSendingMessage] = useState(false)
+  const [updates, setUpdates] = useState([])
+  const [loadingUpdates, setLoadingUpdates] = useState(false)
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(false)
 
-  // Load messages
-  const loadMessages = async () => {
+  // Load circle updates (read-only digest from trip activity)
+  const loadUpdates = async () => {
+    setLoadingUpdates(true)
     try {
-      const data = await api(`/circles/${circle.id}/messages`, { method: 'GET' }, token)
-      setMessages(data)
+      const data = await api(`/circles/${circle.id}/updates`, { method: 'GET' }, token)
+      setUpdates(data)
     } catch (error) {
       console.error(error)
+    } finally {
+      setLoadingUpdates(false)
     }
   }
 
@@ -2590,9 +2594,9 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
   }, [circle.id])
 
   useEffect(() => {
-    if (activeTab === 'chat') { // 'chat' is the tab value, but UI shows "Lounge"
-      loadMessages()
-      const interval = setInterval(loadMessages, 5000)
+    if (activeTab === 'chat') { // 'chat' is the tab value, but UI shows "Circle Updates"
+      loadUpdates()
+      const interval = setInterval(loadUpdates, 30000) // Refresh every 30 seconds
       return () => clearInterval(interval)
     }
     if (activeTab === 'memories') {
@@ -2624,24 +2628,6 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     }
   }
 
-  const sendMessage = async () => {
-    if (!newMessage.trim()) return
-    setSendingMessage(true)
-    
-    try {
-      const msg = await api(`/circles/${circle.id}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ content: newMessage })
-      }, token)
-      
-      setMessages([...messages, msg])
-      setNewMessage('')
-    } catch (error) {
-      toast.error(error.message)
-    } finally {
-      setSendingMessage(false)
-    }
-  }
 
   const deletePost = async (postId) => {
     if (!confirm('Delete this memory?')) return
@@ -2750,7 +2736,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           </TabsTrigger>
           <TabsTrigger value="chat">
             <MessageCircle className="h-4 w-4 mr-2" />
-            Lounge
+            Circle Updates
           </TabsTrigger>
         </TabsList>
 
@@ -2941,48 +2927,189 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
         </TabsContent>
 
 
-        {/* Lounge Tab (Circle-level chat) */}
+        {/* Circle Updates Tab (Read-only digest from trip activity) */}
         <TabsContent value="chat">
-          <Card className="h-[600px] flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-lg">Circle Lounge</CardTitle>
-              <CardDescription>General discussion for everyone in this circle.</CardDescription>
+          <Card className="flex flex-col">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Circle Updates</CardTitle>
+              <CardDescription className="text-xs">Recent activity across trips in this circle.</CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col">
-              <ScrollArea className="flex-1 pr-4">
-                <div className="space-y-4">
-                  {messages.length === 0 ? (
-                    <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
-                  ) : (
-                    messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
-                        {msg.isSystem ? (
-                          <div className="bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600">
-                            {msg.content}
+            <CardContent className="flex flex-col px-4 pb-4">
+              <div className="max-h-[60vh] md:max-h-[450px] overflow-y-auto pr-2">
+                {loadingUpdates ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-sm text-gray-500">Loading updates...</div>
+                  </div>
+                ) : updates.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-sm text-gray-500">No updates yet — propose a trip to get things going.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(() => {
+                      // Helper: Render a single update item
+                      const renderUpdateItem = (update) => {
+                        // Get icon and color based on update type
+                        const getUpdateIcon = (type) => {
+                          switch (type) {
+                            case 'trip_created':
+                              return <Plus className="h-3.5 w-3.5" />
+                            case 'user_joined':
+                              return <UserPlus className="h-3.5 w-3.5" />
+                            case 'user_voted':
+                              return <Vote className="h-3.5 w-3.5" />
+                            case 'dates_locked':
+                              return <Lock className="h-3.5 w-3.5" />
+                            case 'itinerary_finalized':
+                              return <CheckCircle2 className="h-3.5 w-3.5" />
+                            default:
+                              return <Circle className="h-3.5 w-3.5" />
+                          }
+                        }
+                        
+                        const isStageTransition = update.type === 'dates_locked' || update.type === 'itinerary_finalized'
+                        const iconColor = isStageTransition ? 'text-indigo-600' : 'text-gray-400'
+                        
+                        // Format timestamp to human-readable format
+                        const formatTimestamp = (timestamp) => {
+                          if (!timestamp) return ''
+                          const date = new Date(timestamp)
+                          const now = new Date()
+                          const diffMs = now - date
+                          const diffMins = Math.floor(diffMs / 60000)
+                          const diffHours = Math.floor(diffMs / 3600000)
+                          const diffDays = Math.floor(diffMs / 86400000)
+                          
+                          if (diffMins < 1) return 'Just now'
+                          if (diffMins < 60) return `${diffMins}m ago`
+                          if (diffHours < 24) return `${diffHours}h ago`
+                          if (diffDays === 1) return 'Yesterday'
+                          if (diffDays < 7) return `${diffDays}d ago`
+                          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                        }
+                        
+                        // Format action text from update data
+                        const getActionText = () => {
+                          if (update.actorName) {
+                            switch (update.type) {
+                              case 'trip_created':
+                                return `${update.actorName} created`
+                              case 'user_joined':
+                                return `${update.actorName} joined`
+                              case 'user_voted':
+                                return `${update.actorName} voted on dates`
+                              default:
+                                return update.message
+                            }
+                          } else {
+                            switch (update.type) {
+                              case 'dates_locked':
+                                return 'Dates locked'
+                              case 'itinerary_finalized':
+                                return 'Itinerary finalized'
+                              default:
+                                return update.message
+                            }
+                          }
+                        }
+                        
+                        return (
+                          <div
+                            key={update.id}
+                            onClick={() => {
+                              // Navigate to trip chat
+                              router.push(`${tripHref(update.tripId)}?tab=chat`)
+                            }}
+                            className="p-3 rounded-md border border-gray-200 hover:bg-gray-50 hover:border-gray-300 cursor-pointer transition-all"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`mt-0.5 flex-shrink-0 ${iconColor}`}>
+                                {getUpdateIcon(update.type)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${isStageTransition ? 'text-indigo-900' : 'text-gray-900'}`}>
+                                  {getActionText()}
+                                </p>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                  {update.tripName}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {formatTimestamp(update.timestamp)}
+                                </p>
+                              </div>
+                              <ChevronRight className="h-4 w-4 text-gray-300 ml-2 flex-shrink-0 mt-0.5" />
+                            </div>
                           </div>
-                        ) : (
-                          <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
-                            {msg.user?.id !== user.id && (
-                              <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
-                            )}
-                            <p>{msg.content}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-              <div className="flex gap-2 mt-4 pt-4 border-t">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                />
-                <Button onClick={sendMessage} disabled={sendingMessage || !newMessage.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
+                        )
+                      }
+                      
+                      // Group updates by day (lightweight implementation)
+                      const groupUpdatesByDay = (updates) => {
+                        const now = new Date()
+                        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+                        const yesterday = new Date(today)
+                        yesterday.setDate(yesterday.getDate() - 1)
+                        
+                        const groups = {
+                          today: [],
+                          yesterday: [],
+                          earlier: []
+                        }
+                        
+                        updates.forEach(update => {
+                          if (!update.timestamp) {
+                            groups.earlier.push(update)
+                            return
+                          }
+                          
+                          const updateDate = new Date(update.timestamp)
+                          const updateDay = new Date(updateDate.getFullYear(), updateDate.getMonth(), updateDate.getDate())
+                          
+                          if (updateDay.getTime() === today.getTime()) {
+                            groups.today.push(update)
+                          } else if (updateDay.getTime() === yesterday.getTime()) {
+                            groups.yesterday.push(update)
+                          } else {
+                            groups.earlier.push(update)
+                          }
+                        })
+                        
+                        return groups
+                      }
+                      
+                      const grouped = groupUpdatesByDay(updates)
+                      
+                      return (
+                        <>
+                          {grouped.today.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 px-1">Today</p>
+                              <div className="space-y-2">
+                                {grouped.today.map((update) => renderUpdateItem(update))}
+                              </div>
+                            </div>
+                          )}
+                          {grouped.yesterday.length > 0 && (
+                            <div className={grouped.today.length > 0 ? 'mt-4' : ''}>
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 px-1">Yesterday</p>
+                              <div className="space-y-2">
+                                {grouped.yesterday.map((update) => renderUpdateItem(update))}
+                              </div>
+                            </div>
+                          )}
+                          {grouped.earlier.length > 0 && (
+                            <div className={(grouped.today.length > 0 || grouped.yesterday.length > 0) ? 'mt-4' : ''}>
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 px-1">Earlier</p>
+                              <div className="space-y-2">
+                                {grouped.earlier.map((update) => renderUpdateItem(update))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
