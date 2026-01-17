@@ -83,10 +83,38 @@ export function TripCard({ trip, circleId = null }) {
   // Deep-links should be explicit via ?tab= query, not inferred from pending actions
   const tripUrl = tripHref(trip.id)
   
-  // Get primary label from pending actions if available, otherwise default
-  const primaryLabel = pendingActions.length > 0 
-    ? pendingActions[0].label 
-    : 'View Trip'
+  // CTA semantics: Use actionRequired as source of truth
+  // If actionRequired = true: show red CTA with action-specific text
+  // If actionRequired = false: show neutral "View trip"
+  const actionRequired = trip.actionRequired === true
+  
+  // Get CTA text based on actionRequired and trip status
+  let primaryLabel = 'View trip'
+  if (actionRequired) {
+    // Find the relevant action from pendingActions that matches the required action
+    // For Dates Picking: "Pick your dates" or "Mark availability"
+    // For Voting: "Vote on dates"
+    const requiredAction = pendingActions.find(action => {
+      if (trip.status === 'proposed' || trip.status === 'scheduling') {
+        return action.type === 'scheduling_required'
+      }
+      if (trip.status === 'voting') {
+        return action.type === 'date_vote' && action.label !== 'Finalize dates'
+      }
+      return false
+    })
+    
+    if (requiredAction) {
+      primaryLabel = requiredAction.label
+    } else {
+      // Fallback: use generic action text based on status
+      if (trip.status === 'proposed' || trip.status === 'scheduling') {
+        primaryLabel = trip.schedulingMode === 'top3_heatmap' ? 'Pick your dates' : 'Mark availability'
+      } else if (trip.status === 'voting') {
+        primaryLabel = 'Vote on dates'
+      }
+    }
+  }
   
   // Get countdown label if dates are locked
   const countdownLabel = getTripCountdownLabel(trip, trip.name)
@@ -168,7 +196,7 @@ export function TripCard({ trip, circleId = null }) {
             )}
             <div 
               className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors w-full h-8 px-3 ${
-                pendingActions.length > 0
+                actionRequired
                   ? 'bg-primary text-primary-foreground shadow hover:bg-primary/90'
                   : 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground'
               }`}
