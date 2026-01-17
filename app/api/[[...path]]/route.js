@@ -2852,7 +2852,78 @@ async function handleRoute(request, { params }) {
         user: m.user ? { id: m.user.id, name: m.user.name } : null
       }))
       
-      return handleCORS(NextResponse.json(messagesWithUsers))
+      // Derive system messages from trip events (lightweight, read-time derivation)
+      // This complements existing persisted system messages for a complete timeline
+      const derivedSystemMessages = []
+      
+      // Get trip status and relevant data
+      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
+      
+      // Get votes for vote aggregation (only if trip is in voting stage)
+      if (tripStatus === 'voting') {
+        const votes = await db.collection('votes')
+          .find({ tripId })
+          .toArray()
+        
+        if (votes.length > 0) {
+          // Get voter details
+          const voterIds = [...new Set(votes.map(v => v.userId).filter(Boolean))]
+          const voters = voterIds.length > 0
+            ? await db.collection('users')
+                .find({ id: { $in: voterIds } })
+                .toArray()
+            : []
+          const voterMap = new Map(voters.map(u => [u.id, u.name]))
+          
+          // Get active participants count for total
+          let activeParticipantCount = 0
+          if (trip.type === 'collaborative') {
+            const memberships = await db.collection('memberships')
+              .find({ circleId: trip.circleId })
+              .toArray()
+            activeParticipantCount = memberships.length
+          } else {
+            const participants = await db.collection('trip_participants')
+              .find({ tripId })
+              .toArray()
+            activeParticipantCount = participants.filter(p => (p.status || 'active') === 'active').length
+          }
+          
+          const votedCount = votes.length
+          
+          // Only create aggregate vote message if we have votes and not everyone has voted yet
+          // (to avoid spam - final vote message would be redundant with dates locked message)
+          if (votedCount < activeParticipantCount && votedCount > 0) {
+            // Check if vote aggregation message already exists (to avoid duplicates)
+            const existingVoteMessage = messages.find(m => 
+              m.isSystem && 
+              m.subtype === 'votes_aggregate'
+            )
+            
+            if (!existingVoteMessage) {
+              // Create lightweight derived message for vote aggregation
+              // Use most recent vote timestamp as the message timestamp
+              const mostRecentVote = votes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+              derivedSystemMessages.push({
+                id: `derived-votes-${tripId}`,
+                content: `🗳️ ${votedCount}/${activeParticipantCount} voted on dates`,
+                isSystem: true,
+                subtype: 'votes_aggregate',
+                metadata: { votedCount, totalCount: activeParticipantCount },
+                createdAt: mostRecentVote.createdAt,
+                user: null
+              })
+            }
+          }
+        }
+      }
+      
+      // Combine messages and derived system messages, then sort chronologically
+      const allMessages = [...messagesWithUsers, ...derivedSystemMessages].sort((a, b) => 
+        new Date(a.createdAt) - new Date(b.createdAt)
+      )
+      
+      return handleCORS(NextResponse.json(allMessages))
     }
     
     // Send trip message - POST /api/trips/:id/messages
