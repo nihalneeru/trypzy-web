@@ -16,6 +16,7 @@ import { ActionCard } from '@/components/trip/chat/ActionCard'
 import { toast } from 'sonner'
 import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import { getBlockingUsers } from '@/lib/trips/getBlockingUsers'
+import { formatLeadingOption } from '@/lib/trips/getVotingStatus'
 
 // API helper (local to this component)
 const api = async (endpoint, options = {}, token = null) => {
@@ -234,7 +235,7 @@ export function ChatTab({
     }
   }
 
-  // Handle lock dates confirmation
+  // Handle lock dates confirmation (from modal)
   const handleLockDates = async () => {
     if (!selectedLockWindow || !trip) return
     
@@ -266,6 +267,32 @@ export function ChatTab({
       }
       
       logAnalytics('action_completed', nextAction?.id || 'lock-dates')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to lock dates')
+    } finally {
+      setLocking(false)
+    }
+  }
+
+  // Handle direct lock (from "Ready to lock" button)
+  const handleLockDatesDirect = async (optionKey: string) => {
+    if (!trip || !optionKey) return
+    
+    setLocking(true)
+    try {
+      await api(`/trips/${trip.id}/lock`, {
+        method: 'POST',
+        body: JSON.stringify({ optionKey })
+      }, token)
+      
+      toast.success('Trip dates locked! 🎉 Planning can now begin.')
+      
+      // Refresh trip data to update UI
+      if (onRefresh) {
+        onRefresh()
+      }
+      
+      logAnalytics('action_completed', 'lock-dates-direct')
     } catch (error: any) {
       toast.error(error.message || 'Failed to lock dates')
     } finally {
@@ -464,6 +491,43 @@ export function ChatTab({
               <div className="flex justify-center">
                 <div className="bg-blue-50 border border-blue-200 rounded-full px-4 py-2 text-sm text-blue-700">
                   ⏳ {blockingInfo.message}
+                </div>
+              </div>
+            )}
+            
+            {/* Voting status - only during voting stage */}
+            {trip?.votingStatus?.isVotingStage && trip.votingStatus.leadingOption && (
+              <div className="flex justify-center">
+                <div className="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-700 flex items-center gap-3">
+                  <span>{formatLeadingOption(trip.votingStatus)}</span>
+                  <span className="text-xs text-gray-500">
+                    {trip.votingStatus.votedCount}/{trip.votingStatus.totalTravelers} voted
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            {/* Ready to lock message - leaders only */}
+            {trip?.votingStatus?.readyToLock && isTripLeader && tripStatus === 'voting' && (
+              <div className="flex justify-center">
+                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-800 flex items-center gap-3">
+                  <span>
+                    Ready to lock — {trip.votingStatus.isTie ? 'tie (you decide)' : `${trip.votingStatus.leadingOption?.name || 'winner'} is leading`}
+                  </span>
+                  <Button 
+                    size="sm" 
+                    onClick={() => {
+                      // If voting mode, use leading option's optionKey; otherwise show modal
+                      if (trip.votingStatus.leadingOption?.optionKey) {
+                        handleLockDatesDirect(trip.votingStatus.leadingOption.optionKey)
+                      } else {
+                        setShowLockModal(true)
+                      }
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white h-7 text-xs"
+                  >
+                    Lock dates
+                  </Button>
                 </div>
               </div>
             )}

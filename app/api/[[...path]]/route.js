@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { generateItinerary, summarizeFeedback, reviseItinerary } from '@/lib/server/llm.js'
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
+import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'trypzy-secret-key-change-in-production'
@@ -1234,7 +1235,9 @@ async function handleRoute(request, { params }) {
         topCandidates, // Top 5: [{startDateISO, endDateISO, score, loveCount, canCount, mightCount}]
         pickProgress, // { respondedCount, totalCount, respondedUserIds } - only for top3_heatmap
         // Itinerary status (for locked trips)
-        itineraryStatus: trip.itineraryStatus || null
+        itineraryStatus: trip.itineraryStatus || null,
+        // Voting status (for voting stage)
+        votingStatus: getVotingStatus(trip, participantsWithStatus.map(p => ({ id: p.user?.id || p.userId, name: p.user?.name || 'Unknown' })), auth.user.id)
       }))
     }
     
@@ -1949,23 +1952,96 @@ async function handleRoute(request, { params }) {
         }
       )
       
-      // Format dates for display
-      const startDateFormatted = new Date(lockedStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      const endDateFormatted = new Date(lockedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      // Get voting status for celebration message (if in voting stage)
+      let winningOption = null
       
-      // Emit chat event for dates locked milestone
+      if (tripStatus === 'voting') {
+        // Get active travelers for voting status
+        const allParticipants = await db.collection('trip_participants').find({ tripId }).toArray()
+        let effectiveActiveUserIds
+        
+        if (trip.type === 'collaborative') {
+          const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+          const circleMemberUserIds = new Set(circleMemberships.map(m => m.userId))
+          effectiveActiveUserIds = new Set()
+          
+          circleMemberUserIds.forEach(userId => {
+            const participant = allParticipants.find(p => p.userId === userId)
+            const status = participant ? (participant.status || 'active') : 'active'
+            if (status === 'active') {
+              effectiveActiveUserIds.add(userId)
+            }
+          })
+        } else {
+          effectiveActiveUserIds = new Set(allParticipants.filter(p => (p.status || 'active') === 'active').map(p => p.userId))
+        }
+        
+        const travelers = Array.from(effectiveActiveUserIds).map(userId => {
+          const participant = allParticipants.find(p => p.userId === userId)
+          return { id: userId, name: participant?.userName || 'Unknown' }
+        })
+        
+        // Get votes for voting status computation
+        const votes = await db.collection('votes').find({ tripId }).toArray()
+        const tripWithVotes = { ...trip, votes: votes.map(v => ({ userId: v.userId, optionKey: v.optionKey, voterName: v.voterName || v.userName })) }
+        
+        const votingStatus = getVotingStatus(tripWithVotes, travelers, auth.user.id)
+        
+        // Find winning option by matching locked dates or optionKey
+        if (optionKey && votingStatus.options.length > 0) {
+          // If optionKey provided, use it to find matching option
+          winningOption = votingStatus.options.find(opt => opt.optionKey === optionKey)
+        } else if (votingStatus.leadingOption) {
+          // Use leading option (tie-breaking already handled by leader's choice)
+          winningOption = votingStatus.leadingOption
+        }
+      }
+      
+      // Format dates for display
+      const formatDate = (dateStr) => {
+        if (!dateStr) return ''
+        try {
+          return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        } catch {
+          return dateStr
+        }
+      }
+      
+      const startDateFormatted = formatDate(lockedStartDate)
+      const endDateFormatted = formatDate(lockedEndDate)
+      const dateRange = startDateFormatted && endDateFormatted ? `${startDateFormatted}–${endDateFormatted}` : ''
+      
+      // Build celebration message with winning option name
+      const optionName = winningOption?.name || winningOption?.label || ''
+      const celebrationText = `🎉 Dates locked${optionName ? `: ${optionName}` : ''}${dateRange ? ` — ${dateRange}` : ''}`
+      
+      // Emit celebration chat event for dates locked milestone
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
       await emitTripChatEvent({
         tripId,
         circleId: trip.circleId,
         actorUserId: null,
         subtype: 'milestone',
-        text: `🔒 Trip dates locked! ${startDateFormatted} to ${endDateFormatted}. Planning can now begin! 🎉`,
+        text: celebrationText,
         metadata: {
           key: 'dates_locked',
           startDate: lockedStartDate,
-          endDate: lockedEndDate
+          endDate: lockedEndDate,
+          ...(optionName ? { optionName } : {})
         }
+      })
+      
+      // Emit follow-up planning message
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: null,
+        subtype: 'milestone',
+        text: 'Planning mode is now open. Share ideas for the itinerary!',
+        metadata: {
+          key: 'planning_begins'
+        },
+        dedupeKey: `planning_begins_${tripId}`
       })
       
       return handleCORS(NextResponse.json({ message: 'Trip locked', lockedStartDate, lockedEndDate }))
