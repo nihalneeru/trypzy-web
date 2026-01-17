@@ -60,11 +60,108 @@ export function ChatTab({
   stage,
   setActiveTab
 }: any) {
-  // Get next action for this trip
+  // Check if user is trip leader
+  const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
+  
+  // Get trip status with backward compatibility
+  const tripStatus = trip?.status || (trip?.type === 'hosted' ? 'locked' : 'scheduling')
+  
+  // Get user's completion state
+  const userDatePicks = trip?.userDatePicks || []
+  const userVote = trip?.userVote || null
+  const userHasPicked = userDatePicks && userDatePicks.length > 0
+  const userHasVoted = !!userVote
+  
+  // Get actionRequired flag (computed server-side via getUserActionRequired)
+  const actionRequired = trip?.actionRequired === true
+  
+  // Stage-aware, role-aware CTA computation
+  const chatCTA = useMemo(() => {
+    if (!trip || !user || !trip.type) return null
+    
+    // Only show CTAs for collaborative trips in active stages
+    if (trip.type !== 'collaborative') return null
+    
+    // Locked/completed: no action CTA unless explicitly required by business logic
+    if (tripStatus === 'locked' || tripStatus === 'completed') {
+      // No CTA for locked/completed trips (actionRequired should be false per getUserActionRequired)
+      return null
+    }
+    
+    // Scheduling stage: show "Pick your dates" only if user hasn't picked
+    if (tripStatus === 'proposed' || tripStatus === 'scheduling') {
+      if (!userHasPicked) {
+        return {
+          id: 'pick-dates',
+          title: 'Pick your dates',
+          description: 'Share your date preferences to help coordinate the trip',
+          ctaLabel: 'Pick your dates',
+          kind: 'deeplink',
+          deeplinkTab: 'planning',
+          actionRequired
+        }
+      }
+      // User has picked, but check if leader needs to lock
+      if (isTripLeader && trip.pickProgress?.respondedCount >= trip.pickProgress?.totalCount) {
+        return {
+          id: 'lock-dates',
+          title: 'Lock dates',
+          description: 'Everyone has responded. Lock the trip dates.',
+          ctaLabel: 'Lock Dates',
+          kind: 'inline',
+          actionRequired: false // Leader actions are not "action required" for red styling
+        }
+      }
+      // Non-leader waiting for lock
+      if (!isTripLeader && trip.pickProgress?.respondedCount >= trip.pickProgress?.totalCount) {
+        return null // No CTA, show read-only status (handled by description in messages)
+      }
+      // Still waiting for responses
+      return null
+    }
+    
+    // Voting stage: show "Vote on dates" only if user hasn't voted
+    if (tripStatus === 'voting') {
+      if (!userHasVoted) {
+        return {
+          id: 'vote-dates',
+          title: 'Vote on dates',
+          description: 'Choose your preferred date window',
+          ctaLabel: 'Vote on dates',
+          kind: 'deeplink',
+          deeplinkTab: 'planning',
+          actionRequired
+        }
+      }
+      // User has voted - leader can lock, non-leaders see read-only status
+      if (isTripLeader) {
+        return {
+          id: 'lock-dates-voting',
+          title: 'Lock dates',
+          description: 'Lock the trip dates after voting.',
+          ctaLabel: 'Lock Dates',
+          kind: 'inline',
+          actionRequired: false
+        }
+      }
+      return null
+    }
+    
+    return null
+  }, [trip, user, tripStatus, isTripLeader, userHasPicked, userHasVoted, actionRequired])
+  
+  // Use chatCTA if available, otherwise fall back to getNextAction for locked/completed stages
   const nextAction = useMemo(() => {
+    if (chatCTA) return chatCTA
     if (!trip || !user) return null
-    return getNextAction({ trip, user })
-  }, [trip, user])
+    // For locked/completed stages, use getNextAction (for itinerary, accommodation, etc.)
+    if (tripStatus === 'locked' || tripStatus === 'completed') {
+      const action = getNextAction({ trip, user })
+      // Only return if action exists and actionRequired is true (to avoid showing non-critical CTAs)
+      return action?.priority <= 2 ? action : null
+    }
+    return null
+  }, [chatCTA, trip, user, tripStatus])
 
   // Generate dismiss key for localStorage
   const dismissKey = useMemo(() => {
@@ -192,9 +289,6 @@ export function ChatTab({
   const [joinRequests, setJoinRequests] = useState<any[]>([])
   const [loadingJoinRequests, setLoadingJoinRequests] = useState(false)
   const [processingRequest, setProcessingRequest] = useState<string | null>(null)
-
-  // Check if user is trip leader
-  const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
 
   // Fetch join requests for trip leader
   const fetchJoinRequests = useCallback(async () => {
@@ -597,12 +691,13 @@ export function ChatTab({
               </DialogContent>
             </Dialog>
             
-                {/* ActionCard */}
+                {/* ActionCard - Single CTA area */}
                 <div className="mb-4">
                   <ActionCard
                     action={nextAction}
                     onDismiss={handleDismiss}
                     onAction={handleAction}
+                    actionRequired={nextAction?.actionRequired || actionRequired}
                   />
                 </div>
               </>

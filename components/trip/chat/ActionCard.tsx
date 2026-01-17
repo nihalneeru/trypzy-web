@@ -10,11 +10,13 @@ import { X } from 'lucide-react'
  * @param {Object} props.action - NextAction object from getNextAction
  * @param {Function} props.onDismiss - Callback when card is dismissed
  * @param {Function} props.onAction - Callback when primary button is clicked
+ * @param {boolean} props.actionRequired - Whether action is required (for red styling)
  */
 export function ActionCard({
   action,
   onDismiss,
-  onAction
+  onAction,
+  actionRequired = false
 }: {
   action: {
     id: string
@@ -23,9 +25,11 @@ export function ActionCard({
     ctaLabel: string
     kind: 'deeplink' | 'inline'
     deeplinkTab?: string
+    actionRequired?: boolean
   }
   onDismiss: () => void
   onAction: () => void
+  actionRequired?: boolean
 }) {
   return (
     <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg flex flex-col gap-3">
@@ -51,7 +55,7 @@ export function ActionCard({
         <Button
           onClick={onAction}
           size="sm"
-          className="flex-shrink-0"
+          className={`flex-shrink-0 ${actionRequired ? 'bg-red-600 hover:bg-red-700' : ''}`}
         >
           {action.ctaLabel}
         </Button>

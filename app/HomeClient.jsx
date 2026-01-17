@@ -4217,13 +4217,23 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   // Load itinerary ideas
   const loadIdeas = async () => {
     if (trip.status !== 'locked') return
+    // Skip loading if user has left the trip (may have stale/invalid data)
+    if (trip.viewer?.participantStatus === 'left') {
+      setIdeas([])
+      return
+    }
     setLoadingIdeas(true)
     try {
       const data = await api(`/trips/${trip.id}/itinerary/ideas`, { method: 'GET' }, token)
-      setIdeas(data)
+      // Ensure data is an array and filter out any invalid entries
+      setIdeas(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error(error)
-      toast.error(error.message || 'Failed to load ideas')
+      // Don't show error toast if user has left (expected 403/404)
+      if (trip.viewer?.participantStatus !== 'left') {
+        toast.error(error.message || 'Failed to load ideas')
+      }
+      setIdeas([])
     } finally {
       setLoadingIdeas(false)
     }
@@ -4960,10 +4970,29 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   }
 
   // Get unique ideas with counts
+  // Helper: Normalize idea title for deduplication (safely handle missing/invalid titles)
+  const normalizeIdeaTitle = (idea) => {
+    if (!idea) return null
+    const title = idea.title
+    if (!title || typeof title !== 'string') return null
+    return title.trim().toLowerCase()
+  }
+
   const getUniqueIdeas = () => {
+    // Early guard: skip processing if user has left the trip
+    if (trip.viewer?.participantStatus === 'left') {
+      return []
+    }
+    
+    // Ensure ideas is an array before iterating (handle object/undefined/malformed responses)
+    const ideaList = Array.isArray(ideas) ? ideas : []
+    
     const ideaMap = new Map()
-    ideas.forEach(idea => {
-      const key = idea.title.toLowerCase()
+    // Filter out invalid ideas and only process those with valid titles
+    ideaList.forEach(idea => {
+      const key = normalizeIdeaTitle(idea)
+      if (!key) return // Skip ideas with missing/invalid titles
+      
       if (!ideaMap.has(key)) {
         ideaMap.set(key, { ...idea, count: 1 })
       } else {
