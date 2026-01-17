@@ -3997,11 +3997,14 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [showCreatePost, setShowCreatePost] = useState(false)
   
-  // Itinerary state (new version-based flow)
+  // Itinerary state (simplified model: text only)
   const [ideas, setIdeas] = useState([])
   const [loadingIdeas, setLoadingIdeas] = useState(false)
-  const [newIdea, setNewIdea] = useState({ title: '', details: '', category: 'other', constraints: '', location: '' })
+  const [newIdea, setNewIdea] = useState({ text: '' })
   const [addingIdea, setAddingIdea] = useState(false)
+  
+  // Calculate user's idea count
+  const userIdeaCount = ideas.filter((idea: any) => idea.isAuthor || (idea.authorUserId && idea.authorUserId === user?.id) || (idea.authorId && idea.authorId === user?.id)).length
   const [itineraryVersions, setItineraryVersions] = useState([])
   const [latestVersion, setLatestVersion] = useState(null)
   const [loadingVersions, setLoadingVersions] = useState(false)
@@ -4662,25 +4665,28 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
-  // Itinerary functions (new version-based flow)
+  // Itinerary functions (simplified model: text only)
   const addIdea = async () => {
-    if (!newIdea.title.trim()) return
+    if (!newIdea.text.trim()) return
+    
+    // Character limit: 120
+    if (newIdea.text.trim().length > 120) {
+      toast.error('Idea text must be 120 characters or less')
+      return
+    }
+    
     setAddingIdea(true)
     try {
-      const constraints = newIdea.constraints ? newIdea.constraints.split(',').map(c => c.trim()).filter(c => c) : []
       await api(`/trips/${trip.id}/itinerary/ideas`, {
         method: 'POST',
         body: JSON.stringify({
-          title: newIdea.title,
-          details: newIdea.details || null,
-          category: newIdea.category || 'other',
-          constraints,
-          location: newIdea.location || null
+          text: newIdea.text.trim()
         })
       }, token)
       toast.success('Idea added!')
-      setNewIdea({ title: '', details: '', category: 'other', constraints: '', location: '' })
+      setNewIdea({ text: '' })
       loadIdeas()
+      onRefresh() // Refresh trip data to update "Waiting on you" badge
     } catch (error) {
       toast.error(error.message || 'Failed to add idea')
     } finally {
@@ -4688,14 +4694,23 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
-  const upvoteIdea = async (ideaId) => {
+  const likeIdea = async (ideaId) => {
     try {
-      await api(`/trips/${trip.id}/itinerary/ideas/${ideaId}/upvote`, { method: 'POST' }, token)
+      await api(`/trips/${trip.id}/itinerary/ideas/${ideaId}/like`, { method: 'POST' }, token)
       loadIdeas()
     } catch (error) {
-      toast.error(error.message || 'Failed to upvote')
+      // Fallback to upvote endpoint for backward compatibility
+      try {
+        await api(`/trips/${trip.id}/itinerary/ideas/${ideaId}/upvote`, { method: 'POST' }, token)
+        loadIdeas()
+      } catch (fallbackError) {
+        toast.error(error.message || fallbackError.message || 'Failed to like idea')
+      }
     }
   }
+  
+  // Alias for backward compatibility
+  const upvoteIdea = likeIdea
 
   const generateItinerary = async () => {
     if (!token) {
@@ -5215,6 +5230,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
             token={token}
             user={user}
             onRefresh={onRefresh}
+            api={api}
             activeTab={activeTab}
             setActiveTab={(newTab) => {
               setActiveTab(newTab)
@@ -5309,7 +5325,9 @@ function TripDetailView({ trip, token, user, onRefresh }) {
               submitFeedback,
               ideaCategories,
               feedbackTypes,
-              upvoteIdea
+              upvoteIdea,
+              likeIdea,
+              userIdeaCount
             }}
             memoriesProps={{
               posts,
