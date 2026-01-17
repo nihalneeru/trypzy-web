@@ -25,6 +25,7 @@ export function TripTabs({
   token,
   user,
   onRefresh,
+  api,
   activeTab,
   setActiveTab,
   primaryTab,

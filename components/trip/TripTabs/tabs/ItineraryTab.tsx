@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Lightbulb, ListTodo, MessageCircle, Vote, MapPin, Calendar as CalendarIcon, Lock, Sparkles, RefreshCw, Edit2, Save, X } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 
 // formatDate helper (copied from app/page.js)
@@ -63,13 +63,20 @@ export function ItineraryTab({
   api,
   token
 }: any) {
-  // Destination hint editing state
+  // Destination hint editing state - hooks must be called unconditionally
   const [editingDestinationHint, setEditingDestinationHint] = useState(false)
-  const [destinationHintValue, setDestinationHintValue] = useState(trip.destinationHint || '')
+  const [destinationHintValue, setDestinationHintValue] = useState(trip?.destinationHint || '')
   const [savingDestinationHint, setSavingDestinationHint] = useState(false)
   
+  // Update destinationHintValue when trip.destinationHint changes
+  useEffect(() => {
+    if (trip?.destinationHint !== undefined) {
+      setDestinationHintValue(trip.destinationHint || '')
+    }
+  }, [trip?.destinationHint])
+  
   const handleSaveDestinationHint = async () => {
-    if (!api || !token) {
+    if (!api || !token || !trip) {
       toast.error('Unable to save: API not available')
       return
     }
@@ -85,19 +92,21 @@ export function ItineraryTab({
       if (onRefresh) {
         onRefresh()
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update destination hint')
+    } catch (error) {
+      const errorMessage = error?.message || 'Failed to update destination hint'
+      toast.error(errorMessage)
     } finally {
       setSavingDestinationHint(false)
     }
   }
   
   const handleCancelDestinationHint = () => {
-    setDestinationHintValue(trip.destinationHint || '')
+    setDestinationHintValue(trip?.destinationHint || '')
     setEditingDestinationHint(false)
   }
   
-  if (trip.status !== 'locked') {
+  // Early return check AFTER hooks (hooks must run unconditionally)
+  if (!trip || trip.status !== 'locked') {
     return (
       <Card>
         <CardContent className="text-center py-12">
