@@ -5,6 +5,7 @@ import { Users, Calendar, Clock, Info } from 'lucide-react'
 import Link from 'next/link'
 import { tripHref } from '@/lib/navigation/routes'
 import { TripProgressMini } from './TripProgressMini'
+import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import {
   Tooltip,
   TooltipContent,
@@ -87,6 +88,9 @@ export function TripCard({ trip, circleId = null }) {
     ? pendingActions[0].label 
     : 'View Trip'
   
+  // Get countdown label if dates are locked
+  const countdownLabel = getTripCountdownLabel(trip, trip.name)
+  
   return (
     <Link href={tripUrl} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`}>
       <Card className="cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full min-w-0">
@@ -126,6 +130,13 @@ export function TripCard({ trip, circleId = null }) {
             <Calendar className="h-3 w-3" />
             <span className="line-clamp-1">{formatDateRange(trip.startDate, trip.endDate)}</span>
           </div>
+          
+          {/* Countdown - shown when dates are locked */}
+          {countdownLabel && (
+            <div className="text-xs text-gray-500 mb-3">
+              {countdownLabel}
+            </div>
+          )}
           
           {/* Latest activity */}
           {trip.latestActivity && (
