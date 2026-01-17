@@ -2541,9 +2541,9 @@ function CirclesView({ circles, token, onOpenCircle, onRefresh }) {
 function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
   const router = useRouter()
   
-  // MVP: always open Members tab on circle page.
-  // Helper to get initial tab (MVP always returns "members")
-  const getInitialCircleTab = () => 'members'
+  // Default landing tab: Circle Updates (aligns with Trip Chat default behavior)
+  // Helper to get initial tab (returns "chat" which displays as "Circle Updates")
+  const getInitialCircleTab = () => 'chat'
   
   const [activeTab, setActiveTab] = useState(getInitialCircleTab())
   const [showCreateTrip, setShowCreateTrip] = useState(false)
@@ -2588,7 +2588,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     }
   }
 
-  // MVP: Reset to Members tab whenever circle changes
+  // Reset to Circle Updates tab whenever circle changes (default landing behavior)
   useEffect(() => {
     setActiveTab(getInitialCircleTab())
   }, [circle.id])
