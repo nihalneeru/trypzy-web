@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { generateItinerary, summarizeFeedback, reviseItinerary } from '@/lib/server/llm.js'
+import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'trypzy-secret-key-change-in-production'
@@ -1254,26 +1255,20 @@ async function handleRoute(request, { params }) {
       const { availabilities, broadStatus, weeklyBlocks } = body
       
       const trip = await db.collection('trips').findOne({ id: tripId })
-      if (!trip) {
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
+      
+      // Validate stage action (checks trip existence and stage)
+      // Note: Auto-transition to 'scheduling' on first pick is preserved below
+      const validation = validateStageAction(trip, 'submit_availability', auth.user.id, circle)
+      if (!validation.ok) {
         return handleCORS(NextResponse.json(
-          { error: 'Trip not found' },
-          { status: 404 }
+          { error: validation.message },
+          { status: validation.status }
         ))
       }
       
-      // Backward compatibility: default status for old trips without status field
+      // Backward compatibility: default status for old trips (needed for auto-transition logic)
       const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
-      
-      // Guard: Cannot submit availability after voting starts or when locked
-      if (tripStatus === 'voting' || tripStatus === 'locked') {
-        const errorMessage = tripStatus === 'voting' 
-          ? 'Availability is frozen while voting is open.'
-          : 'Dates are locked; scheduling is closed.'
-        return handleCORS(NextResponse.json(
-          { error: errorMessage },
-          { status: 400 }
-        ))
-      }
       
       if (trip.type !== 'collaborative') {
         return handleCORS(NextResponse.json(
@@ -1452,40 +1447,14 @@ async function handleRoute(request, { params }) {
       const tripId = path[1]
       
       const trip = await db.collection('trips').findOne({ id: tripId })
-      if (!trip) {
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
+      
+      // Validate stage action (checks trip existence, leader permission, and stage)
+      const validation = validateStageAction(trip, 'open_voting', auth.user.id, circle)
+      if (!validation.ok) {
         return handleCORS(NextResponse.json(
-          { error: 'Trip not found' },
-          { status: 404 }
-        ))
-      }
-      
-      const circle = await db.collection('circles').findOne({ id: trip.circleId })
-      
-      // Only trip creator or circle owner can open voting
-      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
-        return handleCORS(NextResponse.json(
-          { error: 'Only the trip creator or circle owner can open voting' },
-          { status: 403 }
-        ))
-      }
-      
-      // Backward compatibility: default status for old trips
-      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
-      
-      // Allow opening voting from 'proposed' or 'scheduling' states
-      // This supports leader flexibility - they can move forward even if not everyone responded
-      // Guard: Cannot open voting if already voting or locked
-      if (tripStatus === 'voting' || tripStatus === 'locked') {
-        return handleCORS(NextResponse.json(
-          { error: tripStatus === 'voting' ? 'Voting is already open' : 'Cannot open voting for a locked trip' },
-          { status: 400 }
-        ))
-      }
-      
-      if (tripStatus !== 'proposed' && tripStatus !== 'scheduling') {
-        return handleCORS(NextResponse.json(
-          { error: 'Voting can only be opened during proposed or scheduling phase' },
-          { status: 400 }
+          { error: validation.message },
+          { status: validation.status }
         ))
       }
       
@@ -1529,21 +1498,14 @@ async function handleRoute(request, { params }) {
       }
       
       const trip = await db.collection('trips').findOne({ id: tripId })
-      if (!trip) {
-        return handleCORS(NextResponse.json(
-          { error: 'Trip not found' },
-          { status: 404 }
-        ))
-      }
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
       
-      // Backward compatibility: default status for old trips
-      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
-      
-      // Guard: Voting only allowed during voting phase
-      if (tripStatus !== 'voting') {
+      // Validate stage action (checks trip existence and stage)
+      const validation = validateStageAction(trip, 'vote', auth.user.id, circle)
+      if (!validation.ok) {
         return handleCORS(NextResponse.json(
-          { error: 'Voting is not open for this trip' },
-          { status: 400 }
+          { error: validation.message },
+          { status: validation.status }
         ))
       }
       
@@ -1639,14 +1601,14 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Backward compatibility: default status
-      const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
       
-      // Guard: Cannot submit picks when locked
-      if (tripStatus === 'locked') {
+      // Validate stage action (checks trip existence and stage)
+      const validation = validateStageAction(trip, 'submit_date_picks', auth.user.id, circle)
+      if (!validation.ok) {
         return handleCORS(NextResponse.json(
-          { error: 'Trip dates are locked; picks cannot be changed' },
-          { status: 400 }
+          { error: validation.message },
+          { status: validation.status }
         ))
       }
       
@@ -1914,26 +1876,19 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
       
-      // Backward compatibility: default status for old trips
+      // Validate stage action (checks trip existence, leader permission, and stage)
+      const validation = validateStageAction(trip, 'lock', auth.user.id, circle)
+      if (!validation.ok) {
+        return handleCORS(NextResponse.json(
+          { error: validation.message },
+          { status: validation.status }
+        ))
+      }
+      
+      // Backward compatibility: default status for old trips (needed for payload-specific validation)
       const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
-      
-      // Only trip creator or circle owner can lock
-      if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
-        return handleCORS(NextResponse.json(
-          { error: 'Only the trip creator or circle owner can lock the trip' },
-          { status: 403 }
-        ))
-      }
-      
-      // Guard: Cannot lock if already locked (no re-locking)
-      if (tripStatus === 'locked') {
-        return handleCORS(NextResponse.json(
-          { error: 'Trip is already locked' },
-          { status: 400 }
-        ))
-      }
       
       let lockedStartDate, lockedEndDate
       
