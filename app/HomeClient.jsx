@@ -34,6 +34,7 @@ import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { TripCard } from '@/components/dashboard/TripCard'
 import { sortTrips } from '@/lib/dashboard/sortTrips'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags, TripPrimaryStage, TripTabKey } from '@/lib/trips/stage'
+import { getUserActionRequired } from '@/lib/trips/getUserActionRequired.js'
 import { TripTabs } from '@/components/trip/TripTabs/TripTabs'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/routes'
@@ -3247,11 +3248,26 @@ function TripProgress({ trip, token, user, onRefresh, onSwitchTab }) {
   const firstIncompleteStep = stepConfigs.find(step => !progress.steps[step.key])
   const firstIncompleteKey = firstIncompleteStep?.key
   
+  // Compute action required for current user
+  const userDatePicks = trip.userDatePicks || null
+  const userVote = trip.userVote || null
+  const availabilities = trip.availabilities || []
+  const actionRequired = getUserActionRequired(trip, user.id, userDatePicks, userVote, availabilities)
+  
   const ProgressContent = () => (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Trip Progress</CardTitle>
-        <CardDescription>Track your trip planning milestones</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg">Trip Progress</CardTitle>
+            <CardDescription>Track your trip planning milestones</CardDescription>
+          </div>
+          {actionRequired && (
+            <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-indigo-600 border border-indigo-100">
+              Waiting on you
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {stepConfigs.map((stepConfig, index) => {
