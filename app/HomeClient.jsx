@@ -3350,7 +3350,7 @@ function TripProgress({ trip, token, user, onRefresh, onSwitchTab }) {
 }
 
 // Top 3 Heatmap Scheduling Component (new MVP)
-export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks, setDatePicks, savingPicks, setSavingPicks, canParticipate = true }) {
+export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks, setDatePicks, savingPicks, setSavingPicks, canParticipate = true, onOpenLockConfirm }) {
   const startBound = trip.startBound || trip.startDate
   const endBound = trip.endBound || trip.endDate
   const tripLengthDays = trip.tripLengthDays || trip.duration || 3
@@ -3448,17 +3448,14 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
     }
   }
   
-  // Lock a window (owner only)
+  // Lock a window (owner only) - now shows confirmation modal
   const lockWindow = async (startDateISO) => {
-    try {
-      await api(`/trips/${trip.id}/lock`, {
-        method: 'POST',
-        body: JSON.stringify({ startDateISO })
-      }, token)
-      toast.success('Trip dates locked!')
-      onRefresh()
-    } catch (error) {
-      toast.error(error.message || 'Failed to lock dates')
+    if (!startDateISO) {
+      toast.error('Pick a date option before locking.')
+      return
+    }
+    if (onOpenLockConfirm) {
+      onOpenLockConfirm({ startDateISO })
     }
   }
   
@@ -4532,37 +4529,38 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     }
   }
 
-  const [showLockConfirm, setShowLockConfirm] = useState(false)
-  const [pendingLockOption, setPendingLockOption] = useState(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showTransferLeadership, setShowTransferLeadership] = useState(false)
   const [selectedNewLeader, setSelectedNewLeader] = useState('')
   const [leaving, setLeaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  
+  // Lock modal callback - registered by ChatTab
+  const [openLockModalFn, setOpenLockModalFn] = useState(null)
 
   const lockTrip = async (optionKey) => {
-    setPendingLockOption(optionKey)
-    setShowLockConfirm(true)
-  }
-
-  const confirmLockTrip = async () => {
-    if (!pendingLockOption) return
-    try {
-      await api(`/trips/${trip.id}/lock`, {
-        method: 'POST',
-        body: JSON.stringify({ optionKey: pendingLockOption })
-      }, token)
-      
-      toast.success('Trip dates locked! 🎉 Planning can now begin.')
-      setShowLockConfirm(false)
-      setPendingLockOption(null)
-      onRefresh()
-    } catch (error) {
-      toast.error(error.message)
-      setShowLockConfirm(false)
-      setPendingLockOption(null)
+    // For legacy voting, optionKey format is "YYYY-MM-DD_YYYY-MM-DD"
+    // The ChatTab modal will handle optionKey format based on trip.schedulingMode
+    if (openLockModalFn) {
+      // Pass the full optionKey for legacy voting - modal will use it to pre-select the matching candidate
+      openLockModalFn(optionKey)
+    } else {
+      toast.error('Lock modal not available')
     }
   }
+
+  const handleOpenLockConfirm = ({ startDateISO }) => {
+    if (!startDateISO) {
+      toast.error('Pick a date option before locking.')
+      return
+    }
+    if (openLockModalFn) {
+      openLockModalFn(startDateISO)
+    } else {
+      toast.error('Lock modal not available')
+    }
+  }
+
 
   const joinTrip = async () => {
     try {
@@ -5350,6 +5348,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
               saveAvailability,
               submitVote,
               lockTrip,
+              onOpenLockConfirm: handleOpenLockConfirm,
               openVoting,
               promoteRefinement,
               votersByOption,
@@ -5401,7 +5400,10 @@ function TripDetailView({ trip, token, user, onRefresh }) {
               sendingMessage,
               sendMessage,
               showTripChatHint,
-              dismissTripChatHint
+              dismissTripChatHint,
+              onLockModalOpen: (openFn) => {
+                setOpenLockModalFn(() => openFn)
+              }
             }}
           />
         </div>
@@ -5418,37 +5420,6 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         </div>
       </div>
 
-      {/* Lock Confirmation Dialog (legacy) */}
-      <Dialog open={showLockConfirm} onOpenChange={setShowLockConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Lock Trip Dates?</DialogTitle>
-            <DialogDescription>
-              Locking finalizes dates so planning can begin 🎉 Once locked, the trip dates cannot be changed.
-            </DialogDescription>
-          </DialogHeader>
-          {pendingLockOption && (
-            <div className="py-4">
-              <p className="text-sm text-gray-600 mb-2">Selected dates:</p>
-              <p className="font-medium text-lg">
-                {pendingLockOption.split('_')[0]} to {pendingLockOption.split('_')[1]}
-              </p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowLockConfirm(false)
-              setPendingLockOption(null)
-            }}>
-              Cancel
-            </Button>
-            <Button onClick={confirmLockTrip} className="bg-green-600 hover:bg-green-700">
-              <Lock className="h-4 w-4 mr-2" />
-              Lock Dates
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Trip Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
