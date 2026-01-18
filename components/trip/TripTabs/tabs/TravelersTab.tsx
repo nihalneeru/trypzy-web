@@ -16,6 +16,8 @@ import { Users, LogOut, ExternalLink, UserPlus, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { BrandedSpinner } from '@/app/HomeClient'
+import { TransferLeadershipDialog } from '@/components/trip/TransferLeadershipDialog'
+import { CancelTripDialog } from '@/components/trip/CancelTripDialog'
 
 // API Helper
 const api = async (endpoint: string, options: any = {}, token: string | null = null) => {
@@ -58,7 +60,10 @@ export function TravelersTab({
   onRefresh
 }: any) {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
+  const [showTransferLeadershipDialog, setShowTransferLeadershipDialog] = useState(false)
+  const [showCancelTripDialog, setShowCancelTripDialog] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [canceling, setCanceling] = useState(false)
   const [joinRequests, setJoinRequests] = useState<any[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
   const [processingRequest, setProcessingRequest] = useState<string | null>(null)
@@ -167,7 +172,8 @@ export function TravelersTab({
   
   // Use viewer info from trip data to determine if user can leave
   const viewer = trip?.viewer || {}
-  const canLeave = viewer.isActiveParticipant && !viewer.isTripLeader
+  const canLeaveNonLeader = viewer.isActiveParticipant && !viewer.isTripLeader
+  const canLeaveLeader = viewer.isActiveParticipant && viewer.isTripLeader
   
   // Get current user's participant status for display
   const currentUserParticipant = participantsWithStatus.find((p: any) => p.userId === currentUserId)
@@ -189,6 +195,81 @@ export function TravelersTab({
       toast.error(err.message || 'Failed to leave trip')
     } finally {
       setLeaving(false)
+    }
+  }
+
+  // Build eligible users for leadership transfer (active participants, excluding current user)
+  const eligibleUsers = activeParticipants
+    .filter((p: any) => {
+      const userId = p.user?.id || p.userId
+      return userId !== currentUserId && (p.status || 'active') === 'active'
+    })
+    .map((p: any) => ({
+      userId: p.user?.id || p.userId,
+      displayName: p.user?.name || 'Unknown'
+    }))
+
+  const hasEligibleSuccessors = eligibleUsers.length > 0
+
+  const handleTransferAndLeave = async (transferToUserId: string) => {
+    if (!trip?.id || !token) return
+    
+    setLeaving(true)
+    try {
+      await api(`/trips/${trip.id}/leave`, {
+        method: 'POST',
+        body: JSON.stringify({ transferToUserId })
+      }, token)
+      toast.success('Leadership transferred and left trip')
+      // Refresh trip data
+      if (onRefresh) {
+        onRefresh()
+      }
+    } catch (err: any) {
+      // Handle specific error messages
+      const errorMessage = err.message || 'Failed to leave trip'
+      if (errorMessage.includes('transfer') || errorMessage.includes('leader')) {
+        toast.error(errorMessage)
+      } else {
+        toast.error(errorMessage || 'Failed to transfer leadership and leave trip')
+      }
+      throw err // Re-throw to keep dialog open on error
+    } finally {
+      setLeaving(false)
+    }
+  }
+
+  const handleCancelTrip = async () => {
+    if (!trip?.id || !token) return
+    
+    setCanceling(true)
+    try {
+      await api(`/trips/${trip.id}/cancel`, {
+        method: 'POST'
+      }, token)
+      toast.success('Trip canceled')
+      // Refresh trip data - the trip is now canceled so this will update the UI
+      if (onRefresh) {
+        onRefresh()
+      }
+      // Optionally redirect after a short delay to let the user see the success message
+      // For now, we'll just refresh and let the parent handle navigation if needed
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to cancel trip'
+      toast.error(errorMessage)
+      throw err // Re-throw to keep dialog open on error
+    } finally {
+      setCanceling(false)
+    }
+  }
+
+  const handleLeaderLeaveClick = () => {
+    if (hasEligibleSuccessors) {
+      // Show transfer leadership dialog
+      setShowTransferLeadershipDialog(true)
+    } else {
+      // No eligible successors - show cancel dialog
+      setShowCancelTripDialog(true)
     }
   }
 
@@ -263,7 +344,7 @@ export function TravelersTab({
         </div>
       )}
       
-      {/* Leave Trip Dialog */}
+      {/* Leave Trip Dialog (for non-leaders) */}
       <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <DialogContent>
           <DialogHeader>
@@ -283,14 +364,37 @@ export function TravelersTab({
         </DialogContent>
       </Dialog>
 
+      {/* Transfer Leadership Dialog (for trip leaders with eligible successors) */}
+      <TransferLeadershipDialog
+        open={showTransferLeadershipDialog}
+        onOpenChange={setShowTransferLeadershipDialog}
+        eligibleUsers={eligibleUsers}
+        onConfirm={handleTransferAndLeave}
+        loading={leaving}
+      />
+
+      {/* Cancel Trip Dialog (for trip leaders without eligible successors) */}
+      <CancelTripDialog
+        open={showCancelTripDialog}
+        onOpenChange={setShowCancelTripDialog}
+        onConfirm={handleCancelTrip}
+        loading={canceling}
+      />
+
       {/* Active Travelers */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">{activeLabel} ({activeParticipants.length})</h2>
-          {canLeave && (
+          {canLeaveNonLeader && (
             <Button variant="outline" size="sm" onClick={() => setShowLeaveDialog(true)}>
               <LogOut className="h-4 w-4 mr-2" />
               Leave trip
+            </Button>
+          )}
+          {canLeaveLeader && (
+            <Button variant="outline" size="sm" onClick={handleLeaderLeaveClick}>
+              <LogOut className="h-4 w-4 mr-2" />
+              {hasEligibleSuccessors ? 'Leave trip' : 'Cancel trip'}
             </Button>
           )}
         </div>
