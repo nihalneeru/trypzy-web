@@ -2031,17 +2031,17 @@ async function handleRoute(request, { params }) {
         }
       })
       
-      // Emit follow-up planning message
+      // Emit follow-up itinerary planning message
       await emitTripChatEvent({
         tripId,
         circleId: trip.circleId,
         actorUserId: null,
         subtype: 'milestone',
-        text: 'Planning mode is now open. Share ideas for the itinerary!',
+        text: 'Dates are locked. Itinerary planning is now open — start sharing ideas.',
         metadata: {
-          key: 'planning_begins'
+          key: 'itinerary_planning_begins'
         },
-        dedupeKey: `planning_begins_${tripId}`
+        dedupeKey: `itinerary_planning_begins_${tripId}`
       })
       
       return handleCORS(NextResponse.json({ message: 'Trip locked', lockedStartDate, lockedEndDate }))
