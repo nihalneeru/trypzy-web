@@ -2319,6 +2319,141 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(response))
     }
     
+    // Cancel trip - POST /api/trips/:tripId/cancel
+    // Leader-only: cancels trip when no one to transfer leadership to
+    if (route.match(/^\/trips\/[^/]+\/cancel$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+      
+      const tripId = path[1]
+      
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check if trip is already canceled
+      if (trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { 
+            error: 'Trip has already been canceled',
+            code: 'TRIP_ALREADY_CANCELED'
+          },
+          { status: 400 }
+        ))
+      }
+
+      // Check if trip is already completed
+      if (trip.status === 'completed') {
+        return handleCORS(NextResponse.json(
+          { 
+            error: 'Trip has already been completed',
+            code: 'TRIP_ALREADY_COMPLETED'
+          },
+          { status: 400 }
+        ))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Only trip leader can cancel
+      const isTripLeader = trip.createdBy === auth.user.id
+      const circle = await db.collection('circles').findOne({ id: trip.circleId })
+      const isCircleOwner = circle?.ownerId === auth.user.id
+
+      if (!isTripLeader && !isCircleOwner) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip creator or circle owner can cancel the trip' },
+          { status: 403 }
+        ))
+      }
+
+      // Get active participant count to verify leader is last active participant
+      const allParticipants = await db.collection('trip_participants')
+        .find({ tripId })
+        .toArray()
+      
+      let effectiveActiveUserIds
+      
+      if (trip.type === 'collaborative') {
+        const circleMemberships = await db.collection('memberships')
+          .find({ circleId: trip.circleId })
+          .toArray()
+        effectiveActiveUserIds = new Set(circleMemberships.map(m => m.userId))
+        
+        allParticipants.forEach(p => {
+          const status = p.status || 'active'
+          if ((status === 'left' || status === 'removed') && effectiveActiveUserIds.has(p.userId)) {
+            effectiveActiveUserIds.delete(p.userId)
+          }
+        })
+      } else {
+        const activeParticipants = allParticipants.filter(p => {
+          const status = p.status || 'active'
+          return status === 'active'
+        })
+        effectiveActiveUserIds = new Set(activeParticipants.map(p => p.userId))
+      }
+
+      const activeMemberCount = effectiveActiveUserIds.size
+      
+      // Verify leader is the last active participant (for safety)
+      if (activeMemberCount > 1 && !effectiveActiveUserIds.has(auth.user.id)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip can only be canceled when the leader is the last active participant' },
+          { status: 400 }
+        ))
+      }
+
+      // Update trip status to canceled
+      const now = new Date().toISOString()
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $set: {
+            status: 'canceled',
+            canceledAt: now,
+            canceledBy: auth.user.id,
+            updatedAt: now
+          }
+        }
+      )
+
+      // Emit chat event for trip cancellation
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'milestone',
+        text: `🚫 Trip "${trip.name}" has been canceled by ${auth.user.name}`,
+        metadata: {
+          key: 'trip_canceled'
+        }
+      })
+
+      return handleCORS(NextResponse.json({ 
+        message: 'Trip canceled successfully',
+        trip: { id: tripId, status: 'canceled' }
+      }))
+    }
+    
     // ============ TRIP JOIN REQUESTS ROUTES ============
     
     // Create join request - POST /api/trips/:tripId/join-requests
