@@ -614,17 +614,23 @@ async function handleRoute(request, { params }) {
       }))
       
       // Get trips
-      // NOTE: In self contexts (circle pages, dashboard), we do NOT filter by trip owner's privacy.
-      // "Upcoming Trips Visibility" only affects what others see on member profile pages.
-      // All trips in user's circles are visible here based on membership/access.
       const trips = await db.collection('trips')
         .find({ circleId })
         .toArray()
       
+      // Filter trips based on active travelers' privacy settings ("most restrictive wins")
+      // If any active traveler has privacy='private', non-travelers cannot see the trip
+      const { filterTripsByActiveTravelerPrivacy } = await import('@/lib/trips/canViewerSeeTrip.js')
+      const visibleTrips = await filterTripsByActiveTravelerPrivacy({
+        viewerId: auth.user.id,
+        trips,
+        db
+      })
+      
       // Build trip card data using shared function (same as dashboard)
       const { buildTripCardDataBatch } = await import('@/lib/trips/buildTripCardData.js')
       const tripCardData = await buildTripCardDataBatch(
-        trips,
+        visibleTrips,
         auth.user.id,
         membership.role,
         db
@@ -931,6 +937,22 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json(
           { error: 'You are not a member of this circle' },
           { status: 403 }
+        ))
+      }
+
+      // Check privacy: If any active traveler has privacy='private', non-travelers cannot access trip detail
+      // Return 404 to avoid leaking trip existence
+      const { canViewerSeeTrip } = await import('@/lib/trips/canViewerSeeTrip.js')
+      const canSee = await canViewerSeeTrip({
+        viewerId: auth.user.id,
+        trip,
+        db
+      })
+
+      if (!canSee) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
         ))
       }
       
@@ -2858,16 +2880,19 @@ async function handleRoute(request, { params }) {
       }
       
       // Get all trips in this circle
-      // NOTE: In self contexts (circle pages, dashboard), we do NOT filter by trip owner's privacy.
-      // "Upcoming Trips Visibility" only affects what others see on member profile pages.
-      // All trips in user's circles are visible here based on membership/access.
       const trips = await db.collection('trips')
         .find({ circleId })
         .sort({ createdAt: -1 })
         .toArray()
       
-      // Use all trips directly (no privacy filtering in self context)
-      const visibleTrips = trips
+      // Filter trips based on active travelers' privacy settings ("most restrictive wins")
+      // If any active traveler has privacy='private', non-travelers cannot see the trip
+      const { filterTripsByActiveTravelerPrivacy } = await import('@/lib/trips/canViewerSeeTrip.js')
+      const visibleTrips = await filterTripsByActiveTravelerPrivacy({
+        viewerId: auth.user.id,
+        trips,
+        db
+      })
       
       // Get trip creators/leaders
       const tripCreatorIds = [...new Set(visibleTrips.map(t => t.createdBy).filter(Boolean))]
