@@ -544,32 +544,56 @@ export function ChatTab({
             {messages.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
             ) : (
-              messages.map((msg: any) => (
-                <div key={msg.id} className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
-                  {msg.isSystem ? (
-                    <div 
-                      className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
-                      onClick={msg.metadata?.href ? () => {
-                        // Navigate to the href if it's a relative path
-                        if (msg.metadata.href.startsWith('/')) {
-                          window.location.href = msg.metadata.href
-                        } else {
-                          window.open(msg.metadata.href, '_blank')
-                        }
-                      } : undefined}
-                    >
-                      {msg.content}
-                    </div>
-                  ) : (
-                    <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
-                      {msg.user?.id !== user.id && (
-                        <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
+              messages.map((msg: any) => {
+                // Check if this message is a dates_locked or itinerary_planning_begins message
+                const isItineraryPlanningMessage = msg.isSystem && (
+                  msg.metadata?.key === 'itinerary_planning_begins' || 
+                  msg.metadata?.key === 'dates_locked'
+                )
+                const showItineraryCTA = isItineraryPlanningMessage && !viewerIsReadOnly && trip?.status === 'locked' && setActiveTab
+
+                return (
+                  <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : msg.user?.id === user.id ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
+                      {msg.isSystem ? (
+                        <div 
+                          className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
+                          onClick={msg.metadata?.href ? () => {
+                            // Navigate to the href if it's a relative path
+                            if (msg.metadata.href.startsWith('/')) {
+                              window.location.href = msg.metadata.href
+                            } else {
+                              window.open(msg.metadata.href, '_blank')
+                            }
+                          } : undefined}
+                        >
+                          {msg.content}
+                        </div>
+                      ) : (
+                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
+                          {msg.user?.id !== user.id && (
+                            <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
+                          )}
+                          <p>{msg.content}</p>
+                        </div>
                       )}
-                      <p>{msg.content}</p>
                     </div>
-                  )}
-                </div>
-              ))
+                    {/* Inline CTA for itinerary planning message */}
+                    {showItineraryCTA && (
+                      <div className="mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setActiveTab('itinerary')}
+                          className="h-7 text-xs"
+                        >
+                          Add itinerary idea
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })
             )}
           </div>
         </ScrollArea>
