@@ -67,6 +67,15 @@ export function ChatTab({
   
   // Get trip status with backward compatibility
   const tripStatus = trip?.status || (trip?.type === 'hosted' ? 'locked' : 'scheduling')
+
+  // Check if viewer is read-only (left trip or trip is canceled)
+  const viewer = trip?.viewer || {}
+  const viewerIsReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || trip?.status === 'canceled'
+  const readOnlyPlaceholder = trip?.status === 'canceled' 
+    ? 'Trip is canceled'
+    : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
+    ? "You've left this trip"
+    : 'Type a message...'
   
   // Get user's completion state
   const userDatePicks = trip?.userDatePicks || []
@@ -788,11 +797,24 @@ export function ChatTab({
         <div className={`flex gap-2 ${showActionCard ? 'pt-0' : 'mt-4 pt-4'} border-t`}>
           <Input
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+            onChange={(e) => {
+              if (!viewerIsReadOnly) {
+                setNewMessage(e.target.value)
+              }
+            }}
+            placeholder={readOnlyPlaceholder}
+            onKeyDown={(e) => {
+              if (!viewerIsReadOnly && e.key === 'Enter' && sendMessage) {
+                sendMessage()
+              }
+            }}
+            disabled={viewerIsReadOnly}
           />
-          <Button onClick={sendMessage} disabled={sendingMessage || !newMessage.trim()}>
+          <Button 
+            onClick={viewerIsReadOnly ? undefined : sendMessage} 
+            disabled={viewerIsReadOnly || sendingMessage || !newMessage.trim()}
+            title={viewerIsReadOnly ? readOnlyPlaceholder : undefined}
+          >
             <Send className="h-4 w-4" />
           </Button>
         </div>

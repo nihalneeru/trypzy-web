@@ -105,6 +105,15 @@ export function ItineraryTab({
     setEditingDestinationHint(false)
   }
   
+  // Check if viewer is read-only (left trip or trip is canceled)
+  const viewer = trip?.viewer || {}
+  const viewerIsReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || trip?.status === 'canceled'
+  const readOnlyReason = trip?.status === 'canceled' 
+    ? 'Trip is canceled'
+    : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
+    ? "You've left this trip"
+    : null
+
   // Early return check AFTER hooks (hooks must run unconditionally)
   if (!trip || trip.status !== 'locked') {
     return (
@@ -198,9 +207,10 @@ export function ItineraryTab({
                 <Textarea
                   value={newIdea.text || ''}
                   onChange={(e) => setNewIdea({ text: e.target.value })}
-                  placeholder="E.g., Visit the local market, Try authentic street food, Go hiking in the mountains..."
+                  placeholder={viewerIsReadOnly ? readOnlyReason : "E.g., Visit the local market, Try authentic street food, Go hiking in the mountains..."}
                   className="text-sm min-h-[80px]"
                   maxLength={120}
+                  disabled={viewerIsReadOnly}
                 />
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>{(newIdea.text || '').length}/120 characters</span>
@@ -209,13 +219,17 @@ export function ItineraryTab({
                   )}
                 </div>
                 <Button 
-                  onClick={addIdea} 
-                  disabled={addingIdea || !newIdea.text?.trim()} 
+                  onClick={viewerIsReadOnly ? undefined : addIdea} 
+                  disabled={viewerIsReadOnly || addingIdea || !newIdea.text?.trim()} 
                   className="w-full" 
                   size="sm"
+                  title={viewerIsReadOnly ? readOnlyReason : undefined}
                 >
                   {addingIdea ? 'Adding...' : 'Submit Idea'}
                 </Button>
+                {viewerIsReadOnly && readOnlyReason && (
+                  <p className="text-xs text-gray-500 text-center mt-1">{readOnlyReason}</p>
+                )}
               </div>
             ) : (
               <div className="text-center py-4 px-2 bg-gray-50 rounded-lg border">
