@@ -4911,6 +4911,11 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const refinementCount = hasPromisingWindows ? getRefinementCount() : 0
 
   const getStatusBadge = () => {
+    // Terminal status: canceled takes precedence - show canceled badge and hide stage
+    if (trip.status === 'canceled') {
+      return <Badge className="bg-red-100 text-red-800">Canceled</Badge>
+    }
+    
     // Show "Refine" badge when refinement mode is active (promising windows exist and in scheduling phase)
     if (hasPromisingWindows && trip.status === 'scheduling') {
       return <Badge className="bg-purple-100 text-purple-800">Refine</Badge>
@@ -4925,6 +4930,8 @@ function TripDetailView({ trip, token, user, onRefresh }) {
         return <Badge className="bg-blue-100 text-blue-800">Voting</Badge>
       case 'locked':
         return <Badge className="bg-green-100 text-green-800">Locked</Badge>
+      case 'completed':
+        return <Badge className="bg-gray-100 text-gray-800">Completed</Badge>
       default:
         // Backward compatibility: treat missing status as scheduling for collaborative trips
         return trip.type === 'collaborative' 
@@ -5230,11 +5237,28 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                       </p>
                     </>
                   )}
+
+                  {/* Canceled Phase - Terminal Status */}
+                  {trip.status === 'canceled' && (
+                    <>
+                      <p className="text-red-800 font-semibold text-base">
+                        This trip was canceled
+                      </p>
+                      {trip.canceledBy && trip.canceledAt && (
+                        <p className="text-red-700 text-xs">
+                          Canceled on {new Date(trip.canceledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      )}
+                      <p className="text-red-700 text-xs">
+                        This trip is no longer active and cannot be modified.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
               
-              {/* Action buttons */}
-              {trip.status === 'scheduling' && trip.isCreator && (
+              {/* Action buttons - Hidden for canceled trips */}
+              {trip.status === 'scheduling' && trip.isCreator && trip.status !== 'canceled' && trip.status !== 'completed' && (
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-gray-500 mb-2">
                     Ready to move forward?
