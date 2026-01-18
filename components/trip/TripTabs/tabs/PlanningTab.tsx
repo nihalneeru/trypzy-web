@@ -10,7 +10,6 @@ import {
   CheckCircle2, Calendar as CalendarIcon, Check, X, HelpCircle, Vote, Lock, Lightbulb 
 } from 'lucide-react'
 import { Top3HeatmapScheduling } from '@/app/HomeClient'
-import { toast } from 'sonner'
 
 // Helper function for getting initials (copied from app/page.js)
 function getInitials(name: string) {
@@ -65,7 +64,6 @@ export function PlanningTab({
   saveAvailability,
   submitVote,
   lockTrip,
-  onOpenLockConfirm,
   openVoting,
   promoteRefinement,
   votersByOption,
@@ -119,7 +117,6 @@ export function PlanningTab({
               user={user}
               onRefresh={onRefresh}
               datePicks={datePicks}
-              onOpenLockConfirm={onOpenLockConfirm}
               setDatePicks={setDatePicks}
               savingPicks={savingPicks}
               setSavingPicks={setSavingPicks}
@@ -849,24 +846,7 @@ export function PlanningTab({
                           {!canParticipate ? 'You have left this trip' : trip.userVote ? 'Update Vote' : 'Submit Vote'}
                         </Button>
                         {trip.canLock && selectedVote && canParticipate && (
-                          <Button 
-                            variant="default" 
-                            onClick={() => {
-                              // For legacy voting, use lockTrip directly
-                              // For top3_heatmap, use onOpenLockConfirm if available
-                              if (trip.schedulingMode === 'top3_heatmap' && onOpenLockConfirm) {
-                                // Extract startDateISO from optionKey (format: YYYY-MM-DD_YYYY-MM-DD)
-                                const [startDateISO] = selectedVote.split('_')
-                                if (startDateISO) {
-                                  onOpenLockConfirm({ startDateISO })
-                                } else {
-                                  toast.error('Pick a date option before locking.')
-                                }
-                              } else {
-                                lockTrip(selectedVote)
-                              }
-                            }}
-                          >
+                          <Button variant="default" onClick={() => lockTrip(selectedVote)}>
                             <Lock className="h-4 w-4 mr-2" />
                             Lock Dates
                           </Button>

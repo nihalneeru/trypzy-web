@@ -1891,7 +1891,7 @@ async function handleRoute(request, { params }) {
       
       const tripId = path[1]
       const body = await request.json()
-      const { optionKey, startDateISO, force } = body
+      const { optionKey, startDateISO } = body
       
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -1914,124 +1914,6 @@ async function handleRoute(request, { params }) {
       
       // Backward compatibility: default status for old trips (needed for payload-specific validation)
       const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
-
-      // Participation threshold validation (unless force=true)
-      if (!force) {
-        // Get active travelers
-        const allParticipants = await db.collection('trip_participants').find({ tripId }).toArray()
-        let activeCount
-        
-        if (trip.type === 'collaborative') {
-          const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
-          const circleMemberUserIds = new Set(circleMemberships.map(m => m.userId))
-          const statusByUserId = new Map()
-          allParticipants.forEach(p => {
-            statusByUserId.set(p.userId, p.status || 'active')
-          })
-          activeCount = 0
-          circleMemberUserIds.forEach(userId => {
-            const status = statusByUserId.get(userId) || 'active'
-            if (status === 'active') {
-              activeCount++
-            }
-          })
-        } else {
-          activeCount = allParticipants.filter(p => (p.status || 'active') === 'active').length
-        }
-
-        // Require at least 2 active participants
-        if (activeCount < 2) {
-          return handleCORS(NextResponse.json(
-            {
-              error: 'Cannot lock dates with fewer than 2 active participants',
-              code: 'LOCK_TOO_FEW_TRAVELERS',
-              metadata: { activeCount, requiredCount: 2 }
-            },
-            { status: 400 }
-          ))
-        }
-
-        // Compute responded count (prefer votes if voting phase, else availability)
-        let respondedCount = 0
-        const respondedUserIds = new Set()
-
-        if (tripStatus === 'voting') {
-          // In voting phase: check votes
-          const votes = await db.collection('votes').find({ tripId }).toArray()
-          votes.forEach(vote => {
-            const userId = vote.userId
-            // Only count active participants
-            const participant = allParticipants.find(p => p.userId === userId)
-            const status = participant ? (participant.status || 'active') : (trip.type === 'collaborative' ? 'active' : null)
-            if (status === 'active') {
-              respondedUserIds.add(userId)
-            }
-          })
-        } else {
-          // In scheduling phase: check availability/date picks
-          const datePicks = await db.collection('trip_date_picks').find({ tripId }).toArray()
-          const availabilities = await db.collection('availabilities').find({ tripId }).toArray()
-          
-          // Build status map for checking if users are active
-          const statusByUserId = new Map()
-          allParticipants.forEach(p => {
-            statusByUserId.set(p.userId, p.status || 'active')
-          })
-          
-          // Count users who have submitted date picks or availability (and are active)
-          const hasResponse = new Set()
-          datePicks.forEach(dp => {
-            if (dp.picks && dp.picks.length > 0) {
-              hasResponse.add(dp.userId)
-            }
-          })
-          availabilities.forEach(avail => {
-            if (avail.broadAvailability || avail.weeklyBlocks?.length > 0 || avail.dayAvailabilities?.length > 0) {
-              hasResponse.add(avail.userId)
-            }
-          })
-          
-          // Only count active participants who have responded
-          if (trip.type === 'collaborative') {
-            const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
-            const circleMemberUserIds = new Set(circleMemberships.map(m => m.userId))
-            
-            hasResponse.forEach(userId => {
-              // Check if user is active (circle member with status active or no status record)
-              if (circleMemberUserIds.has(userId)) {
-                const status = statusByUserId.get(userId) || 'active'
-                if (status === 'active') {
-                  respondedUserIds.add(userId)
-                }
-              }
-            })
-          } else {
-            // Hosted trips: only participants with status active
-            hasResponse.forEach(userId => {
-              const status = statusByUserId.get(userId) || 'active'
-              if (status === 'active') {
-                respondedUserIds.add(userId)
-              }
-            })
-          }
-        }
-
-        respondedCount = respondedUserIds.size
-
-        // Require at least 50% response rate (ceiling)
-        const requiredCount = Math.ceil(activeCount * 0.5)
-        
-        if (respondedCount < requiredCount) {
-          return handleCORS(NextResponse.json(
-            {
-              error: `Not enough responses. ${respondedCount}/${activeCount} travelers have responded (need at least ${requiredCount})`,
-              code: 'LOCK_INSUFFICIENT_RESPONSES',
-              metadata: { activeCount, respondedCount, requiredCount }
-            },
-            { status: 400 }
-          ))
-        }
-      }
       
       let lockedStartDate, lockedEndDate
       
@@ -2153,9 +2035,7 @@ async function handleRoute(request, { params }) {
       
       // Build celebration message with winning option name
       const optionName = winningOption?.name || winningOption?.label || ''
-      const celebrationText = force 
-        ? `🎉 Dates locked (locked early)${optionName ? `: ${optionName}` : ''}${dateRange ? ` — ${dateRange}` : ''}`
-        : `🎉 Dates locked${optionName ? `: ${optionName}` : ''}${dateRange ? ` — ${dateRange}` : ''}`
+      const celebrationText = `🎉 Dates locked${optionName ? `: ${optionName}` : ''}${dateRange ? ` — ${dateRange}` : ''}`
       
       // Emit celebration chat event for dates locked milestone
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
@@ -2169,8 +2049,7 @@ async function handleRoute(request, { params }) {
           key: 'dates_locked',
           startDate: lockedStartDate,
           endDate: lockedEndDate,
-          ...(optionName ? { optionName } : {}),
-          ...(force ? { forceLocked: true } : {})
+          ...(optionName ? { optionName } : {})
         }
       })
       
