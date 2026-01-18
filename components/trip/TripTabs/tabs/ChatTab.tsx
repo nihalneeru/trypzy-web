@@ -60,7 +60,8 @@ export function ChatTab({
   showTripChatHint,
   dismissTripChatHint,
   stage,
-  setActiveTab
+  setActiveTab,
+  onLockModalOpen
 }: any) {
   // Check if user is trip leader
   const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
@@ -245,7 +246,7 @@ export function ChatTab({
   }
 
   // Handle lock dates confirmation (from modal)
-  const handleLockDates = async () => {
+  const handleLockDates = async (force: boolean = false) => {
     if (!selectedLockWindow || !trip) return
     
     setLocking(true)
@@ -255,10 +256,10 @@ export function ChatTab({
       if (trip.schedulingMode === 'top3_heatmap') {
         // For top3_heatmap, use startDateISO format
         // selectedLockWindow is the startDateISO (YYYY-MM-DD)
-        body = { startDateISO: selectedLockWindow }
+        body = { startDateISO: selectedLockWindow, ...(force ? { force: true } : {}) }
       } else {
         // For legacy voting, use optionKey format (YYYY-MM-DD_YYYY-MM-DD)
-        body = { optionKey: selectedLockWindow }
+        body = { optionKey: selectedLockWindow, ...(force ? { force: true } : {}) }
       }
       
       await api(`/trips/${trip.id}/lock`, {
@@ -277,7 +278,15 @@ export function ChatTab({
       
       logAnalytics('action_completed', nextAction?.id || 'lock-dates')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to lock dates')
+      const errorData = error?.response || error
+      // If error is about thresholds, keep modal open so user can choose "Lock anyway"
+      if (errorData?.code === 'LOCK_TOO_FEW_TRAVELERS' || errorData?.code === 'LOCK_INSUFFICIENT_RESPONSES') {
+        toast.error(error.message || errorData?.error || 'Cannot lock dates yet')
+      } else {
+        toast.error(error.message || 'Failed to lock dates')
+        setShowLockModal(false)
+        setSelectedLockWindow(null)
+      }
     } finally {
       setLocking(false)
     }
@@ -321,6 +330,19 @@ export function ChatTab({
   const [showLockModal, setShowLockModal] = useState(false)
   const [selectedLockWindow, setSelectedLockWindow] = useState<string | null>(null)
   const [locking, setLocking] = useState(false)
+
+  // Expose modal opening function to parent (for Planning tab / HomeClient)
+  useEffect(() => {
+    if (onLockModalOpen) {
+      onLockModalOpen((preSelectedValue?: string) => {
+        // preSelectedValue can be startDateISO (top3_heatmap) or optionKey (legacy)
+        if (preSelectedValue) {
+          setSelectedLockWindow(preSelectedValue)
+        }
+        setShowLockModal(true)
+      })
+    }
+  }, [onLockModalOpen])
 
   // Join requests state
   const [joinRequests, setJoinRequests] = useState<any[]>([])
@@ -544,56 +566,71 @@ export function ChatTab({
             {messages.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
             ) : (
-              messages.map((msg: any) => {
-                // Check if this message is a dates_locked or itinerary_planning_begins message
-                const isItineraryPlanningMessage = msg.isSystem && (
-                  msg.metadata?.key === 'itinerary_planning_begins' || 
-                  msg.metadata?.key === 'dates_locked'
-                )
-                const showItineraryCTA = isItineraryPlanningMessage && !viewerIsReadOnly && trip?.status === 'locked' && setActiveTab
+              (() => {
+                // Dedupe mechanism: track if we've already shown the inline itinerary CTA
+                let hasRenderedItineraryInlineCta = false
+                
+                return messages.map((msg: any) => {
+                  // Prefer showing CTA on dates_locked message; only show on itinerary_planning_begins if dates_locked didn't already show it
+                  const isDatesLockedMessage = msg.isSystem && msg.metadata?.key === 'dates_locked'
+                  const isItineraryPlanningBeginsMessage = msg.isSystem && msg.metadata?.key === 'itinerary_planning_begins'
+                  
+                  // Show CTA on dates_locked first, or on itinerary_planning_begins only if we haven't shown it yet
+                  const shouldShowItineraryCTA = 
+                    !viewerIsReadOnly && 
+                    trip?.status === 'locked' && 
+                    setActiveTab &&
+                    ((isDatesLockedMessage && !hasRenderedItineraryInlineCta) || 
+                     (isItineraryPlanningBeginsMessage && !hasRenderedItineraryInlineCta))
+                  
+                  // Mark flag if we're showing the CTA
+                  if (shouldShowItineraryCTA) {
+                    hasRenderedItineraryInlineCta = true
+                  }
 
-                return (
-                  <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : msg.user?.id === user.id ? 'items-end' : 'items-start'}`}>
-                    <div className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
-                      {msg.isSystem ? (
-                        <div 
-                          className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
-                          onClick={msg.metadata?.href ? () => {
-                            // Navigate to the href if it's a relative path
-                            if (msg.metadata.href.startsWith('/')) {
-                              window.location.href = msg.metadata.href
-                            } else {
-                              window.open(msg.metadata.href, '_blank')
-                            }
-                          } : undefined}
-                        >
-                          {msg.content}
-                        </div>
-                      ) : (
-                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
-                          {msg.user?.id !== user.id && (
-                            <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
-                          )}
-                          <p>{msg.content}</p>
+                  return (
+                    <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : msg.user?.id === user.id ? 'items-end' : 'items-start'}`}>
+                      <div className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
+                        {msg.isSystem ? (
+                          <div 
+                            className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
+                            onClick={msg.metadata?.href ? () => {
+                              // Navigate to the href if it's a relative path
+                              if (msg.metadata.href.startsWith('/')) {
+                                window.location.href = msg.metadata.href
+                              } else {
+                                window.open(msg.metadata.href, '_blank')
+                              }
+                            } : undefined}
+                          >
+                            {msg.content}
+                          </div>
+                        ) : (
+                          <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
+                            {msg.user?.id !== user.id && (
+                              <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
+                            )}
+                            <p>{msg.content}</p>
+                          </div>
+                        )}
+                      </div>
+                      {/* Inline CTA for itinerary planning message (deduped to show only once) */}
+                      {shouldShowItineraryCTA && (
+                        <div className="mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setActiveTab('itinerary')}
+                            className="h-7 text-xs"
+                          >
+                            Add itinerary idea
+                          </Button>
                         </div>
                       )}
                     </div>
-                    {/* Inline CTA for itinerary planning message */}
-                    {showItineraryCTA && (
-                      <div className="mt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setActiveTab('itinerary')}
-                          className="h-7 text-xs"
-                        >
-                          Add itinerary idea
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )
-              })
+                  )
+                })
+              })()
             )}
           </div>
         </ScrollArea>
@@ -708,9 +745,38 @@ export function ChatTab({
                 <DialogHeader>
                   <DialogTitle>Lock Trip Dates</DialogTitle>
                   <DialogDescription>
-                    Everyone has responded. Select a date window to finalize the trip dates. Once locked, dates cannot be changed.
+                    Select a date window to finalize the trip dates. Once locked, dates cannot be changed.
                   </DialogDescription>
                 </DialogHeader>
+                
+                {/* Participation status */}
+                {(() => {
+                  // Use pickProgress for top3_heatmap (date picks), otherwise fall back to respondedCount/votedCount
+                  const activeCount = trip?.activeTravelerCount ?? trip?.totalMembers ?? 0
+                  const respondedCount = trip?.schedulingMode === 'top3_heatmap' && trip?.pickProgress
+                    ? trip.pickProgress.respondedCount
+                    : trip?.status === 'voting'
+                    ? (trip.votedCount || 0)
+                    : (trip.respondedCount || 0)
+                  const requiredCount = Math.ceil(activeCount * 0.5)
+                  const meetsThreshold = activeCount >= 2 && respondedCount >= requiredCount
+                  
+                  return (
+                    <div className="py-2 mb-4 border-b">
+                      <div className="text-sm">
+                        <p className="text-gray-700 mb-1">
+                          {respondedCount}/{activeCount} travelers responded (need at least {requiredCount})
+                        </p>
+                        {!meetsThreshold && activeCount < 2 && (
+                          <p className="text-amber-600 text-xs">Need at least 2 active participants</p>
+                        )}
+                        {!meetsThreshold && activeCount >= 2 && (
+                          <p className="text-amber-600 text-xs">Not enough responses yet</p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
                 
                 {candidateWindows.length > 0 ? (
                   <div className="py-4">
@@ -775,7 +841,7 @@ export function ChatTab({
                   </div>
                 )}
                 
-                <DialogFooter>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
                   <Button 
                     variant="outline" 
                     onClick={() => {
@@ -783,23 +849,43 @@ export function ChatTab({
                       setSelectedLockWindow(null)
                     }}
                     disabled={locking}
+                    className="w-full sm:w-auto"
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={handleLockDates} 
-                    disabled={!selectedLockWindow || locking}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {locking ? (
-                      'Locking...'
-                    ) : (
+                  {(() => {
+                    const activeCount = trip?.activeTravelerCount ?? trip?.totalMembers ?? 0
+                    const respondedCount = trip?.schedulingMode === 'top3_heatmap' && trip?.pickProgress
+                      ? trip.pickProgress.respondedCount
+                      : trip?.status === 'voting'
+                      ? (trip.votedCount || 0)
+                      : (trip.respondedCount || 0)
+                    const requiredCount = Math.ceil(activeCount * 0.5)
+                    const meetsThreshold = activeCount >= 2 && respondedCount >= requiredCount
+                    
+                    return (
                       <>
-                        <Lock className="h-4 w-4 mr-2" />
-                        Lock Dates
+                        <Button 
+                          onClick={() => handleLockDates(false)} 
+                          disabled={!selectedLockWindow || locking || !meetsThreshold}
+                          className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
+                        >
+                          <Lock className="h-4 w-4 mr-2" />
+                          {locking ? 'Locking...' : 'Lock Dates'}
+                        </Button>
+                        {trip?.isCreator && !meetsThreshold && (
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleLockDates(true)}
+                            disabled={!selectedLockWindow || locking}
+                            className="w-full sm:w-auto"
+                          >
+                            Lock anyway
+                          </Button>
+                        )}
                       </>
-                    )}
-                  </Button>
+                    )
+                  })()}
                 </DialogFooter>
               </DialogContent>
             </Dialog>
