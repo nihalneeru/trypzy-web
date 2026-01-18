@@ -1765,6 +1765,10 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
   const tripHydratedRef = useRef(false)
   const circleHydratedRef = useRef(false)
   
+  // Sync operation guards: prevent concurrent navigation operations
+  const tripSyncInProgressRef = useRef(false)
+  const circleSyncInProgressRef = useRef(false)
+  
   // Browser back/forward navigation: track last handled URL to prevent loops
   const lastHandledUrlRef = useRef(null)
   const isHandlingPopRef = useRef(false)
@@ -1969,17 +1973,25 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
     // GUARD 1: Trip takes absolute precedence - if tripId exists, NEVER sync circle
     // This prevents the bounce where circle sync fires after trip loads and overrides the trip view
     if (initialTripId) {
+      circleSyncInProgressRef.current = false
       return
     }
     
     // GUARD 2: If view is already 'trip', don't sync circle (defensive check)
     if (view === 'trip') {
+      circleSyncInProgressRef.current = false
       return
     }
     
     // GUARD 3: If selectedTrip exists, don't sync circle (trip is active)
     // This defensive check ensures we never load circle state when trip is already loaded
     if (selectedTrip) {
+      circleSyncInProgressRef.current = false
+      return
+    }
+    
+    // GUARD 4: Prevent concurrent sync operations
+    if (circleSyncInProgressRef.current) {
       return
     }
     
@@ -1988,7 +2000,10 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
       // Only load if we haven't hydrated this circle yet, or if it changed
       if (!circleHydratedRef.current || !selectedCircle || selectedCircle.id !== initialCircleId) {
         circleHydratedRef.current = true
-        openCircle(initialCircleId)
+        circleSyncInProgressRef.current = true
+        openCircle(initialCircleId).finally(() => {
+          circleSyncInProgressRef.current = false
+        })
       }
     } else {
       // Clear circle if circleId is removed from URL (only if not in trip context)
@@ -2013,12 +2028,20 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
       })
     }
     
+    // GUARD: Prevent concurrent sync operations
+    if (tripSyncInProgressRef.current) {
+      return
+    }
+    
     if (initialTripId) {
       // Only load if we haven't hydrated this trip yet, or if tripId changed
       // tripHydratedRef ensures we only call openTrip once per tripId
       if (!tripHydratedRef.current || !selectedTrip || selectedTrip.id !== initialTripId) {
         tripHydratedRef.current = true
-        openTrip(initialTripId)
+        tripSyncInProgressRef.current = true
+        openTrip(initialTripId).finally(() => {
+          tripSyncInProgressRef.current = false
+        })
       }
     } else {
       // Clear trip if tripId is removed from URL
@@ -5520,6 +5543,10 @@ export default function App() {
   const returnTo = searchParams.get('returnTo')
   const view = searchParams.get('view')
 
+  // Guards to prevent infinite redirect loops
+  const authRedirectRef = useRef(false)
+  const dashboardRedirectRef = useRef(false)
+
   // Dev-only navigation tracing
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
@@ -5542,10 +5569,14 @@ export default function App() {
     if (!loading && !user && !token) {
       // Only redirect if we're not already on login page (prevent loops)
       const currentPath = pathname || (typeof window !== 'undefined' ? window.location.pathname : '/')
-      if (currentPath !== '/' && !currentPath.startsWith('/login')) {
+      if (currentPath !== '/' && !currentPath.startsWith('/login') && !authRedirectRef.current) {
         // User is not authenticated and not on login page - redirect to login with clean URL
+        authRedirectRef.current = true
         router.replace('/')
       }
+    } else {
+      // Reset guard when user becomes authenticated
+      authRedirectRef.current = false
     }
   }, [loading, user, token, pathname, router])
 
@@ -5555,10 +5586,17 @@ export default function App() {
     if (!loading && user && token) {
       const currentPath = pathname || (typeof window !== 'undefined' ? window.location.pathname : '/')
       // Only redirect to dashboard if we're on root path with no trip/circle/view params
-      if (currentPath === '/' && !tripId && !circleId && view !== 'discover') {
+      if (currentPath === '/' && !tripId && !circleId && view !== 'discover' && !dashboardRedirectRef.current) {
         // Clear any stale query params before redirecting to dashboard
+        dashboardRedirectRef.current = true
         router.replace('/dashboard')
+      } else if (currentPath !== '/') {
+        // Reset guard when we navigate away from root
+        dashboardRedirectRef.current = false
       }
+    } else {
+      // Reset guard when user becomes unauthenticated
+      dashboardRedirectRef.current = false
     }
   }, [loading, user, token, router, tripId, circleId, view, pathname])
 
