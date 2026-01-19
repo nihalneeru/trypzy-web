@@ -2959,6 +2959,19 @@ async function handleRoute(request, { params }) {
           }
         }
         
+        // Update: Trip canceled
+        if (trip.status === 'canceled' && trip.canceledAt) {
+          updates.push({
+            id: `trip-canceled-${trip.id}`,
+            type: 'trip_canceled',
+            timestamp: trip.canceledAt,
+            tripId: trip.id,
+            tripName,
+            actorName: null,
+            message: `🚫 Trip "${tripName}" has been canceled.`
+          })
+        }
+        
         // Update: Accommodation chosen (check if all stay requirements have selected accommodations)
         // For simplicity, we'll derive this from trip.updatedAt when accommodation is done
         // This is a lightweight check - full derivation would require checking accommodation_options
