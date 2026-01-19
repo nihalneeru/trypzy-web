@@ -12,6 +12,7 @@ import { Lightbulb, ListTodo, MessageCircle, Vote, MapPin, Calendar as CalendarI
 import { BrandedSpinner } from '@/app/HomeClient'
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 // formatDate helper (copied from app/page.js)
 function formatDate(dateStr: string) {
@@ -114,6 +115,128 @@ export function ItineraryTab({
     : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
     ? "You've left this trip"
     : null
+
+  // Quick reactions state
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false)
+  const [reactingChip, setReactingChip] = useState<string | null>(null)
+
+  // Quick reactions configuration
+  const quickReactions = [
+    { id: 'love', emoji: '👍', label: 'Love it', message: 'Love it' },
+    { id: 'packed', emoji: '🔁', label: 'Too packed', message: 'Too packed' },
+    { id: 'chill', emoji: '🧘', label: 'More chill', message: 'More chill' },
+    { id: 'cheaper', emoji: '💸', label: 'Cheaper', message: 'Cheaper' },
+    { id: 'food', emoji: '🍽️', label: 'More food', message: 'More food' },
+    { id: 'freetime', emoji: '🕒', label: 'More free time', message: 'More free time' }
+  ]
+
+  // Handle quick reaction click
+  const handleQuickReaction = async (reaction: typeof quickReactions[0]) => {
+    if (reactingChip || submittingFeedback || viewerIsReadOnly) return
+    
+    setReactingChip(reaction.id)
+    
+    try {
+      // Find "preference" type or use first available type as fallback
+      const preferenceType = feedbackTypes.find((t: any) => t.value === 'preference') || feedbackTypes[0]
+      
+      // Set feedback state and submit
+      const originalFeedback = { ...newFeedback }
+      setNewFeedback({
+        type: preferenceType.value,
+        target: '',
+        message: `Reaction: ${reaction.message}`
+      })
+      
+      // Wait a tick for state to update, then submit
+      await new Promise(resolve => setTimeout(resolve, 0))
+      
+      // Submit feedback (submitFeedback uses newFeedback state)
+      submitFeedback()
+      
+      // Show "Sent ✅" state briefly (1.5 seconds), then reset
+      setTimeout(() => {
+        setReactingChip(null)
+        // Reset feedback state back to original
+        setNewFeedback(originalFeedback)
+      }, 1500)
+    } catch (error) {
+      setReactingChip(null)
+      toast.error('Failed to submit reaction')
+    }
+  }
+
+  // Calculate new feedback count since current version
+  const newFeedbackCount = useMemo(() => {
+    if (!latestVersion || !feedback || feedback.length === 0) return 0
+    
+    // Use createdAt timestamp if available
+    const versionCreatedAt = latestVersion.createdAt || latestVersion.created_at || latestVersion.timestamp
+    
+    // Only count feedback if we can compare timestamps
+    if (versionCreatedAt) {
+      return feedback.filter((fb: any) => {
+        if (fb.createdAt) {
+          return new Date(fb.createdAt) > new Date(versionCreatedAt)
+        }
+        return false
+      }).length
+    }
+    
+    // If no timestamp available, can't determine what's new - return 0
+    return 0
+  }, [latestVersion, feedback])
+
+  // Extract reaction message from feedback item (format: "Reaction: {message}")
+  const getReactionFromMessage = (message: string): string | null => {
+    if (!message || !message.startsWith('Reaction: ')) return null
+    return message.replace('Reaction: ', '').trim()
+  }
+
+  // Aggregate reaction counts from all feedback
+  const reactionCounts = useMemo(() => {
+    if (!feedback || feedback.length === 0) return new Map<string, number>()
+    
+    const counts = new Map<string, number>()
+    
+    feedback.forEach((fb: any) => {
+      const reactionMessage = getReactionFromMessage(fb.message)
+      if (reactionMessage) {
+        // Find matching reaction by message
+        const matchingReaction = quickReactions.find(r => r.message === reactionMessage)
+        if (matchingReaction) {
+          counts.set(matchingReaction.id, (counts.get(matchingReaction.id) || 0) + 1)
+        }
+      }
+    })
+    
+    return counts
+  }, [feedback])
+
+  // Get current user's reactions
+  const userReactions = useMemo(() => {
+    if (!feedback || !user?.id || feedback.length === 0) return []
+    
+    return feedback
+      .filter((fb: any) => {
+        const reactionMessage = getReactionFromMessage(fb.message)
+        // Check multiple possible author ID fields
+        const authorId = fb.author?.id || fb.authorId || fb.userId
+        return reactionMessage && authorId === user.id
+      })
+      .map((fb: any) => {
+        const reactionMessage = getReactionFromMessage(fb.message)
+        const matchingReaction = quickReactions.find(r => r.message === reactionMessage)
+        return matchingReaction ? matchingReaction.label : null
+      })
+      .filter(Boolean)
+  }, [feedback, user?.id])
+
+  // Check if revise should be enabled
+  const canRevise = useMemo(() => {
+    if (!latestVersion || !trip.isCreator) return false
+    return newFeedbackCount > 0 && !revising
+  }, [latestVersion, trip.isCreator, newFeedbackCount, revising])
 
   // Helper: Normalize author ID from various fields
   const getAuthorId = (idea: any): string | null => {
@@ -595,19 +718,28 @@ export function ItineraryTab({
                 Feedback
               </CardTitle>
               {trip.isCreator && latestVersion && (
-                <Button onClick={reviseItinerary} disabled={revising || feedback.length === 0} size="sm" variant="outline">
-                  {revising ? (
-                    <>
-                      <BrandedSpinner size="sm" className="mr-2" />
-                      Revising...
-                    </>
+                <div className="flex flex-col items-end gap-1">
+                  {canRevise ? (
+                    <p className="text-xs text-gray-500">
+                      {newFeedbackCount} {newFeedbackCount === 1 ? 'new item' : 'new items'} since v{latestVersion.version}
+                    </p>
                   ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Revise
-                    </>
+                    <p className="text-xs text-gray-400">Waiting for feedback</p>
                   )}
-                </Button>
+                  <Button onClick={reviseItinerary} disabled={!canRevise} size="sm" variant="outline">
+                    {revising ? (
+                      <>
+                        <BrandedSpinner size="sm" className="mr-2" />
+                        Revising...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Revise
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
             {latestVersion && (
@@ -625,6 +757,70 @@ export function ItineraryTab({
               </div>
             ) : (
               <>
+                {/* Quick Reactions */}
+                <div className="mb-4">
+                  <div className="flex flex-wrap gap-2">
+                    {quickReactions.map((reaction) => {
+                      const isReacting = reactingChip === reaction.id
+                      const isDisabled = reactingChip !== null || submittingFeedback || viewerIsReadOnly
+                      const reactionCount = reactionCounts.get(reaction.id) || 0
+                      
+                      return (
+                        <Button
+                          key={reaction.id}
+                          variant={isReacting ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleQuickReaction(reaction)}
+                          disabled={isDisabled}
+                          className="text-xs h-8"
+                        >
+                          {isReacting ? (
+                            <>
+                              <span className="mr-1">✅</span>
+                              Sent
+                            </>
+                          ) : (
+                            <>
+                              <span className="mr-1">{reaction.emoji}</span>
+                              {reaction.label}
+                              {reactionCount > 0 && (
+                                <span className="ml-1 text-gray-500">({reactionCount})</span>
+                              )}
+                            </>
+                          )}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  
+                  {/* Personal reactions summary */}
+                  {userReactions.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Your reactions: {userReactions.join(', ')}
+                    </p>
+                  )}
+                </div>
+
+                {/* Reactions Summary */}
+                {reactionCounts.size > 0 && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
+                    <p className="text-xs font-medium text-gray-700 mb-2">Reactions</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {quickReactions
+                        .filter(reaction => reactionCounts.has(reaction.id))
+                        .map((reaction) => {
+                          const count = reactionCounts.get(reaction.id) || 0
+                          return (
+                            <div key={reaction.id} className="text-xs text-gray-600">
+                              <span className="mr-1">{reaction.emoji}</span>
+                              {reaction.label} — {count}
+                            </div>
+                          )
+                        })}
+                    </div>
+                  </div>
+                )}
+
                 <ScrollArea className="flex-1 mb-4 pr-4" style={{ maxHeight: '300px' }}>
                   {loadingFeedback ? (
                     <div className="flex justify-center py-8">
@@ -655,34 +851,62 @@ export function ItineraryTab({
                   )}
                 </ScrollArea>
                 
-                <div className="space-y-2.5 pt-4 border-t bg-white">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select value={newFeedback.type} onValueChange={(v) => setNewFeedback({ ...newFeedback, type: v })}>
-                      <SelectTrigger className="text-sm h-9">
-                        <SelectValue placeholder="Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {feedbackTypes.map((type: any) => (
-                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      value={newFeedback.target}
-                      onChange={(e) => setNewFeedback({ ...newFeedback, target: e.target.value })}
-                      placeholder="Target (optional)"
-                      className="text-sm h-9"
-                    />
-                  </div>
-                  <Textarea
-                    value={newFeedback.message}
-                    onChange={(e) => setNewFeedback({ ...newFeedback, message: e.target.value })}
-                    placeholder="Your feedback..."
-                    className="text-sm min-h-[70px] resize-none"
-                  />
-                  <Button onClick={submitFeedback} disabled={submittingFeedback || !newFeedback.message.trim()} className="w-full" size="sm">
-                    {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
-                  </Button>
+                {/* Progressive Disclosure: Add a note */}
+                <div className="pt-4 border-t bg-white">
+                  <Collapsible open={showFeedbackForm} onOpenChange={setShowFeedbackForm}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full mb-2 text-xs" disabled={viewerIsReadOnly}>
+                        {showFeedbackForm ? 'Hide form' : 'Add a note'}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="space-y-2.5">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select value={newFeedback.type} onValueChange={(v) => setNewFeedback({ ...newFeedback, type: v })}>
+                            <SelectTrigger className="text-sm h-9">
+                              <SelectValue placeholder="Type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {feedbackTypes.map((type: any) => (
+                                <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            value={newFeedback.target}
+                            onChange={(e) => setNewFeedback({ ...newFeedback, target: e.target.value })}
+                            placeholder="Target (optional)"
+                            className="text-sm h-9"
+                            disabled={viewerIsReadOnly}
+                          />
+                        </div>
+                        <Textarea
+                          value={newFeedback.message}
+                          onChange={(e) => setNewFeedback({ ...newFeedback, message: e.target.value })}
+                          placeholder="Your feedback..."
+                          className="text-sm min-h-[70px] resize-none"
+                          disabled={viewerIsReadOnly}
+                        />
+                        <Button 
+                          onClick={() => {
+                            submitFeedback()
+                            // Collapse form after submission starts
+                            // The form will stay collapsed after successful submit
+                            setTimeout(() => {
+                              setShowFeedbackForm(false)
+                              // Reset form
+                              setNewFeedback({ type: feedbackTypes[0]?.value || '', target: '', message: '' })
+                            }, 500)
+                          }} 
+                          disabled={submittingFeedback || !newFeedback.message.trim() || viewerIsReadOnly} 
+                          className="w-full" 
+                          size="sm"
+                        >
+                          {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                        </Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               </>
             )}
