@@ -2049,37 +2049,24 @@ async function handleRoute(request, { params }) {
       const endDateFormatted = formatDate(lockedEndDate)
       const dateRange = startDateFormatted && endDateFormatted ? `${startDateFormatted}–${endDateFormatted}` : ''
       
-      // Build celebration message with winning option name
-      const optionName = winningOption?.name || winningOption?.label || ''
-      const celebrationText = `🎉 Dates locked${optionName ? `: ${optionName}` : ''}${dateRange ? ` — ${dateRange}` : ''}`
-      
-      // Emit celebration chat event for dates locked milestone
+      // Emit single consolidated message for dates locked and itinerary planning
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      const lockMessage = dateRange 
+        ? `Dates ${dateRange} are locked. Itinerary planning is now open — start sharing ideas.`
+        : 'Dates are locked. Itinerary planning is now open — start sharing ideas.'
+      
       await emitTripChatEvent({
         tripId,
         circleId: trip.circleId,
         actorUserId: null,
         subtype: 'milestone',
-        text: celebrationText,
+        text: lockMessage,
         metadata: {
           key: 'dates_locked',
           startDate: lockedStartDate,
-          endDate: lockedEndDate,
-          ...(optionName ? { optionName } : {})
-        }
-      })
-      
-      // Emit follow-up itinerary planning message
-      await emitTripChatEvent({
-        tripId,
-        circleId: trip.circleId,
-        actorUserId: null,
-        subtype: 'milestone',
-        text: 'Dates are locked. Itinerary planning is now open — start sharing ideas.',
-        metadata: {
-          key: 'itinerary_planning_begins'
+          endDate: lockedEndDate
         },
-        dedupeKey: `itinerary_planning_begins_${tripId}`
+        dedupeKey: `dates_locked_${tripId}`
       })
       
       return handleCORS(NextResponse.json({ message: 'Trip locked', lockedStartDate, lockedEndDate }))
