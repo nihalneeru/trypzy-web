@@ -1,530 +1,691 @@
 # Trypzy Repository Summary
 
-## 1. Product Overview
+## 1. Project Overview
 
-Trypzy is a **private, trust-based trip planning platform** for friend groups. The core workflow enables progressive scheduling: friends propose trips, share availability, vote on promising date windows, and lock dates when ready—all without requiring unanimous participation. The platform is organized around **Circles** (private friend groups) and **Trips** (collaborative or hosted travel plans). 
+Trypzy is a **private, trust-based trip planning platform** for friend groups. The core value proposition is solving group decision paralysis through progressive scheduling: friends propose trips, share availability, vote on promising date windows, and lock dates—all without requiring unanimous participation. The platform is organized around **Circles** (private friend groups) and **Trips** (collaborative or hosted travel plans).
 
-**Key workflows**:
-1. Circle creation and invite-based membership
-2. Trip proposal with broad date windows
-3. Availability collection via flexible scheduling modes (broad/weekly/per-day or top3_heatmap)
-4. Voting on top date windows
-5. Date locking and itinerary planning
-6. Trip Chat as the primary interactive conversation surface
-7. Circle Updates digest showing read-only trip activity
+**Target users**: Friend groups (typically 4-30 people) planning trips together. Designed to handle both small groups (where everyone's input matters) and large/flaky groups (where partial participation is expected). Adults roughly 21-55 who are already socially connected.
+
+**Core user flows**:
+- Circle creation and invite-based membership
+- Trip proposal with broad date windows
+- Availability collection via flexible scheduling modes (broad/weekly/per-day or top3_heatmap)
+- Voting on top date windows
+- Date locking and itinerary planning
+- Trip Chat as the primary interactive conversation surface
+- Circle Updates digest showing read-only trip activity
+- Itinerary idea submission and LLM-assisted generation
+- Accommodation selection and prep tracking
 
 **Core principle**: Availability ≠ Commitment. Only locking dates represents commitment. The system can progress without unanimous participation.
 
-**Target users**: Friend groups (typically 4-30 people) planning trips together. Designed to handle both small groups (where everyone's input matters) and large/flaky groups (where partial participation is expected).
-
 ## 2. Tech Stack
 
-- **Framework**: Next.js 14.2.3 (App Router)
-- **React**: 18.x
-- **Styling**: Tailwind CSS 3.4.1 + shadcn/ui components (Radix UI primitives)
-- **Data Layer**: MongoDB 6.6.0 (native driver, no ORM)
-- **Authentication**: JWT (jsonwebtoken 9.0.3) with bcryptjs 3.0.3 for password hashing
-- **Hosting**: Next.js standalone output mode (assumes Vercel or similar Node.js hosting)
-- **Testing**: 
-  - Vitest 4.0.16 (unit tests)
-  - Playwright 1.57.0 (E2E tests)
-- **Additional**: 
-  - OpenAI API integration (for itinerary generation via `lib/server/llm.js`)
-  - date-fns 4.1.0 for date utilities
-  - sonner 2.0.5 for toast notifications
+**Frameworks**:
+- Next.js 14.2.3 (App Router)
+- React 18.x
+- Node.js 18+
 
-## 3. Repository Layout
+**Styling**:
+- Tailwind CSS 3.4.1
+- shadcn/ui component library (48 components built on Radix UI primitives)
+- CSS strategy: Utility-first with component composition via `cn()` helper
 
-### `/app`
-Next.js App Router directory:
-- **`page.js`** - Root page (wraps `HomeClient.jsx`)
-- **`HomeClient.jsx`** - Main SPA component (~5500 lines, contains most client-side logic)
-- **`layout.js`** - Root layout
-- **`globals.css`** - Global styles and Tailwind config
-- **`api/[[...path]]/route.js`** - Centralized API route handler (~7100 lines, handles most endpoints via pattern matching)
-- **`api/discover/posts/route.js`** - Discover posts API
-- **`api/seed/discover/route.js`** - Dev seed endpoint
-- **`dashboard/page.js`** - Dashboard page (server component)
-- **`circles/[circleId]/page.js`** - Circle detail page
-- **`trips/[tripId]/page.js`** - Trip detail page (redirects to SPA)
-- **`members/[userId]/page.js`** - Member profile page
-- **`settings/privacy/page.js`** - Privacy settings page
+**Backend / API approach**:
+- Centralized API route handler: `app/api/[[...path]]/route.js` (~7100 lines, pattern matching)
+- Dedicated routes: `app/api/discover/posts/route.js`, `app/api/seed/discover/route.js`
+- Server-side utilities in `lib/server/` (db.js, auth.js, cors.js, llm.js)
+- JWT-based authentication (jsonwebtoken 9.0.3)
+- bcryptjs 3.0.3 for password hashing
 
-### `/components`
-React components organized by domain:
-- **`dashboard/`** - Dashboard-specific components (TripCard, CircleSection, dialogs)
-- **`trip/TripTabs/`** - Trip detail tabs (ChatTab, ItineraryTab, PlanningTab, AccommodationTab, PrepTab, MemoriesTab, TravelersTab)
-- **`trip/chat/`** - Chat-specific components
-- **`ui/`** - shadcn/ui component library (48 components)
-- **`brand/`** - Branding components (TrypzyLogo)
+**Data layer**:
+- MongoDB 6.6.0 (native driver, no ORM)
+- Collections created on first insert
+- No explicit schema validation (relies on application logic)
+- Connection pooling via singleton pattern in `lib/server/db.js`
 
-### `/lib`
-Shared utilities organized by domain:
-- **`server/`** - Server-side utilities (db.js, auth.js, cors.js, llm.js)
-- **`trips/`** - Trip domain logic (13 files: stage.js, progress.js, buildTripCardData.js, getUserActionRequired.js, applyProfileTripPrivacy.js, etc.)
-- **`dashboard/`** - Dashboard data fetching and sorting
-- **`navigation/`** - Route helpers (routes.js)
-- **`chat/`** - Chat event emission
-- **`itinerary/`** - Itinerary processing utilities
-- **`accommodations/`** - Accommodation helpers
-- **`prep/`** - Prep suggestions
-- **`utils.js`** - General utilities (cn helper, etc.)
+**Auth**:
+- JWT tokens stored client-side (localStorage)
+- Protected routes use `requireAuth()` helper
+- Token validation on every authenticated request
+- No refresh token mechanism (MVP)
 
-### `/tests`
-Unit tests (Vitest):
-- **`api/`** - API endpoint tests (6 test files)
-- **`itinerary/`** - Itinerary-specific tests
-- **`setup.js`** - Test setup/teardown
+**State management**:
+- React hooks (useState, useEffect, useRef)
+- Client-side state in `HomeClient.jsx` (~5500 lines SPA component)
+- Server state fetched via API calls (no global state management library)
+- URL query params for navigation state (`?tripId=X&tab=Y`)
 
-### `/e2e`
-End-to-end tests (Playwright):
-- **`navigation.spec.ts`** - Navigation flow tests
-- **`discover-flow.spec.js`** - Discover feature tests
+**Tooling**:
+- **Testing**: Vitest 4.0.16 (unit), Playwright 1.57.0 (E2E)
+- **Linting**: ESLint (not installed in devDependencies, but referenced in build)
+- **Build**: Next.js standalone output mode (Vercel-ready)
+- **Package manager**: Yarn 1.22.22
 
-### `/public`
-Static assets:
-- **`brand/`** - Brand assets (logos, icons)
-- **`uploads/`** - User-uploaded images
+**External integrations**:
+- OpenAI API (via `lib/server/llm.js`) for itinerary generation
+- date-fns 4.1.0 for date utilities
+- sonner 2.0.5 for toast notifications
 
-### `/docs`
-Documentation:
-- **`api/`** - API documentation
-- **`features/`** - Feature specifications
-- **`tests/`** - Testing documentation
+## 3. Repository Structure
 
-### `/scripts`
-Utility scripts:
-- **`seed-discover.js`** - Seed script for discover posts
+```
+/app
+├── page.js                    # Root page (wraps HomeClient.jsx)
+├── HomeClient.jsx             # Main SPA component (~5500 lines)
+├── layout.js                  # Root layout
+├── globals.css                # Global styles
+├── api/
+│   ├── [[...path]]/route.js   # Centralized API handler (~7100 lines)
+│   ├── discover/posts/        # Discover posts API
+│   └── seed/discover/         # Dev seed endpoint
+├── dashboard/page.js          # Dashboard page (server component)
+├── circles/[circleId]/        # Circle detail page
+├── trips/[tripId]/            # Trip detail page (redirects to SPA)
+├── members/[userId]/          # Member profile page
+└── settings/privacy/          # Privacy settings page
 
-## 4. Key Domain Concepts
+/components
+├── dashboard/                  # Dashboard-specific components
+│   ├── TripCard.jsx
+│   ├── CircleSection.jsx
+│   ├── CreateCircleDialog.jsx
+│   ├── CreateTripDialog.jsx
+│   └── GlobalNotifications.jsx
+├── trip/
+│   ├── TripTabs/              # Trip detail tabs
+│   │   ├── TripTabs.tsx
+│   │   └── tabs/
+│   │       ├── ChatTab.tsx
+│   │       ├── PlanningTab.tsx
+│   │       ├── ItineraryTab.tsx
+│   │       ├── AccommodationTab.tsx
+│   │       ├── PrepTab.tsx
+│   │       ├── MemoriesTab.tsx
+│   │       └── TravelersTab.tsx
+│   ├── chat/                   # Chat-specific components
+│   ├── CancelTripDialog.tsx
+│   └── TransferLeadershipDialog.tsx
+├── ui/                        # shadcn/ui component library (48 components)
+└── brand/                     # Branding components (TrypzyLogo)
 
-### Circles
-Private friend groups. Each circle has:
-- `id`, `name`, `description`, `ownerId`, `inviteCode`
-- Members join via invite code
-- Circle-scoped content (trips, posts, updates)
-- Owner has management privileges
+/lib
+├── server/                    # Server-side utilities
+│   ├── db.js                  # MongoDB connection
+│   ├── auth.js                # JWT auth helpers
+│   ├── cors.js                # CORS handling
+│   └── llm.js                 # OpenAI integration
+├── trips/                     # Trip domain logic (17 files)
+│   ├── stage.js               # Stage computation
+│   ├── progress.js            # Progress tracking
+│   ├── buildTripCardData.js   # Trip card data builder
+│   ├── getUserActionRequired.js
+│   ├── applyProfileTripPrivacy.js
+│   ├── canViewerSeeTrip.js    # Privacy filtering
+│   └── ...
+├── dashboard/                 # Dashboard data fetching
+│   ├── getDashboardData.js
+│   └── sortTrips.js
+├── navigation/                # Route helpers
+│   └── routes.js
+├── chat/                      # Chat event emission
+├── itinerary/                 # Itinerary processing
+├── accommodations/             # Accommodation helpers
+├── prep/                      # Prep suggestions
+└── utils.js                   # General utilities (cn helper)
 
-### Trips
-Travel plans with two types:
-- **Collaborative**: All circle members are travelers by default (can leave/be removed)
-- **Hosted**: Only explicit participants (via trip_participants) are travelers
+/tests                        # Unit tests (Vitest)
+├── api/                       # API endpoint tests (8 files)
+├── itinerary/                 # Itinerary-specific tests
+├── trips/                     # Trip domain tests
+└── setup.js                   # Test setup/teardown
 
-### Trip Stages (Status)
-Progressive states:
-- **`proposed`** - Initial state, broad date window
-- **`scheduling`** - Collecting availability (auto-transitions from `proposed` when first availability submitted)
-- **`voting`** - Voting on top date windows
-- **`locked`** - Dates finalized, planning begins
-- **`completed`** - Trip end date has passed
+/e2e                          # End-to-end tests (Playwright)
+├── navigation.spec.ts
+└── discover-flow.spec.js
 
-### Travelers vs Members
-- **Circle Members**: Users in `memberships` collection for a circle
-- **Travelers**: 
-  - Collaborative trips: All circle members (unless status='left'/'removed' in trip_participants)
-  - Hosted trips: Only users with active `trip_participants` records
-- **Active Travelers**: Travelers with status='active' (default if no record exists for collaborative)
+/public
+├── brand/                     # Brand assets (logos, icons)
+└── uploads/                   # User-uploaded images
 
-### Privacy/Permissions
-Four privacy settings (stored in `users.privacy`):
-- **Profile Visibility**: `circle` | `public` | `private` - Controls profile page access
-- **Upcoming Trips Visibility**: `circle` | `public` | `private` - **ONLY affects other-user profile views**, never self/dashboard/circle pages
-- **Trip Details Level**: `limited` | `full` - **ONLY affects profile views for non-travelers**
-- **Allow Trip Join Requests**: `boolean` - Controls "Request to join" CTA visibility
+/docs
+├── api/                       # API documentation
+├── features/                   # Feature specifications
+└── tests/                     # Testing documentation
+```
 
-### Trip Chat
-Primary interactive conversation surface:
-- User messages + system messages (trip events, vote aggregation)
-- Chronologically interleaved
-- System messages are read-only, visually distinct
-- No reactions, threads, or inline actions
+**Directory purposes**:
+- `/app`: Next.js App Router pages and API routes
+- `/components`: React components organized by domain (dashboard, trip, ui)
+- `/lib`: Shared utilities organized by domain (server, trips, dashboard, etc.)
+- `/tests`: Unit tests using Vitest
+- `/e2e`: End-to-end tests using Playwright
+- `/public`: Static assets served directly
+- `/docs`: Documentation for API, features, and tests
 
-### Circle Updates
-Read-only digest of trip activity:
-- Derived from trip events (creation, status changes, joins, votes)
-- Replaces former "Circle Lounge" interactive chat
-- Shows on Circle page default tab
-- Clicking updates navigates to relevant Trip Chat
+## 4. Architecture & Data Flow
 
-### Itinerary Ideas
-User-submitted ideas for locked trips:
-- Max 3 ideas per user per trip
-- Character limit (~120)
-- Like/unlike functionality
-- Sorted by likes then recency
-- "Waiting on you" badge when user has < 3 ideas (if this logic is implemented)
+### Client ↔ API Interaction Model
 
-### Join Requests
-Request to join hosted trips:
-- Stored in `trip_join_requests` collection
-- Status: `pending` | `approved` | `rejected`
-- Only shown when `allowTripJoinRequests` is true and viewer is not already traveler
+**Request flow**:
+1. Client component calls `api(endpoint, options, token)` helper (defined in `HomeClient.jsx`)
+2. Helper adds JWT token to `Authorization: Bearer <token>` header
+3. Request sent to `/api/<endpoint>`
+4. API route handler (`app/api/[[...path]]/route.js`) pattern-matches route
+5. `requireAuth()` validates JWT and fetches user from DB
+6. Route handler executes business logic
+7. Response returned as JSON with CORS headers
 
-## 5. Data Model Summary
+**Response handling**:
+- Success: Data returned directly to component
+- Error: Error message in `{ error: string }` format, displayed via toast (sonner)
 
-### Primary Collections
+### How Trip / Circle Data is Fetched and Cached
 
-**`users`**
+**Dashboard data**:
+- Server component (`app/dashboard/page.js`) calls `getDashboardData(userId)`
+- Function fetches circles, trips, and related data in bulk (avoids N+1)
+- Applies privacy filtering server-side
+- Returns structured data: `{ circles: [], globalNotifications: [] }`
+- Client-side SPA (`HomeClient.jsx`) receives data and manages local state
+
+**Trip detail data**:
+- Client calls `api('/trips/:id')` on navigation
+- API returns full trip object with computed fields (`_computedStage`, `_primaryTab`)
+- Client stores in `selectedTrip` state
+- No explicit caching (refetch on navigation)
+
+**Circle data**:
+- Fetched via `api('/circles')` or `api('/circles/:id')`
+- Stored in `circles` state array
+- Updated on create/join operations
+
+### Where Business Logic Lives
+
+**Server-side (API routes)**:
+- Authentication & authorization
+- Data validation
+- Privacy filtering (`lib/trips/canViewerSeeTrip.js`)
+- Stage transitions (validated via `lib/trips/validateStageAction.js`)
+- Trip participant management
+- LLM itinerary generation
+
+**Client-side (`HomeClient.jsx`)**:
+- UI state management
+- Navigation logic (URL normalization, popstate handling)
+- Form handling
+- Toast notifications
+- Local state for selected trip/circle
+
+**Shared utilities (`lib/`)**:
+- Stage computation (`lib/trips/stage.js`)
+- Progress tracking (`lib/trips/progress.js`)
+- Trip card data building (`lib/trips/buildTripCardData.js`)
+- Route helpers (`lib/navigation/routes.js`)
+
+### Stage-Based Gating Patterns
+
+**Trip stages** (from `lib/trips/stage.js`):
+- `PROPOSED` → `DATES_LOCKED` → `ITINERARY` → `STAY` → `PREP` → `ONGOING` → `COMPLETED`
+
+**Stage enforcement**:
+- Server validates stage transitions via `validateStageAction()`
+- Client computes stage via `deriveTripPrimaryStage()`
+- UI shows/hides actions based on stage
+- Navigation routes to appropriate tab based on stage
+
+**Role-based gating**:
+- Trip leader: `trip.createdBy === userId` (enforced server-side)
+- Active traveler: `trip_participants.status === 'active'` or implicit for collaborative trips
+- Circle member: `memberships` collection lookup
+- Permissions checked server-side before allowing actions
+
+### Simple Flow Diagram
+
+```
+User Action (Click Trip Card)
+  ↓
+UI Component (HomeClient.jsx)
+  ↓
+API Call (api('/trips/:id'))
+  ↓
+API Route Handler (route.js)
+  ↓
+Auth Check (requireAuth())
+  ↓
+Business Logic (fetch trip, compute stage)
+  ↓
+Privacy Filter (canViewerSeeTrip())
+  ↓
+MongoDB Query
+  ↓
+Response (JSON with trip data)
+  ↓
+Client State Update (setSelectedTrip)
+  ↓
+UI Re-render (TripDetailView)
+```
+
+## 5. Domain Model
+
+### Core Entities
+
+#### User
+**Key fields**:
 - `id` (string, unique)
 - `email`, `name`, `password` (hashed)
 - `avatarUrl` (optional)
 - `privacy` (object): `profileVisibility`, `tripsVisibility`, `allowTripJoinRequests`, `showTripDetailsLevel`
 - `createdAt`, `updatedAt`
 
-**`circles`**
+**Relationships**:
+- One-to-many: `memberships` → Circles
+- One-to-many: `trips` (as creator)
+- Many-to-many: `trip_participants` → Trips
+
+#### Circle
+**Key fields**:
 - `id` (string, unique)
 - `name`, `description`
 - `ownerId` (references users.id)
 - `inviteCode` (uppercase, 6 chars)
 - `createdAt`
 
-**`memberships`**
-- `userId` (references users.id)
-- `circleId` (references circles.id)
-- `role`: `'owner'` | `'member'`
-- `joinedAt`
+**Relationships**:
+- One-to-many: `memberships` → Users
+- One-to-many: `trips` → Trips
+- Owner: `ownerId === users.id`
 
-**`trips`**
+#### Trip
+**Key fields**:
 - `id` (string, unique)
 - `name`, `description`
 - `circleId` (references circles.id)
-- `createdBy` (references users.id)
+- `createdBy` (references users.id) - **trip leader**
 - `type`: `'collaborative'` | `'hosted'`
-- `status`: `'proposed'` | `'scheduling'` | `'voting'` | `'locked'` | `'completed'`
+- `status`: `'proposed'` | `'scheduling'` | `'voting'` | `'locked'` | `'completed'` | `'canceled'`
 - `schedulingMode`: `'top3_heatmap'` | legacy availability system
 - `startDate`, `endDate` (broad window)
 - `lockedStartDate`, `lockedEndDate` (finalized dates)
 - `destinationHint` (optional, editable by leader even when locked)
-- `itineraryStatus`: `'collecting_ideas'` | `'drafting'` | `'published'` | `'revising'` | `null`
+- `itineraryStatus`: `'collecting_ideas'` | `'drafting'` | `'selected'` | `'published'` | `'revising'` | `null`
+- `canceledAt`, `canceledBy` (for canceled trips)
 - `createdAt`, `updatedAt`
 
-**`trip_participants`**
-- `tripId` (references trips.id)
-- `userId` (references users.id)
+**Relationships**:
+- Many-to-one: `circleId` → Circle
+- One-to-many: `trip_participants` → Users
+- One-to-many: `trip_messages` → Messages
+- One-to-many: `itinerary_ideas` → Ideas
+- One-to-many: `trip_join_requests` → Join Requests
+
+**Ownership / permissions**:
+- **Trip leader**: `trip.createdBy === userId` (can lock dates, open voting, cancel trip, transfer leadership)
+- **Active travelers**: Can submit availability/votes, leave trip (non-leaders), view full trip details
+- **Circle members**: Can view trip (subject to privacy), join collaborative trips automatically
+
+#### Membership / Traveler
+
+**`memberships` collection**:
+- `userId`, `circleId`
+- `role`: `'owner'` | `'member'`
+- `joinedAt`
+
+**`trip_participants` collection**:
+- `tripId`, `userId`
 - `status`: `'active'` | `'left'` | `'removed'` (default: `'active'`)
 - `joinedAt`, `createdAt`, `updatedAt`
-- For collaborative trips: circle members are implicitly active unless status='left'/'removed'
-- For hosted trips: only explicit participants are travelers
 
-**`trip_date_picks`** (top3_heatmap mode)
+**Traveler determination**:
+- **Collaborative trips**: All circle members are travelers (unless `status='left'/'removed'`)
+- **Hosted trips**: Only explicit `trip_participants` with `status='active'` are travelers
+- **Active travelers**: Used for privacy filtering and action requirements
+
+#### Scheduling / Availability / Vote
+
+**`trip_date_picks` collection** (top3_heatmap mode):
 - `tripId`, `userId`
-- `picks` (array of { rank, startDateISO, endDateISO })
+- `picks` (array of `{ rank, startDateISO, endDateISO }`)
 - `createdAt`, `updatedAt`
 
-**`availabilities`** (legacy system)
+**`availabilities` collection** (legacy system):
 - `tripId`, `userId`
 - `day` (YYYY-MM-DD) or `isBroad: true` or `isWeekly: true`
 - `status`: `'available'` | `'maybe'` | `'unavailable'`
 - `createdAt`
 
-**`votes`**
+**`votes` collection**:
 - `tripId`, `userId`
-- `selectedWindow` (object with startDate, endDate)
+- `selectedWindow` (object with `startDate`, `endDate`)
 - `createdAt`
 
-**`trip_messages`**
-- `id` (string, unique)
-- `tripId`, `userId` (null for system messages)
-- `content` (text)
-- `isSystem` (boolean)
-- `subtype` (for system messages: `'milestone'`, `'vote_aggregation'`, etc.)
-- `createdAt`
+**Scheduling flow**:
+1. Trip created in `proposed` status
+2. Leader or travelers submit availability/date picks
+3. Auto-transition to `scheduling` when first availability submitted
+4. Leader opens voting (`status='voting'`)
+5. Travelers vote on top windows
+6. Leader locks dates (`status='locked'`, sets `lockedStartDate`, `lockedEndDate`)
 
-**`trip_join_requests`**
-- `id` (string, unique)
-- `tripId`, `requesterId`
-- `status`: `'pending'` | `'approved'` | `'rejected'`
-- `message` (optional)
-- `createdAt`, `updatedAt`
+### Relationships Summary
 
-**`itinerary_ideas`**
-- `id` (string, unique)
-- `tripId`, `authorUserId`
-- `text` (max ~120 chars)
-- `likes` (array of userIds)
-- `createdAt`
+| Entity | Relationship | Target | Type |
+|--------|-------------|--------|------|
+| User | has many | Memberships | One-to-many |
+| User | has many | Trips (as creator) | One-to-many |
+| User | has many | Trip Participants | Many-to-many (via junction) |
+| Circle | has many | Memberships | One-to-many |
+| Circle | has many | Trips | One-to-many |
+| Trip | belongs to | Circle | Many-to-one |
+| Trip | has many | Trip Participants | Many-to-many (via junction) |
+| Trip | has many | Messages | One-to-many |
+| Trip | has many | Itinerary Ideas | One-to-many |
+| Trip | has many | Join Requests | One-to-many |
 
-**`itineraries`**
-- `id` (string, unique)
-- `tripId`
-- `items` (array of itinerary items)
-- `status`: `'draft'` | `'selected'` | `'published'`
-- `createdAt`, `updatedAt`
+## 6. State & Permissions Model
 
-**`circle_messages`** (deprecated, read-only)
-- Used for Circle Updates digest
-- POST endpoint returns 410 Gone
+### How Roles are Determined
 
-**`posts`** (Discover feed)
-- `id`, `userId`, `circleId` (optional)
-- `caption`, `mediaUrls[]`
-- `discoverable` (boolean)
-- `createdAt`
+**Trip Leader**:
+- Determined by: `trip.createdBy === userId`
+- Enforced: Server-side in API routes
+- Permissions: Lock dates, open voting, cancel trip, transfer leadership, edit destinationHint even when locked
 
-### Relationships
-- Users → Memberships → Circles (many-to-many)
-- Circles → Trips (one-to-many)
-- Trips → Trip Participants → Users (many-to-many via junction table)
-- Trips → Trip Messages (one-to-many)
-- Trips → Itinerary Ideas (one-to-many)
-- Trips → Join Requests (one-to-many)
+**Circle Owner**:
+- Determined by: `circle.ownerId === userId`
+- Enforced: Server-side in API routes
+- Permissions: Manage circle, delete circle
 
-## 6. API Surface Summary
+**Active Traveler**:
+- Determined by:
+  - Collaborative trips: Circle member AND (`trip_participants.status !== 'left'/'removed'` OR no record exists)
+  - Hosted trips: `trip_participants.status === 'active'`
+- Enforced: Server-side in API routes
+- Permissions: Submit availability/votes, view full trip details, leave trip (non-leaders)
 
-All routes in `app/api/[[...path]]/route.js` unless noted:
+**Circle Member**:
+- Determined by: `memberships` collection lookup
+- Enforced: Server-side in API routes
+- Permissions: View circle trips (subject to privacy), join collaborative trips automatically
 
-### Authentication
-- `POST /api/auth/signup` - User registration
-- `POST /api/auth/signin` - User login (returns JWT)
-- `GET /api/auth/me` - Get current user
+### How Trip Stages are Represented
 
-### Circles
-- `POST /api/circles` - Create circle
-- `GET /api/circles` - Get user's circles
-- `POST /api/circles/join` - Join circle via invite code (backfills trip_participants for existing collaborative trips)
-- `GET /api/circles/:id` - Get circle details (members, trips)
-- `GET /api/circles/:id/updates` - Get Circle Updates digest (read-only)
-- `GET /api/circles/:id/messages` - Get circle messages (read-only, deprecated)
-- `POST /api/circles/:id/messages` - Returns 410 Gone (Circle Lounge removed)
-- `GET /api/circles/:id/posts` - Get circle posts
+**Status field** (`trip.status`):
+- `'proposed'` → `'scheduling'` → `'voting'` → `'locked'` → `'completed'` | `'canceled'`
 
-### Trips
-- `POST /api/trips` - Create trip
-- `GET /api/trips/:id` - Get trip details
-- `PATCH /api/trips/:id` - Update trip (destinationHint editable by leader even when locked)
-- `DELETE /api/trips/:id` - Delete trip
-- `POST /api/trips/:id/availability` - Submit availability (legacy system)
-- `POST /api/trips/:id/date-picks` - Submit date picks (top3_heatmap mode)
-- `POST /api/trips/:id/open-voting` - Leader opens voting
-- `POST /api/trips/:id/vote` - Submit vote on date window
-- `POST /api/trips/:id/lock` - Lock dates (leader only)
-- `POST /api/trips/:id/join` - Join hosted trip
-- `POST /api/trips/:id/leave` - Leave trip
-- `GET /api/trips/:id/messages` - Get trip messages (includes system messages)
-- `POST /api/trips/:id/messages` - Send trip message
-- `GET /api/trips/:id/progress` - Get trip progress snapshot
-- `PATCH /api/trips/:id/progress` - Update progress flags (manual steps)
+**Primary stage** (computed client-side via `deriveTripPrimaryStage()`):
+- `PROPOSED` - Dates not locked
+- `DATES_LOCKED` - Dates locked, itinerary not finalized
+- `ITINERARY` - Itinerary finalized, accommodation not chosen
+- `STAY` - Accommodation chosen, prep not started
+- `PREP` - Prep started, trip not ongoing
+- `ONGOING` - Trip dates are active (today within range)
+- `COMPLETED` - Trip end date has passed
 
-### Join Requests
-- `POST /api/trips/:id/join-requests` - Request to join trip
-- `GET /api/trips/:id/join-requests` - Get join requests (leader only)
-- `GET /api/trips/:id/join-requests/me` - Get viewer's join request status
-- `PATCH /api/trips/:id/join-requests/:requestId` - Approve/reject request
+**Stage transitions**:
+- `proposed` → `scheduling`: Auto on first availability submission
+- `scheduling` → `voting`: Manual (leader action via `POST /api/trips/:id/open-voting`)
+- `voting` → `locked`: Manual (leader action via `POST /api/trips/:id/lock`)
+- `locked` → `completed`: Auto when `endDate < today`
 
-### Itinerary
-- `GET /api/trips/:id/ideas` - Get itinerary ideas
-- `POST /api/trips/:id/ideas` - Submit idea (max 3 per user)
-- `DELETE /api/trips/:id/ideas/:ideaId` - Delete idea
-- `POST /api/trips/:id/ideas/:ideaId/like` - Toggle like on idea
-- `GET /api/trips/:id/itineraries` - Get all itineraries for trip
-- `GET /api/trips/:id/itineraries/selected` - Get selected itinerary
-- `POST /api/trips/:id/itineraries/generate` - Generate itinerary via LLM
-- `PATCH /api/trips/:id/itineraries/:itineraryId/select` - Select itinerary
-- `PATCH /api/trips/:id/itineraries/:itineraryId/items` - Update itinerary items
+### Where Permissions are Enforced
 
-### Discover
-- `GET /api/discover/itineraries` - Get discoverable itineraries
-- `GET /api/discover/itineraries/:id` - Get itinerary details
-- `POST /api/discover/itineraries/:id/propose` - Propose itinerary as trip
-- `POST /api/discover/posts/:id/propose` - Propose post as trip
-- `GET /api/circles/:id/posts` - Get circle posts
-- `POST /api/circles/:id/posts` - Create post
+**Server-side (API routes)**:
+- All authenticated endpoints check `requireAuth()`
+- Trip actions check `trip.createdBy === userId` for leader-only operations
+- Circle actions check `circle.ownerId === userId` for owner-only operations
+- Privacy filtering applied in trip list endpoints (`canViewerSeeTrip()`)
+- Stage transitions validated via `validateStageAction()`
 
-### User Profile
-- `GET /api/users/:userId/profile` - Get user profile
-- `GET /api/users/:userId/upcoming-trips` - Get user's upcoming trips (applies privacy filters for other-user views)
-- `PATCH /api/users/:id` - Update user (including privacy settings)
+**Client-side (UI)**:
+- Buttons disabled/hidden based on role (leader vs traveler)
+- CTAs shown/hidden based on `getUserActionRequired()`
+- Privacy settings affect UI visibility (but server is source of truth)
+
+### Known Invariants
+
+1. **Trip always has exactly one leader**: `trip.createdBy` is set on creation and can be transferred via leave API with `transferToUserId`
+2. **Collaborative trips**: All circle members are travelers unless explicitly left/removed
+3. **Hosted trips**: Only explicit `trip_participants` are travelers
+4. **Privacy**: Upcoming Trips Visibility ONLY applies to other-user profile views, never self/dashboard/circle pages
+5. **Stage progression**: Stages progress forward only (no rollback in MVP)
+6. **Canceled trips**: Read-only, no further scheduling/voting/lock actions allowed
+
+## 7. Key Components & Modules
+
+### TripTabs
+**Location**: `components/trip/TripTabs/`
+**Responsibility**: Tabbed interface for trip detail view
+**Tabs**:
+- `ChatTab`: Primary interactive conversation surface
+- `PlanningTab`: Scheduling/availability/voting interface
+- `ItineraryTab`: Idea submission and LLM generation
+- `AccommodationTab`: Stay requirements and selection
+- `PrepTab`: Preparation checklist
+- `MemoriesTab`: Photo sharing
+- `TravelersTab`: Participant management
+
+**Boundaries**: Handles tab switching, passes trip data to child tabs, manages active tab state
+
+### ChatTab
+**Location**: `components/trip/TripTabs/tabs/ChatTab.tsx`
+**Responsibility**: Trip chat interface with user messages and system messages
+**Features**:
+- Chronological message display
+- System messages (read-only, visually distinct)
+- Inline CTAs for stage transitions
+- Message composition (disabled for left users/canceled trips)
+
+**Boundaries**: Owns chat message rendering, delegates message sending to API
 
 ### Dashboard
-- `GET /api/dashboard` - Get dashboard data (circles, trips, notifications)
+**Location**: `app/dashboard/page.js` (server) + `HomeClient.jsx` (client)
+**Responsibility**: Main landing page showing circles and trips
+**Features**:
+- Circle list with trips
+- Trip cards with status badges
+- Global notifications
+- Navigation to trip/circle detail
 
-### Other
-- `POST /api/upload` - Upload image
-- `POST /api/reports` - Report content
-- `POST /api/seed/discover` - Seed discover posts (dev only)
+**Boundaries**: Server component fetches data, client SPA handles navigation and state
 
-## 7. UI Navigation Map
+### Progress Pane
+**Location**: `components/dashboard/TripProgressMini.jsx` + `lib/trips/progress.js`
+**Responsibility**: Visual progress indicator for trip milestones
+**Steps**: Proposed → Dates → Itinerary → Stay → Prep → Ongoing → Memories → Expenses
 
-### Pages
+**Boundaries**: Computes progress from trip data, displays visual steps
 
-**`/` (Root)**
-- Login page (unauthenticated)
-- Redirects to `/dashboard` when authenticated
+### Scheduling Logic
+**Location**: `lib/trips/` + `components/trip/TripTabs/tabs/PlanningTab.tsx`
+**Responsibility**: Availability collection, voting, date locking
+**Features**:
+- Top3 heatmap mode (date picks)
+- Legacy availability system (broad/weekly/per-day)
+- Voting aggregation
+- Lock confirmation with guardrails
 
-**`/dashboard`**
-- Main dashboard showing circles and trips
-- Query params: `?circleId=X` (selects circle), `?returnTo=Y` (breadcrumb return)
-- Default landing: shows all circles with trips
+**Boundaries**: UI in PlanningTab, business logic in API routes, helpers in `lib/trips/`
 
-**`/circles/[circleId]`**
-- Circle detail page
-- Tabs: Updates (default), Members, Trips, Memories
-- Updates tab shows read-only digest of trip activity
+### Navigation Helpers
+**Location**: `lib/navigation/routes.js`
+**Responsibility**: Canonical URL generation and route helpers
+**Functions**:
+- `tripHref(tripId)`: Generate trip URL
+- `circlePageHref(circleId)`: Generate circle URL
+- `dashboardCircleHref(circleId)`: Generate dashboard with circle filter
 
-**`/trips/[tripId]`**
-- Trip detail page (redirects to `/?tripId=X` which loads SPA)
-- Tabs: Chat (default), Planning, Itinerary, Accommodation, Prep, Memories, Going
-- Tab selection via `?tab=chat` query param
+**Boundaries**: Pure functions, no side effects
 
-**`/members/[userId]`**
-- Member profile page
-- Shows upcoming trips (respects privacy settings)
-- "Request to join" CTA when applicable
+### Stage Computation
+**Location**: `lib/trips/stage.js`
+**Responsibility**: Compute trip primary stage and tab routing
+**Functions**:
+- `deriveTripPrimaryStage(trip)`: Compute current stage
+- `getPrimaryTabForStage(stage)`: Map stage to default tab
+- `computeProgressFlags(trip)`: Compute progress step flags
 
-**`/settings/privacy`**
-- Privacy settings page
-- Controls: Profile Visibility, Upcoming Trips Visibility, Trip Details Level, Allow Join Requests
+**Boundaries**: Pure functions, no API calls, used by both client and server
 
-### Routing Logic
+### Privacy Filtering
+**Location**: `lib/trips/canViewerSeeTrip.js` + `lib/trips/applyProfileTripPrivacy.js`
+**Responsibility**: Apply privacy rules to trip visibility
+**Rules**:
+- "Most restrictive wins": If any active traveler is private, non-travelers can't see trip
+- Context-aware: Different rules for profile views vs dashboard/circle views
 
-- All authenticated routes require JWT token
-- Trip detail pages redirect to SPA (`/?tripId=X&tab=Y`)
-- Circle pages are server-rendered
-- Dashboard is server-rendered but loads client-side SPA
-- Navigation helpers in `lib/navigation/routes.js` ensure canonical URLs
+**Boundaries**: Server-side filtering, applied in dashboard and trip list endpoints
 
-## 8. Most Important Invariants / Rules
+## 8. External Dependencies
 
-### Privacy Rules
-1. **Upcoming Trips Visibility** ONLY applies to other-user profile views (`PROFILE_VIEW` context)
-2. **Never filters trips** in self contexts: `DASHBOARD`, `CIRCLE_TRIPS`, `TRIP_PAGE`, `SELF_PROFILE`
-3. Owner always sees own trips everywhere they have access
-4. **Trip Details Level** ONLY affects profile views for non-travelers
-5. Travelers/owners always see full trip details regardless of privacy setting
+### Notable NPM Packages
 
-### Trip Access Rules
-1. **Collaborative trips**: All circle members are travelers (unless status='left'/'removed')
-2. **Hosted trips**: Only explicit `trip_participants` with status='active' are travelers
-3. Circle membership grants access to circle's trips (subject to trip owner privacy for profile views)
-4. When user joins circle, they're automatically added to `trip_participants` for all existing collaborative trips (backfill)
+**UI Libraries**:
+- `@radix-ui/*` (15+ packages): Headless UI primitives for shadcn/ui components
+- `lucide-react`: Icon library
+- `sonner`: Toast notifications
+- `recharts`: Chart library (used in progress visualization)
 
-### CTA Rules
-1. Red primary CTA only when `getUserActionRequired()` returns true (Dates Picking stages only)
-2. Otherwise: neutral "View trip" CTA
-3. "Waiting on you" badge shown when `actionRequired === true`
-4. "Request to join" only shown when: not own profile, not already traveler, privacy allows, no pending request
+**Form & Validation**:
+- `react-hook-form`: Form state management
+- `zod`: Schema validation
+- `@hookform/resolvers`: Zod integration for react-hook-form
 
-### Stage Ordering
-1. `proposed` → `scheduling` (auto on first availability)
-2. `scheduling` → `voting` (manual, leader action)
-3. `voting` → `locked` (manual, leader action)
-4. `locked` → planning begins (itinerary, accommodation, prep)
-5. `completed` when end date passes
+**Date Handling**:
+- `date-fns`: Date utilities and formatting
+- `react-day-picker`: Date picker component
 
-### Trip Chat Rules
-1. Trip Chat is the ONLY interactive conversation surface
-2. System messages are read-only, chronologically interleaved
-3. Circle Updates is read-only digest (no composer)
-4. Circle Lounge chat removed (POST returns 410 Gone)
+**Data & State**:
+- `mongodb`: Native MongoDB driver (no ORM)
+- `jsonwebtoken`: JWT token generation/validation
+- `bcryptjs`: Password hashing
 
-### Itinerary Ideas Rules
-1. Max 3 ideas per user per trip
-2. Only enabled when trip status is `locked`
-3. Character limit ~120
-4. "Waiting on you" badge when user has < 3 ideas (if this logic is implemented)
+**Build & Dev**:
+- `next`: Next.js framework
+- `react`, `react-dom`: React library
+- `tailwindcss`: CSS framework
+- `vitest`: Unit testing
+- `playwright`: E2E testing
 
-### Join Request Rules
-1. Only for hosted trips
-2. Requires `allowTripJoinRequests === true`
-3. Leader can approve/reject
-4. Approved requests create `trip_participants` record
+### LLM Integration
 
-## 9. Dev Workflow
+**OpenAI API** (`lib/server/llm.js`):
+- `generateItinerary()`: Generate itinerary from ideas
+- `summarizeFeedback()`: Summarize user feedback
+- `reviseItinerary()`: Revise itinerary based on feedback
 
-### Environment Variables
-Create `.env.local`:
-```env
-MONGO_URL=mongodb://localhost:27017
-DB_NAME=trypzy
-JWT_SECRET=your-secret-key-here
-CORS_ORIGINS=http://localhost:3000
-OPENAI_API_KEY=your-openai-api-key-here  # Optional, for itinerary generation
-```
+**Usage**: Gated by leader permissions, cost considerations, rate limiting
 
-### Running Locally
-```bash
-npm install
-npm run dev  # Starts on http://localhost:3000
-```
+### Why They Exist
 
-### Common Scripts
-- `npm run dev` - Development server
-- `npm run build` - Production build
-- `npm start` - Production server
-- `npm run seed` - Seed discover posts
-- `npm run test` - Run unit tests (Vitest)
-- `npm run test:watch` - Watch mode
-- `npm run test:e2e` - Run E2E tests (Playwright)
-- `npm run test:all` - Run all tests
+- **Radix UI**: Accessible, unstyled primitives for building custom components
+- **shadcn/ui**: Copy-paste component library (not installed, components in repo)
+- **MongoDB native driver**: Lightweight, no ORM overhead for MVP
+- **JWT**: Stateless authentication, no session storage needed
+- **Vitest/Playwright**: Comprehensive testing strategy (unit + E2E)
 
-### Seed Users
-After running `npm run seed`:
-- `alex.traveler@example.com` / `password123`
-- `sam.explorer@example.com` / `password123`
+## 9. Known Constraints & Assumptions
 
-### Database
-- MongoDB connection via `lib/server/db.js`
-- Uses native MongoDB driver (no ORM)
-- Collections created on first insert
-- Test database: `trypzy_test` (used by test files)
+### MVP Constraints
 
-## 10. Known Sharp Edges / Tech Debt
+1. **No trip rollback**: Once dates are locked, cannot unlock (MVP decision)
+2. **No refresh tokens**: JWT only, tokens stored client-side
+3. **No real-time updates**: Polling/refetch on navigation (no WebSockets)
+4. **Single leader**: Only one trip leader at a time (can transfer)
+5. **Limited itinerary ideas**: Max 3 ideas per user per trip
+6. **No trip editing**: Trip name/description not editable after creation (destinationHint is exception)
+7. **Image storage**: Local filesystem (`public/uploads/`), not cloud storage
 
-### Large Files
-- **`app/HomeClient.jsx`** (~5500 lines) - Main SPA component, contains most client logic
-  - Risk: Hard to navigate, prone to merge conflicts
-  - Pattern: Refactor only when necessary, prefer extracting focused components
-- **`app/api/[[...path]]/route.js`** (~7100 lines) - Centralized API handler
-  - Risk: Large file, but pattern matching keeps it organized
-  - Pattern: Consider splitting by domain if it grows further
+### Scale Assumptions
 
-### Risky Areas
-1. **Privacy logic** - Recently refactored to be context-aware, but complex
-   - Files: `lib/trips/applyProfileTripPrivacy.js`, `lib/trips/filterTripsByPrivacy.js`
-   - Risk: Easy to regress privacy rules
-   - Mitigation: Comprehensive tests in `tests/api/trip-privacy-permissions.test.js`
+1. **Small to medium groups**: Optimized for 4-30 person circles
+2. **Low trip volume**: Assumes < 100 trips per circle
+3. **Synchronous operations**: No background jobs, all operations synchronous
+4. **Single region**: No multi-region deployment considerations
+5. **MongoDB indexes**: Not explicitly defined (relies on default indexes)
 
-2. **Trip stage transitions** - Multiple status fields (`status`, `itineraryStatus`)
-   - Files: `lib/trips/stage.js`, `lib/trips/progress.js`
-   - Risk: Inconsistent state if transitions not atomic
-   - Pattern: Use `computeTripProgressSnapshot` as source of truth
+### Tradeoffs Made
 
-3. **Traveler computation** - Different logic for collaborative vs hosted
-   - Files: Multiple places compute active travelers
-   - Risk: Inconsistency between dashboard, circle pages, trip pages
-   - Pattern: Centralize in `buildTripCardData.js` where possible
+1. **Large SPA component**: `HomeClient.jsx` (~5500 lines) - Chosen for MVP speed, refactor later
+2. **Centralized API route**: `route.js` (~7100 lines) - Pattern matching keeps it organized, but large file
+3. **No ORM**: Native MongoDB driver - Chosen for flexibility and performance
+4. **Client-side state**: No global state management - Chosen for simplicity
+5. **Privacy complexity**: Context-aware privacy rules - Chosen for user trust, adds complexity
+6. **Stage computation client-side**: `deriveTripPrimaryStage()` - Chosen for responsiveness, but must stay in sync with server
 
-4. **React Hooks violations** - Conditional hooks in some components
-   - Files: `components/trip/TripTabs/tabs/ItineraryTab.tsx` (recently fixed)
-   - Risk: "Rendered more hooks" errors
-   - Pattern: Always call hooks unconditionally at top level
+### Explicit Constraints
 
-### Patterns to Avoid
-1. **Don't filter trips by privacy in self contexts** - Use `applyProfileTripPrivacy` with correct context
-2. **Don't call `setState` during render** - Use `useEffect` for side effects
-3. **Don't assume `api` is global** - Pass as prop or use fetch helper
-4. **Don't use TypeScript syntax in `.js`/`.jsx` files** - ESLint configured to prevent this
-5. **Don't create duplicate interactive surfaces** - Trip Chat is the only interactive chat
+1. **Circle Lounge removed**: POST to `/api/circles/:id/messages` returns 410 Gone
+2. **Circle Updates read-only**: No composer, digest only
+3. **Trip Chat is primary surface**: No duplicate interactive chat surfaces
+4. **Privacy never blocks collaboration**: Travelers always see their trips
+5. **No anonymous browsing**: All content requires authentication
 
-### Places That Frequently Regress
-1. **Privacy filtering** - Applied incorrectly in dashboard/circle contexts
-2. **CTA color logic** - Using `pendingActions.length` instead of `actionRequired`
-3. **Traveler detection** - Not checking `trip_participants` status correctly
-4. **Circle join backfill** - Forgetting to add new members to existing trips
-5. **Hooks consistency** - Conditional hooks or hooks after early returns
+## 10. Open Questions / Areas of Risk
+
+### Fragile Areas
+
+1. **Privacy logic** (`lib/trips/canViewerSeeTrip.js`, `lib/trips/applyProfileTripPrivacy.js`):
+   - Complex context-aware rules
+   - Easy to regress privacy behavior
+   - **Mitigation**: Comprehensive tests in `tests/api/trip-privacy-permissions.test.js`
+
+2. **Trip stage transitions** (`lib/trips/stage.js`, `lib/trips/validateStageAction.js`):
+   - Multiple status fields (`status`, `itineraryStatus`)
+   - Risk of inconsistent state if transitions not atomic
+   - **Mitigation**: Use `computeTripProgressSnapshot` as source of truth
+
+3. **Traveler computation**:
+   - Different logic for collaborative vs hosted trips
+   - Computed in multiple places (dashboard, circle pages, trip pages)
+   - **Mitigation**: Centralize in `buildTripCardData.js` where possible
+
+4. **Navigation state** (`HomeClient.jsx`):
+   - Complex URL normalization logic
+   - Popstate handler with ref guards to prevent loops
+   - **Risk**: Infinite redirect loops if guards fail
+   - **Mitigation**: Refs (`authRedirectRef`, `dashboardRedirectRef`) prevent loops
+
+5. **Large files**:
+   - `HomeClient.jsx` (~5500 lines) - Hard to navigate, prone to merge conflicts
+   - `route.js` (~7100 lines) - Large but organized via pattern matching
+   - **Mitigation**: Refactor only when necessary, prefer extracting focused components
+
+### Incomplete Flows
+
+1. **E2E test coverage**: Only 2 test files (`navigation.spec.ts`, `discover-flow.spec.js`)
+2. **Visual regression testing**: None
+3. **Performance testing**: No load testing or performance benchmarks
+4. **Error recovery**: Limited error handling for network failures
+5. **Offline support**: None (assumes always-online)
+
+### Things Future Work Should Be Careful With
+
+1. **Don't filter trips by privacy in self contexts**: Use `applyProfileTripPrivacy` with correct context
+2. **Don't call `setState` during render**: Use `useEffect` for side effects
+3. **Don't assume `api` is global**: Pass as prop or use fetch helper
+4. **Don't use TypeScript syntax in `.js`/`.jsx` files**: ESLint configured to prevent this
+5. **Don't create duplicate interactive surfaces**: Trip Chat is the only interactive chat
+6. **Don't bypass stage validation**: Always use `validateStageAction()` for stage transitions
+7. **Don't assume traveler status**: Always check `trip_participants` status for hosted trips
+8. **Don't forget circle join backfill**: New members must be added to existing collaborative trips
 
 ### Testing Gaps
+
 - E2E coverage is minimal (2 test files)
 - Unit tests cover API routes but not all edge cases
 - No visual regression testing
 - Privacy rules have good test coverage after recent hardening
+- No performance/load testing
 
 ### Performance Considerations
+
 - `HomeClient.jsx` is large but necessary for SPA architecture
-- MongoDB queries could benefit from indexes (not explicitly defined in code)
+- MongoDB queries could benefit from explicit indexes (not defined in code)
 - Image uploads stored in `public/uploads/` (consider cloud storage for production)
 - LLM calls for itinerary generation are expensive (consider caching)
+- No query result caching (refetch on every navigation)
 
 ---
 
-**Last Updated**: Based on codebase state as of latest changes (privacy hardening, circle join backfill, CTA consistency fixes)
+**Last Updated**: Based on codebase state as of latest changes (privacy hardening, circle join backfill, navigation guards, scroll-area fix)

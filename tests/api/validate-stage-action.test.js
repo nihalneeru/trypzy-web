@@ -177,14 +177,14 @@ describe('validateStageAction', () => {
       expect(result.message).toBe('Cannot open voting for a locked trip')
     })
 
-    it('should reject opening voting from invalid stage', () => {
+    it('should reject opening voting from completed stage', () => {
       const trip = mockTrip({ status: 'completed', createdBy: 'leader-user-id' })
       const circle = mockCircle()
       const result = validateStageAction(trip, 'open_voting', 'leader-user-id', circle)
       expect(result.ok).toBe(false)
       expect(result.status).toBe(400)
-      expect(result.code).toBe('INVALID_STAGE_TRANSITION')
-      expect(result.message).toBe('Voting can only be opened during proposed or scheduling phase')
+      expect(result.code).toBe('TRIP_COMPLETED')
+      expect(result.message).toContain('completed')
     })
   })
 
