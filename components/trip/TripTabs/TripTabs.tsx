@@ -46,6 +46,11 @@ export function TripTabs({
   const completed = isTripCompleted(trip)
   const peopleTabLabel = completed ? 'Went' : 'Going'
   
+  // Compute read-only flag: user is read-only if not an active traveler
+  // Check both trip.isActiveParticipant (top-level) and trip.viewer.isActiveParticipant
+  const isActiveTraveler = trip?.isActiveParticipant || trip?.viewer?.isActiveParticipant || false
+  const isReadOnly = !isActiveTraveler || trip?.status === 'canceled'
+  
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <div className="sticky top-0 z-30 mb-4 bg-white/95 backdrop-blur border-b">
@@ -179,6 +184,7 @@ export function TripTabs({
           token={token}
           user={user}
           onRefresh={onRefresh}
+          isReadOnly={isReadOnly}
           {...prepProps}
         />
       </TabsContent>
@@ -199,6 +205,7 @@ export function TripTabs({
           onRefresh={onRefresh}
           stage={stage}
           setActiveTab={setActiveTab}
+          isReadOnly={isReadOnly}
           {...chatProps}
         />
       </TabsContent>

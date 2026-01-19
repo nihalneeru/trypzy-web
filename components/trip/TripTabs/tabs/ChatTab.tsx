@@ -60,7 +60,8 @@ export function ChatTab({
   showTripChatHint,
   dismissTripChatHint,
   stage,
-  setActiveTab
+  setActiveTab,
+  isReadOnly = false
 }: any) {
   // Check if user is trip leader
   const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
@@ -69,8 +70,9 @@ export function ChatTab({
   const tripStatus = trip?.status || (trip?.type === 'hosted' ? 'locked' : 'scheduling')
 
   // Check if viewer is read-only (left trip or trip is canceled)
+  // Use prop if provided, otherwise compute from trip data
   const viewer = trip?.viewer || {}
-  const viewerIsReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || trip?.status === 'canceled'
+  const viewerIsReadOnly = isReadOnly !== undefined ? isReadOnly : (!viewer.isActiveParticipant || viewer.participantStatus === 'left' || trip?.status === 'canceled')
   const readOnlyPlaceholder = trip?.status === 'canceled' 
     ? 'Trip is canceled'
     : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
@@ -624,7 +626,7 @@ export function ChatTab({
             )}
             
             {/* ActionCard */}
-            {showActionCard && (
+            {showActionCard && !viewerIsReadOnly && (
               <>
                 {/* Inline action panel */}
                 {nextAction.kind === 'inline' && (
@@ -785,14 +787,16 @@ export function ChatTab({
             </Dialog>
             
                 {/* ActionCard - Single CTA area */}
-                <div className="mb-4">
-                  <ActionCard
-                    action={nextAction}
-                    onDismiss={handleDismiss}
-                    onAction={handleAction}
-                    actionRequired={nextAction?.actionRequired || actionRequired}
-                  />
-                </div>
+                {!viewerIsReadOnly && (
+                  <div className="mb-4">
+                    <ActionCard
+                      action={nextAction}
+                      onDismiss={handleDismiss}
+                      onAction={handleAction}
+                      actionRequired={nextAction?.actionRequired || actionRequired}
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>
