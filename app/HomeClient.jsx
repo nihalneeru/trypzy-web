@@ -3635,7 +3635,7 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
             Pick Your Top 3 Date Windows
           </CardTitle>
           <CardDescription>
-            Select up to 3 preferred start dates. Hover to preview the full window, then click to set your pick.
+            Pick your top 3 date options. Hover to preview, then click to select.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -3650,7 +3650,7 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
               <div className="mb-4 space-y-2">
                 {datePicks.length === 0 ? (
                   <p className="text-sm text-gray-500">
-                    No picks yet. Hover over dates on the calendar to preview the full {tripLengthDays}-day window, then click to set your first pick.
+                    Hover over dates to preview, then click to select your first pick.
                   </p>
                 ) : (
                   datePicks
@@ -3695,7 +3695,7 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h3 className="text-sm font-medium">Group Preference Heatmap</h3>
+                    <h3 className="text-sm font-medium">Availability Overview</h3>
                     {trip.pickProgress && (
                       <Badge variant="secondary" className="text-xs">
                         Picks saved: {trip.pickProgress.respondedCount}/{trip.pickProgress.totalCount}
@@ -3709,17 +3709,14 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                   )}
                 </div>
                 
-                {/* Trip bounds info */}
+                {/* Date range info */}
                 <div className="mb-3 text-xs text-gray-600 space-y-1">
                   <div className="flex items-center gap-4 flex-wrap">
                     <span>
-                      <strong>Bounds:</strong> {formatDisplayDate(startBound)} – {formatDisplayDate(endBound)}
+                      <strong>Date range:</strong> {formatDisplayDate(startBound)} – {formatDisplayDate(endBound)}
                     </span>
                     <span>
-                      <strong>Window length:</strong> {tripLengthDays} day{tripLengthDays !== 1 ? 's' : ''}
-                    </span>
-                    <span>
-                      <strong>Last valid start:</strong> {formatDisplayDate(lastValidStartISO)}
+                      <strong>Trip length:</strong> {tripLengthDays} day{tripLengthDays !== 1 ? 's' : ''}
                     </span>
                   </div>
                   {trip.pickProgress && trip.pickProgress.respondedCount > 0 && (
@@ -3754,7 +3751,7 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                   )}
                   {trip.pickProgress && trip.pickProgress.respondedCount < trip.pickProgress.totalCount && (
                     <div className="text-xs text-gray-500 italic">
-                      Waiting on {trip.pickProgress.totalCount - trip.pickProgress.respondedCount} {trip.pickProgress.totalCount - trip.pickProgress.respondedCount === 1 ? 'person' : 'people'} — ping them to speed up locking.
+                      Waiting on {trip.pickProgress.totalCount - trip.pickProgress.respondedCount} {trip.pickProgress.totalCount - trip.pickProgress.respondedCount === 1 ? 'person' : 'people'}.
                     </div>
                   )}
                 </div>
@@ -3815,12 +3812,13 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                           // Build tooltip string
                           let tooltipText = ''
                           if (day.isValidStart && day.isInBounds) {
-                            tooltipText = `Score: ${day.score}`
                             if (topCandidate) {
-                              tooltipText += ` (Love: ${topCandidate.loveCount}, Can: ${topCandidate.canCount}, Might: ${topCandidate.mightCount})`
+                              tooltipText = `${topCandidate.loveCount} love, ${topCandidate.canCount} can, ${topCandidate.mightCount} might`
+                            } else if (day.score > 0) {
+                              tooltipText = 'Preferred by group'
                             }
                           } else if (!day.isInBounds) {
-                            tooltipText = 'Outside trip bounds'
+                            tooltipText = 'Outside date range'
                           } else {
                             tooltipText = 'Invalid start date'
                           }
@@ -3919,9 +3917,9 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
       {trip.topCandidates && trip.topCandidates.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Top Candidates</CardTitle>
+            <CardTitle>Best Date Options</CardTitle>
             <CardDescription>
-              Highest-scoring date windows based on group preferences
+              Most preferred dates based on everyone's picks
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -3936,10 +3934,7 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                       </span>
                     </div>
                     <div className="text-sm text-gray-600">
-                      Score: {candidate.score} • 
-                      Love: {candidate.loveCount} • 
-                      Can: {candidate.canCount} • 
-                      Might: {candidate.mightCount}
+                      {candidate.loveCount} love • {candidate.canCount} can • {candidate.mightCount} might
                     </div>
                   </div>
                   {trip.isCreator && !isLocked && (
