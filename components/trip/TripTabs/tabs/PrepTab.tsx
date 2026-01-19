@@ -46,7 +46,8 @@ export function PrepTab({
   trip,
   token,
   user,
-  onRefresh
+  onRefresh,
+  isReadOnly = false
 }: any) {
   const [prepData, setPrepData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -94,6 +95,7 @@ export function PrepTab({
   }
 
   const handleAddTransport = async () => {
+    if (isReadOnly) return // Defensive check
     if (!newTransport.fromLocation.trim() || !newTransport.toLocation.trim()) return
     
     setAdding(true)
@@ -177,6 +179,7 @@ export function PrepTab({
   }
 
   const handleGenerateSuggestions = async () => {
+    if (isReadOnly) return // Defensive check
     setGeneratingSuggestions(true)
     try {
       await api(`/trips/${trip.id}/prep/suggestions`, {
@@ -293,14 +296,15 @@ export function PrepTab({
                 variant="outline"
                 size="sm"
                 onClick={handleGenerateSuggestions}
-                disabled={generatingSuggestions}
+                disabled={generatingSuggestions || isReadOnly}
+                title={isReadOnly ? "You have left this trip" : undefined}
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 {generatingSuggestions ? 'Generating...' : 'Generate Suggestions'}
               </Button>
               <Dialog open={showTransportDialog} onOpenChange={setShowTransportDialog}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
+                  <Button size="sm" disabled={isReadOnly} title={isReadOnly ? "You have left this trip" : undefined}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Transport
                   </Button>
@@ -338,6 +342,7 @@ export function PrepTab({
                           value={newTransport.fromLocation}
                           onChange={(e) => setNewTransport({ ...newTransport, fromLocation: e.target.value })}
                           placeholder="City or location"
+                          disabled={isReadOnly}
                         />
                       </div>
                       <div className="space-y-2">
@@ -356,6 +361,7 @@ export function PrepTab({
                           type="datetime-local"
                           value={newTransport.departAt}
                           onChange={(e) => setNewTransport({ ...newTransport, departAt: e.target.value })}
+                          disabled={isReadOnly}
                         />
                       </div>
                       <div className="space-y-2">
@@ -364,6 +370,7 @@ export function PrepTab({
                           type="datetime-local"
                           value={newTransport.arriveAt}
                           onChange={(e) => setNewTransport({ ...newTransport, arriveAt: e.target.value })}
+                          disabled={isReadOnly}
                         />
                       </div>
                     </div>
@@ -373,6 +380,7 @@ export function PrepTab({
                         value={newTransport.provider}
                         onChange={(e) => setNewTransport({ ...newTransport, provider: e.target.value })}
                         placeholder="e.g., United Airlines, Amtrak"
+                        disabled={isReadOnly}
                       />
                     </div>
                     <div className="space-y-2">
@@ -381,6 +389,7 @@ export function PrepTab({
                         value={newTransport.bookingRef}
                         onChange={(e) => setNewTransport({ ...newTransport, bookingRef: e.target.value })}
                         placeholder="Confirmation code"
+                        disabled={isReadOnly}
                       />
                     </div>
                     <div className="space-y-2">
@@ -399,6 +408,7 @@ export function PrepTab({
                         onChange={(e) => setNewTransport({ ...newTransport, notes: e.target.value })}
                         placeholder="Additional details..."
                         rows={2}
+                        disabled={isReadOnly}
                       />
                     </div>
                   </div>
@@ -408,7 +418,7 @@ export function PrepTab({
                     </Button>
                     <Button
                       onClick={handleAddTransport}
-                      disabled={adding || !newTransport.fromLocation.trim() || !newTransport.toLocation.trim()}
+                      disabled={adding || isReadOnly || !newTransport.fromLocation.trim() || !newTransport.toLocation.trim()}
                     >
                       {adding ? 'Adding...' : 'Add Transport'}
                     </Button>
@@ -502,7 +512,7 @@ export function PrepTab({
             </div>
             <Dialog open={showPackingDialog} onOpenChange={setShowPackingDialog}>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" disabled={isReadOnly} title={isReadOnly ? "You have left this trip" : undefined}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Item
                 </Button>
@@ -573,6 +583,7 @@ export function PrepTab({
                   <Checkbox
                     checked={item.status === 'done'}
                     onCheckedChange={() => handleTogglePackingItem(item.id, item.status)}
+                    disabled={isReadOnly}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -613,6 +624,7 @@ export function PrepTab({
                   <Checkbox
                     checked={item.status === 'done'}
                     onCheckedChange={() => handleTogglePackingItem(item.id, item.status)}
+                    disabled={isReadOnly}
                   />
                   <div className="flex-1">
                     <span className={`text-sm ${item.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}`}>

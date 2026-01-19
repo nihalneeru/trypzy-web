@@ -63,6 +63,42 @@ function generateInviteCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase()
 }
 
+// Helper: Check if user is an active traveler for a trip
+async function isActiveTraveler(db, trip, userId) {
+  if (!trip || !userId) return false
+  
+  // Get all participants
+  const allParticipants = await db.collection('trip_participants')
+    .find({ tripId: trip.id })
+    .toArray()
+  
+  if (trip.type === 'collaborative') {
+    // For collaborative trips: user must be circle member AND not have left/removed status
+    const circleMembership = await db.collection('memberships').findOne({
+      userId,
+      circleId: trip.circleId
+    })
+    
+    if (!circleMembership) return false
+    
+    // Check if user has left/removed status
+    const participant = allParticipants.find(p => p.userId === userId)
+    if (participant) {
+      const status = participant.status || 'active'
+      if (status === 'left' || status === 'removed') return false
+    }
+    
+    return true
+  } else {
+    // Hosted trips: user must have active participant record
+    const participant = allParticipants.find(p => p.userId === userId)
+    if (!participant) return false
+    
+    const status = participant.status || 'active'
+    return status === 'active'
+  }
+}
+
 // Privacy helper: Get user privacy with defaults applied
 function getUserPrivacyWithDefaults(userDoc) {
   if (!userDoc) return null
@@ -5674,6 +5710,15 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Check if user is an active traveler
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active traveler for this trip', code: 'USER_NOT_TRAVELER' },
+          { status: 403 }
+        ))
+      }
+      
       // Generate title
       const title = `Transport: ${fromLocation.trim()} → ${toLocation.trim()}`
       
@@ -5770,6 +5815,15 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Check if user is an active traveler
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active traveler for this trip', code: 'USER_NOT_TRAVELER' },
+          { status: 403 }
+        ))
+      }
+      
       const prepItem = {
         id: uuidv4(),
         tripId,
@@ -5829,6 +5883,15 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Check if user is an active traveler
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active traveler for this trip', code: 'USER_NOT_TRAVELER' },
+          { status: 403 }
+        ))
+      }
+      
       const item = await db.collection('prep_items').findOne({
         id: itemId,
         tripId
@@ -5882,6 +5945,15 @@ async function handleRoute(request, { params }) {
       if (!membership) {
         return handleCORS(NextResponse.json(
           { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+      
+      // Check if user is an active traveler
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active traveler for this trip', code: 'USER_NOT_TRAVELER' },
           { status: 403 }
         ))
       }
