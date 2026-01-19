@@ -545,13 +545,6 @@ export function ChatTab({
               <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
             ) : (
               messages.map((msg: any) => {
-                // Check if this message is a dates_locked or itinerary_planning_begins message
-                const isItineraryPlanningMessage = msg.isSystem && (
-                  msg.metadata?.key === 'itinerary_planning_begins' || 
-                  msg.metadata?.key === 'dates_locked'
-                )
-                const showItineraryCTA = isItineraryPlanningMessage && !viewerIsReadOnly && trip?.status === 'locked' && setActiveTab
-
                 return (
                   <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : msg.user?.id === user.id ? 'items-end' : 'items-start'}`}>
                     <div className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
@@ -578,19 +571,6 @@ export function ChatTab({
                         </div>
                       )}
                     </div>
-                    {/* Inline CTA for itinerary planning message */}
-                    {showItineraryCTA && (
-                      <div className="mt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setActiveTab('itinerary')}
-                          className="h-7 text-xs"
-                        >
-                          Add itinerary idea
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 )
               })
