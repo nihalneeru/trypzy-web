@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Lightbulb, ListTodo, MessageCircle, Vote, MapPin, Calendar as CalendarIcon, Lock, Sparkles, RefreshCw, Edit2, Save, X } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
@@ -63,7 +63,8 @@ export function ItineraryTab({
   onRefresh,
   api,
   token,
-  user
+  user,
+  setActiveTab
 }: any) {
   // Destination hint editing state - hooks must be called unconditionally
   const [editingDestinationHint, setEditingDestinationHint] = useState(false)
@@ -238,6 +239,36 @@ export function ItineraryTab({
     return newFeedbackCount > 0 && !revising
   }, [latestVersion, trip.isCreator, newFeedbackCount, revising])
 
+  // Track if revision just completed to show next step guidance
+  const [revisionJustCompleted, setRevisionJustCompleted] = useState(false)
+  const prevRevisingRef = useRef(revising)
+  
+  // Watch for revision completion (only when transitioning from true to false)
+  useEffect(() => {
+    const wasRevising = prevRevisingRef.current
+    prevRevisingRef.current = revising
+    
+    if (wasRevising && !revising && revisionJustCompleted) {
+      // Revision just completed, show next step guidance
+      const timer = setTimeout(() => {
+        setRevisionJustCompleted(false)
+      }, 10000) // Show for 10 seconds
+      return () => clearTimeout(timer)
+    }
+  }, [revising, revisionJustCompleted])
+
+  // Handle revise with completion tracking
+  const handleRevise = async () => {
+    if (revising) return // Prevent double-submit
+    setRevisionJustCompleted(true)
+    try {
+      await reviseItinerary()
+    } catch (error: any) {
+      setRevisionJustCompleted(false)
+      toast.error(error.message || 'Failed to revise itinerary')
+    }
+  }
+
   // Helper: Normalize author ID from various fields
   const getAuthorId = (idea: any): string | null => {
     if (!idea) return null
@@ -299,9 +330,9 @@ export function ItineraryTab({
     })
   }, [ideas, user?.id])
 
-  // Compute readiness: all active travelers (including leader) must have >= 3 ideas
-  const canGenerateItinerary = useMemo(() => {
-    if (!trip || !ideas) return false
+  // Compute idea participation progress (soft indicator, not a gate)
+  const ideaProgress = useMemo(() => {
+    if (!trip || !ideas) return { travelerCount: 0, ideaCount: 0, travelersWithIdeas: 0 }
     
     // Build set of active traveler IDs
     const activeTravelerIds = new Set<string>()
@@ -321,56 +352,21 @@ export function ItineraryTab({
       })
     }
     
-    // For collaborative trips, also include circle members who are implicitly active
-    // (if no participants list is available, use activeTravelerCount as fallback)
-    if (trip.type === 'collaborative' && activeTravelerIds.size === 0 && trip.activeTravelerCount) {
-      // If we have a count but no participant list, we can't verify individual counts
-      // In this case, check if we have ideas from enough travelers
-      const uniqueIdeaAuthors = new Set(
-        ideas
-          .map((idea: any) => idea.authorUserId || idea.authorId)
-          .filter(Boolean)
-      )
-      // If all idea authors have >= 3 ideas and we have ideas from all expected travelers
-      if (uniqueIdeaAuthors.size >= trip.activeTravelerCount) {
-        // Count ideas per author
-        const ideaCountsByAuthor = new Map<string, number>()
-        uniqueIdeaAuthors.forEach((authorId: string) => {
-          ideaCountsByAuthor.set(authorId, 0)
-        })
-        ideas.forEach((idea: any) => {
-          const authorId = idea.authorUserId || idea.authorId
-          if (authorId && ideaCountsByAuthor.has(authorId)) {
-            ideaCountsByAuthor.set(authorId, (ideaCountsByAuthor.get(authorId) || 0) + 1)
-          }
-        })
-        return Array.from(ideaCountsByAuthor.values()).every((count) => count >= 3)
-      }
-      return false
+    // Fallback to activeTravelerCount if no participants list
+    const totalTravelers = activeTravelerIds.size > 0 ? activeTravelerIds.size : (trip.activeTravelerCount || 1)
+    
+    // Count travelers who have submitted at least one idea
+    const travelersWithIdeas = new Set(
+      ideas
+        .map((idea: any) => idea.authorUserId || idea.authorId)
+        .filter(Boolean)
+    ).size
+    
+    return {
+      travelerCount: totalTravelers,
+      ideaCount: ideas.length,
+      travelersWithIdeas
     }
-    
-    // If no active travelers identified, cannot generate
-    if (activeTravelerIds.size === 0) return false
-    
-    // Count ideas per active traveler
-    const ideaCountsByTraveler = new Map<string, number>()
-    activeTravelerIds.forEach((travelerId: string) => {
-      ideaCountsByTraveler.set(travelerId, 0)
-    })
-    
-    ideas.forEach((idea: any) => {
-      const authorId = idea.authorUserId || idea.authorId
-      if (authorId && ideaCountsByTraveler.has(authorId)) {
-        ideaCountsByTraveler.set(authorId, (ideaCountsByTraveler.get(authorId) || 0) + 1)
-      }
-    })
-    
-    // Check if all active travelers have >= 3 ideas
-    const allTravelersHaveEnoughIdeas = Array.from(ideaCountsByTraveler.values()).every(
-      (count) => count >= 3
-    )
-    
-    return allTravelersHaveEnoughIdeas
   }, [trip, ideas])
 
   // Early return check AFTER hooks (hooks must run unconditionally)
@@ -604,21 +600,59 @@ export function ItineraryTab({
                         {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length} {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length === 1 ? 'traveler' : 'travelers'}
                       </div>
                       <Button 
-                        onClick={generateItinerary} 
-                        disabled={!canGenerateItinerary || generating} 
-                        title={canGenerateItinerary ? "Generate itinerary from ideas" : "Waiting for all travelers to submit at least 3 ideas each"}
+                        onClick={async () => {
+                          try {
+                            await generateItinerary()
+                          } catch (error: any) {
+                            toast.error(error.message || 'Failed to generate itinerary. Please try again.')
+                          }
+                        }}
+                        disabled={generating} 
+                        title="Generate itinerary from ideas"
                       >
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate Itinerary
+                        {generating ? (
+                          <>
+                            <BrandedSpinner size="sm" className="mr-2" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Generate Itinerary
+                          </>
+                        )}
                       </Button>
-                      {!canGenerateItinerary && (
-                        <p className="text-xs text-gray-500">Waiting for all travelers to submit at least 3 ideas each</p>
+                      {generating && (
+                        <p className="text-xs text-gray-500">Building a day-by-day plan...</p>
+                      )}
+                      {!generating && ideas.length > 0 && (
+                        <p className="text-xs text-gray-500">
+                          Ideas added: {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length} of {trip.activeTravelerCount || trip.totalMembers || 1} travelers
+                        </p>
                       )}
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="space-y-4">
+                  {/* Next step guidance after revision */}
+                  {revisionJustCompleted && !revising && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm font-medium text-blue-900 mb-2">Next step: Choose where to stay</p>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (setActiveTab) {
+                            setActiveTab('accommodation')
+                          }
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        Continue to Accommodation
+                      </Button>
+                    </div>
+                  )}
+                  
                   {latestVersion.changeLog && (
                     <Accordion type="single" collapsible>
                       <AccordionItem value="changelog">
@@ -726,7 +760,7 @@ export function ItineraryTab({
                   ) : (
                     <p className="text-xs text-gray-400">Waiting for feedback</p>
                   )}
-                  <Button onClick={reviseItinerary} disabled={!canRevise} size="sm" variant="outline">
+                  <Button onClick={handleRevise} disabled={!canRevise} size="sm" variant="outline">
                     {revising ? (
                       <>
                         <BrandedSpinner size="sm" className="mr-2" />

@@ -164,6 +164,7 @@ export function TripTabs({
           user={user}
           onRefresh={onRefresh}
           api={api}
+          setActiveTab={setActiveTab}
           {...itineraryProps}
         />
       </TabsContent>

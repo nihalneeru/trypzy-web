@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { 
   CheckCircle2, Calendar as CalendarIcon, Check, X, HelpCircle, Vote, Lock, Lightbulb 
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Top3HeatmapScheduling } from '@/app/HomeClient'
 
 // Helper function for getting initials (copied from app/page.js)
@@ -846,10 +847,25 @@ export function PlanningTab({
                           {!canParticipate ? 'You have left this trip' : trip.userVote ? 'Update Vote' : 'Submit Vote'}
                         </Button>
                         {trip.canLock && selectedVote && canParticipate && (
-                          <Button variant="default" onClick={() => lockTrip(selectedVote)}>
+                          <Button 
+                            variant="default" 
+                            onClick={() => {
+                              if (!trip.isCreator && trip.createdBy !== user?.id) {
+                                toast.error('Only the trip organizer can lock dates.')
+                                return
+                              }
+                              // lockTrip already shows confirmation dialog
+                              lockTrip(selectedVote)
+                            }}
+                            disabled={!trip.isCreator && trip.createdBy !== user?.id}
+                            title={!trip.isCreator && trip.createdBy !== user?.id ? "Only the trip organizer can lock dates." : undefined}
+                          >
                             <Lock className="h-4 w-4 mr-2" />
                             Lock Dates
                           </Button>
+                        )}
+                        {trip.canLock && !trip.isCreator && trip.createdBy !== user?.id && (
+                          <p className="text-xs text-gray-500 mt-2">Only the trip organizer can lock dates.</p>
                         )}
                       </div>
                     </CardContent>
