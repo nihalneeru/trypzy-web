@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Lightbulb, ListTodo, MessageCircle, Vote, MapPin, Calendar as CalendarIcon, Lock, Sparkles, RefreshCw, Edit2, Save, X } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 
 // formatDate helper (copied from app/page.js)
@@ -113,6 +113,80 @@ export function ItineraryTab({
     : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
     ? "You've left this trip"
     : null
+
+  // Compute readiness: all active travelers (including leader) must have >= 3 ideas
+  const canGenerateItinerary = useMemo(() => {
+    if (!trip || !ideas) return false
+    
+    // Build set of active traveler IDs
+    const activeTravelerIds = new Set<string>()
+    
+    // Always include the trip creator (leader) as a traveler
+    if (trip.createdBy) {
+      activeTravelerIds.add(trip.createdBy)
+    }
+    
+    // Include active travelers from trip participants
+    if (trip.participants && Array.isArray(trip.participants)) {
+      trip.participants.forEach((p: any) => {
+        const status = p.status || 'active'
+        if (status === 'active' && p.userId) {
+          activeTravelerIds.add(p.userId)
+        }
+      })
+    }
+    
+    // For collaborative trips, also include circle members who are implicitly active
+    // (if no participants list is available, use activeTravelerCount as fallback)
+    if (trip.type === 'collaborative' && activeTravelerIds.size === 0 && trip.activeTravelerCount) {
+      // If we have a count but no participant list, we can't verify individual counts
+      // In this case, check if we have ideas from enough travelers
+      const uniqueIdeaAuthors = new Set(
+        ideas
+          .map((idea: any) => idea.authorUserId || idea.authorId)
+          .filter(Boolean)
+      )
+      // If all idea authors have >= 3 ideas and we have ideas from all expected travelers
+      if (uniqueIdeaAuthors.size >= trip.activeTravelerCount) {
+        // Count ideas per author
+        const ideaCountsByAuthor = new Map<string, number>()
+        uniqueIdeaAuthors.forEach((authorId: string) => {
+          ideaCountsByAuthor.set(authorId, 0)
+        })
+        ideas.forEach((idea: any) => {
+          const authorId = idea.authorUserId || idea.authorId
+          if (authorId && ideaCountsByAuthor.has(authorId)) {
+            ideaCountsByAuthor.set(authorId, (ideaCountsByAuthor.get(authorId) || 0) + 1)
+          }
+        })
+        return Array.from(ideaCountsByAuthor.values()).every((count) => count >= 3)
+      }
+      return false
+    }
+    
+    // If no active travelers identified, cannot generate
+    if (activeTravelerIds.size === 0) return false
+    
+    // Count ideas per active traveler
+    const ideaCountsByTraveler = new Map<string, number>()
+    activeTravelerIds.forEach((travelerId: string) => {
+      ideaCountsByTraveler.set(travelerId, 0)
+    })
+    
+    ideas.forEach((idea: any) => {
+      const authorId = idea.authorUserId || idea.authorId
+      if (authorId && ideaCountsByTraveler.has(authorId)) {
+        ideaCountsByTraveler.set(authorId, (ideaCountsByTraveler.get(authorId) || 0) + 1)
+      }
+    })
+    
+    // Check if all active travelers have >= 3 ideas
+    const allTravelersHaveEnoughIdeas = Array.from(ideaCountsByTraveler.values()).every(
+      (count) => count >= 3
+    )
+    
+    return allTravelersHaveEnoughIdeas
+  }, [trip, ideas])
 
   // Early return check AFTER hooks (hooks must run unconditionally)
   if (!trip || trip.status !== 'locked') {
@@ -303,24 +377,6 @@ export function ItineraryTab({
                   </Badge>
                 )}
               </div>
-              {trip.isCreator && !latestVersion && (
-                <div className="flex flex-col gap-2">
-                  {/* Leader stats */}
-                  <div className="text-xs text-gray-500">
-                    {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length} {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length === 1 ? 'traveler' : 'travelers'}
-                  </div>
-                  <Button 
-                    onClick={generateItinerary} 
-                    disabled={true} 
-                    size="sm"
-                    title="Generate itinerary (coming soon)"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Generate Itinerary
-                  </Button>
-                  <p className="text-xs text-gray-500">Waiting for more ideas from travelers</p>
-                </div>
-              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -338,11 +394,17 @@ export function ItineraryTab({
                       <div className="text-xs text-gray-500 mb-2">
                         {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length} {[...new Set(ideas.map((i: any) => i.authorUserId || i.authorId))].filter(Boolean).length === 1 ? 'traveler' : 'travelers'}
                       </div>
-                      <Button onClick={generateItinerary} disabled={true} title="Generate itinerary (coming soon)">
+                      <Button 
+                        onClick={generateItinerary} 
+                        disabled={!canGenerateItinerary || generating} 
+                        title={canGenerateItinerary ? "Generate itinerary from ideas" : "Waiting for all travelers to submit at least 3 ideas each"}
+                      >
                         <Sparkles className="h-4 w-4 mr-2" />
                         Generate Itinerary
                       </Button>
-                      <p className="text-xs text-gray-500">Waiting for more ideas from travelers</p>
+                      {!canGenerateItinerary && (
+                        <p className="text-xs text-gray-500">Waiting for all travelers to submit at least 3 ideas each</p>
+                      )}
                     </div>
                   )}
                 </div>
