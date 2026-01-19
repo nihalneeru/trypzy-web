@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -3449,16 +3450,41 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
   }
   
   // Lock a window (owner only)
+  const [showLockConfirmation, setShowLockConfirmation] = useState(false)
+  const [pendingLockDate, setPendingLockDate] = useState(null)
+  
   const lockWindow = async (startDateISO) => {
+    // Check if user is leader
+    if (!trip.isCreator && trip.createdBy !== user?.id) {
+      toast.error('Only the trip organizer can lock dates.')
+      return
+    }
+    
+    // Show confirmation
+    setPendingLockDate(startDateISO)
+    setShowLockConfirmation(true)
+  }
+  
+  const confirmLockWindow = async () => {
+    if (!pendingLockDate) return
+    
     try {
       await api(`/trips/${trip.id}/lock`, {
         method: 'POST',
-        body: JSON.stringify({ startDateISO })
+        body: JSON.stringify({ startDateISO: pendingLockDate })
       }, token)
       toast.success('Trip dates locked!')
+      setShowLockConfirmation(false)
+      setPendingLockDate(null)
       onRefresh()
     } catch (error) {
-      toast.error(error.message || 'Failed to lock dates')
+      if (error.message?.includes('403') || error.message?.includes('Only')) {
+        toast.error('Only the trip organizer can lock dates.')
+      } else {
+        toast.error(error.message || 'Failed to lock dates')
+      }
+      setShowLockConfirmation(false)
+      setPendingLockDate(null)
     }
   }
   
@@ -3862,13 +3888,29 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                 </div>
               </div>
               
-              <Button
-                onClick={savePicks}
-                disabled={!canParticipate || savingPicks || datePicks.length === 0}
-                className="w-full"
-              >
-                {!canParticipate ? 'You have left this trip' : savingPicks ? 'Saving...' : 'Save Picks'}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={savePicks}
+                  disabled={!canParticipate || savingPicks || datePicks.length === 0}
+                  className="flex-1"
+                >
+                  {!canParticipate ? 'You have left this trip' : savingPicks ? 'Saving...' : 'Save Picks'}
+                </Button>
+                {datePicks.length > 0 && !isLocked && canParticipate && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDatePicks([])
+                      setActiveRank(1)
+                    }}
+                    disabled={savingPicks}
+                    title="Clear all picks and start over"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
             </>
           )}
         </CardContent>
@@ -3904,8 +3946,20 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
                     <Button
                       size="sm"
                       onClick={() => lockWindow(candidate.startDateISO)}
-                      disabled={!canParticipate}
+                      disabled={!canParticipate || (trip.isCreator !== true && trip.createdBy !== user?.id)}
                       className="bg-green-600 hover:bg-green-700"
+                      title={!trip.isCreator && trip.createdBy !== user?.id ? "Only the trip organizer can lock dates." : undefined}
+                    >
+                      <Lock className="h-4 w-4 mr-1" />
+                      Lock
+                    </Button>
+                  )}
+                  {!trip.isCreator && trip.createdBy !== user?.id && !isLocked && (
+                    <Button
+                      size="sm"
+                      disabled
+                      className="bg-gray-300 text-gray-500 cursor-not-allowed"
+                      title="Only the trip organizer can lock dates."
                     >
                       <Lock className="h-4 w-4 mr-1" />
                       Lock
@@ -3917,6 +3971,32 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
           </CardContent>
         </Card>
       )}
+      
+      {/* Lock Confirmation Dialog */}
+      <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This finalizes the trip dates. Once locked, dates cannot be changed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowLockConfirmation(false)
+              setPendingLockDate(null)
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmLockWindow}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

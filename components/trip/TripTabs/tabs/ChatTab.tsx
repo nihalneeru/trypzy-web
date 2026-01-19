@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { MessageCircle, Send, X, Lock } from 'lucide-react'
@@ -250,6 +251,12 @@ export function ChatTab({
   const handleLockDates = async () => {
     if (!selectedLockWindow || !trip) return
     
+    // Check if user is leader
+    if (!isTripLeader) {
+      toast.error('Only the trip organizer can lock dates.')
+      return
+    }
+    
     setLocking(true)
     try {
       // Determine the format based on trip scheduling mode
@@ -271,6 +278,7 @@ export function ChatTab({
       toast.success('Trip dates locked! 🎉 Planning can now begin.')
       setShowLockModal(false)
       setSelectedLockWindow(null)
+      setShowLockConfirmation(false)
       
       // Refresh trip data to update UI
       if (onRefresh) {
@@ -279,7 +287,11 @@ export function ChatTab({
       
       logAnalytics('action_completed', nextAction?.id || 'lock-dates')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to lock dates')
+      if (error.message?.includes('403') || error.message?.includes('Only')) {
+        toast.error('Only the trip organizer can lock dates.')
+      } else {
+        toast.error(error.message || 'Failed to lock dates')
+      }
     } finally {
       setLocking(false)
     }
@@ -289,26 +301,42 @@ export function ChatTab({
   const handleLockDatesDirect = async (optionKey: string) => {
     if (!trip || !optionKey) return
     
-    setLocking(true)
-    try {
-      await api(`/trips/${trip.id}/lock`, {
-        method: 'POST',
-        body: JSON.stringify({ optionKey })
-      }, token)
-      
-      toast.success('Trip dates locked! 🎉 Planning can now begin.')
-      
-      // Refresh trip data to update UI
-      if (onRefresh) {
-        onRefresh()
-      }
-      
-      logAnalytics('action_completed', 'lock-dates-direct')
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to lock dates')
-    } finally {
-      setLocking(false)
+    // Check if user is leader
+    if (!isTripLeader) {
+      toast.error('Only the trip organizer can lock dates.')
+      return
     }
+    
+    // Show confirmation dialog
+    setPendingLockAction(() => async () => {
+      setLocking(true)
+      try {
+        await api(`/trips/${trip.id}/lock`, {
+          method: 'POST',
+          body: JSON.stringify({ optionKey })
+        }, token)
+        
+        toast.success('Trip dates locked! 🎉 Planning can now begin.')
+        
+        // Refresh trip data to update UI
+        if (onRefresh) {
+          onRefresh()
+        }
+        
+        logAnalytics('action_completed', 'lock-dates-direct')
+      } catch (error: any) {
+        if (error.message?.includes('403') || error.message?.includes('Only')) {
+          toast.error('Only the trip organizer can lock dates.')
+        } else {
+          toast.error(error.message || 'Failed to lock dates')
+        }
+      } finally {
+        setLocking(false)
+        setShowLockConfirmation(false)
+        setPendingLockAction(null)
+      }
+    })
+    setShowLockConfirmation(true)
   }
 
 
@@ -323,6 +351,8 @@ export function ChatTab({
   const [showLockModal, setShowLockModal] = useState(false)
   const [selectedLockWindow, setSelectedLockWindow] = useState<string | null>(null)
   const [locking, setLocking] = useState(false)
+  const [showLockConfirmation, setShowLockConfirmation] = useState(false)
+  const [pendingLockAction, setPendingLockAction] = useState<(() => void) | null>(null)
 
   // Join requests state
   const [joinRequests, setJoinRequests] = useState<any[]>([])
@@ -519,26 +549,37 @@ export function ChatTab({
             )}
             
             {/* Ready to lock message - leaders only */}
-            {trip?.votingStatus?.readyToLock && isTripLeader && tripStatus === 'voting' && (
+            {trip?.votingStatus?.readyToLock && tripStatus === 'voting' && (
               <div className="flex justify-center">
                 <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-800 flex items-center gap-3">
                   <span>
                     Ready to lock — {trip.votingStatus.isTie ? 'tie (you decide)' : `${trip.votingStatus.leadingOption?.name || 'winner'} is leading`}
                   </span>
-                  <Button 
-                    size="sm" 
-                    onClick={() => {
-                      // If voting mode, use leading option's optionKey; otherwise show modal
-                      if (trip.votingStatus.leadingOption?.optionKey) {
-                        handleLockDatesDirect(trip.votingStatus.leadingOption.optionKey)
-                      } else {
-                        setShowLockModal(true)
-                      }
-                    }}
-                    className="bg-green-600 hover:bg-green-700 text-white h-7 text-xs"
-                  >
-                    Lock dates
-                  </Button>
+                  {isTripLeader ? (
+                    <Button 
+                      size="sm" 
+                      onClick={() => {
+                        // If voting mode, use leading option's optionKey; otherwise show modal
+                        if (trip.votingStatus.leadingOption?.optionKey) {
+                          handleLockDatesDirect(trip.votingStatus.leadingOption.optionKey)
+                        } else {
+                          setShowLockModal(true)
+                        }
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white h-7 text-xs"
+                    >
+                      Lock dates
+                    </Button>
+                  ) : (
+                    <Button 
+                      size="sm" 
+                      disabled
+                      className="bg-gray-300 text-gray-500 h-7 text-xs cursor-not-allowed"
+                      title="Only the trip organizer can lock dates."
+                    >
+                      Lock dates
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -769,9 +810,20 @@ export function ChatTab({
                     Cancel
                   </Button>
                   <Button 
-                    onClick={handleLockDates} 
-                    disabled={!selectedLockWindow || locking}
+                    onClick={() => {
+                      if (!isTripLeader) {
+                        toast.error('Only the trip organizer can lock dates.')
+                        return
+                      }
+                      if (!selectedLockWindow) return
+                      setPendingLockAction(() => async () => {
+                        await handleLockDates()
+                      })
+                      setShowLockConfirmation(true)
+                    }}
+                    disabled={!selectedLockWindow || locking || !isTripLeader}
                     className="bg-green-600 hover:bg-green-700"
+                    title={!isTripLeader ? "Only the trip organizer can lock dates." : undefined}
                   >
                     {locking ? (
                       'Locking...'
@@ -785,6 +837,37 @@ export function ChatTab({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Lock Dates Confirmation Dialog */}
+            <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This finalizes the trip dates. Once locked, dates cannot be changed.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => {
+                    setShowLockConfirmation(false)
+                    setPendingLockAction(null)
+                  }}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      if (pendingLockAction) {
+                        await pendingLockAction()
+                      }
+                    }}
+                    disabled={locking}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {locking ? 'Locking...' : 'Confirm'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             
                 {/* ActionCard - Single CTA area */}
                 {!viewerIsReadOnly && (
