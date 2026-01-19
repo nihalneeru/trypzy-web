@@ -1810,6 +1810,22 @@ async function handleRoute(request, { params }) {
         { upsert: true }
       )
       
+      // Auto-transition from proposed to scheduling when first date pick is submitted
+      if (trip.status === 'proposed' && previousRespondedCount === 0 && picks.length > 0) {
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { status: 'scheduling' } }
+        )
+        
+        // Add system message
+        await db.collection('trip_messages').insertOne({
+          tripId: trip.id || tripId,
+          type: 'system',
+          content: 'Date picking has started',
+          timestamp: new Date().toISOString()
+        })
+      }
+      
       // Compute pick progress AFTER save
       const allPicksAfterSave = await db.collection('trip_date_picks')
         .find({ tripId })
