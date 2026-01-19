@@ -61,7 +61,8 @@ export function ItineraryTab({
   userIdeaCount,
   onRefresh,
   api,
-  token
+  token,
+  user
 }: any) {
   // Destination hint editing state - hooks must be called unconditionally
   const [editingDestinationHint, setEditingDestinationHint] = useState(false)
@@ -113,6 +114,67 @@ export function ItineraryTab({
     : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
     ? "You've left this trip"
     : null
+
+  // Helper: Normalize author ID from various fields
+  const getAuthorId = (idea: any): string | null => {
+    if (!idea) return null
+    // Try various fields in order of preference
+    if (idea.authorUserId) return idea.authorUserId
+    if (idea.authorId) return idea.authorId
+    if (idea.userId) return idea.userId
+    if (idea.createdBy) {
+      // Handle both string and object with _id
+      if (typeof idea.createdBy === 'string') return idea.createdBy
+      if (idea.createdBy && typeof idea.createdBy === 'object' && idea.createdBy._id) return idea.createdBy._id
+    }
+    return null
+  }
+
+  // Group ideas by traveler
+  const groupedIdeas = useMemo(() => {
+    if (!ideas || ideas.length === 0) return []
+    
+    const groups = new Map<string, { travelerId: string, travelerName: string, ideas: any[], count: number }>()
+    
+    ideas.forEach((idea: any) => {
+      const travelerId = getAuthorId(idea)
+      if (!travelerId) return // Skip ideas without author
+      
+      const travelerName = idea.author?.name || 'Unknown Traveler'
+      
+      if (!groups.has(travelerId)) {
+        groups.set(travelerId, {
+          travelerId,
+          travelerName,
+          ideas: [],
+          count: 0
+        })
+      }
+      
+      const group = groups.get(travelerId)!
+      group.ideas.push(idea)
+      group.count = group.ideas.length
+    })
+    
+    // Convert to array and sort: current user first, then incomplete travelers, then others alphabetically
+    const currentUserId = user?.id
+    return Array.from(groups.values()).sort((a, b) => {
+      // Current user first
+      if (currentUserId) {
+        if (a.travelerId === currentUserId) return -1
+        if (b.travelerId === currentUserId) return 1
+      }
+      
+      // Incomplete travelers (< 3 ideas) before complete travelers
+      const aIncomplete = a.count < 3
+      const bIncomplete = b.count < 3
+      if (aIncomplete && !bIncomplete) return -1
+      if (!aIncomplete && bIncomplete) return 1
+      
+      // Then alphabetically by name
+      return a.travelerName.localeCompare(b.travelerName)
+    })
+  }, [ideas, user?.id])
 
   // Compute readiness: all active travelers (including leader) must have >= 3 ideas
   const canGenerateItinerary = useMemo(() => {
@@ -314,7 +376,7 @@ export function ItineraryTab({
               </div>
             )}
             
-            {/* Ideas List */}
+            {/* Ideas List - Grouped by Traveler */}
             <ScrollArea className="h-[400px]">
               {loadingIdeas ? (
                 <div className="flex justify-center py-8">
@@ -325,36 +387,60 @@ export function ItineraryTab({
                   No ideas yet. Add some activities!
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {ideas.map((idea: any) => (
-                    <div 
-                      key={idea.id} 
-                      className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border"
-                    >
-                      <Button
-                        size="icon"
-                        variant={idea.userLiked ? "default" : "ghost"}
-                        className="h-8 w-8 flex-shrink-0"
-                        onClick={() => (likeIdea || upvoteIdea)(idea.id)}
-                      >
-                        <Vote className={`h-4 w-4 ${idea.userLiked ? 'text-white' : ''}`} />
-                      </Button>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-900 mb-1">{idea.text || idea.title}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          {idea.author && (
-                            <span>by {idea.author.name}</span>
-                          )}
-                          {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0)) > 0 && (
-                            <span className="text-gray-600">
-                              • {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0))} {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0)) === 1 ? 'like' : 'likes'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Accordion type="multiple" className="w-full">
+                  {groupedIdeas.map((group) => {
+                    const isCurrentUser = group.travelerId === user?.id
+                    const travelerName = isCurrentUser ? 'You' : group.travelerName
+                    const ideaCount = group.count
+                    const hasEnoughIdeas = ideaCount >= 3
+                    const accordionValue = `traveler-${group.travelerId}`
+                    
+                    return (
+                      <AccordionItem key={group.travelerId} value={accordionValue}>
+                        <AccordionTrigger className="hover:no-underline py-3">
+                          <div className="flex items-center gap-2 flex-1 text-left">
+                            <span className="font-medium text-sm">{travelerName}</span>
+                            <span className="text-xs text-gray-500">({ideaCount}/3)</span>
+                            {hasEnoughIdeas ? (
+                              <span className="text-green-600">✅</span>
+                            ) : (
+                              <span className="text-yellow-600">⏳</span>
+                            )}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-2">
+                            {group.ideas.map((idea: any) => (
+                              <div 
+                                key={idea.id} 
+                                className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border"
+                              >
+                                <Button
+                                  size="icon"
+                                  variant={idea.userLiked ? "default" : "ghost"}
+                                  className="h-8 w-8 flex-shrink-0"
+                                  onClick={() => (likeIdea || upvoteIdea)(idea.id)}
+                                >
+                                  <Vote className={`h-4 w-4 ${idea.userLiked ? 'text-white' : ''}`} />
+                                </Button>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-gray-900 mb-1">{idea.text || idea.title}</p>
+                                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0)) > 0 && (
+                                      <span className="text-gray-600">
+                                        {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0))} {(idea.likeCount !== undefined ? idea.likeCount : (idea.priority || 0)) === 1 ? 'like' : 'likes'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )
+                  })}
+                </Accordion>
               )}
             </ScrollArea>
           </CardContent>
