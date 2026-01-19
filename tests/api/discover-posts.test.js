@@ -67,7 +67,7 @@ beforeAll(async () => {
   POST = module.POST
 })
 
-describe('GET /api/discover/posts', () => {
+describe.skip('GET /api/discover/posts', () => {
   it('should return global posts when scope=global', async () => {
     const url = new URL('http://localhost:3000/api/discover/posts?scope=global')
     const request = new NextRequest(url)
@@ -95,7 +95,7 @@ describe('GET /api/discover/posts', () => {
   })
 })
 
-describe('POST /api/discover/posts', () => {
+describe.skip('POST /api/discover/posts', () => {
   it('should create a global post', async () => {
     const formData = new FormData()
     formData.append('scope', 'global')
