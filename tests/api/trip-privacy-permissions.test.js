@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { MongoClient } from 'mongodb'
 import { filterTripsByPrivacy } from '../../lib/trips/filterTripsByPrivacy.js'
 import { getDashboardData } from '../../lib/dashboard/getDashboardData.js'
+import { resetMongoConnection } from '../../lib/server/db.js'
 
 // Use test database
 const TEST_DB_NAME = 'trypzy_test'
@@ -22,6 +23,9 @@ describe('Trip Privacy and Permissions', () => {
   let db
   
   beforeAll(async () => {
+    // Reset cached connection to ensure we use test database
+    await resetMongoConnection()
+    
     client = new MongoClient(MONGO_URI)
     await client.connect()
     db = client.db(TEST_DB_NAME)
@@ -85,6 +89,9 @@ describe('Trip Privacy and Permissions', () => {
       await db.collection('circles').insertOne(circle)
       await db.collection('trips').insertOne(trip)
       await db.collection('memberships').insertOne(membership)
+      
+      // Reset connection to ensure getDashboardData uses test database
+      await resetMongoConnection()
       
       // Execute: Get dashboard data for user A
       const dashboardData = await getDashboardData(userId)
@@ -282,6 +289,9 @@ describe('Trip Privacy and Permissions', () => {
       }
       await db.collection('memberships').insertOne(joinerMembership)
       
+      // Reset connection to ensure getDashboardData uses test database
+      await resetMongoConnection()
+      
       // Get dashboard data for joiner
       const dashboardData = await getDashboardData(joinerId)
       
@@ -373,6 +383,9 @@ describe('Trip Privacy and Permissions', () => {
       await db.collection('memberships').insertMany([ownerMembership, joinerMembership])
       await db.collection('trip_participants').insertOne(joinerParticipant)
       
+      // Reset connection to ensure getDashboardData uses test database
+      await resetMongoConnection()
+      
       // Execute: Get dashboard data for joiner
       const dashboardData = await getDashboardData(joinerId)
       
@@ -381,6 +394,9 @@ describe('Trip Privacy and Permissions', () => {
       expect(joinerCircle).toBeDefined()
       expect(joinerCircle.trips).toHaveLength(1)
       expect(joinerCircle.trips[0].id).toBe(tripId)
+      
+      // Reset again before owner's dashboard data
+      await resetMongoConnection()
       
       // Also verify owner can see their own trip
       const ownerDashboardData = await getDashboardData(ownerId)
@@ -507,6 +523,9 @@ describe('Trip Privacy and Permissions', () => {
       await db.collection('circles').insertOne(circle)
       await db.collection('trips').insertOne(trip)
       await db.collection('memberships').insertOne(membership)
+      
+      // Reset connection to ensure getDashboardData uses test database
+      await resetMongoConnection()
       
       // Execute: Get dashboard data
       const dashboardData = await getDashboardData(userId)

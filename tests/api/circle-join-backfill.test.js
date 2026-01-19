@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { MongoClient } from 'mongodb'
+import { resetMongoConnection } from '../../lib/server/db.js'
 
 // Use test database
 const TEST_DB_NAME = 'trypzy_test'
@@ -15,6 +16,9 @@ describe('Circle Join Backfill', () => {
   let db
   
   beforeAll(async () => {
+    // Reset cached connection to ensure we use test database
+    await resetMongoConnection()
+    
     client = new MongoClient(MONGO_URI)
     await client.connect()
     db = client.db(TEST_DB_NAME)
