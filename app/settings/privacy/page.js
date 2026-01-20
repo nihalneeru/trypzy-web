@@ -162,31 +162,25 @@ export default function PrivacySettingsPage() {
             <div className="space-y-3">
               <Label className="text-base font-semibold">Upcoming Trips Visibility</Label>
               <p className="text-sm text-gray-600">
-                Who can see your upcoming trips?
+                Who can see your upcoming trips on your profile?
               </p>
               <p className="text-xs text-gray-500 italic">
-                This controls what others see on your profile. You will always see your own trips.
+                This only affects your profile view. You and your circle members will always see trips you're traveling on.
               </p>
               <RadioGroup
-                value={privacy.tripsVisibility}
+                value={privacy.tripsVisibility === 'private' ? 'circle' : privacy.tripsVisibility}
                 onValueChange={(value) => setPrivacy({ ...privacy, tripsVisibility: value })}
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="circle" id="trips-circle" />
                   <Label htmlFor="trips-circle" className="font-normal cursor-pointer">
-                    Circle Members Only - Only people in your circles can see your trips
+                    Circle Members Only - Only people in your circles can see your trips (Default)
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="public" id="trips-public" />
                   <Label htmlFor="trips-public" className="font-normal cursor-pointer">
-                    Public - Anyone can see your trips
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="private" id="trips-private" />
-                  <Label htmlFor="trips-private" className="font-normal cursor-pointer">
-                    Private - Only you can see your trips
+                    Public - Share your travel experiences with everyone
                   </Label>
                 </div>
               </RadioGroup>
