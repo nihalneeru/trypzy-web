@@ -455,6 +455,159 @@ describe('Trip Expenses API', () => {
       const data = await response.json()
       expect(data.error).toContain('not a traveler')
     })
+    
+    it('should allow circle member without trip_participants record to add expense (collaborative trip)', async () => {
+      // Test case: collaborative trip where payer is a circle member but has NO trip_participants record
+      // This should be allowed because isActiveTraveler returns true for circle members without left/removed status
+      const userId = 'test-user-1'
+      const circleId = 'circle-test-1'
+      const tripId = 'trip-test-1'
+      
+      // Setup
+      await db.collection('users').insertOne({
+        id: userId,
+        name: 'User 1',
+        email: 'user1@test.com'
+      })
+      
+      await db.collection('circles').insertOne({
+        id: circleId,
+        name: 'Test Circle',
+        ownerId: userId
+      })
+      
+      await db.collection('memberships').insertOne({
+        userId,
+        circleId,
+        role: 'owner'
+      })
+      
+      await db.collection('trips').insertOne({
+        id: tripId,
+        name: 'Test Trip',
+        circleId,
+        createdBy: userId,
+        type: 'collaborative',
+        status: 'locked',
+        expenses: []
+      })
+      
+      // NOTE: Do NOT call addTraveler() - user has no trip_participants record
+      // But they ARE a circle member, so they should be allowed to add expenses
+      
+      const token = createToken(userId)
+      
+      // Execute
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/expenses`)
+      const requestBody = {
+        title: 'Lunch',
+        amountCents: 3000,
+        currency: 'USD',
+        paidByUserId: userId,
+        splitBetweenUserIds: [userId]
+      }
+      
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+      
+      const response = await POST(request, { params: { tripId } })
+      
+      // Assert - should succeed because circle member without trip_participants is valid
+      if (response.status !== 200) {
+        const errorData = await response.json().catch(() => ({}))
+        console.log(`[DEBUG] POST failed: status=${response.status}, error=`, errorData)
+      }
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.title).toBe('Lunch')
+      expect(data.amountCents).toBe(3000)
+      
+      // Verify expense was added to trip
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      expect(trip.expenses.length).toBe(1)
+      expect(trip.expenses[0].title).toBe('Lunch')
+    })
+    
+    it('should reject left/removed participant even if still a circle member (collaborative trip)', async () => {
+      // Test case: payer is a circle member but has trip_participants status='left' or 'removed'
+      // This should be rejected even though they're still in the circle
+      // Use a different user as the requester (who is a valid traveler) to test payer validation
+      const userId1 = 'test-user-1' // Requester (valid traveler)
+      const userId2 = 'test-user-2' // Payer (has 'left' status)
+      const circleId = 'circle-test-1'
+      const tripId = 'trip-test-1'
+      
+      // Setup
+      await db.collection('users').insertMany([
+        { id: userId1, name: 'User 1', email: 'user1@test.com' },
+        { id: userId2, name: 'User 2', email: 'user2@test.com' }
+      ])
+      
+      await db.collection('circles').insertOne({
+        id: circleId,
+        name: 'Test Circle',
+        ownerId: userId1
+      })
+      
+      await db.collection('memberships').insertMany([
+        { userId: userId1, circleId, role: 'owner' },
+        { userId: userId2, circleId, role: 'member' } // User 2 is still a circle member
+      ])
+      
+      await db.collection('trips').insertOne({
+        id: tripId,
+        name: 'Test Trip',
+        circleId,
+        createdBy: userId1,
+        type: 'collaborative',
+        status: 'locked',
+        expenses: []
+      })
+      
+      // User 1 is an active traveler (no trip_participants record = valid for collaborative)
+      // User 2 has 'left' status - should be rejected as payer
+      await db.collection('trip_participants').insertOne({
+        tripId,
+        userId: userId2,
+        role: 'traveler',
+        status: 'left', // User 2 has left the trip
+        joinedAt: new Date().toISOString()
+      })
+      
+      const token = createToken(userId1) // User 1 is the requester (valid traveler)
+      
+      // Execute - try to add expense with User 2 as payer (who has 'left' status)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/expenses`)
+      const requestBody = {
+        title: 'Lunch',
+        amountCents: 3000,
+        currency: 'USD',
+        paidByUserId: userId2, // User 2 has 'left' status - should be rejected
+        splitBetweenUserIds: [userId2]
+      }
+      
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+      
+      const response = await POST(request, { params: { tripId } })
+      
+      // Assert - should fail because payer (userId2) has 'left' status
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toContain('Payer must be a traveler')
+    })
   })
 
   describe('DELETE /api/trips/:id/expenses', () => {

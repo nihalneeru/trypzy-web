@@ -4021,7 +4021,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     const urlTab = searchParams.get('tab')
     if (urlTab) {
       // Validate tab value
-      const validTabs = ['travelers', 'planning', 'itinerary', 'accommodation', 'prep', 'memories', 'chat']
+      const validTabs = ['travelers', 'planning', 'itinerary', 'accommodation', 'prep', 'memories', 'expenses', 'chat']
       if (validTabs.includes(urlTab)) {
         return urlTab
       }
@@ -4038,17 +4038,27 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     return true
   })
   
+  // Track manual tab changes to prevent useEffect from interfering
+  const manualTabChangeRef = useRef(false)
+  
   // Sync activeTab with URL tab parameter (handles browser back/forward navigation)
+  // Only sync when URL changes externally (not during manual tab clicks)
   useEffect(() => {
+    // Skip sync if we just manually changed the tab
+    if (manualTabChangeRef.current) {
+      manualTabChangeRef.current = false
+      return
+    }
+    
     const urlTab = searchParams.get('tab')
     if (urlTab && urlTab !== activeTab) {
-      const validTabs = ['travelers', 'planning', 'itinerary', 'accommodation', 'prep', 'memories', 'chat']
+      const validTabs = ['travelers', 'planning', 'itinerary', 'accommodation', 'prep', 'memories', 'expenses', 'chat']
       if (validTabs.includes(urlTab)) {
         setActiveTab(urlTab)
         trip._initialTab = urlTab
       }
     }
-  }, [searchParams, activeTab, trip])
+  }, [searchParams, trip]) // Removed activeTab from dependencies to prevent race condition
   const [availability, setAvailability] = useState({})
   const [broadAvailability, setBroadAvailability] = useState('') // 'available' | 'maybe' | 'unavailable' | '' for entire range
   const [weeklyAvailability, setWeeklyAvailability] = useState({}) // { [weekKey]: 'available'|'maybe'|'unavailable' }
@@ -5375,11 +5385,17 @@ function TripDetailView({ trip, token, user, onRefresh }) {
             api={api}
             activeTab={activeTab}
             setActiveTab={(newTab) => {
+              // Mark as manual change to prevent useEffect from interfering
+              manualTabChangeRef.current = true
+              
+              // Update state immediately (single source of truth)
               setActiveTab(newTab)
+              
               // Update trip's initial tab flag to prevent auto-redirect after manual navigation
               trip._initialTab = newTab
               
               // Update URL to include tab parameter (preserves deep-links)
+              // Use router.replace with scroll: false for immediate update
               if (typeof window !== 'undefined') {
                 const currentUrl = new URL(window.location.href)
                 const params = new URLSearchParams(currentUrl.search)
@@ -5389,7 +5405,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                   params.set('tab', newTab)
                   const newSearch = params.toString()
                   const newUrl = `${currentUrl.pathname}?${newSearch}`
-                  router.replace(newUrl)
+                  router.replace(newUrl, { scroll: false })
                 }
               }
             }}

@@ -82,11 +82,43 @@ export function ExpensesTab({
   
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  // Get travelers for select dropdowns
+  // Get travelers for select dropdowns from participantsWithStatus (same as TravelersTab)
+  // Use canonical userId from participantsWithStatus (matches backend trip_participants.userId)
   const travelers = useMemo(() => {
-    if (!trip?.travelers) return []
-    return trip.travelers.filter((t: any) => t.status !== 'left' && t.status !== 'removed')
-  }, [trip?.travelers])
+    const participantsWithStatus = trip?.participantsWithStatus || []
+    const activeParticipants = participantsWithStatus.filter((p: any) => {
+      const status = p.status || 'active'
+      return status === 'active'
+    })
+    
+    // Map to simple traveler objects for dropdowns
+    // IMPORTANT: Use p.userId as canonical ID (matches backend trip_participants.userId validation)
+    // Backend validates against trip_participants.userId, so we must use that exact field
+    // Fallback to p.user?.id if userId is missing (defensive, but userId should always exist)
+    return activeParticipants.map((p: any) => {
+      // Canonical userId from trip_participants (backend expects this exact value)
+      // participantsWithStatus structure: { userId: string, user: { id: string, name: string }, status: string }
+      const canonicalUserId = p.userId || p.user?.id
+      if (!canonicalUserId) {
+        console.warn('[ExpensesTab] Participant missing userId:', p)
+        return null
+      }
+      
+      // DEBUG: Log ID mapping (dev-only)
+      if (process.env.NODE_ENV !== 'production' && p.userId !== p.user?.id) {
+        console.warn('[ExpensesTab] userId mismatch:', {
+          userId: p.userId,
+          userDotId: p.user?.id,
+          participant: p
+        })
+      }
+      
+      return {
+        id: canonicalUserId, // Must match trip_participants.userId for backend validation
+        name: p.user?.name || p.name || p.userName || 'Unknown'
+      }
+    }).filter(Boolean) // Remove any null entries
+  }, [trip?.participantsWithStatus])
 
   useEffect(() => {
     if (trip?.id) {
@@ -97,10 +129,26 @@ export function ExpensesTab({
   // Initialize form with all travelers selected
   useEffect(() => {
     if (travelers.length > 0 && formData.splitBetweenUserIds.length === 0) {
+      const allTravelerIds = travelers.map((t: any) => t.id)
+      // Ensure paidByUserId is current user.id if present in travelers, else first traveler
+      const currentUserId = user?.id
+      const defaultPaidBy = travelers.find((t: any) => t.id === currentUserId)?.id || travelers[0]?.id || ''
+      
+      // DEBUG: Log initialization (dev-only)
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[ExpensesTab] Form initialization:', {
+          travelersCount: travelers.length,
+          travelerIds: allTravelerIds,
+          currentUserId,
+          defaultPaidBy,
+          travelers: travelers.map(t => ({ id: t.id, name: t.name }))
+        })
+      }
+      
       setFormData(prev => ({
         ...prev,
-        splitBetweenUserIds: travelers.map((t: any) => t.userId || t.id),
-        paidByUserId: user?.id || travelers[0]?.userId || travelers[0]?.id || ''
+        splitBetweenUserIds: allTravelerIds,
+        paidByUserId: defaultPaidBy
       }))
     }
   }, [travelers, user])
@@ -159,6 +207,17 @@ export function ExpensesTab({
         note: formData.note || undefined
       }
       
+      // DEBUG: Log payload being sent (dev-only)
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[ExpensesTab] POST payload:', {
+          tripId: trip.id,
+          paidByUserId: payload.paidByUserId,
+          splitBetweenUserIds: payload.splitBetweenUserIds,
+          availableTravelerIds: travelers.map(t => t.id),
+          currentUserId: user?.id
+        })
+      }
+      
       await api(`/trips/${trip.id}/expenses`, {
         method: 'POST',
         body: JSON.stringify(payload)
@@ -197,12 +256,17 @@ export function ExpensesTab({
   }
 
   const resetForm = () => {
+    const allTravelerIds = travelers.map((t: any) => t.id)
+    // Ensure paidByUserId is current user.id if present in travelers, else first traveler
+    const currentUserId = user?.id
+    const defaultPaidBy = travelers.find((t: any) => t.id === currentUserId)?.id || travelers[0]?.id || ''
+    
     setFormData({
       title: '',
       amount: '',
       currency: trip?.currency || 'USD',
-      paidByUserId: user?.id || travelers[0]?.userId || travelers[0]?.id || '',
-      splitBetweenUserIds: travelers.map((t: any) => t.userId || t.id),
+      paidByUserId: defaultPaidBy,
+      splitBetweenUserIds: allTravelerIds,
       incurredAt: '',
       note: ''
     })
@@ -264,8 +328,8 @@ export function ExpensesTab({
 
   // Get traveler name
   const getTravelerName = (userId: string) => {
-    const traveler = travelers.find((t: any) => (t.userId || t.id) === userId)
-    return traveler?.name || traveler?.userName || 'Unknown'
+    const traveler = travelers.find((t: any) => t.id === userId)
+    return traveler?.name || 'Unknown'
   }
 
   // Format date
@@ -470,55 +534,67 @@ export function ExpensesTab({
             
             <div>
               <Label htmlFor="paidBy">Paid by *</Label>
-              <Select
-                value={formData.paidByUserId}
-                onValueChange={(value) => {
-                  setFormData(prev => ({ ...prev, paidByUserId: value }))
-                  setFormErrors(prev => ({ ...prev, paidByUserId: '' }))
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select payer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {travelers.map((traveler: any) => (
-                    <SelectItem key={traveler.userId || traveler.id} value={traveler.userId || traveler.id}>
-                      {traveler.name || traveler.userName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {travelers.length === 0 ? (
+                <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                  <p className="text-sm text-gray-600">No active travelers found for this trip.</p>
+                </div>
+              ) : (
+                <Select
+                  value={formData.paidByUserId}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({ ...prev, paidByUserId: value }))
+                    setFormErrors(prev => ({ ...prev, paidByUserId: '' }))
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {travelers.map((traveler: any) => (
+                      <SelectItem key={traveler.id} value={traveler.id}>
+                        {traveler.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {formErrors.paidByUserId && <p className="text-sm text-red-500 mt-1">{formErrors.paidByUserId}</p>}
             </div>
             
             <div>
               <Label>Split between *</Label>
-              <div className="space-y-2 mt-2">
-                {travelers.map((traveler: any) => {
-                  const travelerId = traveler.userId || traveler.id
-                  const isChecked = formData.splitBetweenUserIds.includes(travelerId)
-                  return (
-                    <div key={travelerId} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`split-${travelerId}`}
-                        checked={isChecked}
-                        onCheckedChange={(checked) => {
-                          setFormData(prev => ({
-                            ...prev,
-                            splitBetweenUserIds: checked
-                              ? [...prev.splitBetweenUserIds, travelerId]
-                              : prev.splitBetweenUserIds.filter((id) => id !== travelerId)
-                          }))
-                          setFormErrors(prev => ({ ...prev, splitBetweenUserIds: '' }))
-                        }}
-                      />
-                      <Label htmlFor={`split-${travelerId}`} className="cursor-pointer">
-                        {traveler.name || traveler.userName}
-                      </Label>
-                    </div>
-                  )
-                })}
-              </div>
+              {travelers.length === 0 ? (
+                <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                  <p className="text-sm text-gray-600">No active travelers found for this trip.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 mt-2">
+                  {travelers.map((traveler: any) => {
+                    const travelerId = traveler.id
+                    const isChecked = formData.splitBetweenUserIds.includes(travelerId)
+                    return (
+                      <div key={travelerId} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`split-${travelerId}`}
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              splitBetweenUserIds: checked
+                                ? [...prev.splitBetweenUserIds, travelerId]
+                                : prev.splitBetweenUserIds.filter((id) => id !== travelerId)
+                            }))
+                            setFormErrors(prev => ({ ...prev, splitBetweenUserIds: '' }))
+                          }}
+                        />
+                        <Label htmlFor={`split-${travelerId}`} className="cursor-pointer">
+                          {traveler.name}
+                        </Label>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               {formErrors.splitBetweenUserIds && <p className="text-sm text-red-500 mt-1">{formErrors.splitBetweenUserIds}</p>}
             </div>
             
@@ -551,7 +627,7 @@ export function ExpensesTab({
             }}>
               Cancel
             </Button>
-            <Button onClick={handleAddExpense} disabled={adding}>
+            <Button onClick={handleAddExpense} disabled={adding || travelers.length === 0}>
               {adding ? 'Adding...' : 'Add expense'}
             </Button>
           </DialogFooter>
