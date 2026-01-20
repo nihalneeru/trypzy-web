@@ -300,8 +300,10 @@ describe('Trip Privacy and Permissions', () => {
   })
 
   describe('Privacy bug fix: Private trips visible in self contexts', () => {
-    it('should show trips on dashboard even when trip owner has privacy=Private', async () => {
+    it('should show trips on dashboard even when trip owner has privacy=Private (backward compat)', async () => {
       // Setup: User A (privacy=Private) creates trip, User B (privacy=Private) joins circle
+      // Note: 'private' is no longer a UI option, but we keep this test for backward compatibility
+      // with existing users who may have this setting. Backend treats 'private' same as 'circle'.
       const ownerId = 'test-owner-private'
       const joinerId = 'test-joiner-private'
       const circleId = 'circle-test-private'
