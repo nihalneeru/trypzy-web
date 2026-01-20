@@ -180,7 +180,7 @@ export function AccommodationTab({
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2">Accommodation</h2>
-        <p className="text-gray-600">Find and choose where to stay for your trip</p>
+        <p className="text-gray-600 mb-1">Add places to stay for your trip (optional). You can plan accommodation anytime — before or after itinerary.</p>
       </div>
 
       {loading ? (
@@ -194,19 +194,16 @@ export function AccommodationTab({
         <Card>
           <CardContent className="text-center py-12">
             <Home className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-500 mb-2">No stay segments yet</p>
-            <p className="text-sm text-gray-400">
-              Generate an itinerary to automatically create accommodation needs
-            </p>
+            <p className="text-gray-500 mb-2">No stays added yet. Add a stay if your trip needs accommodation.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left: Stay Segments */}
+          {/* Left: Stays */}
           <div className="lg:col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle>Stay Segments</CardTitle>
+                <CardTitle>Where you'll stay</CardTitle>
                 <CardDescription>Accommodation needed by location</CardDescription>
               </CardHeader>
               <CardContent>
@@ -240,8 +237,11 @@ export function AccommodationTab({
                                   Covered
                                 </Badge>
                               )}
-                              {!hasSelected && stay.status === 'pending' && (
-                                <Badge variant="secondary" className="text-xs">Pending</Badge>
+                              {!hasSelected && stay.status === 'pending' && stayOptions.length === 0 && (
+                                <Badge variant="secondary" className="text-xs">Options needed</Badge>
+                              )}
+                              {!hasSelected && stay.status === 'pending' && stayOptions.length > 0 && (
+                                <Badge variant="secondary" className="text-xs">Not decided</Badge>
                               )}
                             </div>
                             <p className="text-xs text-gray-600">
@@ -266,34 +266,20 @@ export function AccommodationTab({
               <>
                 <Card>
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Options for {selectedStay.locationName}</CardTitle>
-                        <CardDescription>
-                          {formatDateRange(selectedStay.startDate, selectedStay.endDate)} • {selectedStay.nights} night{selectedStay.nights !== 1 ? 's' : ''}
-                        </CardDescription>
+                    <div className="space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="mb-1 line-clamp-2 break-words">Options for {selectedStay.locationName}</CardTitle>
+                          <CardDescription>
+                            {formatDateRange(selectedStay.startDate, selectedStay.endDate)} • {selectedStay.nights} night{selectedStay.nights !== 1 ? 's' : ''}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        {selectedStay.startDate && selectedStay.endDate && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const url = buildAirbnbSearchUrl({
-                                locationName: selectedStay.locationName,
-                                startDate: selectedStay.startDate,
-                                endDate: selectedStay.endDate
-                              })
-                              window.open(url, '_blank')
-                            }}
-                          >
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Search on Airbnb
-                          </Button>
-                        )}
+                      <p className="text-sm text-gray-600">Add places the group could stay for this night.</p>
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
                         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                           <DialogTrigger asChild>
-                            <Button size="sm">
+                            <Button size="sm" className="flex-shrink-0">
                               <Plus className="h-4 w-4 mr-2" />
                               Add Option
                             </Button>
@@ -302,7 +288,7 @@ export function AccommodationTab({
                             <DialogHeader>
                               <DialogTitle>Add Accommodation Option</DialogTitle>
                               <DialogDescription>
-                                Share an accommodation option for this stay segment
+                                Share an accommodation option for this stay
                               </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4 py-4">
@@ -383,14 +369,32 @@ export function AccommodationTab({
                             </DialogFooter>
                           </DialogContent>
                         </Dialog>
+                        {selectedStay.startDate && selectedStay.endDate && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const url = buildAirbnbSearchUrl({
+                                locationName: selectedStay.locationName,
+                                startDate: selectedStay.startDate,
+                                endDate: selectedStay.endDate
+                              })
+                              window.open(url, '_blank')
+                            }}
+                            className="flex-shrink-0"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Search on Airbnb
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     {stayAccommodations.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
-                        <p>No accommodation options yet</p>
-                        <p className="text-sm mt-2">Add an option to get started</p>
+                        <p className="mb-2">No options yet. Add up to 3 options so the group can choose — or leave empty if accommodation isn't needed.</p>
+                        <p className="text-sm text-gray-400">For {selectedStay.locationName} • {formatDateRange(selectedStay.startDate, selectedStay.endDate)}</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -498,7 +502,7 @@ export function AccommodationTab({
             ) : (
               <Card>
                 <CardContent className="text-center py-12 text-gray-500">
-                  <p>Select a stay segment to view options</p>
+                  <p>Select a stay to view options</p>
                 </CardContent>
               </Card>
             )}
