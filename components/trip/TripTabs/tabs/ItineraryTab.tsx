@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Lightbulb, ListTodo, MessageCircle, Vote, MapPin, Calendar as CalendarIcon, Lock, Sparkles, RefreshCw, Edit2, Save, X } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
@@ -120,50 +120,139 @@ export function ItineraryTab({
   // Quick reactions state
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [reactingChip, setReactingChip] = useState<string | null>(null)
+  const [reactingAction, setReactingAction] = useState<'adding' | 'removing' | null>(null)
+  const [showAdvancedPreferences, setShowAdvancedPreferences] = useState(false)
 
-  // Quick reactions configuration
-  const quickReactions = [
-    { id: 'love', emoji: '👍', label: 'Love it', message: 'Love it' },
-    { id: 'packed', emoji: '🔁', label: 'Too packed', message: 'Too packed' },
-    { id: 'chill', emoji: '🧘', label: 'More chill', message: 'More chill' },
-    { id: 'cheaper', emoji: '💸', label: 'Cheaper', message: 'Cheaper' },
-    { id: 'food', emoji: '🍽️', label: 'More food', message: 'More food' },
-    { id: 'freetime', emoji: '🕒', label: 'More free time', message: 'More free time' }
+  // Grouped reactions configuration - compact default view with progressive disclosure
+  const reactionGroups = [
+    {
+      category: 'pace',
+      label: 'Pace',
+      exclusive: true,
+      advanced: false,
+      reactions: [
+        { id: 'pace:slow', label: 'Slower', emoji: '🐢', advanced: false },
+        { id: 'pace:balanced', label: 'Balanced', emoji: '⚖️', advanced: false },
+        { id: 'pace:fast', label: 'Faster', emoji: '⚡', advanced: false }
+      ]
+    },
+    {
+      category: 'focus',
+      label: 'Focus',
+      exclusive: false,
+      advanced: false,
+      reactions: [
+        { id: 'focus:culture', label: 'Culture', emoji: '🏛️', advanced: false },
+        { id: 'focus:food', label: 'Food', emoji: '🍽️', advanced: false },
+        { id: 'focus:nature', label: 'Nature', emoji: '🌲', advanced: false },
+        { id: 'focus:local', label: 'Local vibes', emoji: '🗺️', advanced: false },
+        { id: 'focus:nightlife', label: 'Nightlife', emoji: '🌃', advanced: true }
+      ]
+    },
+    {
+      category: 'budget',
+      label: 'Budget',
+      exclusive: true,
+      advanced: false,
+      reactions: [
+        { id: 'budget:lower', label: 'Save', emoji: '💰', advanced: false },
+        { id: 'budget:mid', label: 'Comfortable', emoji: '💵', advanced: false },
+        { id: 'budget:high', label: 'Splurge', emoji: '💎', advanced: false }
+      ]
+    },
+    {
+      category: 'logistics',
+      label: 'Logistics',
+      exclusive: false,
+      advanced: true,
+      reactions: [
+        { id: 'logistics:fewer-moves', label: 'Fewer travel days', emoji: '🎒', advanced: true },
+        { id: 'logistics:short-days', label: 'Shorter daily travel', emoji: '⏱️', advanced: true },
+        { id: 'logistics:central-base', label: 'Centralized stays', emoji: '🏨', advanced: true }
+      ]
+    }
   ]
 
-  // Handle quick reaction click
-  const handleQuickReaction = async (reaction: typeof quickReactions[0]) => {
-    if (reactingChip || submittingFeedback || viewerIsReadOnly) return
-    
-    setReactingChip(reaction.id)
-    
+  // Reactions state
+  const [reactions, setReactions] = useState<any[]>([])
+  const [loadingReactions, setLoadingReactions] = useState(false)
+
+  // Load reactions for current version
+  const loadReactions = useCallback(async () => {
+    if (!latestVersion || !api || !token) return
+    setLoadingReactions(true)
     try {
-      // Find "preference" type or use first available type as fallback
-      const preferenceType = feedbackTypes.find((t: any) => t.value === 'preference') || feedbackTypes[0]
-      
-      // Set feedback state and submit
-      const originalFeedback = { ...newFeedback }
-      setNewFeedback({
-        type: preferenceType.value,
-        target: '',
-        message: `Reaction: ${reaction.message}`
-      })
-      
-      // Wait a tick for state to update, then submit
-      await new Promise(resolve => setTimeout(resolve, 0))
-      
-      // Submit feedback (submitFeedback uses newFeedback state)
-      submitFeedback()
-      
-      // Show "Sent ✅" state briefly (1.5 seconds), then reset
+      const data = await api(
+        `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions`,
+        { method: 'GET' },
+        token
+      )
+      setReactions(data || [])
+    } catch (error) {
+      console.error('Failed to load reactions:', error)
+      setReactions([])
+    } finally {
+      setLoadingReactions(false)
+    }
+  }, [latestVersion, trip.id, api, token])
+
+  // Load reactions when version changes
+  useEffect(() => {
+    if (latestVersion) {
+      loadReactions()
+    }
+  }, [latestVersion, loadReactions])
+
+  // Handle quick reaction click - persists to backend immediately
+  const handleQuickReaction = async (reactionId: string, category: string) => {
+    if (reactingChip || viewerIsReadOnly) return
+
+    setReactingChip(reactionId)
+
+    try {
+      // Check if user already has this reaction
+      const userReactionKeys = reactions
+        .filter((r: any) => r.userId === user?.id)
+        .map((r: any) => r.reactionKey)
+      const hasReaction = userReactionKeys.includes(reactionId)
+
+      if (hasReaction) {
+        // Remove reaction (toggle off)
+        setReactingAction('removing')
+        await api(
+          `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions?reactionKey=${encodeURIComponent(reactionId)}`,
+          { method: 'DELETE' },
+          token
+        )
+        toast.success('Reaction removed')
+      } else {
+        // Add reaction
+        setReactingAction('adding')
+        await api(
+          `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              category,
+              reactionKey: reactionId
+            })
+          },
+          token
+        )
+        toast.success('Reaction added')
+      }
+
+      // Reload reactions
+      await loadReactions()
+
       setTimeout(() => {
         setReactingChip(null)
-        // Reset feedback state back to original
-        setNewFeedback(originalFeedback)
-      }, 1500)
-    } catch (error) {
+        setReactingAction(null)
+      }, 800)
+    } catch (error: any) {
       setReactingChip(null)
-      toast.error('Failed to submit reaction')
+      setReactingAction(null)
+      toast.error(error.message || 'Failed to update reaction')
     }
   }
 
@@ -188,50 +277,35 @@ export function ItineraryTab({
     return 0
   }, [latestVersion, feedback])
 
-  // Extract reaction message from feedback item (format: "Reaction: {message}")
-  const getReactionFromMessage = (message: string): string | null => {
-    if (!message || !message.startsWith('Reaction: ')) return null
-    return message.replace('Reaction: ', '').trim()
-  }
-
-  // Aggregate reaction counts from all feedback
+  // Aggregate reaction counts from reactions collection
   const reactionCounts = useMemo(() => {
-    if (!feedback || feedback.length === 0) return new Map<string, number>()
-    
     const counts = new Map<string, number>()
-    
-    feedback.forEach((fb: any) => {
-      const reactionMessage = getReactionFromMessage(fb.message)
-      if (reactionMessage) {
-        // Find matching reaction by message
-        const matchingReaction = quickReactions.find(r => r.message === reactionMessage)
-        if (matchingReaction) {
-          counts.set(matchingReaction.id, (counts.get(matchingReaction.id) || 0) + 1)
-        }
-      }
+
+    reactions.forEach((r: any) => {
+      counts.set(r.reactionKey, (counts.get(r.reactionKey) || 0) + 1)
     })
-    
+
     return counts
-  }, [feedback])
+  }, [reactions])
 
   // Get current user's reactions
   const userReactions = useMemo(() => {
-    if (!feedback || !user?.id || feedback.length === 0) return []
-    
-    return feedback
-      .filter((fb: any) => {
-        const reactionMessage = getReactionFromMessage(fb.message)
-        // Check multiple possible author ID fields
-        const authorId = fb.author?.id || fb.authorId || fb.userId
-        return reactionMessage && authorId === user.id
-      })
-      .map((fb: any) => {
-        const reactionMessage = getReactionFromMessage(fb.message)
-        const matchingReaction = quickReactions.find(r => r.message === reactionMessage)
-        return matchingReaction ? matchingReaction.label : null
+    if (!user?.id) return []
+
+    return reactions
+      .filter((r: any) => r.userId === user.id)
+      .map((r: any) => {
+        // Find matching reaction across all groups
+        for (const group of reactionGroups) {
+          const matchingReaction = group.reactions.find(reaction => reaction.id === r.reactionKey)
+          if (matchingReaction) {
+            return matchingReaction.label
+          }
+        }
+        return null
       })
       .filter(Boolean)
-  }, [feedback, user?.id])
+  }, [reactions, user?.id])
 
   // Check if revise should be enabled
   const canRevise = useMemo(() => {
@@ -791,69 +865,67 @@ export function ItineraryTab({
               </div>
             ) : (
               <>
-                {/* Quick Reactions */}
-                <div className="mb-4">
-                  <div className="flex flex-wrap gap-2">
-                    {quickReactions.map((reaction) => {
-                      const isReacting = reactingChip === reaction.id
-                      const isDisabled = reactingChip !== null || submittingFeedback || viewerIsReadOnly
-                      const reactionCount = reactionCounts.get(reaction.id) || 0
-                      
-                      return (
-                        <Button
-                          key={reaction.id}
-                          variant={isReacting ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handleQuickReaction(reaction)}
-                          disabled={isDisabled}
-                          className="text-xs h-8"
-                        >
-                          {isReacting ? (
-                            <>
-                              <span className="mr-1">✅</span>
-                              Sent
-                            </>
-                          ) : (
-                            <>
-                              <span className="mr-1">{reaction.emoji}</span>
-                              {reaction.label}
-                              {reactionCount > 0 && (
-                                <span className="ml-1 text-gray-500">({reactionCount})</span>
-                              )}
-                            </>
-                          )}
-                        </Button>
-                      )
-                    })}
-                  </div>
-                  
+                {/* Grouped Reactions - Compact with Progressive Disclosure */}
+                <div className="mb-4 space-y-3">
+                  {reactionGroups
+                    .filter(group => !group.advanced || showAdvancedPreferences)
+                    .map((group) => (
+                      <div key={group.category}>
+                        <p className="text-xs font-medium text-gray-700 mb-2">{group.label}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {group.reactions
+                            .filter(reaction => !reaction.advanced || showAdvancedPreferences)
+                            .map((reaction) => {
+                              const isReacting = reactingChip === reaction.id
+                              const isDisabled = reactingChip !== null || viewerIsReadOnly
+                              const reactionCount = reactionCounts.get(reaction.id) || 0
+                              const userHasReaction = reactions.some((r: any) => r.userId === user?.id && r.reactionKey === reaction.id)
+
+                              return (
+                                <Button
+                                  key={reaction.id}
+                                  variant={userHasReaction ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handleQuickReaction(reaction.id, group.category)}
+                                  disabled={isDisabled}
+                                  className="text-xs h-8"
+                                >
+                                  {isReacting ? (
+                                    <>
+                                      <span className="mr-1">✅</span>
+                                      {reactingAction === 'adding' ? 'Added!' : 'Removed!'}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="mr-1">{reaction.emoji}</span>
+                                      {reaction.label}
+                                      {reactionCount > 0 && (
+                                        <span className="ml-1 text-gray-500">({reactionCount})</span>
+                                      )}
+                                    </>
+                                  )}
+                                </Button>
+                              )
+                            })}
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* More preferences toggle */}
+                  <button
+                    onClick={() => setShowAdvancedPreferences(!showAdvancedPreferences)}
+                    className="text-xs text-gray-600 hover:text-gray-900 underline"
+                  >
+                    {showAdvancedPreferences ? 'Fewer preferences' : 'More preferences'}
+                  </button>
+
                   {/* Personal reactions summary */}
                   {userReactions.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Your reactions: {userReactions.join(', ')}
+                    <p className="text-xs text-gray-500 pt-2 border-t">
+                      Your selections: {userReactions.join(', ')}
                     </p>
                   )}
                 </div>
-
-                {/* Reactions Summary */}
-                {reactionCounts.size > 0 && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Reactions</p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      {quickReactions
-                        .filter(reaction => reactionCounts.has(reaction.id))
-                        .map((reaction) => {
-                          const count = reactionCounts.get(reaction.id) || 0
-                          return (
-                            <div key={reaction.id} className="text-xs text-gray-600">
-                              <span className="mr-1">{reaction.emoji}</span>
-                              {reaction.label} — {count}
-                            </div>
-                          )
-                        })}
-                    </div>
-                  </div>
-                )}
 
                 <ScrollArea className="flex-1 mb-4 pr-4" style={{ maxHeight: '300px' }}>
                   {loadingFeedback ? (
