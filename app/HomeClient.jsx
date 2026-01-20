@@ -3642,10 +3642,10 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
     return lastValidStartObj.toISOString().split('T')[0]
   }, [endBound, tripLengthDays])
   
-  // Format date for display (Mon D, YYYY)
+  // Format date for display (D MMM YYYY)
   const formatDisplayDate = (dateISO) => {
     const date = new Date(dateISO + 'T12:00:00')
-    return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', year: 'numeric' })
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
   }
   
   const getRankLabel = (rank) => {
