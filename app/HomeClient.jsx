@@ -39,6 +39,7 @@ import { getUserActionRequired } from '@/lib/trips/getUserActionRequired.js'
 import { TripTabs } from '@/components/trip/TripTabs/TripTabs'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/routes'
+import { formatTripDateRange } from '@/lib/utils'
 
 // Branded Spinner Component
 export function BrandedSpinner({ className = '', size = 'default' }) {
@@ -3650,7 +3651,7 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
           {isLocked ? (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-green-800 font-medium">
-                Dates locked: {trip.lockedStartDate} to {trip.lockedEndDate}
+                Dates locked: {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
               </p>
             </div>
           ) : (
@@ -5313,7 +5314,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
                   {trip.status === 'locked' && (
                     <>
                       <p className="text-green-800 font-semibold text-base">
-                        Dates locked: {trip.lockedStartDate} to {trip.lockedEndDate}
+                        Dates locked: {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
                       </p>
                       <p className="text-green-700 text-xs">
                         <span className="font-medium">Locking is final.</span> Trip dates are confirmed. Time to start planning the details!

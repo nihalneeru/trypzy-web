@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Top3HeatmapScheduling } from '@/app/HomeClient'
+import { formatTripDateRange } from '@/lib/utils'
 
 // Helper function for getting initials (copied from app/page.js)
 function getInitials(name: string) {
@@ -81,7 +82,7 @@ export function PlanningTab({
           <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Dates Locked</h3>
           <p className="text-gray-600 mb-4">
-            Trip dates have been finalized: {trip.lockedStartDate} to {trip.lockedEndDate}
+            Trip dates have been finalized: {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
           </p>
           <Button onClick={() => {
             setActiveTab('itinerary')
@@ -517,7 +518,7 @@ export function PlanningTab({
                       </CardHeader>
                       <CardContent>
                         <p className="text-green-800">
-                          Dates are locked; scheduling is closed. Trip dates: {trip.lockedStartDate} to {trip.lockedEndDate}
+                          Dates are locked; scheduling is closed. Trip dates: {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
                         </p>
                       </CardContent>
                     </Card>
@@ -885,7 +886,7 @@ export function PlanningTab({
                   <CardContent>
                     <div className="text-center py-8">
                       <div className="text-4xl font-bold text-green-800 mb-4">
-                        {trip.lockedStartDate} to {trip.lockedEndDate}
+                        {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
                       </div>
                       <p className="text-green-700">
                         Your trip dates are confirmed. Time to start planning the details!
@@ -911,7 +912,7 @@ export function PlanningTab({
           <CardContent>
             <div className="text-center py-8">
               <div className="text-4xl font-bold text-green-800 mb-4">
-                {trip.lockedStartDate} to {trip.lockedEndDate}
+                {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
               </div>
               <p className="text-green-700">
                 This is a hosted trip with fixed dates. Join if you're available!
