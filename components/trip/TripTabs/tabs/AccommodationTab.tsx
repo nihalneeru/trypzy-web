@@ -266,34 +266,20 @@ export function AccommodationTab({
               <>
                 <Card>
                   <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="mb-1">Options for {selectedStay.locationName}</CardTitle>
-                        <CardDescription>
-                          {formatDateRange(selectedStay.startDate, selectedStay.endDate)} • {selectedStay.nights} night{selectedStay.nights !== 1 ? 's' : ''}
-                        </CardDescription>
+                    <div className="space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="mb-1 line-clamp-2 break-words">Options for {selectedStay.locationName}</CardTitle>
+                          <CardDescription>
+                            {formatDateRange(selectedStay.startDate, selectedStay.endDate)} • {selectedStay.nights} night{selectedStay.nights !== 1 ? 's' : ''}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2 flex-shrink-0">
-                        {selectedStay.startDate && selectedStay.endDate && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const url = buildAirbnbSearchUrl({
-                                locationName: selectedStay.locationName,
-                                startDate: selectedStay.startDate,
-                                endDate: selectedStay.endDate
-                              })
-                              window.open(url, '_blank')
-                            }}
-                          >
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Search on Airbnb
-                          </Button>
-                        )}
+                      <p className="text-sm text-gray-600">Add places the group could stay for this night.</p>
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
                         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                           <DialogTrigger asChild>
-                            <Button size="sm">
+                            <Button size="sm" className="flex-shrink-0">
                               <Plus className="h-4 w-4 mr-2" />
                               Add Option
                             </Button>
@@ -383,13 +369,32 @@ export function AccommodationTab({
                             </DialogFooter>
                           </DialogContent>
                         </Dialog>
+                        {selectedStay.startDate && selectedStay.endDate && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const url = buildAirbnbSearchUrl({
+                                locationName: selectedStay.locationName,
+                                startDate: selectedStay.startDate,
+                                endDate: selectedStay.endDate
+                              })
+                              window.open(url, '_blank')
+                            }}
+                            className="flex-shrink-0"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Search on Airbnb
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     {stayAccommodations.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
-                        <p>No options yet. Add up to 3 options so the group can choose.</p>
+                        <p className="mb-2">No options yet. Add up to 3 options so the group can choose — or leave empty if accommodation isn't needed.</p>
+                        <p className="text-sm text-gray-400">For {selectedStay.locationName} • {formatDateRange(selectedStay.startDate, selectedStay.endDate)}</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
