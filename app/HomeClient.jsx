@@ -2833,24 +2833,6 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Start Date</Label>
-                      <Input
-                        type="date"
-                        value={tripForm.startDate}
-                        onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>End Date</Label>
-                      <Input
-                        type="date"
-                        value={tripForm.endDate}
-                        onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
-                      />
-                    </div>
-                  </div>
                   {tripForm.type === 'collaborative' && (
                     <div className="space-y-2">
                       <Label>Trip Duration (days)</Label>
@@ -2869,6 +2851,28 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                       </Select>
                     </div>
                   )}
+                  <div className="space-y-2">
+                    <Label>Planning Window</Label>
+                    <p className="text-xs text-gray-500">These are the possible dates your group can choose from. Final dates are locked later.</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Earliest possible date</Label>
+                        <Input
+                          type="date"
+                          value={tripForm.startDate}
+                          onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Latest possible date</Label>
+                        <Input
+                          type="date"
+                          value={tripForm.endDate}
+                          onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button onClick={createTrip} disabled={creating}>
@@ -3144,22 +3148,26 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                   placeholder="A relaxing weekend getaway..."
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <Input
-                    type="date"
-                    value={editingTrip.startDate}
-                    onChange={(e) => setEditingTrip({ ...editingTrip, startDate: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <Input
-                    type="date"
-                    value={editingTrip.endDate}
-                    onChange={(e) => setEditingTrip({ ...editingTrip, endDate: e.target.value })}
-                  />
+              <div className="space-y-2">
+                <Label>Planning Window</Label>
+                <p className="text-xs text-gray-500">These are the possible dates your group can choose from. Final dates are locked later.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Earliest possible date</Label>
+                    <Input
+                      type="date"
+                      value={editingTrip.startDate}
+                      onChange={(e) => setEditingTrip({ ...editingTrip, startDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Latest possible date</Label>
+                    <Input
+                      type="date"
+                      value={editingTrip.endDate}
+                      onChange={(e) => setEditingTrip({ ...editingTrip, endDate: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">
