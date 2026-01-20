@@ -122,12 +122,12 @@ describe('Trip Expenses API', () => {
       const request = new NextRequest(url, {
         method: 'GET',
         headers: {
-          authorization: `Bearer ${token}`
+          'Authorization': `Bearer ${token}`
         }
       })
-      
+
       const response = await GET(request, { params: { tripId } })
-      
+
       // Assert
       if (response.status !== 200) {
         const errorData = await response.json().catch(() => ({}))
