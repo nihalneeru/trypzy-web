@@ -11,13 +11,25 @@
 Create a `.env.local` file in the root directory:
 
 ```env
+# Database
 MONGO_URL=mongodb://localhost:27017
 DB_NAME=trypzy
+
+# Auth
 JWT_SECRET=your-secret-key-here
+
+# CORS
 CORS_ORIGINS=http://localhost:3000
 
 # OpenAI API (for itinerary generation)
 OPENAI_API_KEY=your-openai-api-key-here
+
+# Sentry Error Tracking (Production only - optional for local dev)
+NEXT_PUBLIC_SENTRY_DSN=https://your-sentry-dsn@sentry.io/your-project-id
+SENTRY_DSN=https://your-sentry-dsn@sentry.io/your-project-id
+SENTRY_ORG=your-sentry-org
+SENTRY_PROJECT=your-sentry-project
+# Note: Sentry is disabled in development (NODE_ENV !== 'production')
 ```
 
 ## Installation
