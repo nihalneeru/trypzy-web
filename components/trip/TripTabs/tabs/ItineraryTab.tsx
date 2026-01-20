@@ -120,49 +120,54 @@ export function ItineraryTab({
   // Quick reactions state
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [reactingChip, setReactingChip] = useState<string | null>(null)
+  const [showAdvancedPreferences, setShowAdvancedPreferences] = useState(false)
 
-  // Grouped reactions configuration - organized by category for better UX
+  // Grouped reactions configuration - compact default view with progressive disclosure
   const reactionGroups = [
     {
       category: 'pace',
       label: 'Pace',
       exclusive: true,
+      advanced: false,
       reactions: [
-        { id: 'pace:slow', label: 'Slower pace', emoji: '🐢' },
-        { id: 'pace:balanced', label: 'Balanced pace', emoji: '⚖️' },
-        { id: 'pace:fast', label: 'More ambitious', emoji: '⚡' }
+        { id: 'pace:slow', label: 'Slower', emoji: '🐢', advanced: false },
+        { id: 'pace:balanced', label: 'Balanced', emoji: '⚖️', advanced: false },
+        { id: 'pace:fast', label: 'Faster', emoji: '⚡', advanced: false }
       ]
     },
     {
       category: 'focus',
       label: 'Focus',
       exclusive: false,
+      advanced: false,
       reactions: [
-        { id: 'focus:culture', label: 'More culture', emoji: '🏛️' },
-        { id: 'focus:food', label: 'More food', emoji: '🍽️' },
-        { id: 'focus:nature', label: 'More nature', emoji: '🌲' },
-        { id: 'focus:local', label: 'More local/offbeat', emoji: '🗺️' },
-        { id: 'focus:nightlife', label: 'More nightlife', emoji: '🌃' }
+        { id: 'focus:culture', label: 'Culture', emoji: '🏛️', advanced: false },
+        { id: 'focus:food', label: 'Food', emoji: '🍽️', advanced: false },
+        { id: 'focus:nature', label: 'Nature', emoji: '🌲', advanced: false },
+        { id: 'focus:local', label: 'Local vibes', emoji: '🗺️', advanced: false },
+        { id: 'focus:nightlife', label: 'Nightlife', emoji: '🌃', advanced: true }
       ]
     },
     {
       category: 'budget',
       label: 'Budget',
       exclusive: true,
+      advanced: false,
       reactions: [
-        { id: 'budget:lower', label: 'Reduce cost', emoji: '💰' },
-        { id: 'budget:mid', label: 'Comfortable spend', emoji: '💵' },
-        { id: 'budget:high', label: 'Open to splurge', emoji: '💎' }
+        { id: 'budget:lower', label: 'Save', emoji: '💰', advanced: false },
+        { id: 'budget:mid', label: 'Comfortable', emoji: '💵', advanced: false },
+        { id: 'budget:high', label: 'Splurge', emoji: '💎', advanced: false }
       ]
     },
     {
       category: 'logistics',
       label: 'Logistics',
       exclusive: false,
+      advanced: true,
       reactions: [
-        { id: 'logistics:fewer-moves', label: 'Fewer travel days', emoji: '🎒' },
-        { id: 'logistics:short-days', label: 'Shorter daily travel', emoji: '⏱️' },
-        { id: 'logistics:central-base', label: 'Centralized stays', emoji: '🏨' }
+        { id: 'logistics:fewer-moves', label: 'Fewer travel days', emoji: '🎒', advanced: true },
+        { id: 'logistics:short-days', label: 'Shorter daily travel', emoji: '⏱️', advanced: true },
+        { id: 'logistics:central-base', label: 'Centralized stays', emoji: '🏨', advanced: true }
       ]
     }
   ]
@@ -853,47 +858,59 @@ export function ItineraryTab({
               </div>
             ) : (
               <>
-                {/* Grouped Reactions */}
-                <div className="mb-4 space-y-4">
-                  {reactionGroups.map((group) => (
-                    <div key={group.category}>
-                      <p className="text-xs font-medium text-gray-700 mb-2">{group.label}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {group.reactions.map((reaction) => {
-                          const isReacting = reactingChip === reaction.id
-                          const isDisabled = reactingChip !== null || viewerIsReadOnly
-                          const reactionCount = reactionCounts.get(reaction.id) || 0
-                          const userHasReaction = reactions.some((r: any) => r.userId === user?.id && r.reactionKey === reaction.id)
+                {/* Grouped Reactions - Compact with Progressive Disclosure */}
+                <div className="mb-4 space-y-3">
+                  {reactionGroups
+                    .filter(group => !group.advanced || showAdvancedPreferences)
+                    .map((group) => (
+                      <div key={group.category}>
+                        <p className="text-xs font-medium text-gray-700 mb-2">{group.label}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {group.reactions
+                            .filter(reaction => !reaction.advanced || showAdvancedPreferences)
+                            .map((reaction) => {
+                              const isReacting = reactingChip === reaction.id
+                              const isDisabled = reactingChip !== null || viewerIsReadOnly
+                              const reactionCount = reactionCounts.get(reaction.id) || 0
+                              const userHasReaction = reactions.some((r: any) => r.userId === user?.id && r.reactionKey === reaction.id)
 
-                          return (
-                            <Button
-                              key={reaction.id}
-                              variant={userHasReaction ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handleQuickReaction(reaction.id, group.category)}
-                              disabled={isDisabled}
-                              className="text-xs h-8"
-                            >
-                              {isReacting ? (
-                                <>
-                                  <span className="mr-1">✅</span>
-                                  {userHasReaction ? 'Removed' : 'Added'}
-                                </>
-                              ) : (
-                                <>
-                                  <span className="mr-1">{reaction.emoji}</span>
-                                  {reaction.label}
-                                  {reactionCount > 0 && (
-                                    <span className="ml-1 text-gray-500">({reactionCount})</span>
+                              return (
+                                <Button
+                                  key={reaction.id}
+                                  variant={userHasReaction ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handleQuickReaction(reaction.id, group.category)}
+                                  disabled={isDisabled}
+                                  className="text-xs h-8"
+                                >
+                                  {isReacting ? (
+                                    <>
+                                      <span className="mr-1">✅</span>
+                                      {userHasReaction ? 'Removed' : 'Added'}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="mr-1">{reaction.emoji}</span>
+                                      {reaction.label}
+                                      {reactionCount > 0 && (
+                                        <span className="ml-1 text-gray-500">({reactionCount})</span>
+                                      )}
+                                    </>
                                   )}
-                                </>
-                              )}
-                            </Button>
-                          )
-                        })}
+                                </Button>
+                              )
+                            })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+
+                  {/* More preferences toggle */}
+                  <button
+                    onClick={() => setShowAdvancedPreferences(!showAdvancedPreferences)}
+                    className="text-xs text-gray-600 hover:text-gray-900 underline"
+                  >
+                    {showAdvancedPreferences ? 'Fewer preferences' : 'More preferences'}
+                  </button>
 
                   {/* Personal reactions summary */}
                   {userReactions.length > 0 && (
