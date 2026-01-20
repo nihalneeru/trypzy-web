@@ -8,12 +8,12 @@ import {
   Users, 
   XCircle,
   ArrowRight,
-  Flag,
-  Lock,
+  Lightbulb,
+  Calendar as CalendarIcon,
   ListTodo,
   Home,
   Luggage,
-  Calendar as CalendarIcon,
+  Rocket,
   Camera,
   DollarSign
 } from 'lucide-react'
@@ -21,12 +21,12 @@ import {
 export function WelcomePage() {
   // Trip progress milestones in order
   const milestones = [
-    { icon: Flag, label: 'Proposed' },
-    { icon: Lock, label: 'Dates' },
+    { icon: Lightbulb, label: 'Proposed' },
+    { icon: CalendarIcon, label: 'Dates' },
     { icon: ListTodo, label: 'Itinerary' },
     { icon: Home, label: 'Stay' },
     { icon: Luggage, label: 'Prep' },
-    { icon: CalendarIcon, label: 'Ongoing' },
+    { icon: Rocket, label: 'On Trip' },
     { icon: Camera, label: 'Memories' },
     { icon: DollarSign, label: 'Expenses' }
   ]
@@ -56,12 +56,9 @@ export function WelcomePage() {
       {/* Hero Section */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-32">
         <div className="text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-16 sm:mb-20">
             Plan trips together — without the chaos.
           </h1>
-          <p className="text-xl sm:text-2xl text-gray-600 mb-20 max-w-2xl mx-auto">
-            Trypzy helps groups plan trips even when not everyone participates equally.
-          </p>
           
           {/* Visual Flow Graphic - All 8 milestones */}
           <div className="mb-20">
@@ -85,15 +82,6 @@ export function WelcomePage() {
                 )
               })}
             </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button variant="outline" size="lg" asChild className="text-base px-6">
-              <Link href="/signup">Get started</Link>
-            </Button>
-            <Button variant="ghost" size="lg" asChild className="text-base px-6">
-              <Link href="/login">Log in</Link>
-            </Button>
           </div>
         </div>
       </section>
@@ -133,7 +121,7 @@ export function WelcomePage() {
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-12">
             Ready to plan your next trip?
           </h2>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
             <Button size="lg" asChild className="text-lg px-10">
               <Link href="/signup">Create an account</Link>
             </Button>
