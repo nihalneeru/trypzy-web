@@ -7115,26 +7115,32 @@ async function handleRoute(request, { params }) {
         .find({ tripId, itineraryVersion: latestVersion.version })
         .sort({ createdAt: 1 })
         .toArray()
-      
+
+      // Get reactions for latest version
+      const reactions = await db.collection('itinerary_reactions')
+        .find({ tripId, itineraryVersion: latestVersion.version })
+        .sort({ createdAt: 1 })
+        .toArray()
+
       // Get new ideas since last version
       const newIdeas = await db.collection('itinerary_ideas')
-        .find({ 
+        .find({
           tripId,
           createdAt: { $gt: latestVersion.createdAt }
         })
         .sort({ priority: -1, createdAt: -1 })
         .limit(5)
         .toArray()
-      
+
       // Update status to revising
       await db.collection('trips').updateOne(
         { id: tripId },
         { $set: { itineraryStatus: 'revising' } }
       )
-      
+
       try {
-        // Summarize feedback
-        const feedbackSummary = await summarizeFeedback(feedbackMessages)
+        // Summarize feedback WITH reactions (reactions as hard constraints)
+        const feedbackSummary = await summarizeFeedback(feedbackMessages, reactions)
         
         // Revise itinerary using LLM
         const { itinerary: revisedContent, changeLog } = await reviseItinerary({
