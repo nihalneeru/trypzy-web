@@ -132,7 +132,7 @@ export function TripCard({ trip, circleId = null }) {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="flex-shrink-0 ml-2 pointer-events-auto">
+                  <div className="flex-shrink-0 ml-2">
                     <Info className="h-4 w-4 text-gray-400" />
                   </div>
                 </TooltipTrigger>
