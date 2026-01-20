@@ -6807,7 +6807,241 @@ async function handleRoute(request, { params }) {
       
       return handleCORS(NextResponse.json(feedbackWithAuthors))
     }
-    
+
+    // Submit reaction - POST /api/trips/:tripId/itinerary/versions/:versionId/reactions
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/versions\/[^/]+\/reactions$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const versionId = path[4]
+
+      const body = await request.json()
+      const { category, reactionKey } = body
+
+      if (!category || !reactionKey) {
+        return handleCORS(NextResponse.json(
+          { error: 'category and reactionKey are required' },
+          { status: 400 }
+        ))
+      }
+
+      // Validate category
+      const validCategories = ['pace', 'focus', 'budget', 'logistics', 'sentiment']
+      if (!validCategories.includes(category)) {
+        return handleCORS(NextResponse.json(
+          { error: `Invalid category. Must be one of: ${validCategories.join(', ')}` },
+          { status: 400 }
+        ))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Check active participant status
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+
+      if (userParticipant) {
+        const status = userParticipant.status || 'active'
+        if (status !== 'active') {
+          return handleCORS(NextResponse.json(
+            { error: 'You have left this trip.' },
+            { status: 403 }
+          ))
+        }
+      }
+
+      // Find itinerary version
+      const version = await db.collection('itinerary_versions').findOne({ id: versionId, tripId })
+      if (!version) {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary version not found' },
+          { status: 404 }
+        ))
+      }
+
+      // For single-constraint categories (pace, budget), remove existing reactions in that category
+      if (category === 'pace' || category === 'budget') {
+        await db.collection('itinerary_reactions').deleteMany({
+          tripId,
+          itineraryVersion: version.version,
+          userId: auth.user.id,
+          category
+        })
+      }
+
+      // Insert new reaction
+      const reaction = {
+        id: uuidv4(),
+        tripId,
+        itineraryVersion: version.version,
+        userId: auth.user.id,
+        category,
+        reactionKey,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+
+      await db.collection('itinerary_reactions').insertOne(reaction)
+
+      // Return without MongoDB _id
+      const { _id, ...reactionResponse } = reaction
+      return handleCORS(NextResponse.json(reactionResponse))
+    }
+
+    // Get reactions for version - GET /api/trips/:tripId/itinerary/versions/:versionId/reactions
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/versions\/[^/]+\/reactions$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const versionId = path[4]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Find itinerary version
+      const version = await db.collection('itinerary_versions').findOne({ id: versionId, tripId })
+      if (!version) {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary version not found' },
+          { status: 404 }
+        ))
+      }
+
+      const reactions = await db.collection('itinerary_reactions')
+        .find({ tripId, itineraryVersion: version.version })
+        .sort({ createdAt: 1 })
+        .toArray()
+
+      // Get user info for reactions
+      const userIds = [...new Set(reactions.map(r => r.userId))]
+      const users = await db.collection('users')
+        .find({ id: { $in: userIds } })
+        .toArray()
+
+      const reactionsWithUsers = reactions.map(reaction => {
+        const { _id, ...rest } = reaction
+        const user = users.find(u => u.id === reaction.userId)
+        return {
+          ...rest,
+          user: user ? { id: user.id, name: user.name } : null
+        }
+      })
+
+      return handleCORS(NextResponse.json(reactionsWithUsers))
+    }
+
+    // Delete reaction - DELETE /api/trips/:tripId/itinerary/versions/:versionId/reactions
+    if (route.match(/^\/trips\/[^/]+\/itinerary\/versions\/[^/]+\/reactions$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const versionId = path[4]
+      const searchParams = request.nextUrl.searchParams
+      const reactionKey = searchParams.get('reactionKey')
+
+      if (!reactionKey) {
+        return handleCORS(NextResponse.json(
+          { error: 'reactionKey parameter is required' },
+          { status: 400 }
+        ))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Find itinerary version
+      const version = await db.collection('itinerary_versions').findOne({ id: versionId, tripId })
+      if (!version) {
+        return handleCORS(NextResponse.json(
+          { error: 'Itinerary version not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Delete user's reaction with this key
+      const result = await db.collection('itinerary_reactions').deleteOne({
+        tripId,
+        itineraryVersion: version.version,
+        userId: auth.user.id,
+        reactionKey
+      })
+
+      if (result.deletedCount === 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'Reaction not found' },
+          { status: 404 }
+        ))
+      }
+
+      return handleCORS(NextResponse.json({ success: true }))
+    }
+
     // Revise itinerary - POST /api/trips/:tripId/itinerary/revise
     if (route.match(/^\/trips\/[^/]+\/itinerary\/revise$/) && method === 'POST') {
       const auth = await requireAuth(request)
