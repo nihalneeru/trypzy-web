@@ -2329,7 +2329,33 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
               trip={selectedTrip}
               token={token}
               user={user}
-              onRefresh={() => openTrip(selectedTrip.id)}
+              onRefresh={(updatedTrip) => {
+                // If updated trip provided, merge it into existing trip state (avoids refetch for immediate UI update)
+                if (updatedTrip) {
+                  // Merge updated fields into existing trip to preserve enriched fields (circle, participantsWithStatus, etc.)
+                  const mergedTrip = {
+                    ...selectedTrip,
+                    ...updatedTrip,
+                    // Preserve computed fields that might not be in raw trip document
+                    circle: selectedTrip.circle || updatedTrip.circle,
+                    participantsWithStatus: selectedTrip.participantsWithStatus || updatedTrip.participantsWithStatus,
+                    viewer: selectedTrip.viewer || updatedTrip.viewer
+                  }
+                  
+                  // Compute stage and progress flags for merged trip
+                  const stage = deriveTripPrimaryStage(mergedTrip)
+                  const primaryTab = getPrimaryTabForStage(stage)
+                  const progressFlags = computeProgressFlags(mergedTrip)
+                  mergedTrip._computedStage = stage
+                  mergedTrip._primaryTab = primaryTab
+                  mergedTrip._progressFlags = progressFlags
+                  
+                  setSelectedTrip(mergedTrip)
+                } else {
+                  // Otherwise refetch (backward compatibility)
+                  openTrip(selectedTrip.id)
+                }
+              }}
             />
           </div>
         )}
@@ -4629,6 +4655,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
 
   const [showLockConfirm, setShowLockConfirm] = useState(false)
   const [pendingLockOption, setPendingLockOption] = useState(null)
+  const [locking, setLocking] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showTransferLeadership, setShowTransferLeadership] = useState(false)
   const [selectedNewLeader, setSelectedNewLeader] = useState('')
@@ -4641,9 +4668,11 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   }
 
   const confirmLockTrip = async () => {
-    if (!pendingLockOption) return
+    if (!pendingLockOption || locking) return
+    setLocking(true)
     try {
-      await api(`/trips/${trip.id}/lock`, {
+      // Lock endpoint now returns updated trip object for immediate UI update
+      const updatedTrip = await api(`/trips/${trip.id}/lock`, {
         method: 'POST',
         body: JSON.stringify({ optionKey: pendingLockOption })
       }, token)
@@ -4651,11 +4680,17 @@ function TripDetailView({ trip, token, user, onRefresh }) {
       toast.success('Trip dates locked! 🎉 Planning can now begin.')
       setShowLockConfirm(false)
       setPendingLockOption(null)
-      onRefresh()
+      
+      // Merge updated trip into state immediately (no refetch needed)
+      if (onRefresh) {
+        onRefresh(updatedTrip)
+      }
     } catch (error) {
       toast.error(error.message)
       setShowLockConfirm(false)
       setPendingLockOption(null)
+    } finally {
+      setLocking(false)
     }
   }
 
@@ -5543,9 +5578,9 @@ function TripDetailView({ trip, token, user, onRefresh }) {
             }}>
               Cancel
             </Button>
-            <Button onClick={confirmLockTrip} className="bg-green-600 hover:bg-green-700">
+            <Button onClick={confirmLockTrip} disabled={locking} className="bg-green-600 hover:bg-green-700">
               <Lock className="h-4 w-4 mr-2" />
-              Lock Dates
+              {locking ? 'Locking...' : 'Lock Dates'}
             </Button>
           </DialogFooter>
         </DialogContent>

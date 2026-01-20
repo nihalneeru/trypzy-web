@@ -270,7 +270,8 @@ export function ChatTab({
         body = { optionKey: selectedLockWindow }
       }
       
-      await api(`/trips/${trip.id}/lock`, {
+      // Lock endpoint now returns updated trip object for immediate UI update
+      const updatedTrip = await api(`/trips/${trip.id}/lock`, {
         method: 'POST',
         body: JSON.stringify(body)
       }, token)
@@ -280,9 +281,9 @@ export function ChatTab({
       setSelectedLockWindow(null)
       setShowLockConfirmation(false)
       
-      // Refresh trip data to update UI
+      // Merge updated trip into state immediately (no refetch needed)
       if (onRefresh) {
-        onRefresh()
+        onRefresh(updatedTrip)
       }
       
       logAnalytics('action_completed', nextAction?.id || 'lock-dates')
@@ -311,16 +312,17 @@ export function ChatTab({
     setPendingLockAction(() => async () => {
       setLocking(true)
       try {
-        await api(`/trips/${trip.id}/lock`, {
+        // Lock endpoint now returns updated trip object for immediate UI update
+        const updatedTrip = await api(`/trips/${trip.id}/lock`, {
           method: 'POST',
           body: JSON.stringify({ optionKey })
         }, token)
         
         toast.success('Trip dates locked! 🎉 Planning can now begin.')
         
-        // Refresh trip data to update UI
+        // Merge updated trip into state immediately (no refetch needed)
         if (onRefresh) {
-          onRefresh()
+          onRefresh(updatedTrip)
         }
         
         logAnalytics('action_completed', 'lock-dates-direct')
