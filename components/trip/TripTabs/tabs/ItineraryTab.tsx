@@ -120,6 +120,7 @@ export function ItineraryTab({
   // Quick reactions state
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [reactingChip, setReactingChip] = useState<string | null>(null)
+  const [reactingAction, setReactingAction] = useState<'adding' | 'removing' | null>(null)
   const [showAdvancedPreferences, setShowAdvancedPreferences] = useState(false)
 
   // Grouped reactions configuration - compact default view with progressive disclosure
@@ -217,6 +218,7 @@ export function ItineraryTab({
 
       if (hasReaction) {
         // Remove reaction (toggle off)
+        setReactingAction('removing')
         await api(
           `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions?reactionKey=${encodeURIComponent(reactionId)}`,
           { method: 'DELETE' },
@@ -225,6 +227,7 @@ export function ItineraryTab({
         toast.success('Reaction removed')
       } else {
         // Add reaction
+        setReactingAction('adding')
         await api(
           `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions`,
           {
@@ -242,9 +245,13 @@ export function ItineraryTab({
       // Reload reactions
       await loadReactions()
 
-      setTimeout(() => setReactingChip(null), 800)
+      setTimeout(() => {
+        setReactingChip(null)
+        setReactingAction(null)
+      }, 800)
     } catch (error: any) {
       setReactingChip(null)
+      setReactingAction(null)
       toast.error(error.message || 'Failed to update reaction')
     }
   }
@@ -886,7 +893,7 @@ export function ItineraryTab({
                                   {isReacting ? (
                                     <>
                                       <span className="mr-1">✅</span>
-                                      {userHasReaction ? 'Removed' : 'Added'}
+                                      {reactingAction === 'adding' ? 'Added!' : 'Removed!'}
                                     </>
                                   ) : (
                                     <>
