@@ -59,7 +59,10 @@ export function WelcomePage() {
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-16 sm:mb-20">
             Plan trips together — without the chaos.
           </h1>
-          
+
+          {/* Spacing */}
+          <div className="h-8 sm:h-12" />
+
           {/* Visual Flow Graphic - All 8 milestones */}
           <div className="mb-20">
             <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 max-w-4xl mx-auto">
