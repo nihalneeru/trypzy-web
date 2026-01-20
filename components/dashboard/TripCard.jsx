@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { tripHref } from '@/lib/navigation/routes'
 import { TripProgressMini } from './TripProgressMini'
 import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
+import { formatTripDateRange } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -156,7 +157,11 @@ export function TripCard({ trip, circleId = null }) {
           {/* Date range */}
           <div className="flex items-center gap-1 text-sm text-gray-600 mb-3">
             <Calendar className="h-3 w-3" />
-            <span className="line-clamp-1">{formatDateRange(trip.startDate, trip.endDate)}</span>
+            <span className="line-clamp-1">
+              {trip.startDate && trip.endDate 
+                ? formatTripDateRange(trip.startDate, trip.endDate)
+                : 'Dates not locked'}
+            </span>
           </div>
           
           {/* Countdown - shown when dates are locked */}
