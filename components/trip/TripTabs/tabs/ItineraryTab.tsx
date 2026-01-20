@@ -121,14 +121,50 @@ export function ItineraryTab({
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [reactingChip, setReactingChip] = useState<string | null>(null)
 
-  // Quick reactions configuration - structured with categories for LLM integration
-  const quickReactions = [
-    { id: 'pace:slow', emoji: '🧘', label: 'More chill', category: 'pace', exclusive: true },
-    { id: 'pace:fast', emoji: '🔁', label: 'Too packed', category: 'pace', exclusive: true },
-    { id: 'budget:lower', emoji: '💸', label: 'Cheaper', category: 'budget', exclusive: true },
-    { id: 'focus:food', emoji: '🍽️', label: 'More food', category: 'focus', exclusive: false },
-    { id: 'logistics:more-breaks', emoji: '🕒', label: 'More free time', category: 'logistics', exclusive: false },
-    { id: 'sentiment:positive', emoji: '👍', label: 'Love it', category: 'sentiment', exclusive: false }
+  // Grouped reactions configuration - organized by category for better UX
+  const reactionGroups = [
+    {
+      category: 'pace',
+      label: 'Pace',
+      exclusive: true,
+      reactions: [
+        { id: 'pace:slow', label: 'Slower pace', emoji: '🐢' },
+        { id: 'pace:balanced', label: 'Balanced pace', emoji: '⚖️' },
+        { id: 'pace:fast', label: 'More ambitious', emoji: '⚡' }
+      ]
+    },
+    {
+      category: 'focus',
+      label: 'Focus',
+      exclusive: false,
+      reactions: [
+        { id: 'focus:culture', label: 'More culture', emoji: '🏛️' },
+        { id: 'focus:food', label: 'More food', emoji: '🍽️' },
+        { id: 'focus:nature', label: 'More nature', emoji: '🌲' },
+        { id: 'focus:local', label: 'More local/offbeat', emoji: '🗺️' },
+        { id: 'focus:nightlife', label: 'More nightlife', emoji: '🌃' }
+      ]
+    },
+    {
+      category: 'budget',
+      label: 'Budget',
+      exclusive: true,
+      reactions: [
+        { id: 'budget:lower', label: 'Reduce cost', emoji: '💰' },
+        { id: 'budget:mid', label: 'Comfortable spend', emoji: '💵' },
+        { id: 'budget:high', label: 'Open to splurge', emoji: '💎' }
+      ]
+    },
+    {
+      category: 'logistics',
+      label: 'Logistics',
+      exclusive: false,
+      reactions: [
+        { id: 'logistics:fewer-moves', label: 'Fewer travel days', emoji: '🎒' },
+        { id: 'logistics:short-days', label: 'Shorter daily travel', emoji: '⏱️' },
+        { id: 'logistics:central-base', label: 'Centralized stays', emoji: '🏨' }
+      ]
+    }
   ]
 
   // Reactions state
@@ -162,22 +198,22 @@ export function ItineraryTab({
   }, [latestVersion, loadReactions])
 
   // Handle quick reaction click - persists to backend immediately
-  const handleQuickReaction = async (reaction: typeof quickReactions[0]) => {
+  const handleQuickReaction = async (reactionId: string, category: string) => {
     if (reactingChip || viewerIsReadOnly) return
 
-    setReactingChip(reaction.id)
+    setReactingChip(reactionId)
 
     try {
       // Check if user already has this reaction
       const userReactionKeys = reactions
         .filter((r: any) => r.userId === user?.id)
         .map((r: any) => r.reactionKey)
-      const hasReaction = userReactionKeys.includes(reaction.id)
+      const hasReaction = userReactionKeys.includes(reactionId)
 
       if (hasReaction) {
         // Remove reaction (toggle off)
         await api(
-          `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions?reactionKey=${encodeURIComponent(reaction.id)}`,
+          `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions?reactionKey=${encodeURIComponent(reactionId)}`,
           { method: 'DELETE' },
           token
         )
@@ -189,8 +225,8 @@ export function ItineraryTab({
           {
             method: 'POST',
             body: JSON.stringify({
-              category: reaction.category,
-              reactionKey: reaction.id
+              category,
+              reactionKey: reactionId
             })
           },
           token
@@ -247,8 +283,14 @@ export function ItineraryTab({
     return reactions
       .filter((r: any) => r.userId === user.id)
       .map((r: any) => {
-        const matchingReaction = quickReactions.find(qr => qr.id === r.reactionKey)
-        return matchingReaction ? matchingReaction.label : null
+        // Find matching reaction across all groups
+        for (const group of reactionGroups) {
+          const matchingReaction = group.reactions.find(reaction => reaction.id === r.reactionKey)
+          if (matchingReaction) {
+            return matchingReaction.label
+          }
+        }
+        return null
       })
       .filter(Boolean)
   }, [reactions, user?.id])
@@ -811,70 +853,55 @@ export function ItineraryTab({
               </div>
             ) : (
               <>
-                {/* Quick Reactions */}
-                <div className="mb-4">
-                  <div className="flex flex-wrap gap-2">
-                    {quickReactions.map((reaction) => {
-                      const isReacting = reactingChip === reaction.id
-                      const isDisabled = reactingChip !== null || viewerIsReadOnly
-                      const reactionCount = reactionCounts.get(reaction.id) || 0
-                      const userHasReaction = reactions.some((r: any) => r.userId === user?.id && r.reactionKey === reaction.id)
+                {/* Grouped Reactions */}
+                <div className="mb-4 space-y-4">
+                  {reactionGroups.map((group) => (
+                    <div key={group.category}>
+                      <p className="text-xs font-medium text-gray-700 mb-2">{group.label}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {group.reactions.map((reaction) => {
+                          const isReacting = reactingChip === reaction.id
+                          const isDisabled = reactingChip !== null || viewerIsReadOnly
+                          const reactionCount = reactionCounts.get(reaction.id) || 0
+                          const userHasReaction = reactions.some((r: any) => r.userId === user?.id && r.reactionKey === reaction.id)
 
-                      return (
-                        <Button
-                          key={reaction.id}
-                          variant={userHasReaction ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handleQuickReaction(reaction)}
-                          disabled={isDisabled}
-                          className="text-xs h-8"
-                        >
-                          {isReacting ? (
-                            <>
-                              <span className="mr-1">✅</span>
-                              {userHasReaction ? 'Removed' : 'Added'}
-                            </>
-                          ) : (
-                            <>
-                              <span className="mr-1">{reaction.emoji}</span>
-                              {reaction.label}
-                              {reactionCount > 0 && (
-                                <span className="ml-1 text-gray-500">({reactionCount})</span>
+                          return (
+                            <Button
+                              key={reaction.id}
+                              variant={userHasReaction ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleQuickReaction(reaction.id, group.category)}
+                              disabled={isDisabled}
+                              className="text-xs h-8"
+                            >
+                              {isReacting ? (
+                                <>
+                                  <span className="mr-1">✅</span>
+                                  {userHasReaction ? 'Removed' : 'Added'}
+                                </>
+                              ) : (
+                                <>
+                                  <span className="mr-1">{reaction.emoji}</span>
+                                  {reaction.label}
+                                  {reactionCount > 0 && (
+                                    <span className="ml-1 text-gray-500">({reactionCount})</span>
+                                  )}
+                                </>
                               )}
-                            </>
-                          )}
-                        </Button>
-                      )
-                    })}
-                  </div>
-                  
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
                   {/* Personal reactions summary */}
                   {userReactions.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Your reactions: {userReactions.join(', ')}
+                    <p className="text-xs text-gray-500 pt-2 border-t">
+                      Your selections: {userReactions.join(', ')}
                     </p>
                   )}
                 </div>
-
-                {/* Reactions Summary */}
-                {reactionCounts.size > 0 && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Reactions</p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      {quickReactions
-                        .filter(reaction => reactionCounts.has(reaction.id))
-                        .map((reaction) => {
-                          const count = reactionCounts.get(reaction.id) || 0
-                          return (
-                            <div key={reaction.id} className="text-xs text-gray-600">
-                              <span className="mr-1">{reaction.emoji}</span>
-                              {reaction.label} — {count}
-                            </div>
-                          )
-                        })}
-                    </div>
-                  </div>
-                )}
 
                 <ScrollArea className="flex-1 mb-4 pr-4" style={{ maxHeight: '300px' }}>
                   {loadingFeedback ? (
