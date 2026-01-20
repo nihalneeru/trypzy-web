@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
-import HomeClient from './HomeClient'
+import WelcomePageWrapper from './WelcomePageWrapper'
 
 export default function Page() {
   return (
     <Suspense fallback={null}>
-      <HomeClient />
+      <WelcomePageWrapper />
     </Suspense>
   )
 }
