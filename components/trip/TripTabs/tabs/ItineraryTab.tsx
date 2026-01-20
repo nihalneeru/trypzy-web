@@ -121,49 +121,90 @@ export function ItineraryTab({
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [reactingChip, setReactingChip] = useState<string | null>(null)
 
-  // Quick reactions configuration
+  // Quick reactions configuration - structured with categories for LLM integration
   const quickReactions = [
-    { id: 'love', emoji: '👍', label: 'Love it', message: 'Love it' },
-    { id: 'packed', emoji: '🔁', label: 'Too packed', message: 'Too packed' },
-    { id: 'chill', emoji: '🧘', label: 'More chill', message: 'More chill' },
-    { id: 'cheaper', emoji: '💸', label: 'Cheaper', message: 'Cheaper' },
-    { id: 'food', emoji: '🍽️', label: 'More food', message: 'More food' },
-    { id: 'freetime', emoji: '🕒', label: 'More free time', message: 'More free time' }
+    { id: 'pace:slow', emoji: '🧘', label: 'More chill', category: 'pace', exclusive: true },
+    { id: 'pace:fast', emoji: '🔁', label: 'Too packed', category: 'pace', exclusive: true },
+    { id: 'budget:lower', emoji: '💸', label: 'Cheaper', category: 'budget', exclusive: true },
+    { id: 'focus:food', emoji: '🍽️', label: 'More food', category: 'focus', exclusive: false },
+    { id: 'logistics:more-breaks', emoji: '🕒', label: 'More free time', category: 'logistics', exclusive: false },
+    { id: 'sentiment:positive', emoji: '👍', label: 'Love it', category: 'sentiment', exclusive: false }
   ]
 
-  // Handle quick reaction click
-  const handleQuickReaction = async (reaction: typeof quickReactions[0]) => {
-    if (reactingChip || submittingFeedback || viewerIsReadOnly) return
-    
-    setReactingChip(reaction.id)
-    
+  // Reactions state
+  const [reactions, setReactions] = useState<any[]>([])
+  const [loadingReactions, setLoadingReactions] = useState(false)
+
+  // Load reactions for current version
+  const loadReactions = useCallback(async () => {
+    if (!latestVersion || !api || !token) return
+    setLoadingReactions(true)
     try {
-      // Find "preference" type or use first available type as fallback
-      const preferenceType = feedbackTypes.find((t: any) => t.value === 'preference') || feedbackTypes[0]
-      
-      // Set feedback state and submit
-      const originalFeedback = { ...newFeedback }
-      setNewFeedback({
-        type: preferenceType.value,
-        target: '',
-        message: `Reaction: ${reaction.message}`
-      })
-      
-      // Wait a tick for state to update, then submit
-      await new Promise(resolve => setTimeout(resolve, 0))
-      
-      // Submit feedback (submitFeedback uses newFeedback state)
-      submitFeedback()
-      
-      // Show "Sent ✅" state briefly (1.5 seconds), then reset
-      setTimeout(() => {
-        setReactingChip(null)
-        // Reset feedback state back to original
-        setNewFeedback(originalFeedback)
-      }, 1500)
+      const data = await api(
+        `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions`,
+        { method: 'GET' },
+        token
+      )
+      setReactions(data || [])
     } catch (error) {
+      console.error('Failed to load reactions:', error)
+      setReactions([])
+    } finally {
+      setLoadingReactions(false)
+    }
+  }, [latestVersion, trip.id, api, token])
+
+  // Load reactions when version changes
+  useEffect(() => {
+    if (latestVersion) {
+      loadReactions()
+    }
+  }, [latestVersion, loadReactions])
+
+  // Handle quick reaction click - persists to backend immediately
+  const handleQuickReaction = async (reaction: typeof quickReactions[0]) => {
+    if (reactingChip || viewerIsReadOnly) return
+
+    setReactingChip(reaction.id)
+
+    try {
+      // Check if user already has this reaction
+      const userReactionKeys = reactions
+        .filter((r: any) => r.userId === user?.id)
+        .map((r: any) => r.reactionKey)
+      const hasReaction = userReactionKeys.includes(reaction.id)
+
+      if (hasReaction) {
+        // Remove reaction (toggle off)
+        await api(
+          `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions?reactionKey=${encodeURIComponent(reaction.id)}`,
+          { method: 'DELETE' },
+          token
+        )
+        toast.success('Reaction removed')
+      } else {
+        // Add reaction
+        await api(
+          `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              category: reaction.category,
+              reactionKey: reaction.id
+            })
+          },
+          token
+        )
+        toast.success('Reaction added')
+      }
+
+      // Reload reactions
+      await loadReactions()
+
+      setTimeout(() => setReactingChip(null), 800)
+    } catch (error: any) {
       setReactingChip(null)
-      toast.error('Failed to submit reaction')
+      toast.error(error.message || 'Failed to update reaction')
     }
   }
 
@@ -188,50 +229,29 @@ export function ItineraryTab({
     return 0
   }, [latestVersion, feedback])
 
-  // Extract reaction message from feedback item (format: "Reaction: {message}")
-  const getReactionFromMessage = (message: string): string | null => {
-    if (!message || !message.startsWith('Reaction: ')) return null
-    return message.replace('Reaction: ', '').trim()
-  }
-
-  // Aggregate reaction counts from all feedback
+  // Aggregate reaction counts from reactions collection
   const reactionCounts = useMemo(() => {
-    if (!feedback || feedback.length === 0) return new Map<string, number>()
-    
     const counts = new Map<string, number>()
-    
-    feedback.forEach((fb: any) => {
-      const reactionMessage = getReactionFromMessage(fb.message)
-      if (reactionMessage) {
-        // Find matching reaction by message
-        const matchingReaction = quickReactions.find(r => r.message === reactionMessage)
-        if (matchingReaction) {
-          counts.set(matchingReaction.id, (counts.get(matchingReaction.id) || 0) + 1)
-        }
-      }
+
+    reactions.forEach((r: any) => {
+      counts.set(r.reactionKey, (counts.get(r.reactionKey) || 0) + 1)
     })
-    
+
     return counts
-  }, [feedback])
+  }, [reactions])
 
   // Get current user's reactions
   const userReactions = useMemo(() => {
-    if (!feedback || !user?.id || feedback.length === 0) return []
-    
-    return feedback
-      .filter((fb: any) => {
-        const reactionMessage = getReactionFromMessage(fb.message)
-        // Check multiple possible author ID fields
-        const authorId = fb.author?.id || fb.authorId || fb.userId
-        return reactionMessage && authorId === user.id
-      })
-      .map((fb: any) => {
-        const reactionMessage = getReactionFromMessage(fb.message)
-        const matchingReaction = quickReactions.find(r => r.message === reactionMessage)
+    if (!user?.id) return []
+
+    return reactions
+      .filter((r: any) => r.userId === user.id)
+      .map((r: any) => {
+        const matchingReaction = quickReactions.find(qr => qr.id === r.reactionKey)
         return matchingReaction ? matchingReaction.label : null
       })
       .filter(Boolean)
-  }, [feedback, user?.id])
+  }, [reactions, user?.id])
 
   // Check if revise should be enabled
   const canRevise = useMemo(() => {
@@ -796,13 +816,14 @@ export function ItineraryTab({
                   <div className="flex flex-wrap gap-2">
                     {quickReactions.map((reaction) => {
                       const isReacting = reactingChip === reaction.id
-                      const isDisabled = reactingChip !== null || submittingFeedback || viewerIsReadOnly
+                      const isDisabled = reactingChip !== null || viewerIsReadOnly
                       const reactionCount = reactionCounts.get(reaction.id) || 0
-                      
+                      const userHasReaction = reactions.some((r: any) => r.userId === user?.id && r.reactionKey === reaction.id)
+
                       return (
                         <Button
                           key={reaction.id}
-                          variant={isReacting ? "default" : "outline"}
+                          variant={userHasReaction ? "default" : "outline"}
                           size="sm"
                           onClick={() => handleQuickReaction(reaction)}
                           disabled={isDisabled}
@@ -811,7 +832,7 @@ export function ItineraryTab({
                           {isReacting ? (
                             <>
                               <span className="mr-1">✅</span>
-                              Sent
+                              {userHasReaction ? 'Removed' : 'Added'}
                             </>
                           ) : (
                             <>
