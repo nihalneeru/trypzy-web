@@ -141,28 +141,68 @@ export async function POST(request, { params }) {
     }
     
     // Validate that paidByUserId and all splitBetweenUserIds are travelers
+    // Match isActiveTraveler logic: for collaborative trips, all circle members are valid
+    // unless they have a trip_participants record with status left/removed
     const allParticipants = await db.collection('trip_participants')
       .find({ tripId })
       .toArray()
     
+    // DEBUG: Log validation details (dev-only)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG] Expenses POST validation:', {
+        tripId,
+        tripType: trip.type,
+        paidByUserId,
+        splitBetweenUserIds,
+        allParticipantsSample: allParticipants.slice(0, 5).map(p => ({ userId: p.userId, status: p.status }))
+      })
+    }
+    
     let validTravelerIds = new Set()
     if (trip.type === 'collaborative') {
+      // For collaborative trips: start with all circle members, then remove those with left/removed status
+      // This matches isActiveTraveler logic: circle members are valid unless explicitly left/removed
       const memberships = await db.collection('memberships')
         .find({ circleId: trip.circleId })
         .toArray()
       const memberIds = new Set(memberships.map(m => m.userId))
+      
+      // Start with all circle members
+      validTravelerIds = new Set(memberIds)
+      
+      // Remove anyone who has left/removed status
       allParticipants.forEach(p => {
         const status = p.status || 'active'
-        if (status !== 'left' && status !== 'removed' && memberIds.has(p.userId)) {
-          validTravelerIds.add(p.userId)
+        if (status === 'left' || status === 'removed') {
+          validTravelerIds.delete(p.userId)
         }
       })
+      
+      // DEBUG: Log collaborative trip details
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG] Collaborative trip validation:', {
+          memberIdsSample: Array.from(memberIds).slice(0, 5),
+          paidByUserIdInMemberIds: memberIds.has(paidByUserId),
+          leftRemovedUserIds: allParticipants
+            .filter(p => (p.status || 'active') === 'left' || (p.status || 'active') === 'removed')
+            .map(p => p.userId)
+        })
+      }
     } else {
+      // Hosted trips: must have active participant record
       allParticipants.forEach(p => {
         const status = p.status || 'active'
         if (status === 'active') {
           validTravelerIds.add(p.userId)
         }
+      })
+    }
+    
+    // DEBUG: Log computed valid traveler IDs
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG] Valid traveler IDs:', {
+        validTravelerIdsArray: Array.from(validTravelerIds),
+        paidByUserIdInValidSet: validTravelerIds.has(paidByUserId)
       })
     }
     
