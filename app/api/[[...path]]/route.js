@@ -2105,7 +2105,14 @@ async function handleRoute(request, { params }) {
         dedupeKey: `dates_locked_${tripId}`
       })
       
-      return handleCORS(NextResponse.json({ message: 'Trip locked', lockedStartDate, lockedEndDate }))
+      // Fetch updated trip to return full trip object for immediate UI update
+      // This ensures progress pane, ChatTab CTAs, and stage routing update without refresh
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+      
+      // Return updated trip - client will merge this into trip state
+      // The trip object includes status='locked' and lockedStartDate/lockedEndDate
+      // Client-side stage computation (deriveTripPrimaryStage) will handle the rest
+      return handleCORS(NextResponse.json(updatedTrip))
     }
     
     // Join hosted trip - POST /api/trips/:id/join
