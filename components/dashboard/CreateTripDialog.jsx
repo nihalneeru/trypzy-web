@@ -129,24 +129,6 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={tripForm.startDate}
-                onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>End Date</Label>
-              <Input
-                type="date"
-                value={tripForm.endDate}
-                onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
-              />
-            </div>
-          </div>
           {tripForm.type === 'collaborative' && (
             <div className="space-y-2">
               <Label>Trip Duration (days)</Label>
@@ -165,6 +147,28 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
               </Select>
             </div>
           )}
+          <div className="space-y-2">
+            <Label>Planning Window</Label>
+            <p className="text-xs text-gray-500">These set the possible date range. Your group will finalize dates later.</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Earliest possible date</Label>
+                <Input
+                  type="date"
+                  value={tripForm.startDate}
+                  onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Latest possible date</Label>
+                <Input
+                  type="date"
+                  value={tripForm.endDate}
+                  onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
