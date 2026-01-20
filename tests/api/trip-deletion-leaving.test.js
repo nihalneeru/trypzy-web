@@ -11,23 +11,39 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { MongoClient } from 'mongodb'
+import { NextRequest } from 'next/server'
+import jwt from 'jsonwebtoken'
+import { setupTestDatabase, teardownTestDatabase, JWT_SECRET } from '../testUtils/dbTestHarness.js'
 
 // Use test database
 const TEST_DB_NAME = 'trypzy_test'
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017'
+
+// Helper to create JWT token
+function createToken(userId) {
+  return jwt.sign({ userId }, JWT_SECRET)
+}
+
+// Import route handler
+let POST
 
 describe('Trip Deletion and Leaving', () => {
   let client
   let db
   
   beforeAll(async () => {
-    client = new MongoClient(MONGO_URI)
-    await client.connect()
-    db = client.db(TEST_DB_NAME)
+    // Setup test database (sets env vars and resets connection)
+    const result = await setupTestDatabase()
+    db = result.db
+    client = result.client
+    
+    // Import route handler after env vars are set
+    const module = await import('@/app/api/[[...path]]/route.js')
+    POST = module.POST
   })
   
   afterAll(async () => {
-    await client.close()
+    await teardownTestDatabase(client)
   })
 
   // Helper to create test data
@@ -275,5 +291,145 @@ describe('Trip Deletion and Leaving', () => {
     
     // Cleanup
     await cleanupTestData({ tripId: trip.id, circleId, userIds: [ownerId, newLeaderId] })
+  })
+
+  describe('Leader leave invariants', () => {
+    it('should reject leader leave without transferToUserId when other travelers exist', async () => {
+      // Setup: Create trip with leader + one other traveler
+      const leaderId = 'leader-leave-inv-1'
+      const travelerId = 'traveler-leave-inv-1'
+      const circleId = 'circle-leave-inv-1'
+      const tripId = `trip-leave-inv-1-${Date.now()}`
+      
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: travelerId, circleId, role: 'member' })
+      
+      // Create trip with explicit tripId
+      const trip = {
+        id: tripId,
+        name: 'Test Trip',
+        circleId,
+        createdBy: leaderId,
+        type: 'hosted',
+        status: 'proposed',
+        startDate: '2024-06-01',
+        endDate: '2024-06-05'
+      }
+      await db.collection('trips').insertOne(trip)
+      
+      await addParticipant({ tripId: trip.id, userId: leaderId })
+      await addParticipant({ tripId: trip.id, userId: travelerId })
+      
+      // Verify setup: leader is trip creator, both are active participants
+      const tripBefore = await db.collection('trips').findOne({ id: trip.id })
+      expect(tripBefore.createdBy).toBe(leaderId)
+      const activeParticipants = await db.collection('trip_participants')
+        .find({ tripId: trip.id, status: 'active' })
+        .toArray()
+      expect(activeParticipants.length).toBe(2)
+      
+      // Action: Leader calls POST /api/trips/:id/leave without transferToUserId
+      const token = createToken(leaderId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/leave`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({}) // No transferToUserId
+      })
+      
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'leave'] } })
+      
+      // Assert: Response is 400
+      expect(response.status).toBe(400)
+      const errorData = await response.json()
+      expect(errorData.error).toContain('transfer leadership')
+      
+      // Assert: Leader is still in trip_participants with status 'active'
+      const leaderParticipant = await db.collection('trip_participants').findOne({
+        tripId: trip.id,
+        userId: leaderId
+      })
+      expect(leaderParticipant).toBeTruthy()
+      expect(leaderParticipant.status).toBe('active')
+      
+      // Assert: trip.createdBy unchanged
+      const tripAfter = await db.collection('trips').findOne({ id: trip.id })
+      expect(tripAfter.createdBy).toBe(leaderId)
+      
+      // Cleanup
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+    })
+
+    it('should allow leader leave when transferToUserId is provided', async () => {
+      // Setup: Create trip with leader + one other traveler
+      const leaderId = 'leader-transfer-inv-1'
+      const travelerId = 'traveler-transfer-inv-1'
+      const circleId = 'circle-transfer-inv-1'
+      const tripId = `trip-transfer-inv-1-${Date.now()}`
+      
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: travelerId, circleId, role: 'member' })
+      
+      // Create trip with explicit tripId
+      const trip = {
+        id: tripId,
+        name: 'Test Trip',
+        circleId,
+        createdBy: leaderId,
+        type: 'hosted',
+        status: 'proposed',
+        startDate: '2024-06-01',
+        endDate: '2024-06-05'
+      }
+      await db.collection('trips').insertOne(trip)
+      
+      await addParticipant({ tripId: trip.id, userId: leaderId })
+      await addParticipant({ tripId: trip.id, userId: travelerId })
+      
+      // Verify setup: leader is trip creator
+      const tripBefore = await db.collection('trips').findOne({ id: trip.id })
+      expect(tripBefore.createdBy).toBe(leaderId)
+      
+      // Action: Leader calls POST /api/trips/:id/leave with transferToUserId = other traveler
+      const token = createToken(leaderId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/leave`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ transferToUserId: travelerId })
+      })
+      
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'leave'] } })
+      
+      // Assert: Response is 200
+      expect(response.status).toBe(200)
+      
+      // Assert: trip.createdBy is now the other traveler
+      const tripAfter = await db.collection('trips').findOne({ id: trip.id })
+      expect(tripAfter.createdBy).toBe(travelerId)
+      
+      // Assert: Original leader has status 'left' in trip_participants
+      const leaderParticipant = await db.collection('trip_participants').findOne({
+        tripId: trip.id,
+        userId: leaderId
+      })
+      expect(leaderParticipant).toBeTruthy()
+      expect(leaderParticipant.status).toBe('left')
+      
+      // Cleanup
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+    })
   })
 })
