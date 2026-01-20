@@ -3291,7 +3291,8 @@ function TripProgress({ trip, token, user, onRefresh, onSwitchTab }) {
               key={stepConfig.key}
               className={`flex items-start gap-3 p-2 rounded-lg transition-colors ${
                 isFirstIncomplete ? 'bg-blue-50 border border-blue-200' : ''
-              }`}
+              } ${stepConfig.key === 'expensesSettled' && onSwitchTab ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+              onClick={stepConfig.key === 'expensesSettled' && onSwitchTab ? () => onSwitchTab('expenses') : undefined}
             >
               <div className="flex-shrink-0 mt-0.5">
                 {isComplete ? (

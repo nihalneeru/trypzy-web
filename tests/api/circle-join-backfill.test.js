@@ -4,28 +4,20 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import { MongoClient } from 'mongodb'
-import { resetMongoConnection } from '../../lib/server/db.js'
-
-// Use test database
-const TEST_DB_NAME = 'trypzy_test'
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017'
+import { setupTestDatabase, teardownTestDatabase } from '../testUtils/dbTestHarness.js'
 
 describe('Circle Join Backfill', () => {
   let client
   let db
   
   beforeAll(async () => {
-    // Reset cached connection to ensure we use test database
-    await resetMongoConnection()
-    
-    client = new MongoClient(MONGO_URI)
-    await client.connect()
-    db = client.db(TEST_DB_NAME)
+    const result = await setupTestDatabase()
+    db = result.db
+    client = result.client
   })
   
   afterAll(async () => {
-    await client.close()
+    await teardownTestDatabase(client)
   })
 
   beforeEach(async () => {
