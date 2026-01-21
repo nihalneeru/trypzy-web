@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest'
 import { buildTripDateList } from '@/lib/itinerary/buildTripDateList.js'
 import { normalizeItineraryDates, validateItineraryDates } from '@/lib/itinerary/normalizeItineraryDates.js'
 

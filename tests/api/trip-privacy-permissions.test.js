@@ -8,7 +8,6 @@
  * 4. Member profile trip pills don't show false CTAs
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { filterTripsByPrivacy } from '../../lib/trips/filterTripsByPrivacy.js'
 import { getDashboardData } from '../../lib/dashboard/getDashboardData.js'
 import { setupTestDatabase, teardownTestDatabase } from '../testUtils/dbTestHarness.js'

@@ -4,7 +4,6 @@
  * Tests blocking user computation across different trip stages.
  */
 
-import { describe, it, expect } from 'vitest'
 import { getBlockingUsers } from '@/lib/trips/getBlockingUsers.js'
 
 describe('getBlockingUsers', () => {
