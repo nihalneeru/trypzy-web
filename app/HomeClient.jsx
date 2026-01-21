@@ -40,6 +40,7 @@ import { TripTabs } from '@/components/trip/TripTabs/TripTabs'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/routes'
 import { formatTripDateRange } from '@/lib/utils'
+import { TripCommandCenter } from '@/components/trip/command-center'
 
 // Branded Spinner Component
 export function BrandedSpinner({ className = '', size = 'default' }) {
@@ -2139,11 +2140,13 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
         // Only update URL if it's different to avoid redundant updates
         // Use replace for URL normalization (not user-initiated navigation) to avoid history churn
         // This prevents back button from navigating through intermediate redirect states
-        // Preserve returnTo if it exists in current URL (from trip card href)
+        // Preserve returnTo and ui params if they exist in current URL
         const currentReturnTo = currentUrl.searchParams.get('returnTo')
+        const currentUiMode = currentUrl.searchParams.get('ui')
         const circleIdParam = data.circleId ? `&circleId=${data.circleId}` : ''
         const returnToParam = currentReturnTo ? `&returnTo=${encodeURIComponent(currentReturnTo)}` : ''
-        const newUrl = `/?tripId=${tripId}${circleIdParam}${returnToParam}`
+        const uiParam = currentUiMode ? `&ui=${currentUiMode}` : ''
+        const newUrl = `/?tripId=${tripId}${circleIdParam}${returnToParam}${uiParam}`
         const currentSearch = currentUrl.search || ''
         const expectedSearch = newUrl.replace('/?', '?')
         
@@ -4032,11 +4035,43 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
   )
 }
 
-// Trip Detail View
+// Trip Detail View Wrapper - handles mode switching
 function TripDetailView({ trip, token, user, onRefresh }) {
+  const searchParams = useSearchParams()
+
+  // Dev-only toggle: ?ui=command-center enables new UX
+  // Default or ?ui=legacy shows current UX (bit-for-bit unchanged)
+  const uiMode = searchParams.get('ui')
+  const isCommandCenterMode = uiMode === 'command-center'
+
+  // Render Command Center UX if enabled via query param
+  if (isCommandCenterMode) {
+    return (
+      <TripCommandCenter
+        trip={trip}
+        token={token}
+        user={user}
+        onRefresh={onRefresh}
+      />
+    )
+  }
+
+  // Render Legacy UX
+  return (
+    <TripDetailViewLegacy
+      trip={trip}
+      token={token}
+      user={user}
+      onRefresh={onRefresh}
+    />
+  )
+}
+
+// Legacy Trip Detail View (original implementation)
+function TripDetailViewLegacy({ trip, token, user, onRefresh }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  
+
   // Compute stage and primary tab if not already computed
   const stage = trip._computedStage || deriveTripPrimaryStage(trip)
   const primaryTab = trip._primaryTab || getPrimaryTabForStage(stage)

@@ -62,8 +62,11 @@ export function ChatTab({
   dismissTripChatHint,
   stage,
   setActiveTab,
-  isReadOnly = false
+  isReadOnly = false,
+  mode = 'legacy' as 'legacy' | 'command-center'
 }: any) {
+  // In command-center mode, chat is the primary surface (no card wrapper, no header)
+  const isCommandCenter = mode === 'command-center'
   // Check if user is trip leader
   const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
   
@@ -515,19 +518,10 @@ export function ChatTab({
     return getBlockingUsers(trip, user)
   }, [trip, user])
   
-  return (
-    <Card className="h-[500px] flex flex-col">
-      <CardHeader>
-        <CardTitle className="text-lg">Trip Chat</CardTitle>
-        <CardDescription>
-          Decisions and updates for this trip. System updates appear here.
-          {countdownLabel && (
-            <span className="ml-2 text-gray-500">• {countdownLabel}</span>
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex-1 flex flex-col">
-        <ScrollArea className="flex-1 pr-4">
+  // Chat content (shared between legacy and command-center modes)
+  const chatContent = (
+    <>
+      <ScrollArea className={`flex-1 pr-4 ${isCommandCenter ? 'h-[400px]' : ''}`}>
           <div className="space-y-4">
             {/* Waiting on... clarity message (system style, at top) */}
             {blockingInfo && (
@@ -903,14 +897,40 @@ export function ChatTab({
             }}
             disabled={viewerIsReadOnly}
           />
-          <Button 
-            onClick={viewerIsReadOnly ? undefined : sendMessage} 
+          <Button
+            onClick={viewerIsReadOnly ? undefined : sendMessage}
             disabled={viewerIsReadOnly || sendingMessage || !newMessage.trim()}
             title={viewerIsReadOnly ? readOnlyPlaceholder : undefined}
           >
             <Send className="h-4 w-4" />
           </Button>
         </div>
+    </>
+  )
+
+  // Command Center mode: no card wrapper, just the content
+  if (isCommandCenter) {
+    return (
+      <div className="flex flex-col h-full">
+        {chatContent}
+      </div>
+    )
+  }
+
+  // Legacy mode: full card wrapper with header
+  return (
+    <Card className="h-[500px] flex flex-col">
+      <CardHeader>
+        <CardTitle className="text-lg">Trip Chat</CardTitle>
+        <CardDescription>
+          Decisions and updates for this trip. System updates appear here.
+          {countdownLabel && (
+            <span className="ml-2 text-gray-500">• {countdownLabel}</span>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col">
+        {chatContent}
       </CardContent>
     </Card>
   )
