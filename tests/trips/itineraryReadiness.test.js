@@ -5,7 +5,6 @@
  * all active travelers (including leader) have >= 3 ideas each.
  */
 
-import { describe, it, expect } from 'vitest'
 
 /**
  * Compute readiness: all active travelers (including leader) must have >= 3 ideas

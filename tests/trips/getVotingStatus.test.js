@@ -9,7 +9,6 @@
  * - Edge cases
  */
 
-import { describe, it, expect } from 'vitest'
 import { getVotingStatus, formatLeadingOption } from '@/lib/trips/getVotingStatus.js'
 
 describe('getVotingStatus', () => {

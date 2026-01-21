@@ -9,7 +9,6 @@
  * 5. Validation works correctly
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { ObjectId } from 'mongodb'
 import { NextRequest } from 'next/server'
 import jwt from 'jsonwebtoken'
@@ -34,25 +33,21 @@ async function addTraveler({ db, tripId, userId }) {
 // Import route handlers
 let GET, POST, DELETE
 
-beforeAll(async () => {
-  // Setup test database (sets env vars and resets connection)
-  const { db: _db, client: _client } = await setupTestDatabase()
-  
-  // Import route handlers after env vars are set
-  const module = await import('@/app/api/trips/[tripId]/expenses/route.js')
-  GET = module.GET
-  POST = module.POST
-  DELETE = module.DELETE
-})
-
 describe('Trip Expenses API', () => {
   let client
   let db
-  
+
   beforeAll(async () => {
+    // Setup test database (sets env vars and resets connection)
     const result = await setupTestDatabase()
     db = result.db
     client = result.client
+
+    // Import route handlers after env vars are set
+    const module = await import('@/app/api/trips/[tripId]/expenses/route.js')
+    GET = module.GET
+    POST = module.POST
+    DELETE = module.DELETE
   })
   
   afterAll(async () => {

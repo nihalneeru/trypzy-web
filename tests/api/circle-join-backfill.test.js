@@ -3,7 +3,6 @@
  * are added as travelers to all existing collaborative trips
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { setupTestDatabase, teardownTestDatabase } from '../testUtils/dbTestHarness.js'
 
 describe('Circle Join Backfill', () => {

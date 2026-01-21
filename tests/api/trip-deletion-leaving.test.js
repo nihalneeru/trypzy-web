@@ -9,7 +9,6 @@
  * 5. Multi-member, leader: Leave with transfer succeeds; new leader assigned; old leader removed
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { MongoClient } from 'mongodb'
 import { NextRequest } from 'next/server'
 import jwt from 'jsonwebtoken'

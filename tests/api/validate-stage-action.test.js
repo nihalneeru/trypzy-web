@@ -4,7 +4,6 @@
  * Tests validate stage transitions and leader-only action gates.
  */
 
-import { describe, it, expect } from 'vitest'
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 
 describe('validateStageAction', () => {

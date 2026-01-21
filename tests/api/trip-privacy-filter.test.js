@@ -5,7 +5,6 @@
  * from shared surfaces (circle pages, dashboard) while still being visible to owners.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { MongoClient } from 'mongodb'
 import { filterTripsByPrivacy } from '../../lib/trips/filterTripsByPrivacy.js'
 

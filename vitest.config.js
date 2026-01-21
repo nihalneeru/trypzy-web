@@ -9,10 +9,9 @@ export default defineConfig({
     setupFiles: ['./tests/setup.js'],
     include: ['tests/**/*.test.js'],
     exclude: ['e2e/**', 'node_modules/**'],
-    environmentMatchGlobs: [
-      ['tests/api/**', 'node'], // API tests use Node environment
-      ['**', 'jsdom'] // Other tests use jsdom
-    ]
+    environment: 'node', // Use Node environment for all tests
+    pool: 'forks', // Use forks pool for better isolation
+    fileParallelism: false, // Run tests sequentially to avoid conflicts
   },
   resolve: {
     alias: {
