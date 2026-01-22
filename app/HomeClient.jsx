@@ -4039,15 +4039,15 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
 function TripDetailView({ trip, token, user, onRefresh }) {
   const searchParams = useSearchParams()
 
-  // Dev-only toggle: ?ui=command-center enables new UX
-  // Default or ?ui=legacy shows current UX (bit-for-bit unchanged)
+  // Command Center is now the default trip detail UX (Phase 9)
+  // Use ?ui=legacy to access the old UX if needed for debugging
   const uiMode = searchParams.get('ui')
-  const isCommandCenterMode = uiMode === 'command-center'
+  const isLegacyMode = uiMode === 'legacy'
 
-  // Render Command Center UX if enabled via query param
-  if (isCommandCenterMode) {
+  // Render Legacy UX only if explicitly requested
+  if (isLegacyMode) {
     return (
-      <TripCommandCenter
+      <TripDetailViewLegacy
         trip={trip}
         token={token}
         user={user}
@@ -4056,9 +4056,9 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     )
   }
 
-  // Render Legacy UX
+  // Render Command Center UX (default)
   return (
-    <TripDetailViewLegacy
+    <TripCommandCenter
       trip={trip}
       token={token}
       user={user}

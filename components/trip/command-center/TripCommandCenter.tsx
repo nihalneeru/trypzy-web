@@ -122,9 +122,10 @@ export function TripCommandCenter({ trip, token, user, onRefresh }: TripCommandC
     : dashboardLink
 
   // Handle opening legacy tab (for scheduling/itinerary actions)
+  // Phase 9: Legacy is now opt-in via ?ui=legacy, so we must set it explicitly
   const openLegacyTab = useCallback((tab: string) => {
     const currentUrl = new URL(window.location.href)
-    currentUrl.searchParams.delete('ui')
+    currentUrl.searchParams.set('ui', 'legacy')
     currentUrl.searchParams.set('tab', tab)
     router.push(currentUrl.toString())
   }, [router])
