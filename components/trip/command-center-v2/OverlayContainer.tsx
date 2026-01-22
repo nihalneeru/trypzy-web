@@ -167,9 +167,9 @@ export function OverlayContainer({
         </div>
       </div>
 
-      {/* Discard Changes Confirmation Dialog */}
+      {/* Discard Changes Confirmation Dialog - z-[60] to appear above overlay drawer (z-50) */}
       <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[60]">
           <AlertDialogHeader>
             <AlertDialogTitle>Discard changes?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -178,7 +178,7 @@ export function OverlayContainer({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmClose} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction onClick={handleConfirmClose} className="bg-red-600 hover:bg-red-700 text-white">
               Discard
             </AlertDialogAction>
           </AlertDialogFooter>

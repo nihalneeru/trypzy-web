@@ -500,7 +500,8 @@ export function ChatTab({
   }
 
   // Show action card if there's a next action and it's not dismissed
-  const showActionCard = nextAction && !isDismissed
+  // In command-center mode, hide ActionCard since V2 has its own CTA bar
+  const showActionCard = nextAction && !isDismissed && !isCommandCenter
 
   // Log when action is shown
   useEffect(() => {

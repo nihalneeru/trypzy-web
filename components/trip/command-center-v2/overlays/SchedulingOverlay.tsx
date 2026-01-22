@@ -8,7 +8,10 @@ import {
   Lock,
   CheckCircle2,
   Vote,
-  AlertCircle
+  AlertCircle,
+  Heart,
+  ThumbsUp,
+  HelpCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -275,6 +278,20 @@ export function SchedulingOverlay({
     if (rank === 1) return 'Love to go'
     if (rank === 2) return 'Can go'
     if (rank === 3) return 'Might be able'
+    return ''
+  }
+
+  const getRankIcon = (rank: number) => {
+    if (rank === 1) return Heart
+    if (rank === 2) return ThumbsUp
+    if (rank === 3) return HelpCircle
+    return null
+  }
+
+  const getRankColor = (rank: number) => {
+    if (rank === 1) return 'text-red-500'
+    if (rank === 2) return 'text-blue-500'
+    if (rank === 3) return 'text-yellow-600'
     return ''
   }
 
@@ -672,9 +689,15 @@ export function SchedulingOverlay({
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant={pick.rank === 1 ? 'default' : pick.rank === 2 ? 'secondary' : 'outline'}>
-                          {pick.rank === 1 ? '1st' : pick.rank === 2 ? '2nd' : '3rd'} {getRankLabel(pick.rank)}
-                        </Badge>
+                        {(() => {
+                          const PickIcon = getRankIcon(pick.rank)
+                          return (
+                            <Badge variant={pick.rank === 1 ? 'default' : pick.rank === 2 ? 'secondary' : 'outline'} className="flex items-center gap-1">
+                              {PickIcon && <PickIcon className={`h-3 w-3 ${pick.rank === 1 ? 'text-white' : getRankColor(pick.rank)}`} />}
+                              {pick.rank === 1 ? '1st' : pick.rank === 2 ? '2nd' : '3rd'} {getRankLabel(pick.rank)}
+                            </Badge>
+                          )
+                        })()}
                         <span className="font-medium">{formatDateRange(pick.startDateISO)}</span>
                         {activeRank === pick.rank && (
                           <span className="text-xs text-blue-600">(editing)</span>
@@ -727,6 +750,42 @@ export function SchedulingOverlay({
               </div>
             </div>
 
+            {/* Rank Selection Legend */}
+            {canParticipate && !isLocked && !isVoting && (
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
+                <p className="text-xs font-medium text-gray-700 mb-2">Click a rank below, then click a date to select:</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {[1, 2, 3].map((rank) => {
+                    const RankIcon = getRankIcon(rank)
+                    const isActive = activeRank === rank
+                    const existingPick = datePicks.find(p => p.rank === rank)
+                    return (
+                      <button
+                        key={rank}
+                        onClick={() => setActiveRank(rank as 1 | 2 | 3)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                          isActive
+                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400'
+                            : existingPick
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        {RankIcon && <RankIcon className={`h-3.5 w-3.5 ${getRankColor(rank)}`} />}
+                        <span>{getRankLabel(rank)}</span>
+                        {existingPick && <Check className="h-3 w-3 text-green-600 ml-1" />}
+                      </button>
+                    )
+                  })}
+                </div>
+                {activeRank && (
+                  <p className="text-xs text-blue-600 mt-2">
+                    Now click a date on the calendar to set your "{getRankLabel(activeRank)}" pick
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Calendar Grid */}
             <div className="space-y-4 max-h-[400px] overflow-y-auto">
               {calendarMonths.map((monthData) => (
@@ -770,6 +829,11 @@ export function SchedulingOverlay({
                       const isValidForPreview = day.isValidStart && activeRank && canParticipate
                       const isDisabled = !day.isInBounds || !day.isValidStart || !canParticipate
 
+                      // Show icon on hover for the start date cell
+                      const isHoveredStartDate = hoveredStartDate === day.dateISO && activeRank
+                      const HoverIcon = activeRank ? getRankIcon(activeRank) : null
+                      const UserPickIcon = userPick ? getRankIcon(userPick.rank) : null
+
                       return (
                         <button
                           key={day.dateISO}
@@ -795,15 +859,23 @@ export function SchedulingOverlay({
                               ? 'Outside date range'
                               : !day.isValidStart
                               ? 'Invalid start date'
+                              : isHoveredStartDate && activeRank
+                              ? `Click to set as "${getRankLabel(activeRank)}"`
                               : day.score > 0
                               ? 'Preferred by group'
                               : ''
                           }
                         >
-                          {day.date.getDate()}
-                          {userPick && (
-                            <div className="absolute top-0.5 right-0.5 text-[8px]">
-                              {userPick.rank === 1 ? '1' : userPick.rank === 2 ? '2' : '3'}
+                          {/* Show hover icon on start date when selecting */}
+                          {isHoveredStartDate && HoverIcon ? (
+                            <HoverIcon className={`h-4 w-4 ${getRankColor(activeRank!)}`} />
+                          ) : (
+                            day.date.getDate()
+                          )}
+                          {/* Show user pick icon */}
+                          {userPick && UserPickIcon && !isHoveredStartDate && (
+                            <div className="absolute top-0 right-0">
+                              <UserPickIcon className={`h-3 w-3 ${getRankColor(userPick.rank)}`} />
                             </div>
                           )}
                           {isInPreviewWindow && (
