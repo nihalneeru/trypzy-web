@@ -159,7 +159,7 @@ export function ContextCTABar({
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 rounded-lg',
           'hover:bg-gray-100 transition-colors',
-          'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1'
+          'focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-1'
         )}
         aria-label={`View ${travelerCount} travelers`}
       >
@@ -174,7 +174,7 @@ export function ContextCTABar({
         <Button
           onClick={() => onCTAClick(ctaConfig.overlayType)}
           className={cn(
-            'bg-red-500 hover:bg-red-600 text-white',
+            'bg-brand-red hover:opacity-90 text-white',
             'font-medium shadow-sm'
           )}
           size="sm"

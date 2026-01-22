@@ -416,7 +416,7 @@ export function PrepOverlay({
                           href={item.link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                          className="text-xs text-brand-blue hover:underline flex items-center gap-1 mt-1"
                         >
                           View booking
                           <ExternalLink className="h-3 w-3" />

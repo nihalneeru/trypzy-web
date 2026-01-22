@@ -419,7 +419,7 @@ export function TravelersOverlay({
                         </Avatar>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium text-sm text-blue-600 hover:underline">{participantUser.name}</p>
+                            <p className="font-medium text-sm text-brand-blue hover:underline">{participantUser.name}</p>
                             {isCurrentUser && (
                               <span className="text-xs text-gray-500">(you)</span>
                             )}
@@ -519,7 +519,7 @@ export function TravelersOverlay({
             <AlertDialogAction
               onClick={handleLeaveTrip}
               disabled={leaving}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-brand-red hover:opacity-90"
             >
               {leaving ? 'Leaving...' : 'Leave trip'}
             </AlertDialogAction>
@@ -599,7 +599,7 @@ export function TravelersOverlay({
             <AlertDialogAction
               onClick={handleCancelTrip}
               disabled={canceling}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-brand-red hover:opacity-90"
             >
               {canceling ? 'Canceling...' : 'Cancel trip'}
             </AlertDialogAction>

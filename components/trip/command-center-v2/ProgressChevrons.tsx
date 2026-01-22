@@ -64,10 +64,10 @@ function ChevronArrow({
   size?: 'normal' | 'small'
   pointDirection?: 'down' | 'left'
 }) {
-  // Determine fill color based on state
+  // Determine fill color based on state (using brand colors)
   const getFillColor = () => {
-    if (isActiveOverlay) return '#3b82f6' // blue-500
-    if (isCurrent) return '#f97316' // orange-500
+    if (isActiveOverlay) return '#00334D' // brand-blue
+    if (isCurrent) return '#FA3823' // brand-red (attention/blocker)
     if (isCompleted) return '#22c55e' // green-500
     return '#e5e7eb' // gray-200
   }
@@ -173,7 +173,7 @@ export function ProgressChevrons({
                   onClick={() => isClickable && onChevronClick(overlayType)}
                   disabled={!isClickable}
                   className={cn(
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded',
+                    'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-1 rounded',
                     'flex flex-col items-center gap-0.5'
                   )}
                   aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isBlocker ? ' (needs attention)' : ''}`}
@@ -191,7 +191,7 @@ export function ProgressChevrons({
                   {isVertical && (
                     <span className={cn(
                       'text-[8px] font-medium leading-tight text-center w-16',
-                      isActiveOverlay ? 'text-blue-600' : isBlocker ? 'text-orange-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
+                      isActiveOverlay ? 'text-brand-blue' : isBlocker ? 'text-brand-red' : isCompleted ? 'text-green-600' : 'text-gray-400'
                     )}>
                       {step.shortLabel}
                     </span>
@@ -222,7 +222,7 @@ export function ProgressChevrons({
             <button
               onClick={() => onChevronClick('travelers')}
               className={cn(
-                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded',
+                'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-1 rounded',
                 'flex flex-col items-center gap-0.5'
               )}
               aria-label="View travelers"
@@ -240,7 +240,7 @@ export function ProgressChevrons({
               {isVertical && (
                 <span className={cn(
                   'text-[8px] font-medium leading-tight text-center w-16',
-                  activeOverlay === 'travelers' ? 'text-blue-600' : 'text-gray-400'
+                  activeOverlay === 'travelers' ? 'text-brand-blue' : 'text-gray-400'
                 )}>
                   Travelers
                 </span>

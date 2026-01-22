@@ -289,8 +289,8 @@ export function SchedulingOverlay({
   }
 
   const getRankColor = (rank: number) => {
-    if (rank === 1) return 'text-red-500'
-    if (rank === 2) return 'text-blue-500'
+    if (rank === 1) return 'text-brand-red'
+    if (rank === 2) return 'text-brand-blue'
     if (rank === 3) return 'text-yellow-600'
     return ''
   }

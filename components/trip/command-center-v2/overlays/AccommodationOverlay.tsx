@@ -430,7 +430,7 @@ export function AccommodationOverlay({
                 onClick={() => setSelectedStayId(stay.id)}
                 className={`cursor-pointer transition-all ${
                   isSelected
-                    ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
+                    ? 'border-brand-blue bg-brand-sand ring-1 ring-brand-blue'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
@@ -561,7 +561,7 @@ export function AccommodationOverlay({
                               href={option.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                              className="text-sm text-brand-blue hover:underline flex items-center gap-1"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <ExternalLink className="h-3 w-3" />
@@ -639,7 +639,7 @@ export function AccommodationOverlay({
                   href={selectedAccommodation.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline mt-2 inline-flex items-center gap-1"
+                  className="text-sm text-brand-blue hover:underline mt-2 inline-flex items-center gap-1"
                 >
                   <ExternalLink className="h-3 w-3" />
                   View listing

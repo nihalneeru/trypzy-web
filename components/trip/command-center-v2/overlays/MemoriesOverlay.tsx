@@ -471,7 +471,7 @@ export function MemoriesOverlay({
             <AlertDialogCancel onClick={() => setDeletingMemoryId(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingMemoryId && handleDelete(deletingMemoryId)}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-brand-red hover:opacity-90"
               disabled={deleting}
             >
               {deleting ? 'Deleting...' : 'Delete'}

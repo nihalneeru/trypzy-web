@@ -18,6 +18,13 @@ module.exports = {
     	},
     	extend: {
     		colors: {
+    			// Trypzy Brand Colors
+    			brand: {
+    				red: 'var(--brand-red)',
+    				blue: 'var(--brand-blue)',
+    				carbon: 'var(--brand-carbon)',
+    				sand: 'var(--brand-sand)',
+    			},
     			border: 'hsl(var(--border))',
     			input: 'hsl(var(--input))',
     			ring: 'hsl(var(--ring))',
