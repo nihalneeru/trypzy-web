@@ -4041,15 +4041,15 @@ function TripDetailView({ trip, token, user, onRefresh }) {
   const searchParams = useSearchParams()
 
   // UI mode toggle:
-  // - ?ui=v2 → CommandCenterV2 (new chat-centric design with overlays)
+  // - ?ui=v1 → TripCommandCenter (previous command center)
   // - ?ui=legacy → TripDetailViewLegacy (old tab-based UI)
-  // - default → TripCommandCenter (current command center, Phase 9 default)
+  // - default → CommandCenterV2 (new chat-centric design with overlays)
   const uiMode = searchParams.get('ui')
 
-  // Render V2 (new chat-centric design) if explicitly requested
-  if (uiMode === 'v2') {
+  // Render V1 Command Center if explicitly requested
+  if (uiMode === 'v1') {
     return (
-      <CommandCenterV2
+      <TripCommandCenter
         trip={trip}
         token={token}
         user={user}
@@ -4070,9 +4070,9 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     )
   }
 
-  // Render Command Center UX (default - Phase 9)
+  // Render Command Center V2 (default)
   return (
-    <TripCommandCenter
+    <CommandCenterV2
       trip={trip}
       token={token}
       user={user}
