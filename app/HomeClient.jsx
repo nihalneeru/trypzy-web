@@ -41,6 +41,7 @@ import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/routes'
 import { formatTripDateRange } from '@/lib/utils'
 import { TripCommandCenter } from '@/components/trip/command-center'
+import { CommandCenterV2 } from '@/components/trip/command-center-v2'
 
 // Branded Spinner Component
 export function BrandedSpinner({ className = '', size = 'default' }) {
@@ -4039,13 +4040,26 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
 function TripDetailView({ trip, token, user, onRefresh }) {
   const searchParams = useSearchParams()
 
-  // Command Center is now the default trip detail UX (Phase 9)
-  // Use ?ui=legacy to access the old UX if needed for debugging
+  // UI mode toggle:
+  // - ?ui=v2 → CommandCenterV2 (new chat-centric design with overlays)
+  // - ?ui=legacy → TripDetailViewLegacy (old tab-based UI)
+  // - default → TripCommandCenter (current command center, Phase 9 default)
   const uiMode = searchParams.get('ui')
-  const isLegacyMode = uiMode === 'legacy'
+
+  // Render V2 (new chat-centric design) if explicitly requested
+  if (uiMode === 'v2') {
+    return (
+      <CommandCenterV2
+        trip={trip}
+        token={token}
+        user={user}
+        onRefresh={onRefresh}
+      />
+    )
+  }
 
   // Render Legacy UX only if explicitly requested
-  if (isLegacyMode) {
+  if (uiMode === 'legacy') {
     return (
       <TripDetailViewLegacy
         trip={trip}
@@ -4056,7 +4070,7 @@ function TripDetailView({ trip, token, user, onRefresh }) {
     )
   }
 
-  // Render Command Center UX (default)
+  // Render Command Center UX (default - Phase 9)
   return (
     <TripCommandCenter
       trip={trip}
