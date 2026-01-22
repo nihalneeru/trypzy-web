@@ -22,8 +22,8 @@ interface OverlayContainerProps {
   children: React.ReactNode
   /** Set to true when overlay has unsaved changes - prevents accidental close */
   hasUnsavedChanges?: boolean
-  /** Custom width class (default: max-w-md on desktop) */
-  widthClass?: string
+  /** Right offset to not cover sidebar (e.g., "60px" for chevron bar) */
+  rightOffset?: string
 }
 
 /**
@@ -31,10 +31,10 @@ interface OverlayContainerProps {
  *
  * Features:
  * - Slides in from right side with smooth animation
+ * - Can be offset from right edge to not cover sidebar
  * - Chat remains visible (dimmed) behind
  * - Unsaved changes protection with confirmation dialog
  * - Dismiss via X button, backdrop click (if no unsaved changes), or Escape
- * - Overlays the chat area only, not full screen
  */
 export function OverlayContainer({
   isOpen,
@@ -42,7 +42,7 @@ export function OverlayContainer({
   title,
   children,
   hasUnsavedChanges = false,
-  widthClass = 'w-full max-w-md'
+  rightOffset = '0px'
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -107,18 +107,6 @@ export function OverlayContainer({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, handleCloseAttempt])
 
-  // Prevent body scroll when overlay is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [isOpen])
-
   // Focus trap - focus overlay when opened
   useEffect(() => {
     if (isOpen && isAnimating && overlayRef.current) {
@@ -131,12 +119,13 @@ export function OverlayContainer({
 
   return (
     <>
-      {/* Backdrop - semi-transparent overlay */}
+      {/* Backdrop - semi-transparent overlay, offset from right */}
       <div
         className={cn(
           'fixed inset-0 z-40 bg-black/30 transition-opacity duration-300',
           isAnimating ? 'opacity-100' : 'opacity-0'
         )}
+        style={{ right: rightOffset }}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
@@ -146,11 +135,12 @@ export function OverlayContainer({
         ref={overlayRef}
         tabIndex={-1}
         className={cn(
-          'fixed top-0 right-0 z-50 h-full bg-white shadow-2xl',
+          'fixed top-0 z-50 h-full bg-white shadow-2xl',
           'flex flex-col transition-transform duration-300 ease-out',
-          widthClass,
+          'w-full max-w-md',
           isAnimating ? 'translate-x-0' : 'translate-x-full'
         )}
+        style={{ right: rightOffset }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="overlay-title"

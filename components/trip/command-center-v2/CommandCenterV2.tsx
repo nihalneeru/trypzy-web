@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { format } from 'date-fns'
-import { Users, ChevronRight, Calendar, ListTodo, Home, CheckCircle2 } from 'lucide-react'
+import { Calendar, ListTodo, Home, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -32,6 +32,9 @@ import { useTripChat } from '@/hooks/use-trip-chat'
 // Helpers
 import { computeProgressSteps } from '@/lib/trips/progress'
 import { deriveTripPrimaryStage, TripPrimaryStage } from '@/lib/trips/stage'
+
+// Constants
+const CHEVRON_BAR_WIDTH = 60 // Width of the chevron sidebar in pixels
 
 // Types
 interface CommandCenterV2Props {
@@ -183,14 +186,12 @@ function FocusBanner({
   startDate,
   endDate,
   blocker,
-  stage,
   onAction
 }: {
   tripName: string
   startDate?: string
   endDate?: string
   blocker: BlockerInfo
-  stage: string
   onAction: (overlayType: OverlayType) => void
 }) {
   // Format dates for display
@@ -230,7 +231,7 @@ function FocusBanner({
   const Icon = blocker.icon
 
   return (
-    <div className="border-b border-gray-200">
+    <div className="border-b border-gray-200 shrink-0">
       {/* Trip name and dates row */}
       <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
         <h1 className="text-base font-semibold text-gray-900 truncate">{tripName}</h1>
@@ -266,7 +267,7 @@ function FocusBanner({
 }
 
 /**
- * InlineCTA - Red banner above chat input for user's next action
+ * InlineCTA - Red banner for user's next action (positioned above chat input)
  */
 function InlineCTA({
   blocker,
@@ -279,7 +280,7 @@ function InlineCTA({
   if (blocker.type === 'READY' || !blocker.overlayType) return null
 
   return (
-    <div className="px-3 py-2 bg-red-500 text-white">
+    <div className="mx-3 mb-2 px-3 py-2 bg-red-500 text-white rounded-lg">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <blocker.icon className="h-4 w-4 shrink-0" />
@@ -301,18 +302,24 @@ function InlineCTA({
 /**
  * CommandCenterV2 - Main container orchestrating the chat-centric layout
  *
- * Layout (top to bottom):
- * 1. FocusBanner (trip name + dates + blocker card with CTA)
- * 2. Main content area (chat + progress chevrons on desktop)
- * 3. TravelerStrip (horizontal avatar scroll)
- * 4. InlineCTA (red banner above chat input)
- * 5. Mobile Progress Chevrons (horizontal on mobile only)
+ * Layout:
+ * - FocusBanner (top) - trip name, dates, blocker card
+ * - Main area split into:
+ *   - Chat column (flex-1) containing:
+ *     - Chat messages (scrollable)
+ *     - TravelerStrip (horizontal avatars)
+ *     - InlineCTA (red banner)
+ *     - Chat input
+ *   - Chevron sidebar (fixed width, desktop only)
+ * - Mobile chevrons (horizontal, mobile only)
+ * - Overlay slides in from right, stops at chevron bar
  */
 export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV2Props) {
   // Overlay state
   const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
   const [overlayParams, setOverlayParams] = useState<OverlayParams>({})
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const chevronBarRef = useRef<HTMLDivElement>(null)
 
   // Chat hook
   const {
@@ -409,41 +416,60 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* 1. Focus Banner with Blocker */}
+      {/* Focus Banner with Blocker */}
       <FocusBanner
         tripName={trip?.name || 'Untitled Trip'}
         startDate={startDate}
         endDate={endDate}
         blocker={blocker}
-        stage={currentStage}
         onAction={handleBlockerAction}
       />
 
-      {/* 2. Main content area - Chat + Progress Chevrons */}
+      {/* Main content area */}
       <div className="flex-1 flex min-h-0">
-        {/* Chat feed (takes most space) */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <ChatTab
-            trip={trip}
-            token={token}
-            user={user}
-            onRefresh={onRefresh}
-            messages={messages}
-            newMessage={newMessage}
-            setNewMessage={setNewMessage}
-            sendingMessage={sendingMessage}
-            sendMessage={sendMessage}
-            showTripChatHint={false}
-            dismissTripChatHint={() => {}}
-            stage={currentStage}
-            setActiveTab={() => {}}
-            isReadOnly={isReadOnly}
-            mode="command-center"
-          />
+        {/* Chat column - contains chat, traveler strip, CTA, and input */}
+        <div className="flex-1 flex flex-col min-w-0 relative">
+          {/* Chat messages area */}
+          <div className="flex-1 min-h-0">
+            <ChatTab
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              messages={messages}
+              newMessage={newMessage}
+              setNewMessage={setNewMessage}
+              sendingMessage={sendingMessage}
+              sendMessage={sendMessage}
+              showTripChatHint={false}
+              dismissTripChatHint={() => {}}
+              stage={currentStage}
+              setActiveTab={() => {}}
+              isReadOnly={isReadOnly}
+              mode="command-center"
+            />
+          </div>
+
+          {/* Bottom section: Traveler strip + Red CTA (inside chat area, above input) */}
+          <div className="shrink-0 border-t border-gray-200 bg-white">
+            {/* Traveler Strip */}
+            <TravelerStrip
+              travelers={travelers}
+              currentUserId={user?.id}
+              onTravelerClick={handleTravelerClick}
+            />
+
+            {/* Inline CTA (red banner) - above chat input */}
+            <InlineCTA blocker={blocker} onAction={handleBlockerAction} />
+          </div>
         </div>
 
-        {/* Progress Chevrons (right side, vertical) - desktop only */}
-        <div className="hidden md:flex flex-col items-center justify-center border-l border-gray-200 bg-gray-50">
+        {/* Progress Chevrons sidebar (desktop only) */}
+        <div
+          ref={chevronBarRef}
+          className="hidden md:flex flex-col items-center justify-center border-l border-gray-200 bg-gray-50 shrink-0"
+          style={{ width: CHEVRON_BAR_WIDTH }}
+        >
           <ProgressChevrons
             progressSteps={progressSteps}
             currentStageKey={currentStageKey}
@@ -454,18 +480,8 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         </div>
       </div>
 
-      {/* 3. Traveler Strip */}
-      <TravelerStrip
-        travelers={travelers}
-        currentUserId={user?.id}
-        onTravelerClick={handleTravelerClick}
-      />
-
-      {/* 4. Inline CTA (red banner) */}
-      <InlineCTA blocker={blocker} onAction={handleBlockerAction} />
-
-      {/* 5. Mobile Progress Chevrons - horizontal strip on mobile */}
-      <div className="md:hidden flex items-center justify-center py-2 px-4 bg-gray-50 border-t border-gray-200 overflow-x-auto">
+      {/* Mobile Progress Chevrons - horizontal strip */}
+      <div className="md:hidden flex items-center justify-center py-2 px-2 bg-gray-50 border-t border-gray-200 overflow-x-auto shrink-0">
         <ProgressChevrons
           progressSteps={progressSteps}
           currentStageKey={currentStageKey}
@@ -475,12 +491,13 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         />
       </div>
 
-      {/* Overlay Container - slides in from right */}
+      {/* Overlay Container - slides in from right, offset by chevron bar width on desktop */}
       <OverlayContainer
         isOpen={activeOverlay !== null}
         onClose={closeOverlay}
         title={getOverlayTitle(activeOverlay)}
         hasUnsavedChanges={hasUnsavedChanges}
+        rightOffset={`${CHEVRON_BAR_WIDTH}px`}
       >
         {/* Render appropriate overlay based on activeOverlay type */}
         {activeOverlay === 'scheduling' && (

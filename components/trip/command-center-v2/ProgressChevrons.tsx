@@ -3,6 +3,7 @@
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Users } from 'lucide-react'
 
 export type OverlayType =
   | 'proposed'
@@ -42,63 +43,86 @@ const STEP_TO_OVERLAY: Record<string, OverlayType> = {
 }
 
 /**
- * Single chevron/arrow shape component
+ * Single chevron arrow shape
+ * - Points DOWN by default (progress flow)
+ * - Points LEFT when it's the current stage (indicates where overlay opens)
  */
-function ChevronShape({
+function ChevronArrow({
   isCompleted,
   isCurrent,
   isActiveOverlay,
   isClickable,
   icon: Icon,
-  label
+  size = 'normal',
+  pointDirection = 'down'
 }: {
   isCompleted: boolean
   isCurrent: boolean
   isActiveOverlay: boolean
   isClickable: boolean
   icon: React.ComponentType<{ className?: string }>
-  label: string
+  size?: 'normal' | 'small'
+  pointDirection?: 'down' | 'left'
 }) {
-  // Determine colors based on state
-  const getBgColor = () => {
-    if (isActiveOverlay) return 'bg-blue-500'
-    if (isCurrent) return 'bg-orange-500'
-    if (isCompleted) return 'bg-green-500'
-    return 'bg-gray-200'
+  // Determine fill color based on state
+  const getFillColor = () => {
+    if (isActiveOverlay) return '#3b82f6' // blue-500
+    if (isCurrent) return '#f97316' // orange-500
+    if (isCompleted) return '#22c55e' // green-500
+    return '#e5e7eb' // gray-200
   }
 
-  const getTextColor = () => {
+  const getIconColor = () => {
     if (isActiveOverlay || isCurrent || isCompleted) return 'text-white'
     return 'text-gray-500'
   }
 
+  const dimensions = size === 'small' ? { width: 36, height: 40 } : { width: 44, height: 48 }
+  const iconSize = size === 'small' ? 'w-4 h-4' : 'w-5 h-5'
+
+  // SVG paths for different directions
+  // Down-pointing chevron (like ▼ with flat top)
+  const downPath = `M0,0 L${dimensions.width},0 L${dimensions.width},${dimensions.height - 12} L${dimensions.width / 2},${dimensions.height} L0,${dimensions.height - 12} Z`
+
+  // Left-pointing chevron (like ◀ with flat right edge)
+  const leftPath = `M12,0 L${dimensions.width},0 L${dimensions.width},${dimensions.height} L12,${dimensions.height} L0,${dimensions.height / 2} Z`
+
+  const path = pointDirection === 'left' ? leftPath : downPath
+
   return (
     <div
       className={cn(
-        'relative flex items-center justify-center',
-        'w-10 h-10 rounded-lg',
-        'transition-all duration-200',
-        getBgColor(),
-        isClickable && 'cursor-pointer hover:scale-110 hover:shadow-md',
+        'relative transition-all duration-200',
+        isClickable && 'cursor-pointer hover:scale-105',
         !isClickable && 'cursor-default opacity-60'
       )}
+      style={{ width: dimensions.width, height: dimensions.height }}
     >
-      <Icon className={cn('w-5 h-5', getTextColor())} />
+      {/* Chevron/Arrow shape using SVG */}
+      <svg
+        width={dimensions.width}
+        height={dimensions.height}
+        viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+        className="absolute inset-0"
+      >
+        <path
+          d={path}
+          fill={getFillColor()}
+          className="transition-colors duration-200"
+        />
+      </svg>
 
-      {/* Chevron arrow indicator pointing right/down */}
+      {/* Icon centered on the chevron */}
       <div
-        className={cn(
-          'absolute -right-1 top-1/2 -translate-y-1/2',
-          'w-0 h-0',
-          'border-t-[6px] border-t-transparent',
-          'border-b-[6px] border-b-transparent',
-          'border-l-[6px]',
-          isActiveOverlay && 'border-l-blue-500',
-          isCurrent && !isActiveOverlay && 'border-l-orange-500',
-          isCompleted && !isCurrent && !isActiveOverlay && 'border-l-green-500',
-          !isCompleted && !isCurrent && !isActiveOverlay && 'border-l-gray-200'
-        )}
-      />
+        className="absolute inset-0 flex items-center justify-center"
+        style={{
+          // Adjust icon position based on chevron direction
+          marginBottom: pointDirection === 'down' ? '4px' : '0',
+          marginLeft: pointDirection === 'left' ? '4px' : '0'
+        }}
+      >
+        <Icon className={cn(iconSize, getIconColor())} />
+      </div>
     </div>
   )
 }
@@ -107,10 +131,12 @@ function ChevronShape({
  * Progress chevrons displayed on the right side of the chat
  *
  * Each chevron represents a trip stage:
- * - Green filled: Completed
- * - Orange filled: Current/active stage
- * - Gray: Future/incomplete
+ * - Green: Completed (points down)
+ * - Orange: Current/active stage (points LEFT toward overlay)
+ * - Gray: Future/incomplete (points down)
  * - Blue: Currently viewing this overlay
+ *
+ * Also includes a "Travelers" button at the bottom
  */
 export function ProgressChevrons({
   progressSteps,
@@ -125,16 +151,20 @@ export function ProgressChevrons({
     <TooltipProvider>
       <div
         className={cn(
-          'flex items-center gap-2 p-2',
-          isVertical ? 'flex-col' : 'flex-row'
+          'flex items-center p-1',
+          isVertical ? 'flex-col gap-0' : 'flex-row gap-1'
         )}
       >
-        {TRIP_PROGRESS_STEPS.map((step, index) => {
+        {/* Progress step chevrons */}
+        {TRIP_PROGRESS_STEPS.map((step) => {
           const isCompleted = progressSteps[step.key]
           const isCurrent = step.key === currentStageKey
           const overlayType = STEP_TO_OVERLAY[step.key]
           const isActiveOverlay = overlayType && activeOverlay === overlayType
           const isClickable = overlayType !== null
+
+          // Current stage points left (toward overlay), others point down
+          const pointDirection = (isCurrent || isActiveOverlay) ? 'left' : 'down'
 
           return (
             <Tooltip key={step.key}>
@@ -142,30 +172,62 @@ export function ProgressChevrons({
                 <button
                   onClick={() => isClickable && onChevronClick(overlayType)}
                   disabled={!isClickable}
-                  className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
+                  className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
                   aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isCurrent ? ' (current)' : ''}`}
                 >
-                  <ChevronShape
+                  <ChevronArrow
                     isCompleted={isCompleted}
                     isCurrent={isCurrent}
                     isActiveOverlay={!!isActiveOverlay}
                     isClickable={isClickable}
                     icon={step.icon}
-                    label={step.label}
+                    size={isVertical ? 'normal' : 'small'}
+                    pointDirection={isVertical ? pointDirection : 'down'}
                   />
                 </button>
               </TooltipTrigger>
               <TooltipContent side={isVertical ? 'left' : 'top'} className="max-w-[200px]">
                 <div className="text-sm">
                   <p className="font-medium">{step.label}</p>
-                  <p className="text-gray-500 text-xs mt-1">{step.tooltip}</p>
-                  {isCompleted && <p className="text-green-600 text-xs mt-1">✓ Completed</p>}
-                  {isCurrent && !isCompleted && <p className="text-orange-600 text-xs mt-1">● Current focus</p>}
+                  <p className="text-gray-500 text-xs mt-0.5">{step.tooltip}</p>
+                  {isCompleted && <p className="text-green-600 text-xs mt-0.5">✓ Completed</p>}
+                  {isCurrent && !isCompleted && <p className="text-orange-600 text-xs mt-0.5">● Current</p>}
                 </div>
               </TooltipContent>
             </Tooltip>
           )
         })}
+
+        {/* Divider */}
+        <div className={cn(
+          'bg-gray-300',
+          isVertical ? 'w-8 h-px my-2' : 'h-6 w-px mx-1'
+        )} />
+
+        {/* Travelers button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => onChevronClick('travelers')}
+              className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+              aria-label="View travelers"
+            >
+              <ChevronArrow
+                isCompleted={false}
+                isCurrent={false}
+                isActiveOverlay={activeOverlay === 'travelers'}
+                isClickable={true}
+                icon={Users}
+                size={isVertical ? 'normal' : 'small'}
+                pointDirection={activeOverlay === 'travelers' ? 'left' : 'down'}
+              />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side={isVertical ? 'left' : 'top'}>
+            <p className="text-sm font-medium">Travelers</p>
+            <p className="text-gray-500 text-xs">View and manage trip members</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </TooltipProvider>
   )
