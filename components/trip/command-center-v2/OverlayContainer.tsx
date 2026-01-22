@@ -178,7 +178,7 @@ export function OverlayContainer({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmClose} className="bg-red-600 hover:bg-red-700 text-white">
+            <AlertDialogAction onClick={handleConfirmClose} className="bg-brand-red hover:opacity-90 text-white">
               Discard
             </AlertDialogAction>
           </AlertDialogFooter>

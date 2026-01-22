@@ -687,7 +687,7 @@ export function ExpensesOverlay({
             <AlertDialogCancel onClick={() => setDeletingExpenseId(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingExpenseId && handleDeleteExpense(deletingExpenseId)}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-brand-red hover:opacity-90"
               disabled={deleting}
             >
               {deleting ? 'Deleting...' : 'Delete'}

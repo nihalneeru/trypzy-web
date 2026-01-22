@@ -60,7 +60,10 @@ code {
 @layer base {
   :root {
         /* Trypzy Brand Colors */
-        --brand-primary: #FA3823;
+        --brand-red: #FA3823;
+        --brand-blue: #00334D;
+        --brand-carbon: #2E303B;
+        --brand-sand: #F2EDDA;
         --brand-text: #111111;
         --brand-bg: #FFFFFF;
         --brand-muted: #6B7280;
