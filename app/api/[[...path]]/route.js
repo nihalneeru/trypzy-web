@@ -2924,6 +2924,9 @@ async function handleRoute(request, { params }) {
           { status: 403 }
         ))
       }
+
+      const circle = await db.collection('circles').findOne({ id: circleId })
+      const circleName = circle?.name || 'Circle'
       
       // Get all trips in this circle
       const trips = await db.collection('trips')
@@ -2951,6 +2954,36 @@ async function handleRoute(request, { params }) {
       
       // Build updates from trips
       const updates = []
+
+      // Update: Circle members joined (including owner for circle creation marker)
+      const circleMemberships = await db.collection('memberships')
+        .find({ circleId })
+        .sort({ joinedAt: -1 })
+        .toArray()
+
+      const circleMemberIds = [...new Set(circleMemberships.map(m => m.userId).filter(Boolean))]
+      const circleMembers = circleMemberIds.length > 0
+        ? await db.collection('users')
+            .find({ id: { $in: circleMemberIds } })
+            .toArray()
+        : []
+      const circleMemberMap = new Map(circleMembers.map(u => [u.id, u.name]))
+
+      for (const member of circleMemberships) {
+        if (member.joinedAt) {
+          const userName = circleMemberMap.get(member.userId) || 'Unknown'
+          updates.push({
+            id: `circle-join-${circleId}-${member.userId}`,
+            type: 'circle_member_joined',
+            timestamp: member.joinedAt,
+            circleId,
+            circleName,
+            actorId: member.userId,
+            actorName: userName,
+            message: `${userName} joined ${circleName}`
+          })
+        }
+      }
       
       for (const trip of visibleTrips) {
         const tripName = trip.name
