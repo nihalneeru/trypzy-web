@@ -20,8 +20,8 @@ export type OverlayType =
 interface ProgressChevronsProps {
   /** Progress steps completion status */
   progressSteps: Record<string, boolean>
-  /** Currently active/focused stage key */
-  currentStageKey: string | null
+  /** Blocker stage key - the chevron that needs attention (points left) */
+  blockerStageKey: string | null
   /** Callback when a chevron is clicked */
   onChevronClick: (overlayType: OverlayType) => void
   /** Currently open overlay (for highlighting) */
@@ -132,7 +132,7 @@ function ChevronArrow({
  *
  * Each chevron represents a trip stage:
  * - Green: Completed (points down)
- * - Orange: Current/active stage (points LEFT toward overlay)
+ * - Orange: Blocker stage that needs attention (points LEFT toward overlay)
  * - Gray: Future/incomplete (points down)
  * - Blue: Currently viewing this overlay
  *
@@ -140,7 +140,7 @@ function ChevronArrow({
  */
 export function ProgressChevrons({
   progressSteps,
-  currentStageKey,
+  blockerStageKey,
   onChevronClick,
   activeOverlay,
   orientation = 'vertical'
@@ -152,19 +152,19 @@ export function ProgressChevrons({
       <div
         className={cn(
           'flex items-center p-1',
-          isVertical ? 'flex-col gap-0' : 'flex-row gap-1'
+          isVertical ? 'flex-col gap-0.5' : 'flex-row gap-1'
         )}
       >
         {/* Progress step chevrons */}
         {TRIP_PROGRESS_STEPS.map((step) => {
           const isCompleted = progressSteps[step.key]
-          const isCurrent = step.key === currentStageKey
+          const isBlocker = step.key === blockerStageKey
           const overlayType = STEP_TO_OVERLAY[step.key]
           const isActiveOverlay = overlayType && activeOverlay === overlayType
           const isClickable = overlayType !== null
 
-          // Current stage points left (toward overlay), others point down
-          const pointDirection = (isCurrent || isActiveOverlay) ? 'left' : 'down'
+          // Blocker stage points left (toward overlay), others point down
+          const pointDirection = (isBlocker || isActiveOverlay) ? 'left' : 'down'
 
           return (
             <Tooltip key={step.key}>
@@ -172,18 +172,30 @@ export function ProgressChevrons({
                 <button
                   onClick={() => isClickable && onChevronClick(overlayType)}
                   disabled={!isClickable}
-                  className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
-                  aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isCurrent ? ' (current)' : ''}`}
+                  className={cn(
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded',
+                    'flex flex-col items-center gap-0.5'
+                  )}
+                  aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isBlocker ? ' (needs attention)' : ''}`}
                 >
                   <ChevronArrow
                     isCompleted={isCompleted}
-                    isCurrent={isCurrent}
+                    isCurrent={isBlocker}
                     isActiveOverlay={!!isActiveOverlay}
                     isClickable={isClickable}
                     icon={step.icon}
                     size={isVertical ? 'normal' : 'small'}
                     pointDirection={isVertical ? pointDirection : 'down'}
                   />
+                  {/* Text label below chevron */}
+                  {isVertical && (
+                    <span className={cn(
+                      'text-[9px] font-medium leading-tight text-center w-10 truncate',
+                      isActiveOverlay ? 'text-blue-600' : isBlocker ? 'text-orange-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
+                    )}>
+                      {step.shortLabel}
+                    </span>
+                  )}
                 </button>
               </TooltipTrigger>
               <TooltipContent side={isVertical ? 'left' : 'top'} className="max-w-[200px]">
@@ -191,7 +203,7 @@ export function ProgressChevrons({
                   <p className="font-medium">{step.label}</p>
                   <p className="text-gray-500 text-xs mt-0.5">{step.tooltip}</p>
                   {isCompleted && <p className="text-green-600 text-xs mt-0.5">✓ Completed</p>}
-                  {isCurrent && !isCompleted && <p className="text-orange-600 text-xs mt-0.5">● Current</p>}
+                  {isBlocker && !isCompleted && <p className="text-orange-600 text-xs mt-0.5">● Needs attention</p>}
                 </div>
               </TooltipContent>
             </Tooltip>
@@ -209,7 +221,10 @@ export function ProgressChevrons({
           <TooltipTrigger asChild>
             <button
               onClick={() => onChevronClick('travelers')}
-              className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+              className={cn(
+                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded',
+                'flex flex-col items-center gap-0.5'
+              )}
               aria-label="View travelers"
             >
               <ChevronArrow
@@ -221,6 +236,15 @@ export function ProgressChevrons({
                 size={isVertical ? 'normal' : 'small'}
                 pointDirection={activeOverlay === 'travelers' ? 'left' : 'down'}
               />
+              {/* Text label below chevron */}
+              {isVertical && (
+                <span className={cn(
+                  'text-[9px] font-medium leading-tight text-center w-10 truncate',
+                  activeOverlay === 'travelers' ? 'text-blue-600' : 'text-gray-400'
+                )}>
+                  Travelers
+                </span>
+              )}
             </button>
           </TooltipTrigger>
           <TooltipContent side={isVertical ? 'left' : 'top'}>

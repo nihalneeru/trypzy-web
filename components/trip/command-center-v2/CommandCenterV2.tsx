@@ -340,27 +340,22 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   const currentStage = useMemo(() => deriveTripPrimaryStage(trip), [trip])
   const blocker = useMemo(() => deriveBlocker(trip, user), [trip, user])
 
-  // Find current stage key for progress chevrons
-  const currentStageKey = useMemo(() => {
-    switch (currentStage) {
-      case TripPrimaryStage.PROPOSED:
-        return 'tripProposed'
-      case TripPrimaryStage.DATES_LOCKED:
+  // Find blocker stage key for progress chevrons - the chevron that points left matches the focus banner
+  // This is based on the blocker (what needs attention), not the current stage
+  const blockerStageKey = useMemo(() => {
+    switch (blocker) {
+      case 'DATES':
         return 'datesLocked'
-      case TripPrimaryStage.ITINERARY:
+      case 'ITINERARY':
         return 'itineraryFinalized'
-      case TripPrimaryStage.STAY:
+      case 'ACCOMMODATION':
         return 'accommodationChosen'
-      case TripPrimaryStage.PREP:
-        return 'prepStarted'
-      case TripPrimaryStage.ONGOING:
-        return 'tripOngoing'
-      case TripPrimaryStage.COMPLETED:
-        return 'expensesSettled'
+      case 'READY':
+        return null // No chevron points left when ready
       default:
-        return 'tripProposed'
+        return 'datesLocked' // Default to dates if unknown
     }
-  }, [currentStage])
+  }, [blocker])
 
   // Extract travelers from trip data (use participantsWithStatus if available, fallback to travelers)
   const travelers = useMemo(() => {
@@ -475,7 +470,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         >
           <ProgressChevrons
             progressSteps={progressSteps}
-            currentStageKey={currentStageKey}
+            blockerStageKey={blockerStageKey}
             onChevronClick={handleChevronClick}
             activeOverlay={activeOverlay}
             orientation="vertical"
