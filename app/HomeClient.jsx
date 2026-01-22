@@ -2989,6 +2989,8 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                           switch (type) {
                             case 'trip_created':
                               return <Plus className="h-3.5 w-3.5" />
+                            case 'circle_created':
+                              return <Plus className="h-3.5 w-3.5" />
                             case 'circle_member_joined':
                               return <UserPlus className="h-3.5 w-3.5" />
                             case 'user_joined':
@@ -3031,6 +3033,8 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                             switch (update.type) {
                               case 'trip_created':
                                 return `${update.actorName} created`
+                              case 'circle_created':
+                                return `${update.actorName} created`
                               case 'circle_member_joined':
                                 return `${update.actorName} joined`
                               case 'user_joined':
@@ -3054,7 +3058,9 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
 
                         const contextLabel = update.tripName || update.circleName || ''
                         const hasTripTarget = Boolean(update.tripId)
-                        const hasMemberTarget = update.type === 'circle_member_joined' && update.actorId
+                        const hasMemberTarget =
+                          (update.type === 'circle_member_joined' || update.type === 'circle_created') &&
+                          update.actorId
                         const isClickable = hasTripTarget || hasMemberTarget
                         
                         return (

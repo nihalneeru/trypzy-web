@@ -2972,15 +2972,18 @@ async function handleRoute(request, { params }) {
       for (const member of circleMemberships) {
         if (member.joinedAt) {
           const userName = circleMemberMap.get(member.userId) || 'Unknown'
+          const isOwner = member.role === 'owner'
           updates.push({
-            id: `circle-join-${circleId}-${member.userId}`,
-            type: 'circle_member_joined',
+            id: `${isOwner ? 'circle-created' : 'circle-join'}-${circleId}-${member.userId}`,
+            type: isOwner ? 'circle_created' : 'circle_member_joined',
             timestamp: member.joinedAt,
             circleId,
             circleName,
             actorId: member.userId,
             actorName: userName,
-            message: `${userName} joined ${circleName}`
+            message: isOwner
+              ? `${userName} created ${circleName}`
+              : `${userName} joined ${circleName}`
           })
         }
       }
