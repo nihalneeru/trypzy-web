@@ -3279,11 +3279,248 @@ async function handleRoute(request, { params }) {
       }
       
       await db.collection('trip_messages').insertOne(message)
-      
+
       return handleCORS(NextResponse.json({
         ...message,
         user: { id: auth.user.id, name: auth.user.name }
       }))
+    }
+
+    // ============ TRIP INTELLIGENCE ROUTES (Phase 6 LLM) ============
+
+    // Get trip intelligence (blocker detection, nudges) - GET /api/trips/:id/intelligence
+    if (route.match(/^\/trips\/[^/]+\/intelligence$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      // Get trip data
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check access
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'Access denied' }, { status: 403 }))
+      }
+
+      // Skip AI for canceled/completed trips - return simple heuristic response
+      if (trip.status === 'canceled' || trip.status === 'completed') {
+        const blockerType = trip.status === 'canceled' ? 'READY' : 'READY'
+        return handleCORS(NextResponse.json({
+          blocker: {
+            type: blockerType,
+            confidence: 1.0,
+            reasoning: `Trip is ${trip.status}`,
+            usedLLM: false,
+            cta: trip.status === 'canceled' ? 'Trip canceled' : 'Trip completed'
+          },
+          nudge: null,
+          heuristicBlocker: { type: blockerType, cta: trip.status === 'canceled' ? 'Trip canceled' : 'Trip completed' },
+          llmBlocker: null
+        }))
+      }
+
+      // Get participants to check if trip has active travelers
+      const activeParticipants = await db.collection('trip_participants')
+        .find({ tripId, status: 'active' })
+        .toArray()
+
+      // Skip AI if no active travelers
+      if (activeParticipants.length === 0) {
+        return handleCORS(NextResponse.json({
+          blocker: {
+            type: 'READY',
+            confidence: 1.0,
+            reasoning: 'No active travelers',
+            usedLLM: false,
+            cta: 'No travelers'
+          },
+          nudge: null,
+          heuristicBlocker: { type: 'READY', cta: 'No travelers' },
+          llmBlocker: null
+        }))
+      }
+
+      // Get recent messages for context
+      const messages = await db.collection('trip_messages')
+        .find({ tripId })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .toArray()
+
+      // Use already-fetched participants
+      const totalMembers = activeParticipants.length || trip.activeTravelerCount || 1
+      const respondedCount = trip.respondedCount || 0
+      const votedCount = trip.votedCount || 0
+
+      // Import LLM functions
+      const { detectBlocker, generateNudge, summarizeConsensus, extractAccommodationPreferences } = await import('@/lib/server/llm.js')
+
+      // Compute heuristic blocker first (fallback)
+      const datesLocked = trip.status === 'locked' || !!(trip.lockedStartDate && trip.lockedEndDate)
+      const itineraryFinalized = trip.itineraryStatus === 'selected' || trip.itineraryStatus === 'published'
+      const accommodationChosen = trip.progress?.steps?.accommodationChosen || false
+
+      let heuristicBlocker = { type: 'DATES', cta: 'Pick your dates' }
+      if (datesLocked && !itineraryFinalized) {
+        heuristicBlocker = { type: 'ITINERARY', cta: 'Plan your itinerary' }
+      } else if (datesLocked && itineraryFinalized && !accommodationChosen) {
+        heuristicBlocker = { type: 'ACCOMMODATION', cta: 'Choose accommodation' }
+      } else if (datesLocked && itineraryFinalized && accommodationChosen) {
+        heuristicBlocker = { type: 'READY', cta: 'Trip is ready!' }
+      }
+
+      // Detect blocker with LLM (uses heuristic as fallback)
+      const blocker = await detectBlocker({
+        trip,
+        messages: messages.reverse(), // Chronological order
+        participation: { totalMembers, respondedCount, votedCount },
+        heuristicBlocker
+      })
+
+      // Generate nudge
+      const nudge = await generateNudge({
+        trip,
+        participation: { totalMembers, respondedCount, votedCount },
+        currentBlocker: blocker.type
+      })
+
+      // Only use LLM blocker if confidence is high enough, otherwise use heuristic
+      const CONFIDENCE_THRESHOLD = 0.7
+      const effectiveBlocker = blocker.usedLLM && blocker.confidence >= CONFIDENCE_THRESHOLD
+        ? blocker
+        : { ...heuristicBlocker, confidence: 1.0, reasoning: 'Rule-based detection', usedLLM: false }
+
+      return handleCORS(NextResponse.json({
+        blocker: effectiveBlocker,
+        nudge,
+        heuristicBlocker,
+        llmBlocker: blocker.usedLLM ? blocker : null
+      }))
+    }
+
+    // Get consensus summary - GET /api/trips/:id/consensus
+    if (route.match(/^\/trips\/[^/]+\/consensus$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check access
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'Access denied' }, { status: 403 }))
+      }
+
+      // Skip AI for canceled/completed trips
+      if (trip.status === 'canceled' || trip.status === 'completed') {
+        return handleCORS(NextResponse.json({
+          consensus: {
+            agreements: [],
+            unresolved: [],
+            actionItems: [],
+            summary: `Trip is ${trip.status}.`
+          }
+        }))
+      }
+
+      const messages = await db.collection('trip_messages')
+        .find({ tripId })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray()
+
+      const { summarizeConsensus } = await import('@/lib/server/llm.js')
+
+      // Determine current blocker for context
+      const datesLocked = trip.status === 'locked'
+      const itineraryFinalized = trip.itineraryStatus === 'selected' || trip.itineraryStatus === 'published'
+      let currentBlocker = 'DATES'
+      if (datesLocked && !itineraryFinalized) currentBlocker = 'ITINERARY'
+      else if (datesLocked && itineraryFinalized) currentBlocker = 'ACCOMMODATION'
+
+      const consensus = await summarizeConsensus({
+        messages: messages.reverse(),
+        currentBlocker,
+        tripContext: {
+          status: trip.status,
+          lockedDates: trip.lockedStartDate ? `${trip.lockedStartDate} to ${trip.lockedEndDate}` : null
+        }
+      })
+
+      return handleCORS(NextResponse.json({ consensus }))
+    }
+
+    // Get accommodation preferences - GET /api/trips/:id/accommodation-preferences
+    if (route.match(/^\/trips\/[^/]+\/accommodation-preferences$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check access
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'Access denied' }, { status: 403 }))
+      }
+
+      // Skip AI for canceled/completed trips
+      if (trip.status === 'canceled' || trip.status === 'completed') {
+        return handleCORS(NextResponse.json({ preferences: null }))
+      }
+
+      const messages = await db.collection('trip_messages')
+        .find({ tripId })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .toArray()
+
+      const participants = await db.collection('trip_participants')
+        .find({ tripId, status: 'active' })
+        .toArray()
+
+      // Skip AI if no active travelers
+      if (participants.length === 0) {
+        return handleCORS(NextResponse.json({ preferences: null }))
+      }
+
+      const { extractAccommodationPreferences } = await import('@/lib/server/llm.js')
+
+      const preferences = await extractAccommodationPreferences({
+        messages: messages.reverse(),
+        groupSize: participants.length || trip.activeTravelerCount || 1
+      })
+
+      return handleCORS(NextResponse.json({ preferences }))
     }
 
     // ============ POSTS/MEMORIES ROUTES ============
@@ -5385,17 +5622,28 @@ async function handleRoute(request, { params }) {
         .find({ id: { $in: userIds } })
         .toArray()
       
+      // Phase 7: Get votes for each option
+      const votes = await db.collection('accommodation_votes')
+        .find({ tripId })
+        .toArray()
+
+      // Check if current user has voted
+      const userVote = votes.find(v => v.votedBy === auth.user.id)
+
       const optionsWithUsers = options.map(option => {
         const user = users.find(u => u.id === option.addedByUserId)
+        const optionVotes = votes.filter(v => v.optionId === option.id)
         return {
           ...option,
-          addedBy: user ? { id: user.id, name: user.name } : null
+          addedBy: user ? { id: user.id, name: user.name } : null,
+          votes: optionVotes.length,
+          userVoted: userVote?.optionId === option.id
         }
       })
-      
+
       return handleCORS(NextResponse.json(optionsWithUsers))
     }
-    
+
     // Create accommodation option - POST /api/trips/:tripId/accommodations
     if (route.match(/^\/trips\/[^/]+\/accommodations$/) && method === 'POST') {
       const auth = await requireAuth(request)
@@ -5504,7 +5752,102 @@ async function handleRoute(request, { params }) {
         addedBy: user ? { id: user.id, name: user.name } : null
       }))
     }
-    
+
+    // Vote for accommodation option - POST /api/trips/:tripId/accommodations/:optionId/vote
+    // Phase 7: Constrained accommodation voting
+    if (route.match(/^\/trips\/[^/]+\/accommodations\/[^/]+\/vote$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const optionId = path[3]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check user is a participant
+      const participant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id,
+        status: 'active'
+      })
+
+      if (!participant) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active participant in this trip' },
+          { status: 403 }
+        ))
+      }
+
+      const option = await db.collection('accommodation_options').findOne({
+        id: optionId,
+        tripId
+      })
+
+      if (!option) {
+        return handleCORS(NextResponse.json(
+          { error: 'Accommodation option not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check if user has already voted for any option in this trip
+      const existingVote = await db.collection('accommodation_votes').findOne({
+        tripId,
+        votedBy: auth.user.id
+      })
+
+      if (existingVote) {
+        return handleCORS(NextResponse.json(
+          { error: 'You have already voted for an accommodation option' },
+          { status: 400 }
+        ))
+      }
+
+      // Create the vote
+      const vote = {
+        id: `vote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        tripId,
+        optionId,
+        votedBy: auth.user.id,
+        createdAt: new Date().toISOString()
+      }
+
+      await db.collection('accommodation_votes').insertOne(vote)
+
+      // Update option vote count
+      const voteCount = await db.collection('accommodation_votes').countDocuments({
+        tripId,
+        optionId
+      })
+
+      await db.collection('accommodation_options').updateOne(
+        { id: optionId },
+        { $set: { votes: voteCount, updatedAt: new Date().toISOString() } }
+      )
+
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      const user = await db.collection('users').findOne({ id: auth.user.id })
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'accommodation_vote',
+        text: `👍 ${user?.name || 'Someone'} voted for "${option.title}"`,
+        metadata: { optionId, voteCount }
+      })
+
+      return handleCORS(NextResponse.json({ message: 'Vote recorded', voteCount }))
+    }
+
     // Select accommodation option - POST /api/trips/:tripId/accommodations/:optionId/select
     if (route.match(/^\/trips\/[^/]+\/accommodations\/[^/]+\/select$/) && method === 'POST') {
       const auth = await requireAuth(request)

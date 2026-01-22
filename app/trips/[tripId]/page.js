@@ -37,12 +37,13 @@ export default function TripDetailRoute() {
       return
     }
 
-    // Get query params from URL to preserve returnTo and circleId
+    // Get query params from URL to preserve returnTo, circleId, and ui mode
     // Ensure no duplicate params by using URLSearchParams (deduplicates automatically)
     const searchParams = new URLSearchParams(window.location.search)
     const returnTo = searchParams.get('returnTo')
     const circleId = searchParams.get('circleId')
-    
+    const uiMode = searchParams.get('ui')
+
     // Build query string with tripId and preserve other params (no duplicates)
     const queryParams = new URLSearchParams()
     queryParams.set('tripId', tripId)
@@ -51,6 +52,9 @@ export default function TripDetailRoute() {
     }
     if (circleId) {
       queryParams.set('circleId', circleId)
+    }
+    if (uiMode) {
+      queryParams.set('ui', uiMode)
     }
 
     // Redirect to / with tripId query param so the old system can handle it
