@@ -11,6 +11,18 @@ import { ProgressChevrons, OverlayType } from './ProgressChevrons'
 import { TravelerStrip } from './TravelerStrip'
 import { OverlayContainer } from './OverlayContainer'
 
+// Overlay components
+import {
+  SchedulingOverlay,
+  ItineraryOverlay,
+  AccommodationOverlay,
+  TravelersOverlay,
+  PrepOverlay,
+  ExpensesOverlay,
+  MemoriesOverlay,
+  MemberProfileOverlay
+} from './overlays'
+
 // Chat component
 import { ChatTab } from '@/components/trip/TripTabs/tabs/ChatTab'
 
@@ -217,33 +229,6 @@ function ContextCTABar({
   )
 }
 
-/**
- * Overlay content placeholder - Phase 2 will implement actual content
- */
-function OverlayPlaceholder({ overlayType, params }: { overlayType: OverlayType; params: OverlayParams }) {
-  const stepInfo = TRIP_PROGRESS_STEPS.find(step => {
-    const stageKey = getStageKeyFromOverlay(overlayType)
-    return step.key === stageKey
-  })
-
-  return (
-    <div className="flex flex-col items-center justify-center h-64 text-center">
-      {stepInfo && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-full">
-          <stepInfo.icon className="h-8 w-8 text-gray-500" />
-        </div>
-      )}
-      <h3 className="text-lg font-medium text-gray-900 mb-2">
-        {getOverlayTitle(overlayType)}
-      </h3>
-      <p className="text-gray-500 max-w-sm">
-        {overlayType === 'member' && params.memberId
-          ? `Viewing traveler profile for member ${params.memberId}`
-          : `${getOverlayTitle(overlayType)} overlay content coming in Phase 2`}
-      </p>
-    </div>
-  )
-}
 
 /**
  * CommandCenterV2 - Main container orchestrating the chat-centric layout
@@ -259,6 +244,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   // Overlay state
   const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
   const [overlayParams, setOverlayParams] = useState<OverlayParams>({})
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   // Chat hook
   const {
@@ -333,6 +319,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   const closeOverlay = useCallback(() => {
     setActiveOverlay(null)
     setOverlayParams({})
+    setHasUnsavedChanges(false)
   }, [])
 
   // Handle chevron click
@@ -433,9 +420,91 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         isOpen={activeOverlay !== null}
         onClose={closeOverlay}
         title={getOverlayTitle(activeOverlay)}
+        hasUnsavedChanges={hasUnsavedChanges}
       >
-        {activeOverlay && (
-          <OverlayPlaceholder overlayType={activeOverlay} params={overlayParams} />
+        {/* Render appropriate overlay based on activeOverlay type */}
+        {activeOverlay === 'scheduling' && (
+          <SchedulingOverlay
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={onRefresh}
+            onClose={closeOverlay}
+            setHasUnsavedChanges={setHasUnsavedChanges}
+          />
+        )}
+        {activeOverlay === 'itinerary' && (
+          <ItineraryOverlay
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={onRefresh}
+            onClose={closeOverlay}
+            setHasUnsavedChanges={setHasUnsavedChanges}
+          />
+        )}
+        {activeOverlay === 'accommodation' && (
+          <AccommodationOverlay
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={onRefresh}
+            onClose={closeOverlay}
+            setHasUnsavedChanges={setHasUnsavedChanges}
+          />
+        )}
+        {activeOverlay === 'travelers' && (
+          <TravelersOverlay
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={onRefresh}
+            onClose={closeOverlay}
+            setHasUnsavedChanges={setHasUnsavedChanges}
+          />
+        )}
+        {activeOverlay === 'prep' && (
+          <PrepOverlay
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={onRefresh}
+            onClose={closeOverlay}
+            setHasUnsavedChanges={setHasUnsavedChanges}
+          />
+        )}
+        {activeOverlay === 'expenses' && (
+          <ExpensesOverlay
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={onRefresh}
+            onClose={closeOverlay}
+            setHasUnsavedChanges={setHasUnsavedChanges}
+          />
+        )}
+        {activeOverlay === 'memories' && (
+          <MemoriesOverlay
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={onRefresh}
+            onClose={closeOverlay}
+            setHasUnsavedChanges={setHasUnsavedChanges}
+          />
+        )}
+        {activeOverlay === 'member' && overlayParams.memberId && (
+          <MemberProfileOverlay
+            memberId={overlayParams.memberId}
+            token={token}
+            currentUserId={user?.id}
+            onClose={closeOverlay}
+          />
+        )}
+        {activeOverlay === 'proposed' && (
+          <div className="p-4 text-center text-gray-500">
+            Trip proposal details - view trip info and basic settings
+          </div>
         )}
       </OverlayContainer>
     </div>

@@ -1,0 +1,1253 @@
+'use client'
+
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Lightbulb,
+  ListTodo,
+  MessageCircle,
+  Vote,
+  MapPin,
+  Calendar as CalendarIcon,
+  Sparkles,
+  RefreshCw,
+  Edit2,
+  Save,
+  X,
+  ThumbsUp,
+  Heart,
+  ChevronDown
+} from 'lucide-react'
+import { BrandedSpinner } from '@/app/HomeClient'
+import { toast } from 'sonner'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface ItineraryOverlayProps {
+  trip: any
+  token: string
+  user: any
+  onRefresh: (updatedTrip?: any) => void
+  onClose: () => void
+  setHasUnsavedChanges: (has: boolean) => void
+}
+
+interface Idea {
+  id: string
+  text: string
+  authorUserId?: string
+  authorId?: string
+  userId?: string
+  author?: {
+    name: string
+    id?: string
+  }
+  likeCount?: number
+  userLiked?: boolean
+  createdAt?: string
+}
+
+interface Feedback {
+  id: string
+  type: string
+  target?: string
+  message: string
+  author?: {
+    name: string
+  }
+  createdAt: string
+}
+
+interface ItineraryVersion {
+  id: string
+  version: number
+  changeLog?: string
+  createdAt?: string
+  content?: {
+    overview?: {
+      pace?: string
+      budget?: string
+      notes?: string
+    }
+    days?: ItineraryDay[]
+  }
+}
+
+interface ItineraryDay {
+  date: string
+  title?: string
+  blocks?: ItineraryBlock[]
+}
+
+interface ItineraryBlock {
+  timeRange: string
+  title: string
+  description?: string
+  location?: string
+  estCost?: string
+  transitNotes?: string
+  tags?: string[]
+}
+
+interface Reaction {
+  id: string
+  userId: string
+  reactionKey: string
+  category: string
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const FEEDBACK_TYPES = [
+  { value: 'general', label: 'General' },
+  { value: 'add', label: 'Add something' },
+  { value: 'remove', label: 'Remove something' },
+  { value: 'modify', label: 'Modify' },
+  { value: 'timing', label: 'Timing issue' },
+  { value: 'budget', label: 'Budget concern' }
+]
+
+const REACTION_GROUPS = [
+  {
+    category: 'pace',
+    label: 'Pace',
+    exclusive: true,
+    advanced: false,
+    reactions: [
+      { id: 'pace:slow', label: 'Slower', emoji: '🐢', advanced: false },
+      { id: 'pace:balanced', label: 'Balanced', emoji: '⚖️', advanced: false },
+      { id: 'pace:fast', label: 'Faster', emoji: '⚡', advanced: false }
+    ]
+  },
+  {
+    category: 'focus',
+    label: 'Focus',
+    exclusive: false,
+    advanced: false,
+    reactions: [
+      { id: 'focus:culture', label: 'Culture', emoji: '🏛️', advanced: false },
+      { id: 'focus:food', label: 'Food', emoji: '🍽️', advanced: false },
+      { id: 'focus:nature', label: 'Nature', emoji: '🌲', advanced: false },
+      { id: 'focus:local', label: 'Local vibes', emoji: '🗺️', advanced: false },
+      { id: 'focus:nightlife', label: 'Nightlife', emoji: '🌃', advanced: true }
+    ]
+  },
+  {
+    category: 'budget',
+    label: 'Budget',
+    exclusive: true,
+    advanced: false,
+    reactions: [
+      { id: 'budget:lower', label: 'Save', emoji: '💰', advanced: false },
+      { id: 'budget:mid', label: 'Comfortable', emoji: '💵', advanced: false },
+      { id: 'budget:high', label: 'Splurge', emoji: '💎', advanced: false }
+    ]
+  },
+  {
+    category: 'logistics',
+    label: 'Logistics',
+    exclusive: false,
+    advanced: true,
+    reactions: [
+      { id: 'logistics:fewer-moves', label: 'Fewer travel days', emoji: '🎒', advanced: true },
+      { id: 'logistics:short-days', label: 'Shorter daily travel', emoji: '⏱️', advanced: true },
+      { id: 'logistics:central-base', label: 'Centralized stays', emoji: '🏨', advanced: true }
+    ]
+  }
+]
+
+const MAX_IDEAS_PER_USER = 3
+const MAX_IDEA_LENGTH = 120
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * API Helper - makes authenticated requests to the backend
+ */
+async function api(endpoint: string, options: RequestInit = {}, token: string | null = null): Promise<any> {
+  const headers: Record<string, string> = {}
+
+  if (options.body && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json'
+  } else if (options.method && ['POST', 'PUT', 'PATCH'].includes(options.method)) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const response = await fetch(`/api${endpoint}`, {
+    ...options,
+    headers: { ...headers, ...(options.headers || {}) }
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Something went wrong')
+  }
+
+  return data
+}
+
+/**
+ * Format relative date for display
+ */
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
+  if (days < 365) return `${Math.floor(days / 30)} months ago`
+  return `${Math.floor(days / 365)} years ago`
+}
+
+/**
+ * Parse YYYY-MM-DD date string as local date to avoid timezone issues
+ */
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+/**
+ * Get author ID from various possible fields
+ */
+function getAuthorId(idea: Idea): string | null {
+  if (!idea) return null
+  if (idea.authorUserId) return idea.authorUserId
+  if (idea.authorId) return idea.authorId
+  if (idea.userId) return idea.userId
+  return null
+}
+
+// ============================================================================
+// Component
+// ============================================================================
+
+export function ItineraryOverlay({
+  trip,
+  token,
+  user,
+  onRefresh,
+  onClose,
+  setHasUnsavedChanges
+}: ItineraryOverlayProps) {
+  // ----------------------------------------------------------------------------
+  // Ideas State
+  // ----------------------------------------------------------------------------
+  const [ideas, setIdeas] = useState<Idea[]>([])
+  const [loadingIdeas, setLoadingIdeas] = useState(false)
+  const [newIdeaText, setNewIdeaText] = useState('')
+  const [addingIdea, setAddingIdea] = useState(false)
+
+  // ----------------------------------------------------------------------------
+  // Destination Hint State
+  // ----------------------------------------------------------------------------
+  const [editingDestinationHint, setEditingDestinationHint] = useState(false)
+  const [destinationHintValue, setDestinationHintValue] = useState(trip?.destinationHint || '')
+  const [savingDestinationHint, setSavingDestinationHint] = useState(false)
+
+  // ----------------------------------------------------------------------------
+  // Itinerary State
+  // ----------------------------------------------------------------------------
+  const [latestVersion, setLatestVersion] = useState<ItineraryVersion | null>(null)
+  const [loadingVersions, setLoadingVersions] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [revising, setRevising] = useState(false)
+
+  // ----------------------------------------------------------------------------
+  // Feedback State
+  // ----------------------------------------------------------------------------
+  const [feedback, setFeedback] = useState<Feedback[]>([])
+  const [loadingFeedback, setLoadingFeedback] = useState(false)
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false)
+  const [newFeedback, setNewFeedback] = useState({
+    type: 'general',
+    target: '',
+    message: ''
+  })
+  const [submittingFeedback, setSubmittingFeedback] = useState(false)
+
+  // ----------------------------------------------------------------------------
+  // Reactions State
+  // ----------------------------------------------------------------------------
+  const [reactions, setReactions] = useState<Reaction[]>([])
+  const [loadingReactions, setLoadingReactions] = useState(false)
+  const [reactingChip, setReactingChip] = useState<string | null>(null)
+  const [reactingAction, setReactingAction] = useState<'adding' | 'removing' | null>(null)
+  const [showAdvancedPreferences, setShowAdvancedPreferences] = useState(false)
+
+  // ----------------------------------------------------------------------------
+  // Derived State
+  // ----------------------------------------------------------------------------
+  const viewer = trip?.viewer || {}
+  const viewerIsReadOnly =
+    !viewer.isActiveParticipant ||
+    viewer.participantStatus === 'left' ||
+    trip?.status === 'canceled'
+  const readOnlyReason =
+    trip?.status === 'canceled'
+      ? 'Trip is canceled'
+      : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
+        ? "You've left this trip"
+        : null
+  const isLeader = trip?.isCreator === true
+
+  // Track unsaved changes for idea input
+  useEffect(() => {
+    setHasUnsavedChanges(newIdeaText.trim().length > 0)
+  }, [newIdeaText, setHasUnsavedChanges])
+
+  // Update destination hint value when trip changes
+  useEffect(() => {
+    if (trip?.destinationHint !== undefined) {
+      setDestinationHintValue(trip.destinationHint || '')
+    }
+  }, [trip?.destinationHint])
+
+  // Count user's ideas
+  const userIdeaCount = useMemo(() => {
+    if (!ideas || !user?.id) return 0
+    return ideas.filter((idea) => getAuthorId(idea) === user.id).length
+  }, [ideas, user?.id])
+
+  // Group ideas by traveler
+  const groupedIdeas = useMemo(() => {
+    if (!ideas || ideas.length === 0) return []
+
+    const groups = new Map<
+      string,
+      { travelerId: string; travelerName: string; ideas: Idea[]; count: number }
+    >()
+
+    ideas.forEach((idea) => {
+      const travelerId = getAuthorId(idea)
+      if (!travelerId) return
+
+      const travelerName = idea.author?.name || 'Unknown Traveler'
+
+      if (!groups.has(travelerId)) {
+        groups.set(travelerId, {
+          travelerId,
+          travelerName,
+          ideas: [],
+          count: 0
+        })
+      }
+
+      const group = groups.get(travelerId)!
+      group.ideas.push(idea)
+      group.count = group.ideas.length
+    })
+
+    const currentUserId = user?.id
+    return Array.from(groups.values()).sort((a, b) => {
+      if (currentUserId) {
+        if (a.travelerId === currentUserId) return -1
+        if (b.travelerId === currentUserId) return 1
+      }
+      const aIncomplete = a.count < 3
+      const bIncomplete = b.count < 3
+      if (aIncomplete && !bIncomplete) return -1
+      if (!aIncomplete && bIncomplete) return 1
+      return a.travelerName.localeCompare(b.travelerName)
+    })
+  }, [ideas, user?.id])
+
+  // Calculate new feedback count since current version
+  const newFeedbackCount = useMemo(() => {
+    if (!latestVersion || !feedback || feedback.length === 0) return 0
+
+    const versionCreatedAt = latestVersion.createdAt
+    if (versionCreatedAt) {
+      return feedback.filter((fb) => {
+        if (fb.createdAt) {
+          return new Date(fb.createdAt) > new Date(versionCreatedAt)
+        }
+        return false
+      }).length
+    }
+    return 0
+  }, [latestVersion, feedback])
+
+  // Aggregate reaction counts
+  const reactionCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    reactions.forEach((r) => {
+      counts.set(r.reactionKey, (counts.get(r.reactionKey) || 0) + 1)
+    })
+    return counts
+  }, [reactions])
+
+  // Get current user's reactions
+  const userReactions = useMemo(() => {
+    if (!user?.id) return []
+    return reactions
+      .filter((r) => r.userId === user.id)
+      .map((r) => {
+        for (const group of REACTION_GROUPS) {
+          const matching = group.reactions.find((rx) => rx.id === r.reactionKey)
+          if (matching) return matching.label
+        }
+        return null
+      })
+      .filter(Boolean)
+  }, [reactions, user?.id])
+
+  // Check if revise should be enabled
+  const canRevise = useMemo(() => {
+    if (!latestVersion || !isLeader) return false
+    return newFeedbackCount > 0 && !revising
+  }, [latestVersion, isLeader, newFeedbackCount, revising])
+
+  // ----------------------------------------------------------------------------
+  // Data Loading
+  // ----------------------------------------------------------------------------
+
+  // Load ideas
+  const loadIdeas = useCallback(async () => {
+    if (!trip?.id || !token) return
+    setLoadingIdeas(true)
+    try {
+      const data = await api(`/trips/${trip.id}/ideas`, { method: 'GET' }, token)
+      setIdeas(data.ideas || data || [])
+    } catch (error: any) {
+      console.error('Failed to load ideas:', error)
+      toast.error('Failed to load ideas')
+    } finally {
+      setLoadingIdeas(false)
+    }
+  }, [trip?.id, token])
+
+  // Load itinerary versions
+  const loadVersions = useCallback(async () => {
+    if (!trip?.id || !token) return
+    setLoadingVersions(true)
+    try {
+      const data = await api(`/trips/${trip.id}/itinerary/versions`, { method: 'GET' }, token)
+      const versions = data.versions || data || []
+      if (versions.length > 0) {
+        // Get the latest version (highest version number)
+        const latest = versions.reduce((a: ItineraryVersion, b: ItineraryVersion) =>
+          a.version > b.version ? a : b
+        )
+        setLatestVersion(latest)
+      } else {
+        setLatestVersion(null)
+      }
+    } catch (error: any) {
+      console.error('Failed to load versions:', error)
+    } finally {
+      setLoadingVersions(false)
+    }
+  }, [trip?.id, token])
+
+  // Load feedback
+  const loadFeedback = useCallback(async () => {
+    if (!trip?.id || !token) return
+    setLoadingFeedback(true)
+    try {
+      const data = await api(`/trips/${trip.id}/feedback`, { method: 'GET' }, token)
+      setFeedback(data.feedback || data || [])
+    } catch (error: any) {
+      console.error('Failed to load feedback:', error)
+    } finally {
+      setLoadingFeedback(false)
+    }
+  }, [trip?.id, token])
+
+  // Load reactions for current version
+  const loadReactions = useCallback(async () => {
+    if (!latestVersion || !trip?.id || !token) return
+    setLoadingReactions(true)
+    try {
+      const data = await api(
+        `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions`,
+        { method: 'GET' },
+        token
+      )
+      setReactions(data || [])
+    } catch (error: any) {
+      console.error('Failed to load reactions:', error)
+      setReactions([])
+    } finally {
+      setLoadingReactions(false)
+    }
+  }, [latestVersion, trip?.id, token])
+
+  // Initial data load
+  useEffect(() => {
+    loadIdeas()
+    loadVersions()
+    loadFeedback()
+  }, [loadIdeas, loadVersions, loadFeedback])
+
+  // Load reactions when version changes
+  useEffect(() => {
+    if (latestVersion) {
+      loadReactions()
+    }
+  }, [latestVersion, loadReactions])
+
+  // ----------------------------------------------------------------------------
+  // Actions
+  // ----------------------------------------------------------------------------
+
+  // Add idea
+  const handleAddIdea = async () => {
+    if (!newIdeaText.trim() || addingIdea || viewerIsReadOnly) return
+    if (userIdeaCount >= MAX_IDEAS_PER_USER) {
+      toast.error(`You can only submit ${MAX_IDEAS_PER_USER} ideas`)
+      return
+    }
+
+    setAddingIdea(true)
+    try {
+      await api(
+        `/trips/${trip.id}/ideas`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ text: newIdeaText.trim() })
+        },
+        token
+      )
+      setNewIdeaText('')
+      setHasUnsavedChanges(false)
+      toast.success('Idea submitted!')
+      await loadIdeas()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add idea')
+    } finally {
+      setAddingIdea(false)
+    }
+  }
+
+  // Like/unlike idea
+  const handleLikeIdea = async (ideaId: string) => {
+    if (viewerIsReadOnly) return
+    try {
+      await api(`/trips/${trip.id}/ideas/${ideaId}/like`, { method: 'POST' }, token)
+      await loadIdeas()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to like idea')
+    }
+  }
+
+  // Save destination hint (leader only)
+  const handleSaveDestinationHint = async () => {
+    if (!isLeader) return
+    setSavingDestinationHint(true)
+    try {
+      await api(
+        `/trips/${trip.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ destinationHint: destinationHintValue })
+        },
+        token
+      )
+      toast.success('Destination hint updated')
+      setEditingDestinationHint(false)
+      onRefresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update destination hint')
+    } finally {
+      setSavingDestinationHint(false)
+    }
+  }
+
+  // Cancel destination hint editing
+  const handleCancelDestinationHint = () => {
+    setDestinationHintValue(trip?.destinationHint || '')
+    setEditingDestinationHint(false)
+  }
+
+  // Generate itinerary (leader only)
+  const handleGenerateItinerary = async () => {
+    if (!isLeader || generating) return
+    setGenerating(true)
+    try {
+      await api(`/trips/${trip.id}/generate-itinerary`, { method: 'POST' }, token)
+      toast.success('Itinerary generated!')
+      await loadVersions()
+      onRefresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to generate itinerary')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  // Revise itinerary (leader only)
+  const handleReviseItinerary = async () => {
+    if (!isLeader || revising || !canRevise) return
+    setRevising(true)
+    try {
+      await api(`/trips/${trip.id}/revise-itinerary`, { method: 'POST' }, token)
+      toast.success('Itinerary revised!')
+      await loadVersions()
+      await loadFeedback()
+      onRefresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to revise itinerary')
+    } finally {
+      setRevising(false)
+    }
+  }
+
+  // Submit feedback
+  const handleSubmitFeedback = async () => {
+    if (!newFeedback.message.trim() || submittingFeedback || viewerIsReadOnly) return
+    setSubmittingFeedback(true)
+    try {
+      await api(
+        `/trips/${trip.id}/feedback`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            type: newFeedback.type,
+            target: newFeedback.target || undefined,
+            message: newFeedback.message.trim()
+          })
+        },
+        token
+      )
+      toast.success('Feedback submitted!')
+      setNewFeedback({ type: 'general', target: '', message: '' })
+      setShowFeedbackForm(false)
+      await loadFeedback()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit feedback')
+    } finally {
+      setSubmittingFeedback(false)
+    }
+  }
+
+  // Handle quick reaction click
+  const handleQuickReaction = async (reactionId: string, category: string) => {
+    if (reactingChip || viewerIsReadOnly || !latestVersion) return
+
+    setReactingChip(reactionId)
+
+    try {
+      const userReactionKeys = reactions.filter((r) => r.userId === user?.id).map((r) => r.reactionKey)
+      const hasReaction = userReactionKeys.includes(reactionId)
+
+      if (hasReaction) {
+        setReactingAction('removing')
+        await api(
+          `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions?reactionKey=${encodeURIComponent(reactionId)}`,
+          { method: 'DELETE' },
+          token
+        )
+        toast.success('Reaction removed')
+      } else {
+        setReactingAction('adding')
+        await api(
+          `/trips/${trip.id}/itinerary/versions/${latestVersion.id}/reactions`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ category, reactionKey: reactionId })
+          },
+          token
+        )
+        toast.success('Reaction added')
+      }
+
+      await loadReactions()
+
+      setTimeout(() => {
+        setReactingChip(null)
+        setReactingAction(null)
+      }, 800)
+    } catch (error: any) {
+      setReactingChip(null)
+      setReactingAction(null)
+      toast.error(error.message || 'Failed to update reaction')
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // Render
+  // ----------------------------------------------------------------------------
+
+  return (
+    <div className="space-y-6">
+      {/* Section 1: Ideas Submission */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Lightbulb className="h-5 w-5 text-yellow-500" />
+            Activity Ideas
+          </CardTitle>
+          <CardDescription>
+            Suggest up to {MAX_IDEAS_PER_USER} activities for the trip (max {MAX_IDEA_LENGTH} chars each)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Destination Hint (Leader only) */}
+          {(trip?.destinationHint || isLeader) && (
+            <div className="pb-3 border-b">
+              <p className="text-xs font-medium text-gray-500 mb-1">Destination Hint</p>
+              {editingDestinationHint && isLeader ? (
+                <div className="space-y-2">
+                  <Input
+                    value={destinationHintValue}
+                    onChange={(e) => setDestinationHintValue(e.target.value)}
+                    placeholder="e.g., Kenya (Nairobi + Maasai Mara)"
+                    className="text-sm"
+                    disabled={savingDestinationHint}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={handleSaveDestinationHint}
+                      disabled={savingDestinationHint}
+                      className="h-7"
+                    >
+                      <Save className="h-3 w-3 mr-1" />
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleCancelDestinationHint}
+                      disabled={savingDestinationHint}
+                      className="h-7"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  {trip?.destinationHint ? (
+                    <p className="text-sm text-gray-700 flex-1">{trip.destinationHint}</p>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic flex-1">No destination hint set</p>
+                  )}
+                  {isLeader && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setDestinationHintValue(trip?.destinationHint || '')
+                        setEditingDestinationHint(true)
+                      }}
+                      className="h-7"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Add Idea Form */}
+          {userIdeaCount < MAX_IDEAS_PER_USER ? (
+            <div className="space-y-2">
+              <Textarea
+                value={newIdeaText}
+                onChange={(e) => setNewIdeaText(e.target.value)}
+                placeholder={
+                  viewerIsReadOnly
+                    ? readOnlyReason || ''
+                    : 'e.g., Visit the local market, Try authentic street food...'
+                }
+                className="text-sm min-h-[80px]"
+                maxLength={MAX_IDEA_LENGTH}
+                disabled={viewerIsReadOnly}
+              />
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>{newIdeaText.length}/{MAX_IDEA_LENGTH} characters</span>
+                <span>{userIdeaCount}/{MAX_IDEAS_PER_USER} ideas submitted</span>
+              </div>
+              <Button
+                onClick={handleAddIdea}
+                disabled={viewerIsReadOnly || addingIdea || !newIdeaText.trim()}
+                className="w-full"
+                size="sm"
+              >
+                {addingIdea ? 'Submitting...' : 'Submit Idea'}
+              </Button>
+              {viewerIsReadOnly && readOnlyReason && (
+                <p className="text-xs text-gray-500 text-center mt-1">{readOnlyReason}</p>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-4 px-2 bg-gray-50 rounded-lg border">
+              <p className="text-sm text-gray-600">You've submitted {MAX_IDEAS_PER_USER} ideas</p>
+            </div>
+          )}
+
+          {/* Ideas List - Grouped by Traveler */}
+          <div className="pt-2">
+            <p className="text-xs font-medium text-gray-500 mb-2">All Ideas</p>
+            <ScrollArea className="h-[250px]">
+              {loadingIdeas ? (
+                <div className="flex justify-center py-8">
+                  <BrandedSpinner size="md" />
+                </div>
+              ) : ideas.length === 0 ? (
+                <p className="text-center text-gray-500 py-6 text-sm">
+                  No ideas yet. Add some activities!
+                </p>
+              ) : (
+                <Accordion type="multiple" className="w-full">
+                  {groupedIdeas.map((group) => {
+                    const isCurrentUser = group.travelerId === user?.id
+                    const travelerName = isCurrentUser ? 'You' : group.travelerName
+                    const hasEnoughIdeas = group.count >= 3
+
+                    return (
+                      <AccordionItem key={group.travelerId} value={`traveler-${group.travelerId}`}>
+                        <AccordionTrigger className="hover:no-underline py-2">
+                          <div className="flex items-center gap-2 flex-1 text-left">
+                            <span className="font-medium text-sm">{travelerName}</span>
+                            <span className="text-xs text-gray-500">({group.count}/3)</span>
+                            {hasEnoughIdeas ? (
+                              <span className="text-green-600 text-xs">Complete</span>
+                            ) : (
+                              <span className="text-yellow-600 text-xs">Pending</span>
+                            )}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-2 pt-1">
+                            {group.ideas.map((idea) => (
+                              <div
+                                key={idea.id}
+                                className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg border"
+                              >
+                                <Button
+                                  size="icon"
+                                  variant={idea.userLiked ? 'default' : 'ghost'}
+                                  className="h-7 w-7 flex-shrink-0"
+                                  onClick={() => handleLikeIdea(idea.id)}
+                                  disabled={viewerIsReadOnly}
+                                >
+                                  <Heart
+                                    className={`h-3.5 w-3.5 ${idea.userLiked ? 'text-white fill-white' : ''}`}
+                                  />
+                                </Button>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-gray-900">{idea.text}</p>
+                                  {(idea.likeCount || 0) > 0 && (
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      {idea.likeCount} {idea.likeCount === 1 ? 'like' : 'likes'}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    )
+                  })}
+                </Accordion>
+              )}
+            </ScrollArea>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 2: Itinerary Viewer */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ListTodo className="h-5 w-5" />
+                Itinerary
+              </CardTitle>
+              {latestVersion && (
+                <Badge variant="outline" className="mt-1">
+                  Version {latestVersion.version}
+                </Badge>
+              )}
+            </div>
+            {isLeader && !latestVersion && (
+              <Button
+                onClick={handleGenerateItinerary}
+                disabled={generating}
+                size="sm"
+              >
+                {generating ? (
+                  <>
+                    <BrandedSpinner size="sm" className="mr-2" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[350px]">
+            {loadingVersions ? (
+              <div className="flex justify-center py-8">
+                <BrandedSpinner size="md" />
+              </div>
+            ) : !latestVersion ? (
+              <div className="text-center py-8">
+                <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500 mb-2 text-sm">No itinerary generated yet</p>
+                {isLeader && (
+                  <p className="text-xs text-gray-400">
+                    {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from{' '}
+                    {groupedIdeas.length} {groupedIdeas.length === 1 ? 'traveler' : 'travelers'}
+                  </p>
+                )}
+                {generating && (
+                  <p className="text-xs text-gray-500 mt-2">Building a day-by-day plan...</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Change log */}
+                {latestVersion.changeLog && (
+                  <Accordion type="single" collapsible>
+                    <AccordionItem value="changelog">
+                      <AccordionTrigger className="text-sm py-2">
+                        What changed in v{latestVersion.version}?
+                      </AccordionTrigger>
+                      <AccordionContent className="text-sm text-gray-600">
+                        {latestVersion.changeLog}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                )}
+
+                {/* Overview */}
+                {latestVersion.content?.overview && (
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs font-medium mb-1">Overview</p>
+                    <p className="text-xs text-gray-600">
+                      Pace: {latestVersion.content.overview.pace} | Budget:{' '}
+                      {latestVersion.content.overview.budget}
+                    </p>
+                    {latestVersion.content.overview.notes && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        {latestVersion.content.overview.notes}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Days */}
+                {latestVersion.content?.days && (
+                  <Accordion type="multiple" className="w-full">
+                    {latestVersion.content.days.map((day, dayIdx) => (
+                      <AccordionItem key={dayIdx} value={`day-${dayIdx}`}>
+                        <AccordionTrigger className="hover:no-underline py-2">
+                          <div className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4" />
+                            <span className="font-medium text-sm">
+                              {parseLocalDate(day.date).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                            {day.title && (
+                              <span className="text-xs text-gray-500">- {day.title}</span>
+                            )}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-2 pt-1">
+                            {day.blocks && day.blocks.length > 0 ? (
+                              day.blocks.map((block, blockIdx) => (
+                                <div
+                                  key={blockIdx}
+                                  className="border rounded-lg p-2.5 bg-gray-50"
+                                >
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs font-medium text-[#FA3823]">
+                                      {block.timeRange}
+                                    </span>
+                                    {block.tags?.map((tag, tagIdx) => (
+                                      <Badge key={tagIdx} variant="secondary" className="text-xs">
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                  <p className="font-medium text-sm">{block.title}</p>
+                                  {block.description && (
+                                    <p className="text-xs text-gray-600 mt-0.5">
+                                      {block.description}
+                                    </p>
+                                  )}
+                                  {block.location && (
+                                    <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                                      <MapPin className="h-3 w-3" />
+                                      {block.location}
+                                    </p>
+                                  )}
+                                  {block.estCost && (
+                                    <p className="text-xs text-green-600 mt-0.5">
+                                      Est. {block.estCost}
+                                    </p>
+                                  )}
+                                  {block.transitNotes && (
+                                    <p className="text-xs text-gray-500 mt-0.5 italic">
+                                      Transit: {block.transitNotes}
+                                    </p>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-xs text-gray-400 italic">No activities planned</p>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Section 3: Feedback & Reactions */}
+      {latestVersion && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <MessageCircle className="h-5 w-5" />
+                  Feedback
+                </CardTitle>
+                <CardDescription>
+                  React to v{latestVersion.version} or add detailed feedback
+                </CardDescription>
+              </div>
+              {isLeader && (
+                <div className="flex flex-col items-end gap-1">
+                  {canRevise ? (
+                    <p className="text-xs text-gray-500">
+                      {newFeedbackCount} new {newFeedbackCount === 1 ? 'item' : 'items'} since v
+                      {latestVersion.version}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-400">Waiting for feedback</p>
+                  )}
+                  <Button
+                    onClick={handleReviseItinerary}
+                    disabled={!canRevise}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {revising ? (
+                      <>
+                        <BrandedSpinner size="sm" className="mr-2" />
+                        Revising...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Revise
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Quick Reactions */}
+            <div className="space-y-3">
+              {REACTION_GROUPS.filter(
+                (group) => !group.advanced || showAdvancedPreferences
+              ).map((group) => (
+                <div key={group.category}>
+                  <p className="text-xs font-medium text-gray-700 mb-2">{group.label}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {group.reactions
+                      .filter((rx) => !rx.advanced || showAdvancedPreferences)
+                      .map((reaction) => {
+                        const isReacting = reactingChip === reaction.id
+                        const isDisabled = reactingChip !== null || viewerIsReadOnly
+                        const reactionCount = reactionCounts.get(reaction.id) || 0
+                        const userHasReaction = reactions.some(
+                          (r) => r.userId === user?.id && r.reactionKey === reaction.id
+                        )
+
+                        return (
+                          <Button
+                            key={reaction.id}
+                            variant={userHasReaction ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => handleQuickReaction(reaction.id, group.category)}
+                            disabled={isDisabled}
+                            className="text-xs h-8"
+                          >
+                            {isReacting ? (
+                              <>
+                                <span className="mr-1">OK</span>
+                                {reactingAction === 'adding' ? 'Added!' : 'Removed!'}
+                              </>
+                            ) : (
+                              <>
+                                <span className="mr-1">{reaction.emoji}</span>
+                                {reaction.label}
+                                {reactionCount > 0 && (
+                                  <span className="ml-1 text-gray-500">({reactionCount})</span>
+                                )}
+                              </>
+                            )}
+                          </Button>
+                        )
+                      })}
+                  </div>
+                </div>
+              ))}
+
+              <button
+                onClick={() => setShowAdvancedPreferences(!showAdvancedPreferences)}
+                className="text-xs text-gray-600 hover:text-gray-900 underline"
+              >
+                {showAdvancedPreferences ? 'Fewer preferences' : 'More preferences'}
+              </button>
+
+              {userReactions.length > 0 && (
+                <p className="text-xs text-gray-500 pt-2 border-t">
+                  Your selections: {userReactions.join(', ')}
+                </p>
+              )}
+            </div>
+
+            {/* Feedback List */}
+            <div className="pt-2 border-t">
+              <p className="text-xs font-medium text-gray-500 mb-2">Feedback History</p>
+              <ScrollArea className="h-[200px]">
+                {loadingFeedback ? (
+                  <div className="flex justify-center py-6">
+                    <BrandedSpinner size="md" />
+                  </div>
+                ) : feedback.length === 0 ? (
+                  <p className="text-center text-gray-500 py-6 text-sm">
+                    No feedback yet. Share your thoughts!
+                  </p>
+                ) : (
+                  <div className="space-y-2 pr-2">
+                    {feedback.map((fb) => (
+                      <div key={fb.id} className="p-2.5 bg-gray-50 rounded-lg border">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium">{fb.author?.name || 'Anonymous'}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {FEEDBACK_TYPES.find((t) => t.value === fb.type)?.label || fb.type}
+                          </Badge>
+                        </div>
+                        {fb.target && (
+                          <p className="text-xs text-gray-500 mb-1">Target: {fb.target}</p>
+                        )}
+                        <p className="text-sm text-gray-700">{fb.message}</p>
+                        <p className="text-xs text-gray-400 mt-1">{formatDate(fb.createdAt)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+
+            {/* Add Feedback Form */}
+            <Collapsible open={showFeedbackForm} onOpenChange={setShowFeedbackForm}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs"
+                  disabled={viewerIsReadOnly}
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 mr-1 transition-transform ${showFeedbackForm ? 'rotate-180' : ''}`}
+                  />
+                  {showFeedbackForm ? 'Hide form' : 'Add detailed feedback'}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-2 pt-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      value={newFeedback.type}
+                      onValueChange={(v) => setNewFeedback({ ...newFeedback, type: v })}
+                    >
+                      <SelectTrigger className="text-sm h-9">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FEEDBACK_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={newFeedback.target}
+                      onChange={(e) => setNewFeedback({ ...newFeedback, target: e.target.value })}
+                      placeholder="Target (optional)"
+                      className="text-sm h-9"
+                      disabled={viewerIsReadOnly}
+                    />
+                  </div>
+                  <Textarea
+                    value={newFeedback.message}
+                    onChange={(e) => setNewFeedback({ ...newFeedback, message: e.target.value })}
+                    placeholder="Your feedback..."
+                    className="text-sm min-h-[70px] resize-none"
+                    disabled={viewerIsReadOnly}
+                  />
+                  <Button
+                    onClick={handleSubmitFeedback}
+                    disabled={submittingFeedback || !newFeedback.message.trim() || viewerIsReadOnly}
+                    className="w-full"
+                    size="sm"
+                  >
+                    {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                  </Button>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+export default ItineraryOverlay
