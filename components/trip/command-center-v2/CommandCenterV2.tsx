@@ -34,7 +34,7 @@ import { computeProgressSteps } from '@/lib/trips/progress'
 import { deriveTripPrimaryStage, TripPrimaryStage } from '@/lib/trips/stage'
 
 // Constants
-const CHEVRON_BAR_WIDTH = 60 // Width of the chevron sidebar in pixels
+const CHEVRON_BAR_WIDTH = 56 // Width of the chevron sidebar in pixels (narrower for mobile compatibility)
 
 // Types
 interface CommandCenterV2Props {
@@ -464,10 +464,10 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
           </div>
         </div>
 
-        {/* Progress Chevrons sidebar (desktop only) */}
+        {/* Progress Chevrons sidebar - always on right side */}
         <div
           ref={chevronBarRef}
-          className="hidden md:flex flex-col items-center justify-center border-l border-gray-200 bg-gray-50 shrink-0"
+          className="flex flex-col items-center justify-start border-l border-gray-200 bg-gray-50 shrink-0 overflow-y-auto py-2"
           style={{ width: CHEVRON_BAR_WIDTH }}
         >
           <ProgressChevrons
@@ -478,17 +478,6 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
             orientation="vertical"
           />
         </div>
-      </div>
-
-      {/* Mobile Progress Chevrons - horizontal strip */}
-      <div className="md:hidden flex items-center justify-center py-2 px-2 bg-gray-50 border-t border-gray-200 overflow-x-auto shrink-0">
-        <ProgressChevrons
-          progressSteps={progressSteps}
-          currentStageKey={currentStageKey}
-          onChevronClick={handleChevronClick}
-          activeOverlay={activeOverlay}
-          orientation="horizontal"
-        />
       </div>
 
       {/* Overlay Container - slides in from right, offset by chevron bar width on desktop */}

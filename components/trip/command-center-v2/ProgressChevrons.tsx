@@ -77,8 +77,8 @@ function ChevronArrow({
     return 'text-gray-500'
   }
 
-  const dimensions = size === 'small' ? { width: 36, height: 40 } : { width: 44, height: 48 }
-  const iconSize = size === 'small' ? 'w-4 h-4' : 'w-5 h-5'
+  const dimensions = size === 'small' ? { width: 32, height: 36 } : { width: 40, height: 44 }
+  const iconSize = size === 'small' ? 'w-3.5 h-3.5' : 'w-4 h-4'
 
   // SVG paths for different directions
   // Down-pointing chevron (like ▼ with flat top)
