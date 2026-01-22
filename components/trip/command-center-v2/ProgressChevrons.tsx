@@ -77,8 +77,8 @@ function ChevronArrow({
     return 'text-gray-500'
   }
 
-  const dimensions = size === 'small' ? { width: 32, height: 36 } : { width: 40, height: 44 }
-  const iconSize = size === 'small' ? 'w-3.5 h-3.5' : 'w-4 h-4'
+  const dimensions = size === 'small' ? { width: 32, height: 36 } : { width: 48, height: 40 }
+  const iconSize = size === 'small' ? 'w-3.5 h-3.5' : 'w-5 h-5'
 
   // SVG paths for different directions
   // Down-pointing chevron (like ▼ with flat top)
@@ -190,7 +190,7 @@ export function ProgressChevrons({
                   {/* Text label below chevron */}
                   {isVertical && (
                     <span className={cn(
-                      'text-[9px] font-medium leading-tight text-center w-10 truncate',
+                      'text-[8px] font-medium leading-tight text-center w-16',
                       isActiveOverlay ? 'text-blue-600' : isBlocker ? 'text-orange-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
                     )}>
                       {step.shortLabel}
@@ -213,7 +213,7 @@ export function ProgressChevrons({
         {/* Divider */}
         <div className={cn(
           'bg-gray-300',
-          isVertical ? 'w-8 h-px my-2' : 'h-6 w-px mx-1'
+          isVertical ? 'w-12 h-px my-2' : 'h-6 w-px mx-1'
         )} />
 
         {/* Travelers button */}
@@ -239,7 +239,7 @@ export function ProgressChevrons({
               {/* Text label below chevron */}
               {isVertical && (
                 <span className={cn(
-                  'text-[9px] font-medium leading-tight text-center w-10 truncate',
+                  'text-[8px] font-medium leading-tight text-center w-16',
                   activeOverlay === 'travelers' ? 'text-blue-600' : 'text-gray-400'
                 )}>
                   Travelers

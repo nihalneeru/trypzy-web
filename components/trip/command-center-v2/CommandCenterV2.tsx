@@ -34,7 +34,7 @@ import { computeProgressSteps } from '@/lib/trips/progress'
 import { deriveTripPrimaryStage, TripPrimaryStage } from '@/lib/trips/stage'
 
 // Constants
-const CHEVRON_BAR_WIDTH = 56 // Width of the chevron sidebar in pixels (narrower for mobile compatibility)
+const CHEVRON_BAR_WIDTH = 72 // Width of the chevron sidebar in pixels
 
 // Types
 interface CommandCenterV2Props {
