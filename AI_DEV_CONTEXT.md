@@ -22,6 +22,43 @@ Trypzy is a **private, trust-based trip planning platform** for friend groups. T
 4. **Privacy-First**: Trust-based design with context-aware privacy controls that never prevent users from seeing their own trips.
 5. **Progressive Narrowing**: Scheduling narrows intent until a single moment of commitment (date locking), then everything flows from that.
 
+### Trip Command Center (Default Trip Detail View)
+
+The Trip Command Center is now the **default experience** when viewing a trip. It implements a chat-centric, decision-focused UI.
+
+**Three-Zone Architecture:**
+```
+┌─────────────────────────────────────────────────────┐
+│  Zone 1: Trip Focus Banner                           │
+│  - "What's blocking this trip?" (DATES/ITINERARY/   │
+│    ACCOMMODATION/READY)                              │
+│  - LLM confidence score, recommended action CTA     │
+└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  Zone 2: Decision Cards (Accordion)                  │
+│  - Primary: Scheduling, Itinerary, Accommodation    │
+│  - Secondary (under "+ More"): Travelers, Prep,     │
+│    Expenses                                          │
+│  - Only ONE expanded at a time                      │
+└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  Zone 3: Trip Chat Feed                             │
+│  - Primary interaction surface                      │
+│  - 5-second polling for new messages                │
+└─────────────────────────────────────────────────────┘
+```
+
+**Key Files:**
+- `components/trip/command-center/TripCommandCenter.tsx` - Main orchestrator
+- `components/trip/command-center/TripFocusBanner.tsx` - Zone 1
+- `components/trip/command-center/decision-modules/*.tsx` - Zone 2 modules
+- `hooks/use-trip-intelligence.ts` - LLM blocker detection
+- `hooks/use-trip-chat.ts` - Chat with polling
+
+**Legacy Fallback:** Add `?ui=legacy` to access old tab-based UI. Actions like "Pick Dates" currently navigate to legacy tabs (`?ui=legacy&tab=planning`).
+
+**Future Work:** Build inline UI for scheduling/itinerary, then delete `TripDetailViewLegacy` (~1,640 lines).
+
 ---
 
 ## B) Golden Rules (Non-Negotiables)
@@ -664,6 +701,11 @@ Fix privacy bug where "Upcoming Trips Visibility = Private" incorrectly hides tr
 ## Quick Reference: File Locations
 
 ### Critical Files
+- **Trip Command Center (default)**: `components/trip/command-center/TripCommandCenter.tsx`
+- **Focus Banner**: `components/trip/command-center/TripFocusBanner.tsx`
+- **Decision Modules**: `components/trip/command-center/decision-modules/`
+- **Trip Intelligence Hook**: `hooks/use-trip-intelligence.ts`
+- **Trip Chat Hook**: `hooks/use-trip-chat.ts`
 - **Privacy logic**: `lib/trips/applyProfileTripPrivacy.js`, `lib/trips/filterTripsByPrivacy.js`
 - **Action required**: `lib/trips/getUserActionRequired.js`
 - **Trip card data**: `lib/trips/buildTripCardData.js`
@@ -672,6 +714,12 @@ Fix privacy bug where "Upcoming Trips Visibility = Private" incorrectly hides tr
 - **API routes**: `app/api/[[...path]]/route.js`
 - **Main SPA**: `app/HomeClient.jsx`
 - **Trip card UI**: `components/dashboard/TripCard.jsx`
+- **LLM functions**: `lib/server/llm.js` (includes `detectBlocker()`, `generateNudge()`, `summarizeConsensus()`)
+
+### Legacy Files (accessible via ?ui=legacy)
+- **Legacy trip detail**: `TripDetailViewLegacy` in `app/HomeClient.jsx` (~1,640 lines, lines 4071-5705)
+- **Legacy tab container**: `components/trip/TripTabs/TripTabs.tsx`
+- **Legacy tabs**: `components/trip/TripTabs/tabs/*.tsx`
 
 ### Test Files
 - **Privacy tests**: `tests/api/trip-privacy-permissions.test.js`

@@ -201,18 +201,31 @@ The product should feel like a helpful organizer, not a manager.
 - `components/marketing/WelcomePage.tsx` - Public welcome page (hero, icon flow, CTAs)
 - `components/dashboard/TripCard.jsx` - Trip card component (shows trip status, progress, navigation)
 - `components/dashboard/TripProgressMini.jsx` - Progress indicator component
-- `components/trip/TripTabs/TripTabs.tsx` - Tab container for trip detail view
-- `components/trip/TripTabs/tabs/ChatTab.tsx` - Primary interactive chat surface with CTAs
-- `components/trip/TripTabs/tabs/PlanningTab.tsx` - Availability/voting interface
-- `components/trip/TripTabs/tabs/ItineraryTab.tsx` - Itinerary idea submission and LLM generation
-- `components/trip/TripTabs/tabs/AccommodationTab.tsx` - Stay requirements and selection
-- `components/trip/TripTabs/tabs/PrepTab.tsx` - Preparation checklist
-- `components/trip/TripTabs/tabs/MemoriesTab.tsx` - Photo sharing
-- `components/trip/TripTabs/tabs/TravelersTab.tsx` - Participant management
-- `components/trip/TripTabs/tabs/ExpensesTab.tsx` - Expense tracking (recently added)
+- `components/trip/command-center/TripCommandCenter.tsx` - **Default trip detail view** (three-zone layout: focus banner, decision cards, chat)
+- `components/trip/command-center/TripFocusBanner.tsx` - Zone 1: "What's blocking this trip?" with LLM intelligence
+- `components/trip/command-center/AccommodationShortlist.tsx` - Inline accommodation voting (max 3 options)
+- `components/trip/command-center/decision-modules/SchedulingDecisionModule.tsx` - Date picking/voting accordion
+- `components/trip/command-center/decision-modules/ItineraryDecisionModule.tsx` - Itinerary planning accordion
+- `components/trip/command-center/decision-modules/AccommodationDecisionModule.tsx` - Accommodation selection accordion
+- `components/trip/command-center/decision-modules/TravelersModule.tsx` - Secondary module for travelers
+- `components/trip/command-center/decision-modules/PrepModule.tsx` - Secondary module for prep checklist
+- `components/trip/command-center/decision-modules/ExpensesModule.tsx` - Secondary module for expenses
+- `components/trip/TripTabs/TripTabs.tsx` - Tab container for legacy trip detail view (via `?ui=legacy`)
+- `components/trip/TripTabs/tabs/ChatTab.tsx` - Chat surface (used by both Command Center and legacy)
+- `components/trip/TripTabs/tabs/PlanningTab.tsx` - Availability/voting interface (legacy, accessed via Command Center actions)
+- `components/trip/TripTabs/tabs/ItineraryTab.tsx` - Itinerary idea submission and LLM generation (legacy)
+- `components/trip/TripTabs/tabs/AccommodationTab.tsx` - Stay requirements and selection (legacy)
+- `components/trip/TripTabs/tabs/PrepTab.tsx` - Preparation checklist (legacy)
+- `components/trip/TripTabs/tabs/MemoriesTab.tsx` - Photo sharing (legacy)
+- `components/trip/TripTabs/tabs/TravelersTab.tsx` - Participant management (legacy)
+- `components/trip/TripTabs/tabs/ExpensesTab.tsx` - Expense tracking (legacy)
 - `components/trip/chat/ActionCard.tsx` - CTA card component for ChatTab
 - `components/trip/TransferLeadershipDialog.tsx` - Leadership transfer dialog
 - `components/trip/CancelTripDialog.tsx` - Trip cancellation dialog
+
+**Hooks**:
+- `hooks/use-trip-chat.ts` - Chat message management with 5-second polling
+- `hooks/use-trip-intelligence.ts` - LLM-powered blocker detection, nudges, consensus, accommodation preferences
 
 **API**:
 - `app/api/[[...path]]/route.js` - Centralized API handler (~7100 lines, pattern matching)
@@ -251,6 +264,23 @@ The product should feel like a helpful organizer, not a manager.
 - `e2e/discover-flow.spec.js` - Discover flow E2E tests
 
 ## 4) Recent work + known context
+
+**Trip Command Center (Phases 1-8 + Phase 9 Part 1) - CURRENT DEFAULT**:
+- Command Center is now the **default trip detail view** (no query param needed)
+- Legacy tab-based UI accessible via `?ui=legacy` for debugging
+- Three-zone architecture:
+  1. **Trip Focus Banner** (Zone 1): Shows current blocker (DATES/ITINERARY/ACCOMMODATION/READY) with LLM confidence score
+  2. **Decision Cards** (Zone 2): Accordion modules - only one expanded at a time. Primary blockers (Scheduling, Itinerary, Accommodation) + secondary modules under "+ More" (Travelers, Prep, Expenses)
+  3. **Chat Feed** (Zone 3): Primary interaction surface with 5-second polling
+- LLM integration via `lib/server/llm.js`: `detectBlocker()`, `generateNudge()`, `summarizeConsensus()`, `extractAccommodationPreferences()`
+- Accommodation inline voting: Max 3 options, vote → confirm → lock flow
+- Actions like "Pick Dates" navigate to legacy tabs (`?ui=legacy&tab=planning`) until inline UI is built
+
+**Phase 9 remaining work** (future PR):
+- Build inline scheduling UI in Command Center (replace legacy tab navigation)
+- Build inline itinerary UI in Command Center
+- Delete `TripDetailViewLegacy` (~1,640 lines in `app/HomeClient.jsx`)
+- Remove `?ui=legacy` fallback
 
 **New dashboard/home page messaging**:
 - Welcome page (`components/marketing/WelcomePage.tsx`) updated with tagline "Trips made easy" (browser title in `app/layout.js`)
@@ -486,12 +516,12 @@ npm start
 
 ## 8) "If you only read 5 things" (for Claude)
 
-1. **Stage computation is client-side but validated server-side**: `deriveTripPrimaryStage()` (`lib/trips/stage.js:129`) computes stage client-side for UI responsiveness, but `validateStageAction()` (`lib/trips/validateStageAction.js`) validates server-side. Must stay in sync.
+1. **Command Center is the default trip detail view**: `TripCommandCenter` (`components/trip/command-center/TripCommandCenter.tsx`) is now the default. Three zones: Focus Banner (blocker), Decision Cards (accordion), Chat Feed. Legacy tab UI accessible via `?ui=legacy`. Actions like "Pick Dates" still navigate to legacy tabs until inline UI is built.
 
-2. **Traveler determination differs by trip type**: Collaborative trips = all circle members (unless `status='left'/'removed'`). Hosted trips = only explicit `trip_participants` with `status='active'`. See `isActiveTraveler()` (`app/api/[[...path]]/route.js:67`).
+2. **Stage computation is client-side but validated server-side**: `deriveTripPrimaryStage()` (`lib/trips/stage.js:129`) computes stage client-side for UI responsiveness, but `validateStageAction()` (`lib/trips/validateStageAction.js`) validates server-side. Must stay in sync.
 
-3. **Privacy filtering is context-aware**: `canViewerSeeTrip()` (`lib/trips/canViewerSeeTrip.js`) filters trips, but `applyProfileTripPrivacy()` (`lib/trips/applyProfileTripPrivacy.js`) only applies in profile views. Dashboard/circle always show own/circle trips regardless of privacy.
+3. **Traveler determination differs by trip type**: Collaborative trips = all circle members (unless `status='left'/'removed'`). Hosted trips = only explicit `trip_participants` with `status='active'`. See `isActiveTraveler()` (`app/api/[[...path]]/route.js:67`).
 
-4. **ChatTab is the primary interactive surface**: CTAs appear at bottom via ActionCard (`components/trip/chat/ActionCard.tsx`), computed via `getNextAction()` (`lib/trips/nextAction.ts`). No duplicate interactive chat surfaces.
+4. **Privacy filtering is context-aware**: `canViewerSeeTrip()` (`lib/trips/canViewerSeeTrip.js`) filters trips, but `applyProfileTripPrivacy()` (`lib/trips/applyProfileTripPrivacy.js`) only applies in profile views. Dashboard/circle always show own/circle trips regardless of privacy.
 
 5. **Navigation state management is complex**: `app/HomeClient.jsx` has URL normalization logic with ref guards (`authRedirectRef`, `dashboardRedirectRef`) to prevent infinite loops. Deep links (`/?tripId=X&tab=Y`) route via `WelcomePageWrapper.jsx`.
