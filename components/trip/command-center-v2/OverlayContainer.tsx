@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useState } from 'react'
+import { cn } from '@/lib/utils'
 
 interface OverlayContainerProps {
   isOpen: boolean
@@ -22,7 +22,7 @@ interface OverlayContainerProps {
   children: React.ReactNode
   /** Set to true when overlay has unsaved changes - prevents accidental close */
   hasUnsavedChanges?: boolean
-  /** Custom width class (default: w-[500px] on desktop) */
+  /** Custom width class (default: max-w-md on desktop) */
   widthClass?: string
 }
 
@@ -30,10 +30,11 @@ interface OverlayContainerProps {
  * Slide-in drawer overlay container
  *
  * Features:
- * - Slides in from right side
+ * - Slides in from right side with smooth animation
  * - Chat remains visible (dimmed) behind
  * - Unsaved changes protection with confirmation dialog
  * - Dismiss via X button, backdrop click (if no unsaved changes), or Escape
+ * - Overlays the chat area only, not full screen
  */
 export function OverlayContainer({
   isOpen,
@@ -41,10 +42,33 @@ export function OverlayContainer({
   title,
   children,
   hasUnsavedChanges = false,
-  widthClass = 'w-full sm:w-[500px] md:w-[600px]'
+  widthClass = 'w-full max-w-md'
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
+  const [isAnimating, setIsAnimating] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
+
+  // Handle open/close animation
+  useEffect(() => {
+    if (isOpen) {
+      // Opening: first make visible, then animate in
+      setIsVisible(true)
+      // Small delay to ensure DOM is ready for animation
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimating(true)
+        })
+      })
+    } else {
+      // Closing: animate out first, then hide
+      setIsAnimating(false)
+      const timer = setTimeout(() => {
+        setIsVisible(false)
+      }, 300) // Match animation duration
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen])
 
   // Handle close attempt - check for unsaved changes
   const handleCloseAttempt = useCallback(() => {
@@ -97,34 +121,42 @@ export function OverlayContainer({
 
   // Focus trap - focus overlay when opened
   useEffect(() => {
-    if (isOpen && overlayRef.current) {
+    if (isOpen && isAnimating && overlayRef.current) {
       overlayRef.current.focus()
     }
-  }, [isOpen])
+  }, [isOpen, isAnimating])
 
-  if (!isOpen) return null
+  // Don't render anything if not visible
+  if (!isVisible) return null
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop - semi-transparent overlay */}
       <div
-        className="fixed inset-0 z-40 bg-black/40 transition-opacity duration-300"
+        className={cn(
+          'fixed inset-0 z-40 bg-black/30 transition-opacity duration-300',
+          isAnimating ? 'opacity-100' : 'opacity-0'
+        )}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
 
-      {/* Slide-in Drawer */}
+      {/* Slide-in Drawer from Right */}
       <div
         ref={overlayRef}
         tabIndex={-1}
-        className={`fixed top-0 right-0 z-50 h-full ${widthClass} bg-white shadow-xl transform transition-transform duration-300 ease-out flex flex-col`}
-        style={{ transform: isOpen ? 'translateX(0)' : 'translateX(100%)' }}
+        className={cn(
+          'fixed top-0 right-0 z-50 h-full bg-white shadow-2xl',
+          'flex flex-col transition-transform duration-300 ease-out',
+          widthClass,
+          isAnimating ? 'translate-x-0' : 'translate-x-full'
+        )}
         role="dialog"
         aria-modal="true"
         aria-labelledby="overlay-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 shrink-0">
           <h2 id="overlay-title" className="text-lg font-semibold text-gray-900">
             {title}
           </h2>
@@ -139,8 +171,8 @@ export function OverlayContainer({
           </Button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Content - scrollable */}
+        <div className="flex-1 overflow-y-auto">
           {children}
         </div>
       </div>

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { format } from 'date-fns'
-import { Users, ChevronRight, AlertCircle } from 'lucide-react'
+import { Users, ChevronRight, Calendar, ListTodo, Home, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -28,10 +28,9 @@ import { ChatTab } from '@/components/trip/TripTabs/tabs/ChatTab'
 
 // Hooks
 import { useTripChat } from '@/hooks/use-trip-chat'
-import { useTripIntelligence } from '@/hooks/use-trip-intelligence'
 
 // Helpers
-import { TRIP_PROGRESS_STEPS, computeProgressSteps } from '@/lib/trips/progress'
+import { computeProgressSteps } from '@/lib/trips/progress'
 import { deriveTripPrimaryStage, TripPrimaryStage } from '@/lib/trips/stage'
 
 // Types
@@ -45,6 +44,107 @@ interface CommandCenterV2Props {
 interface OverlayParams {
   memberId?: string
   [key: string]: any
+}
+
+/**
+ * Blocker types that determine what's blocking a trip
+ */
+type BlockerType = 'DATES' | 'ITINERARY' | 'ACCOMMODATION' | 'READY'
+
+interface BlockerInfo {
+  type: BlockerType
+  title: string
+  description: string
+  ctaLabel: string
+  icon: React.ComponentType<{ className?: string }>
+  overlayType: OverlayType
+}
+
+/**
+ * Derive the current blocker from trip data using deterministic heuristics
+ */
+function deriveBlocker(trip: any, user: any): BlockerInfo {
+  if (!trip) {
+    return {
+      type: 'DATES',
+      title: 'Pick your dates',
+      description: 'Start by finding dates that work for everyone',
+      ctaLabel: 'Pick Dates',
+      icon: Calendar,
+      overlayType: 'scheduling'
+    }
+  }
+
+  const datesLocked = trip.status === 'locked' || (trip.lockedStartDate && trip.lockedEndDate)
+
+  // Blocker 1: Dates not locked
+  if (!datesLocked) {
+    const userHasPicked = trip.userDatePicks && trip.userDatePicks.length > 0
+    const userHasVoted = !!trip.userVote
+
+    if (trip.status === 'voting') {
+      return {
+        type: 'DATES',
+        title: userHasVoted ? 'Waiting on votes' : 'Vote on dates',
+        description: userHasVoted
+          ? 'Waiting for others to vote before dates can be locked'
+          : 'Choose your preferred date window',
+        ctaLabel: userHasVoted ? 'View Votes' : 'Vote Now',
+        icon: Calendar,
+        overlayType: 'scheduling'
+      }
+    }
+
+    return {
+      type: 'DATES',
+      title: userHasPicked ? 'Waiting on dates' : 'Pick your dates',
+      description: userHasPicked
+        ? 'Waiting for others to respond before dates can be locked'
+        : 'Share your date preferences to help coordinate the trip',
+      ctaLabel: userHasPicked ? 'View Progress' : 'Pick Dates',
+      icon: Calendar,
+      overlayType: 'scheduling'
+    }
+  }
+
+  // Blocker 2: Itinerary not finalized
+  const itineraryStatus = trip.itineraryStatus
+  const itineraryFinalized = itineraryStatus === 'selected' || itineraryStatus === 'published'
+
+  if (!itineraryFinalized) {
+    return {
+      type: 'ITINERARY',
+      title: 'Plan the itinerary',
+      description: 'Add ideas and build a day-by-day plan together',
+      ctaLabel: 'Plan Itinerary',
+      icon: ListTodo,
+      overlayType: 'itinerary'
+    }
+  }
+
+  // Blocker 3: Accommodation not decided
+  const accommodationChosen = trip.progress?.steps?.accommodationChosen || false
+
+  if (!accommodationChosen) {
+    return {
+      type: 'ACCOMMODATION',
+      title: 'Choose where to stay',
+      description: 'Find and decide on accommodation for the trip',
+      ctaLabel: 'Find Stays',
+      icon: Home,
+      overlayType: 'accommodation'
+    }
+  }
+
+  // No blockers - trip is ready
+  return {
+    type: 'READY',
+    title: 'Ready to go!',
+    description: 'All decisions are made. Time to enjoy the trip!',
+    ctaLabel: 'View Trip',
+    icon: CheckCircle2,
+    overlayType: null
+  }
 }
 
 /**
@@ -76,44 +176,22 @@ function getOverlayTitle(overlayType: OverlayType): string {
 }
 
 /**
- * Get stage key from OverlayType for progress tracking
+ * FocusBanner - Shows trip name, dates, and current blocker with CTA
  */
-function getStageKeyFromOverlay(overlayType: OverlayType): string | null {
-  switch (overlayType) {
-    case 'proposed':
-      return 'tripProposed'
-    case 'scheduling':
-      return 'datesLocked'
-    case 'itinerary':
-      return 'itineraryFinalized'
-    case 'accommodation':
-      return 'accommodationChosen'
-    case 'prep':
-      return 'prepStarted'
-    case 'memories':
-      return 'memoriesShared'
-    case 'expenses':
-      return 'expensesSettled'
-    default:
-      return null
-  }
-}
-
-/**
- * FocusBannerV2 - Trip name, dates, and blocker text
- */
-function FocusBannerV2({
+function FocusBanner({
   tripName,
   startDate,
   endDate,
-  blockerText,
-  stage
+  blocker,
+  stage,
+  onAction
 }: {
   tripName: string
   startDate?: string
   endDate?: string
-  blockerText?: string | null
+  blocker: BlockerInfo
   stage: string
+  onAction: (overlayType: OverlayType) => void
 }) {
   // Format dates for display
   const dateDisplay = useMemo(() => {
@@ -127,118 +205,108 @@ function FocusBannerV2({
     }
   }, [startDate, endDate])
 
-  // Get stage badge color
-  const stageBadgeClass = useMemo(() => {
-    switch (stage) {
-      case TripPrimaryStage.PROPOSED:
-        return 'bg-yellow-100 text-yellow-800'
-      case TripPrimaryStage.DATES_LOCKED:
-        return 'bg-blue-100 text-blue-800'
-      case TripPrimaryStage.ITINERARY:
-        return 'bg-purple-100 text-purple-800'
-      case TripPrimaryStage.STAY:
-        return 'bg-indigo-100 text-indigo-800'
-      case TripPrimaryStage.PREP:
-        return 'bg-orange-100 text-orange-800'
-      case TripPrimaryStage.ONGOING:
-        return 'bg-green-100 text-green-800'
-      case TripPrimaryStage.COMPLETED:
-        return 'bg-gray-100 text-gray-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }, [stage])
+  // Color scheme based on blocker type
+  const colorClasses = {
+    DATES: 'border-blue-200 bg-blue-50',
+    ITINERARY: 'border-purple-200 bg-purple-50',
+    ACCOMMODATION: 'border-orange-200 bg-orange-50',
+    READY: 'border-green-200 bg-green-50'
+  }
 
-  const stageLabel = useMemo(() => {
-    switch (stage) {
-      case TripPrimaryStage.PROPOSED:
-        return 'Scheduling'
-      case TripPrimaryStage.DATES_LOCKED:
-        return 'Planning'
-      case TripPrimaryStage.ITINERARY:
-        return 'Booking'
-      case TripPrimaryStage.STAY:
-        return 'Prep'
-      case TripPrimaryStage.PREP:
-        return 'Ready'
-      case TripPrimaryStage.ONGOING:
-        return 'Ongoing'
-      case TripPrimaryStage.COMPLETED:
-        return 'Complete'
-      default:
-        return 'Active'
-    }
-  }, [stage])
+  const buttonClasses = {
+    DATES: 'bg-blue-600 hover:bg-blue-700',
+    ITINERARY: 'bg-purple-600 hover:bg-purple-700',
+    ACCOMMODATION: 'bg-orange-600 hover:bg-orange-700',
+    READY: 'bg-green-600 hover:bg-green-700'
+  }
+
+  const iconClasses = {
+    DATES: 'text-blue-600',
+    ITINERARY: 'text-purple-600',
+    ACCOMMODATION: 'text-orange-600',
+    READY: 'text-green-600'
+  }
+
+  const Icon = blocker.icon
 
   return (
-    <div className="px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-lg font-semibold truncate">{tripName}</h1>
-            <span className={cn('px-2 py-0.5 text-xs font-medium rounded-full', stageBadgeClass)}>
-              {stageLabel}
-            </span>
-          </div>
-          <p className="text-sm text-white/80">{dateDisplay}</p>
-        </div>
+    <div className="border-b border-gray-200">
+      {/* Trip name and dates row */}
+      <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
+        <h1 className="text-base font-semibold text-gray-900 truncate">{tripName}</h1>
+        <span className="text-gray-400">•</span>
+        <span className="text-sm text-gray-600">{dateDisplay}</span>
       </div>
 
-      {/* Blocker text */}
-      {blockerText && (
-        <div className="mt-2 flex items-center gap-2 text-sm bg-white/10 rounded-lg px-3 py-2">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{blockerText}</span>
+      {/* Blocker card */}
+      <div className={cn('mx-3 my-2 rounded-lg border-2 p-3', colorClasses[blocker.type])}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className={cn('p-2 rounded-full bg-white shrink-0', iconClasses[blocker.type])}>
+              <Icon className="h-5 w-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-900 text-sm">{blocker.title}</h3>
+              <p className="text-xs text-gray-600 truncate">{blocker.description}</p>
+            </div>
+          </div>
+          {blocker.type !== 'READY' && blocker.overlayType && (
+            <Button
+              size="sm"
+              className={cn('shrink-0', buttonClasses[blocker.type])}
+              onClick={() => onAction(blocker.overlayType)}
+            >
+              {blocker.ctaLabel}
+            </Button>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
 
 /**
- * ContextCTABar - Travelers count and contextual CTA button
+ * InlineCTA - Red banner above chat input for user's next action
  */
-function ContextCTABar({
-  travelersCount,
-  ctaLabel,
-  ctaAction,
-  onOpenTravelers
+function InlineCTA({
+  blocker,
+  onAction
 }: {
-  travelersCount: number
-  ctaLabel?: string
-  ctaAction?: () => void
-  onOpenTravelers: () => void
+  blocker: BlockerInfo
+  onAction: (overlayType: OverlayType) => void
 }) {
-  return (
-    <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-      <button
-        onClick={onOpenTravelers}
-        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-      >
-        <Users className="h-4 w-4" />
-        <span>{travelersCount} traveler{travelersCount !== 1 ? 's' : ''}</span>
-        <ChevronRight className="h-4 w-4" />
-      </button>
+  // Only show if there's an action to take
+  if (blocker.type === 'READY' || !blocker.overlayType) return null
 
-      {ctaLabel && ctaAction && (
-        <Button size="sm" onClick={ctaAction}>
-          {ctaLabel}
+  return (
+    <div className="px-3 py-2 bg-red-500 text-white">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <blocker.icon className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-medium truncate">{blocker.title}</span>
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="bg-white text-red-600 hover:bg-red-50 shrink-0"
+          onClick={() => onAction(blocker.overlayType)}
+        >
+          {blocker.ctaLabel}
         </Button>
-      )}
+      </div>
     </div>
   )
 }
-
 
 /**
  * CommandCenterV2 - Main container orchestrating the chat-centric layout
  *
  * Layout (top to bottom):
- * 1. FocusBannerV2 (trip name + dates + blocker text)
- * 2. Main content area (chat + progress chevrons)
+ * 1. FocusBanner (trip name + dates + blocker card with CTA)
+ * 2. Main content area (chat + progress chevrons on desktop)
  * 3. TravelerStrip (horizontal avatar scroll)
- * 4. ContextCTABar (travelers count + CTA button)
- * 5. Chat input (handled by ChatTab)
+ * 4. InlineCTA (red banner above chat input)
+ * 5. Mobile Progress Chevrons (horizontal on mobile only)
  */
 export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV2Props) {
   // Overlay state
@@ -260,16 +328,10 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
     enabled: !!trip?.id && !!token
   })
 
-  // Intelligence hook for blocker detection
-  const { blocker, loading: intelligenceLoading } = useTripIntelligence({
-    tripId: trip?.id,
-    token,
-    enabled: !!trip?.id && !!token
-  })
-
   // Compute derived state
   const progressSteps = useMemo(() => computeProgressSteps(trip), [trip])
   const currentStage = useMemo(() => deriveTripPrimaryStage(trip), [trip])
+  const blocker = useMemo(() => deriveBlocker(trip, user), [trip, user])
 
   // Find current stage key for progress chevrons
   const currentStageKey = useMemo(() => {
@@ -304,16 +366,12 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
     }))
   }, [trip?.travelers])
 
-  // Get blocker text for banner
-  const blockerText = useMemo(() => {
-    if (!blocker) return null
-    return blocker.recommendedAction || blocker.reasoning || null
-  }, [blocker])
-
   // Overlay functions
   const openOverlay = useCallback((type: OverlayType, params?: OverlayParams) => {
-    setActiveOverlay(type)
-    setOverlayParams(params || {})
+    if (type) {
+      setActiveOverlay(type)
+      setOverlayParams(params || {})
+    }
   }, [])
 
   const closeOverlay = useCallback(() => {
@@ -334,9 +392,11 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
     openOverlay('member', { memberId: travelerId })
   }, [openOverlay])
 
-  // Handle open travelers overlay
-  const handleOpenTravelers = useCallback(() => {
-    openOverlay('travelers')
+  // Handle blocker action
+  const handleBlockerAction = useCallback((overlayType: OverlayType) => {
+    if (overlayType) {
+      openOverlay(overlayType)
+    }
   }, [openOverlay])
 
   // Get trip dates
@@ -349,18 +409,19 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* 1. Focus Banner */}
-      <FocusBannerV2
+      {/* 1. Focus Banner with Blocker */}
+      <FocusBanner
         tripName={trip?.name || 'Untitled Trip'}
         startDate={startDate}
         endDate={endDate}
-        blockerText={blockerText}
+        blocker={blocker}
         stage={currentStage}
+        onAction={handleBlockerAction}
       />
 
       {/* 2. Main content area - Chat + Progress Chevrons */}
-      <div className="flex-1 flex min-h-0 relative">
-        {/* Chat feed (center, takes most space) */}
+      <div className="flex-1 flex min-h-0">
+        {/* Chat feed (takes most space) */}
         <div className="flex-1 flex flex-col min-w-0">
           <ChatTab
             trip={trip}
@@ -381,13 +442,14 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
           />
         </div>
 
-        {/* Progress Chevrons (right side, vertical) - hidden on mobile */}
-        <div className="hidden md:flex flex-col items-center border-l border-gray-200 bg-gray-50 px-2">
+        {/* Progress Chevrons (right side, vertical) - desktop only */}
+        <div className="hidden md:flex flex-col items-center justify-center border-l border-gray-200 bg-gray-50">
           <ProgressChevrons
             progressSteps={progressSteps}
             currentStageKey={currentStageKey}
             onChevronClick={handleChevronClick}
             activeOverlay={activeOverlay}
+            orientation="vertical"
           />
         </div>
       </div>
@@ -399,23 +461,21 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         onTravelerClick={handleTravelerClick}
       />
 
-      {/* 4. Context CTA Bar */}
-      <ContextCTABar
-        travelersCount={travelers.length}
-        onOpenTravelers={handleOpenTravelers}
-      />
+      {/* 4. Inline CTA (red banner) */}
+      <InlineCTA blocker={blocker} onAction={handleBlockerAction} />
 
-      {/* Mobile Progress Chevrons - shown as horizontal strip on mobile */}
-      <div className="md:hidden flex items-center justify-center gap-1 py-2 px-4 bg-gray-50 border-t border-gray-200 overflow-x-auto">
+      {/* 5. Mobile Progress Chevrons - horizontal strip on mobile */}
+      <div className="md:hidden flex items-center justify-center py-2 px-4 bg-gray-50 border-t border-gray-200 overflow-x-auto">
         <ProgressChevrons
           progressSteps={progressSteps}
           currentStageKey={currentStageKey}
           onChevronClick={handleChevronClick}
           activeOverlay={activeOverlay}
+          orientation="horizontal"
         />
       </div>
 
-      {/* Overlay Container */}
+      {/* Overlay Container - slides in from right */}
       <OverlayContainer
         isOpen={activeOverlay !== null}
         onClose={closeOverlay}
