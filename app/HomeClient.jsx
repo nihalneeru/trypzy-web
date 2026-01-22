@@ -2989,6 +2989,8 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                           switch (type) {
                             case 'trip_created':
                               return <Plus className="h-3.5 w-3.5" />
+                            case 'circle_member_joined':
+                              return <UserPlus className="h-3.5 w-3.5" />
                             case 'user_joined':
                               return <UserPlus className="h-3.5 w-3.5" />
                             case 'user_voted':
@@ -3029,6 +3031,8 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                             switch (update.type) {
                               case 'trip_created':
                                 return `${update.actorName} created`
+                              case 'circle_member_joined':
+                                return `${update.actorName} joined`
                               case 'user_joined':
                                 return `${update.actorName} joined`
                               case 'user_voted':
@@ -3047,15 +3051,32 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                             }
                           }
                         }
+
+                        const contextLabel = update.tripName || update.circleName || ''
+                        const hasTripTarget = Boolean(update.tripId)
+                        const hasMemberTarget = update.type === 'circle_member_joined' && update.actorId
+                        const isClickable = hasTripTarget || hasMemberTarget
                         
                         return (
                           <div
                             key={update.id}
                             onClick={() => {
-                              // Navigate to trip chat
-                              router.push(`${tripHref(update.tripId)}?tab=chat`)
+                              if (!isClickable) return
+                              const currentUrl = typeof window !== 'undefined' 
+                                ? window.location.pathname + window.location.search
+                                : '/dashboard'
+                              const returnTo = encodeURIComponent(currentUrl)
+                              if (hasMemberTarget) {
+                                router.push(`/members/${update.actorId}?returnTo=${returnTo}`)
+                                return
+                              }
+                              if (hasTripTarget) {
+                                router.push(`${tripHref(update.tripId)}?tab=chat`)
+                              }
                             }}
-                            className="p-3 rounded-md border border-gray-200 hover:bg-gray-50 hover:border-gray-300 cursor-pointer transition-all"
+                            className={`p-3 rounded-md border border-gray-200 transition-all ${
+                              isClickable ? 'hover:bg-gray-50 hover:border-gray-300 cursor-pointer' : ''
+                            }`}
                           >
                             <div className="flex items-start gap-3">
                               <div className={`mt-0.5 flex-shrink-0 ${iconColor}`}>
@@ -3065,14 +3086,18 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                                 <p className={`text-sm font-medium ${isStageTransition ? 'text-indigo-900' : 'text-gray-900'}`}>
                                   {getActionText()}
                                 </p>
-                                <p className="text-xs text-gray-600 mt-0.5">
-                                  {update.tripName}
-                                </p>
+                                {contextLabel ? (
+                                  <p className="text-xs text-gray-600 mt-0.5">
+                                    {contextLabel}
+                                  </p>
+                                ) : null}
                                 <p className="text-xs text-gray-400 mt-1">
                                   {formatTimestamp(update.timestamp)}
                                 </p>
                               </div>
-                              <ChevronRight className="h-4 w-4 text-gray-300 ml-2 flex-shrink-0 mt-0.5" />
+                              {isClickable ? (
+                                <ChevronRight className="h-4 w-4 text-gray-300 ml-2 flex-shrink-0 mt-0.5" />
+                              ) : null}
                             </div>
                           </div>
                         )
@@ -4149,4 +4174,3 @@ function LegacyDashboard({ user, token, tripId, circleId, returnTo, initialView,
 
   return <Dashboard user={user} token={token} onLogout={onLogout} initialTripId={tripId} initialCircleId={circleId} returnTo={returnTo || null} initialView={initialView} />
 }
-
