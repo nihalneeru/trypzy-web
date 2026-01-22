@@ -36,6 +36,7 @@ interface TravelersOverlayProps {
   onRefresh: (updatedTrip?: any) => void
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
+  onMemberClick?: (memberId: string) => void
 }
 
 // API Helper
@@ -104,7 +105,8 @@ export function TravelersOverlay({
   user,
   onRefresh,
   onClose,
-  setHasUnsavedChanges
+  setHasUnsavedChanges,
+  onMemberClick
 }: TravelersOverlayProps) {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
   const [showTransferDialog, setShowTransferDialog] = useState(false)
@@ -403,7 +405,10 @@ export function TravelersOverlay({
                 <Card key={participant.userId || participantUser.id} className="overflow-hidden">
                   <CardContent className="py-3 px-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                      <button
+                        className="flex items-center gap-3 hover:opacity-80 transition-opacity text-left"
+                        onClick={() => onMemberClick?.(participantUser.id)}
+                      >
                         <Avatar className="h-10 w-10">
                           {participantUser.image ? (
                             <AvatarImage src={participantUser.image} alt={participantUser.name} />
@@ -414,13 +419,13 @@ export function TravelersOverlay({
                         </Avatar>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium text-sm">{participantUser.name}</p>
+                            <p className="font-medium text-sm text-blue-600 hover:underline">{participantUser.name}</p>
                             {isCurrentUser && (
                               <span className="text-xs text-gray-500">(you)</span>
                             )}
                           </div>
                         </div>
-                      </div>
+                      </button>
                       <div className="flex items-center gap-2">
                         {isLeader && (
                           <Badge variant="secondary" className="gap-1">

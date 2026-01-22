@@ -362,16 +362,19 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
     }
   }, [currentStage])
 
-  // Extract travelers from trip data
+  // Extract travelers from trip data (use participantsWithStatus if available, fallback to travelers)
   const travelers = useMemo(() => {
-    if (!trip?.travelers) return []
-    return trip.travelers.map((t: any) => ({
-      id: t.userId || t.id,
-      name: t.name || t.user?.name || 'Unknown',
-      avatarUrl: t.avatarUrl || t.user?.image,
-      status: t.status || 'active'
-    }))
-  }, [trip?.travelers])
+    const participantList = trip?.participantsWithStatus || trip?.travelers || []
+    if (!participantList.length) return []
+    return participantList
+      .filter((p: any) => (p.status || 'active') === 'active')
+      .map((p: any) => ({
+        id: p.userId || p.user?.id || p.id,
+        name: p.user?.name || p.name || 'Unknown',
+        avatarUrl: p.user?.image || p.avatarUrl,
+        status: p.status || 'active'
+      }))
+  }, [trip?.participantsWithStatus, trip?.travelers])
 
   // Overlay functions
   const openOverlay = useCallback((type: OverlayType, params?: OverlayParams) => {
@@ -527,6 +530,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
             onRefresh={onRefresh}
             onClose={closeOverlay}
             setHasUnsavedChanges={setHasUnsavedChanges}
+            onMemberClick={(memberId) => openOverlay('member', { memberId })}
           />
         )}
         {activeOverlay === 'prep' && (
