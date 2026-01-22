@@ -99,50 +99,10 @@ The product should feel like a helpful organizer, not a manager.
 - `voting` → `locked`: Manual (leader action via `POST /api/trips/:id/lock`)
 - `locked` → `completed`: Auto when `endDate < today`
 
-**What users can do at each stage**:
-
-**PROPOSED**:
-- All travelers: Submit availability/date picks (`POST /api/trips/:id/date-picks`)
-- Leader: Open voting (`POST /api/trips/:id/open-voting`)
-- CTA location: ChatTab bottom (ActionCard component)
-
-**DATES_LOCKED**:
-- All travelers: View locked dates, submit itinerary ideas (`POST /api/trips/:id/itinerary-ideas`)
-- Leader: Generate itinerary from ideas (`POST /api/trips/:id/generate-itinerary`), select final itinerary
-- CTA location: ChatTab bottom, ItineraryTab
-
-**ITINERARY**:
-- All travelers: View itinerary, submit accommodation requirements
-- Leader: Mark accommodation as chosen
-- CTA location: AccommodationTab
-
-**STAY**:
-- All travelers: View accommodation, start prep checklist
-- Leader: Mark prep as started
-- CTA location: PrepTab
-
-**PREP**:
-- All travelers: Update prep checklist, share memories
-- CTA location: PrepTab, MemoriesTab
-
-**ONGOING**:
-- All travelers: Share memories, chat
-- CTA location: ChatTab, MemoriesTab
-
-**COMPLETED**:
-- All travelers: View memories, read-only access
-- CTA location: None (read-only)
-
 **Key guardrails**:
 - **Role-based permissions**: Trip leader (`trip.createdBy === userId`) can lock dates, open voting, cancel trip, transfer leadership. Enforced server-side in `app/api/[[...path]]/route.js` via `validateStageAction()` (`lib/trips/validateStageAction.js`)
 - **Participation minimums**: None enforced. System can progress with partial participation
 - **Post-lock read-only behavior**: Once dates are locked, availability/voting actions are blocked. Canceled trips are read-only. Left travelers cannot send messages (ChatTab checks `viewer.isActiveParticipant`)
-
-**Chat-centric CTA pattern**:
-- CTAs appear at bottom of ChatTab (`components/trip/TripTabs/tabs/ChatTab.tsx`)
-- Computed via `getNextAction()` (`lib/trips/nextAction.ts`) based on stage and user role
-- Rendered as ActionCard component (`components/trip/chat/ActionCard.tsx`)
-- Recent change: Removed redundant top pills, CTAs only at bottom
 
 ## 2) Architecture snapshot
 
@@ -188,7 +148,7 @@ The product should feel like a helpful organizer, not a manager.
 **Routes/pages**:
 - `app/page.js` - Root page (wraps WelcomePageWrapper)
 - `app/WelcomePageWrapper.jsx` - Auth check, routes to WelcomePage or HomeClient
-- `app/HomeClient.jsx` - Main SPA component (~5500 lines, handles all authenticated views)
+- `app/HomeClient.jsx` - Main SPA component (~4000 lines after cleanup, handles all authenticated views)
 - `app/dashboard/page.js` - Dashboard server component (fetches data via `getDashboardData()`)
 - `app/trips/[tripId]/page.js` - Trip detail page (redirects to SPA with query params)
 - `app/circles/[circleId]/page.js` - Circle detail page (redirects to SPA)
@@ -197,39 +157,44 @@ The product should feel like a helpful organizer, not a manager.
 - `app/signup/page.jsx` - Signup page
 - `app/settings/privacy/page.js` - Privacy settings page
 
-**Components**:
-- `components/marketing/WelcomePage.tsx` - Public welcome page (hero, icon flow, CTAs)
-- `components/dashboard/TripCard.jsx` - Trip card component (shows trip status, progress, navigation)
-- `components/dashboard/TripProgressMini.jsx` - Progress indicator component
-- `components/trip/command-center/TripCommandCenter.tsx` - **Default trip detail view** (three-zone layout: focus banner, decision cards, chat)
-- `components/trip/command-center/TripFocusBanner.tsx` - Zone 1: "What's blocking this trip?" with LLM intelligence
-- `components/trip/command-center/AccommodationShortlist.tsx` - Inline accommodation voting (max 3 options)
-- `components/trip/command-center/decision-modules/SchedulingDecisionModule.tsx` - Date picking/voting accordion
-- `components/trip/command-center/decision-modules/ItineraryDecisionModule.tsx` - Itinerary planning accordion
-- `components/trip/command-center/decision-modules/AccommodationDecisionModule.tsx` - Accommodation selection accordion
-- `components/trip/command-center/decision-modules/TravelersModule.tsx` - Secondary module for travelers
-- `components/trip/command-center/decision-modules/PrepModule.tsx` - Secondary module for prep checklist
-- `components/trip/command-center/decision-modules/ExpensesModule.tsx` - Secondary module for expenses
-- `components/trip/TripTabs/TripTabs.tsx` - Tab container for legacy trip detail view (via `?ui=legacy`)
-- `components/trip/TripTabs/tabs/ChatTab.tsx` - Chat surface (used by both Command Center and legacy)
-- `components/trip/TripTabs/tabs/PlanningTab.tsx` - Availability/voting interface (legacy, accessed via Command Center actions)
-- `components/trip/TripTabs/tabs/ItineraryTab.tsx` - Itinerary idea submission and LLM generation (legacy)
-- `components/trip/TripTabs/tabs/AccommodationTab.tsx` - Stay requirements and selection (legacy)
-- `components/trip/TripTabs/tabs/PrepTab.tsx` - Preparation checklist (legacy)
-- `components/trip/TripTabs/tabs/MemoriesTab.tsx` - Photo sharing (legacy)
-- `components/trip/TripTabs/tabs/TravelersTab.tsx` - Participant management (legacy)
-- `components/trip/TripTabs/tabs/ExpensesTab.tsx` - Expense tracking (legacy)
+**Command Center V2 Components** (current default trip view):
+```
+components/trip/command-center-v2/
+├── CommandCenterV2.tsx           # Main orchestrator (~600 lines)
+├── FocusBannerV2.tsx            # Top banner showing trip blocker
+├── ProgressChevrons.tsx         # Right sidebar with arrow-shaped stage indicators
+├── TravelerStrip.tsx            # Horizontal avatar strip below chat
+├── ContextCTABar.tsx            # Red action bar above chat input
+├── OverlayContainer.tsx         # Slide-in drawer wrapper with animations
+├── index.ts                     # Exports
+└── overlays/
+    ├── SchedulingOverlay.tsx    # Date picking, voting, lock (~950 lines)
+    ├── ItineraryOverlay.tsx     # Ideas, generation, feedback (~1250 lines)
+    ├── AccommodationOverlay.tsx # Stays, options, selection (~800 lines)
+    ├── TravelersOverlay.tsx     # Join requests, leave, transfer (~600 lines)
+    ├── PrepOverlay.tsx          # Transport, packing, documents (~650 lines)
+    ├── ExpensesOverlay.tsx      # Add expense, balances (~700 lines)
+    ├── MemoriesOverlay.tsx      # Gallery, add memory (~480 lines)
+    ├── MemberProfileOverlay.tsx # Profile card, shared circles, trips (~540 lines)
+    └── index.ts                 # Exports
+```
+
+**Shared Components**:
+- `components/trip/TripTabs/tabs/ChatTab.tsx` - Chat surface (used by Command Center V2)
 - `components/trip/chat/ActionCard.tsx` - CTA card component for ChatTab
 - `components/trip/TransferLeadershipDialog.tsx` - Leadership transfer dialog
 - `components/trip/CancelTripDialog.tsx` - Trip cancellation dialog
+- `components/dashboard/TripCard.jsx` - Trip card component
+- `components/dashboard/TripProgressMini.jsx` - Progress indicator component
+- `components/marketing/WelcomePage.tsx` - Public welcome page
 
 **Hooks**:
 - `hooks/use-trip-chat.ts` - Chat message management with 5-second polling
-- `hooks/use-trip-intelligence.ts` - LLM-powered blocker detection, nudges, consensus, accommodation preferences
+- `hooks/use-trip-intelligence.ts` - LLM-powered blocker detection, nudges, consensus
 
 **API**:
 - `app/api/[[...path]]/route.js` - Centralized API handler (~7100 lines, pattern matching)
-- `app/api/trips/[tripId]/expenses/route.js` - Dedicated expenses API routes (GET, POST, DELETE)
+- `app/api/trips/[tripId]/expenses/route.js` - Dedicated expenses API routes
 - `app/api/discover/posts/route.js` - Discover posts API
 - `app/api/seed/discover/route.js` - Dev seed endpoint
 
@@ -237,8 +202,8 @@ The product should feel like a helpful organizer, not a manager.
 - `lib/trips/stage.js` - Stage computation (`deriveTripPrimaryStage()`, `getPrimaryTabForStage()`, `computeProgressFlags()`)
 - `lib/trips/validateStageAction.js` - Server-side stage transition validator
 - `lib/trips/progress.js` - Progress step definitions (`TRIP_PROGRESS_STEPS`)
-- `lib/trips/progressSnapshot.ts` - Server-side progress computation (`computeTripProgressSnapshot()`)
-- `lib/trips/nextAction.ts` - CTA computation for ChatTab (`getNextAction()`)
+- `lib/trips/progressSnapshot.ts` - Server-side progress computation
+- `lib/trips/nextAction.ts` - CTA computation (`getNextAction()`)
 - `lib/trips/getUserActionRequired.js` - Action requirement computation
 - `lib/trips/canViewerSeeTrip.js` - Privacy filtering logic
 - `lib/trips/applyProfileTripPrivacy.js` - Profile view privacy filtering
@@ -246,282 +211,221 @@ The product should feel like a helpful organizer, not a manager.
 - `lib/trips/getVotingStatus.js` - Voting aggregation logic
 - `lib/trips/getBlockingUsers.js` - Blocking users computation
 - `lib/dashboard/getDashboardData.js` - Dashboard data fetcher (server-side)
-- `lib/navigation/routes.js` - Route helpers (`tripHref()`, `circlePageHref()`, `dashboardCircleHref()`)
+- `lib/navigation/routes.js` - Route helpers (`tripHref()`, `circlePageHref()`)
 - `lib/server/db.js` - MongoDB connection singleton
-- `lib/server/auth.js` - JWT auth helpers (`requireAuth()`, `getUserFromToken()`)
-- `lib/server/llm.js` - OpenAI integration (`generateItinerary()`, `summarizeFeedback()`, `reviseItinerary()`)
+- `lib/server/auth.js` - JWT auth helpers
+- `lib/server/llm.js` - OpenAI integration
 
 **Tests**:
-- `tests/api/trip-stage-enforcement.test.js` - Stage transition validation tests
-- `tests/api/trip-privacy-permissions.test.js` - Privacy filtering tests
-- `tests/api/trip-expenses.test.js` - Expenses API tests
-- `tests/api/trip-deletion-leaving.test.js` - Trip deletion and leaving tests
-- `tests/api/circle-join-backfill.test.js` - Circle join backfill tests
-- `tests/api/validate-stage-action.test.js` - Stage action validator tests
-- `tests/trips/getVotingStatus.test.js` - Voting status computation tests
-- `tests/trips/getBlockingUsers.test.js` - Blocking users tests
-- `e2e/navigation.spec.ts` - Navigation E2E tests
-- `e2e/discover-flow.spec.js` - Discover flow E2E tests
+- `tests/api/` - API unit tests (stage enforcement, privacy, expenses, etc.)
+- `tests/trips/` - Trip utility tests (voting status, blocking users)
+- `e2e/` - Playwright E2E tests (navigation, discover flow)
 
-## 4) Recent work + known context
+## 4) Command Center V2 - Current Implementation
 
-**Trip Command Center (Phases 1-8 + Phase 9 Part 1) - CURRENT DEFAULT**:
-- Command Center is now the **default trip detail view** (no query param needed)
-- Legacy tab-based UI accessible via `?ui=legacy` for debugging
-- Three-zone architecture:
-  1. **Trip Focus Banner** (Zone 1): Shows current blocker (DATES/ITINERARY/ACCOMMODATION/READY) with LLM confidence score
-  2. **Decision Cards** (Zone 2): Accordion modules - only one expanded at a time. Primary blockers (Scheduling, Itinerary, Accommodation) + secondary modules under "+ More" (Travelers, Prep, Expenses)
-  3. **Chat Feed** (Zone 3): Primary interaction surface with 5-second polling
-- LLM integration via `lib/server/llm.js`: `detectBlocker()`, `generateNudge()`, `summarizeConsensus()`, `extractAccommodationPreferences()`
-- Accommodation inline voting: Max 3 options, vote → confirm → lock flow
-- Actions like "Pick Dates" navigate to legacy tabs (`?ui=legacy&tab=planning`) until inline UI is built
+**Layout Structure**:
+```
+┌─────────────────────────────────────────┬─────┐
+│  Focus Banner (Trip Name + Blocker)     │  ▼  │ ← Proposed chevron
+├─────────────────────────────────────────┤  ▼  │ ← Dates chevron (orange if current)
+│                                         │  ▼  │ ← Itinerary chevron
+│           CHAT FEED                     │  ▼  │ ← Accommodation chevron
+│         (scrollable)                    │  ▼  │ ← Prep chevron
+│                                         │  ▼  │ ← Ongoing chevron
+│                                         │  ○  │ ← Memories chevron
+│                                         │  ○  │ ← Expenses chevron
+│                                         │─────│
+│                                         │  👥 │ ← Travelers button
+├─────────────────────────────────────────┴─────┤
+│  [👤][👤][👤] ← Traveler Strip (clickable)    │
+├───────────────────────────────────────────────┤
+│  [  Pick your dates  📅 ]  ← Red CTA Bar      │
+├───────────────────────────────────────────────┤
+│  [  Type a message...              ] [➤]      │
+└───────────────────────────────────────────────┘
+```
 
-**Phase 9 remaining work** (future PR):
-- Build inline scheduling UI in Command Center (replace legacy tab navigation)
-- Build inline itinerary UI in Command Center
-- Delete `TripDetailViewLegacy` (~1,640 lines in `app/HomeClient.jsx`)
-- Remove `?ui=legacy` fallback
+**Key Features**:
+- **Progress Chevrons**: SVG arrow shapes on right sidebar
+  - Green = completed, Orange = current stage, Gray = future, Blue = active overlay
+  - Points DOWN by default, LEFT when active (indicating overlay direction)
+  - Always visible on right side (desktop and mobile)
+- **Slide-in Overlays**: Drawer from right (max-width 448px)
+  - Offset from chevron sidebar (doesn't cover it)
+  - Backdrop click or Escape to close
+  - Unsaved changes protection with confirmation dialog
+- **Traveler Strip**: Horizontal avatar scroll, clickable to open member profile
+- **CTA Bar**: Red banner showing next action, opens relevant overlay
+- **Focus Banner**: Shows trip name, dates, and current blocker
 
-**New dashboard/home page messaging**:
-- Welcome page (`components/marketing/WelcomePage.tsx`) updated with tagline "Trips made easy" (browser title in `app/layout.js`)
-- Hero headline: "Plan trips together — without the chaos."
-- Subheadline removed (was: "Trypzy helps groups plan trips smoothly — even when not everyone participates the same way.")
-- Icon flow updated: Proposed (Lightbulb), Dates (Calendar), On Trip (Rocket), Prep (Luggage unchanged)
-- Redundant CTAs removed from under icon flow, only bottom CTA section remains
+**Overlay Triggers**:
+| Trigger | Opens |
+|---------|-------|
+| Progress chevron | Corresponding stage overlay |
+| CTA bar button | Context-sensitive overlay |
+| Traveler avatar | Member profile overlay |
+| Travelers chevron | Travelers management overlay |
 
-**Removal of redundant chat top pills**:
-- ChatTab (`components/trip/TripTabs/tabs/ChatTab.tsx`) previously had CTAs at top and bottom
-- Top pills removed, CTAs now only at bottom via ActionCard component
-- CTA computation via `getNextAction()` (`lib/trips/nextAction.ts`)
+**State Management**:
+```typescript
+type OverlayType =
+  | 'proposed' | 'scheduling' | 'itinerary' | 'accommodation'
+  | 'travelers' | 'prep' | 'expenses' | 'memories' | 'member' | null
 
-**Trip progress pane + nav fixes**:
-- Progress pane shows 8 steps: Proposed → Dates → Itinerary → Stay → Prep → Ongoing → Memories → Expenses
-- Navigation logic unified via `deriveTripPrimaryStage()` and `getPrimaryTabForStage()` (`lib/trips/stage.js`)
-- Tab synchronization fixed in `app/HomeClient.jsx` (manual tab change ref prevents race conditions)
-- Deep link support: `/?tripId=X&tab=Y` routes correctly via `WelcomePageWrapper.jsx`
+const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
+const [overlayParams, setOverlayParams] = useState<{ memberId?: string }>({})
+```
 
-**Known "stacked PR" risks**:
-- Large files prone to merge conflicts: `app/HomeClient.jsx` (~5500 lines), `app/api/[[...path]]/route.js` (~7100 lines)
-- Navigation state management (`app/HomeClient.jsx`) has complex URL normalization logic with ref guards (`authRedirectRef`, `dashboardRedirectRef`) to prevent infinite loops
-- Privacy logic (`lib/trips/canViewerSeeTrip.js`, `lib/trips/applyProfileTripPrivacy.js`) is complex and context-aware—easy to regress if not careful
-- Stage computation (`lib/trips/stage.js`) must stay in sync between client and server—server validates via `validateStageAction()`
+**Blocker Detection** (in `FocusBannerV2.tsx`):
+```typescript
+function deriveBlocker(trip, user): 'DATES' | 'ITINERARY' | 'ACCOMMODATION' | 'READY'
+// Priority: DATES (if not locked) → ITINERARY (if no itinerary) → ACCOMMODATION → READY
+```
 
-**Places where merges could have missed changes**:
-- Expenses API routes: Recently moved from catch-all router to dedicated file (`app/api/trips/[tripId]/expenses/route.js`). Ensure no duplicate routes remain
-- Trip progress computation: `expensesSettled` logic reverted in catch-all router—ensure consistency with progress snapshot
-- Frontend-backend ID synchronization: ExpensesTab uses `p.userId` from `participantsWithStatus`—ensure backend validation matches
+## 5) Recent Changes (January 2025)
 
-## 5) MVP Readiness: risks & weak spots (based on code)
+**Command Center V2 Complete** (Phases 1-8):
+- Phase 1-6: Built V2 with chat-centric layout, all overlay components
+- Phase 7: Made V2 the default trip view
+- Phase 8: Removed ~8,300 lines of legacy code:
+  - Deleted `components/trip/command-center/` (V1 command center)
+  - Deleted most of `components/trip/TripTabs/` (kept ChatTab.tsx)
+  - Deleted `TripDetailViewLegacy` function (~1,600 lines)
+  - Removed `?ui=v1` and `?ui=legacy` fallback modes
+- Bundle size improved: ~36kB reduction (273kB → 237kB First Load JS)
+
+**Files Removed**:
+- `components/trip/command-center/TripCommandCenter.tsx`
+- `components/trip/command-center/TripFocusBanner.tsx`
+- `components/trip/command-center/AccommodationShortlist.tsx`
+- `components/trip/command-center/decision-modules/*.tsx`
+- `components/trip/TripTabs/TripTabs.tsx`
+- `components/trip/TripTabs/tabs/*.tsx` (except ChatTab.tsx)
+- `components/trip/TripTabs/types.ts`
+
+**Files Kept** (shared/reused):
+- `components/trip/TripTabs/tabs/ChatTab.tsx` - Used by V2
+- `components/trip/chat/ActionCard.tsx` - CTA component
+- `components/trip/TransferLeadershipDialog.tsx`
+- `components/trip/CancelTripDialog.tsx`
+
+## 6) MVP Readiness: Known Risks
 
 **Risk 1: Leader leaves trip without transfer**
-- **Symptom**: Trip becomes unactionable (no one can lock dates, open voting)
-- **Likely cause**: `POST /api/trips/:id/leave` allows leader to leave without `transferToUserId` (`app/api/[[...path]]/route.js`)
-- **How to reproduce**: Create trip as leader, leave without transferring leadership
-- **Suggested fix direction**: Require `transferToUserId` for leaders, or auto-transfer to oldest active traveler
+- Trip becomes unactionable if leader leaves without transferring
+- Fix: Require `transferToUserId` for leaders, or auto-transfer
 
-**Risk 2: Voting after lock**
-- **Symptom**: Users can vote after dates are locked (wasted votes, confusion)
-- **Likely cause**: `validateStageAction()` checks `tripStatus !== 'voting'` but may not check `tripStatus === 'locked'` for vote action (`lib/trips/validateStageAction.js:124`)
-- **How to reproduce**: Lock trip, attempt to vote via `POST /api/trips/:id/vote`
-- **Suggested fix direction**: Add explicit `locked` check in vote validation
+**Risk 2: Stage transition edge cases**
+- Voting after lock, lock twice, pick availability after lock
+- Fix: Ensure `validateStageAction()` covers all cases
 
-**Risk 3: Lock twice**
-- **Symptom**: Leader can lock dates multiple times (redundant API calls, potential state corruption)
-- **Likely cause**: `validateStageAction()` checks `tripStatus === 'locked'` but endpoint may not be idempotent (`lib/trips/validateStageAction.js:136`)
-- **How to reproduce**: Lock trip, call lock endpoint again
-- **Suggested fix direction**: Make lock endpoint idempotent (return success if already locked)
+**Risk 3: Refresh mid-action loses perceived state**
+- No optimistic UI updates
+- Fix: Add optimistic updates or persist loading state
 
-**Risk 4: Pick availability after lock**
-- **Symptom**: Users can submit date picks after dates are locked (confusing, wasted data)
-- **Likely cause**: `validateStageAction()` checks `tripStatus === 'locked'` for `submit_date_picks` but may not be enforced in endpoint (`lib/trips/validateStageAction.js:88`)
-- **How to reproduce**: Lock trip, attempt to submit date picks via `POST /api/trips/:id/date-picks`
-- **Suggested fix direction**: Ensure endpoint calls `validateStageAction()` before processing
+**Risk 4: Multi-tab behavior**
+- No real-time updates between tabs
+- Fix: Add polling on focus or "Refresh" button
 
-**Risk 5: Refresh mid-action loses state**
-- **Symptom**: User submits availability/vote, refreshes page, action appears lost (but actually saved)
-- **Likely cause**: No optimistic UI updates, no loading states persist across refresh (`components/trip/TripTabs/tabs/PlanningTab.tsx`)
-- **How to reproduce**: Submit availability, refresh immediately, check if UI shows submitted state
-- **Suggested fix direction**: Add optimistic updates, persist loading state in URL or localStorage
-
-**Risk 6: Multi-tab behavior inconsistent**
-- **Symptom**: User opens trip in two tabs, performs action in one tab, other tab shows stale state
-- **Likely cause**: No real-time updates (polling/refetch only on navigation), no WebSocket/SSE (`app/HomeClient.jsx`)
-- **How to reproduce**: Open trip in two tabs, submit availability in one, check other tab
-- **Suggested fix direction**: Add polling on focus, or show "Refresh" button when stale
-
-**Risk 7: Navigation: logo/back returns to wrong page**
-- **Symptom**: Clicking logo or back button goes to old landing page instead of dashboard
-- **Likely cause**: Navigation guards (`authRedirectRef`, `dashboardRedirectRef`) may not cover all cases (`app/HomeClient.jsx:1834`)
-- **How to reproduce**: Navigate to trip detail, click logo, verify redirects to dashboard not `/`
-- **Suggested fix direction**: Ensure all navigation paths use `dashboardCircleHref()` or `router.replace('/dashboard')`
-
-**Risk 8: Trip card visibility rules per role/traveler**
-- **Symptom**: Travelers don't see their trips, or non-travelers see private trips
-- **Likely cause**: Privacy filtering (`lib/trips/canViewerSeeTrip.js`) may not account for all contexts (dashboard vs profile vs circle)
-- **How to reproduce**: Set user privacy to "Private", check if own trips appear on dashboard
-- **Suggested fix direction**: Ensure `applyProfileTripPrivacy()` only filters in profile views, never dashboard/circle
-
-**Risk 9: Stage transition not atomic**
-- **Symptom**: Trip status updated but progress steps not updated (inconsistent state)
-- **Likely cause**: Stage transitions update `trip.status` but may not call `computeTripProgressSnapshot()` (`lib/trips/progressSnapshot.ts`)
-- **How to reproduce**: Lock trip, check if `trip.progress.steps.datesLocked` is true
-- **Suggested fix direction**: Ensure all stage transitions call progress snapshot computation
-
-**Risk 10: Leave trip at each stage edge cases**
-- **Symptom**: User leaves trip during voting, votes still counted (or leader leaves, voting stuck)
-- **Likely cause**: `POST /api/trips/:id/leave` updates `trip_participants.status` but may not clean up votes/availability (`app/api/[[...path]]/route.js`)
-- **How to reproduce**: Submit vote, leave trip, check if vote still appears in aggregation
-- **Suggested fix direction**: Clean up votes/availability on leave, or mark as "left" but keep for historical accuracy
-
-**Risk 11: API/UI mismatch on traveler validation**
-- **Symptom**: UI shows user as traveler but API rejects action (or vice versa)
-- **Likely cause**: Frontend uses `trip.participantsWithStatus` but backend uses `isActiveTraveler()`—may diverge (`components/trip/TripTabs/tabs/ExpensesTab.tsx` vs `app/api/[[...path]]/route.js:67`)
-- **How to reproduce**: Collaborative trip, user has no `trip_participants` record, check if UI shows as traveler but API rejects
-- **Suggested fix direction**: Ensure frontend uses same logic as `isActiveTraveler()` (circle member check for collaborative)
-
-**Risk 12: Refresh consistency on trip detail page**
-- **Symptom**: User refreshes trip detail page, sees stale data (old stage, old progress)
-- **Likely cause**: Trip data fetched on mount but not refetched on URL change (`app/HomeClient.jsx`)
-- **How to reproduce**: Navigate to trip, change trip in another tab, refresh, check if data updates
-- **Suggested fix direction**: Add refetch on `tripId` change in URL, or show "Refresh" button
-
-## 6) MVP Audit Checklist (actionable)
-
-**User leaves at each stage**:
-1. Create trip as traveler (not leader)
-2. Submit availability in PROPOSED stage
-3. Leave trip via TravelersTab
-4. Verify: Cannot send messages in ChatTab, cannot submit availability, trip card shows "Left" status
-5. Repeat for SCHEDULING, VOTING, LOCKED stages
-
-**Leader leaves at each stage**:
-1. Create trip as leader
-2. Submit availability in PROPOSED stage
-3. Attempt to leave without transferring leadership
-4. Verify: TransferLeadershipDialog appears, cannot leave without transfer
-5. Transfer to another traveler, then leave
-6. Verify: New leader can lock dates, old leader cannot
-7. Repeat for SCHEDULING, VOTING stages (cannot leave in LOCKED—verify this)
-
-**Voting after lock**:
-1. Create trip, submit availability, open voting, lock dates
-2. Attempt to vote via `POST /api/trips/:id/vote`
-3. Verify: Returns 400 "Voting is not open for this trip"
-4. Check UI: Voting interface hidden/disabled in PlanningTab
-
-**Lock twice**:
-1. Create trip, submit availability, open voting
-2. Lock dates via `POST /api/trips/:id/lock`
-3. Lock again via same endpoint
-4. Verify: Returns 400 "Trip is already locked" or idempotent success
-5. Check UI: Lock button hidden/disabled
-
-**Pick availability late**:
-1. Create trip, lock dates
-2. Attempt to submit date picks via `POST /api/trips/:id/date-picks`
-3. Verify: Returns 400 "Trip dates are locked; picks cannot be changed"
-4. Check UI: Date picker hidden/disabled in PlanningTab
-
-**Refresh mid-action**:
-1. Submit availability in PlanningTab
-2. Immediately refresh page (Cmd+R / Ctrl+R)
-3. Verify: Availability still shows as submitted (not lost)
-4. Repeat for vote submission
-
-**Multi-tab behavior**:
-1. Open trip detail in two browser tabs
-2. Submit availability in tab 1
-3. Check tab 2: Shows stale state (expected—no real-time)
-4. Refresh tab 2: Shows updated state
-5. Verify: No errors, no infinite loops
-
-**Navigation: logo/back always returns to dashboard**:
-1. Navigate to trip detail (`/?tripId=X`)
-2. Click Trypzy logo in header
-3. Verify: Redirects to `/dashboard` (not `/`)
-4. Use browser back button
-5. Verify: Returns to dashboard (not welcome page if authenticated)
-6. Repeat from circle detail page
-
-**Trip card visibility rules**:
-1. Set user privacy to "Private" (`/settings/privacy`)
-2. Create trip as that user
-3. Check dashboard: Trip appears (own trips always visible)
-4. Check circle page: Trip appears (circle trips always visible)
-5. Check another user's profile: Trip hidden (private trips hidden from non-travelers)
-6. Check own profile: Trip appears (own trips always visible)
-
-**API/UI mismatch on traveler validation**:
-1. Create collaborative trip
-2. Add user to circle (membership) but NOT to `trip_participants`
-3. Check UI: User appears as traveler in TravelersTab
-4. Attempt to submit availability via API
-5. Verify: API accepts (collaborative trips allow circle members)
-6. Check ExpensesTab: User can add expense (matches `isActiveTraveler()` logic)
+**Risk 5: API/UI mismatch on traveler validation**
+- Frontend uses `participantsWithStatus`, backend uses `isActiveTraveler()`
+- Fix: Ensure consistent logic
 
 ## 7) How to run locally
 
 **Prerequisites**:
 - Node.js 18+
-- MongoDB (local or remote connection)
-- npm or yarn
+- MongoDB (local or remote)
+- npm
 
 **Installation**:
 ```bash
 npm install
 ```
 
-**Environment variables** (create `.env.local` in root):
+**Environment variables** (`.env.local`):
 ```env
 MONGO_URL=mongodb://localhost:27017
 DB_NAME=trypzy
-JWT_SECRET=your-secret-key-here
+JWT_SECRET=your-secret-key
 CORS_ORIGINS=http://localhost:3000
-OPENAI_API_KEY=your-openai-api-key-here
+OPENAI_API_KEY=your-openai-key
 ```
 
 **Development**:
 ```bash
 npm run dev
 ```
-App available at `http://localhost:3000`
-
-**Seeding sample data**:
-```bash
-npm run seed
-```
-Creates seed users (alex.traveler@example.com / password123, sam.explorer@example.com / password123), circles, trips, discover posts.
 
 **Testing**:
 ```bash
-npm run test          # Unit tests (Vitest)
-npm run test:watch    # Watch mode
-npm run test:e2e      # E2E tests (Playwright)
-npm run test:all      # All tests
+npm run test          # Unit tests
+npm run test:e2e      # E2E tests
+npm run build         # Production build
 ```
 
-**Building for production**:
+**Seed data**:
 ```bash
-npm run build
-npm start
+npm run seed
 ```
-
-**Key env vars referenced**:
-- `MONGO_URL` / `MONGO_URI`: MongoDB connection string (`lib/server/db.js`, `tests/testUtils/dbTestHarness.js`)
-- `DB_NAME`: Database name (`lib/server/db.js`, `tests/testUtils/dbTestHarness.js`)
-- `JWT_SECRET`: JWT signing secret (`app/api/[[...path]]/route.js:11`, `lib/server/auth.js`)
-- `CORS_ORIGINS`: CORS allowed origins (`app/api/[[...path]]/route.js:28`)
-- `OPENAI_API_KEY`: OpenAI API key (`lib/server/llm.js`)
-- `NODE_ENV`: Environment mode (affects seed endpoint availability)
+Creates test users: alex.traveler@example.com / password123
 
 ## 8) "If you only read 5 things" (for Claude)
 
-1. **Command Center is the default trip detail view**: `TripCommandCenter` (`components/trip/command-center/TripCommandCenter.tsx`) is now the default. Three zones: Focus Banner (blocker), Decision Cards (accordion), Chat Feed. Legacy tab UI accessible via `?ui=legacy`. Actions like "Pick Dates" still navigate to legacy tabs until inline UI is built.
+1. **Command Center V2 is the only trip view**: No legacy fallbacks. Chat-centric with slide-in overlays triggered by progress chevrons on right sidebar.
 
-2. **Stage computation is client-side but validated server-side**: `deriveTripPrimaryStage()` (`lib/trips/stage.js:129`) computes stage client-side for UI responsiveness, but `validateStageAction()` (`lib/trips/validateStageAction.js`) validates server-side. Must stay in sync.
+2. **Stage computation is client-side but validated server-side**: `deriveTripPrimaryStage()` for UI, `validateStageAction()` for API. Must stay in sync.
 
-3. **Traveler determination differs by trip type**: Collaborative trips = all circle members (unless `status='left'/'removed'`). Hosted trips = only explicit `trip_participants` with `status='active'`. See `isActiveTraveler()` (`app/api/[[...path]]/route.js:67`).
+3. **Traveler determination differs by trip type**: Collaborative = circle members. Hosted = explicit participants. See `isActiveTraveler()`.
 
-4. **Privacy filtering is context-aware**: `canViewerSeeTrip()` (`lib/trips/canViewerSeeTrip.js`) filters trips, but `applyProfileTripPrivacy()` (`lib/trips/applyProfileTripPrivacy.js`) only applies in profile views. Dashboard/circle always show own/circle trips regardless of privacy.
+4. **Overlay architecture**: `OverlayContainer` handles animations and unsaved changes. Each overlay is self-contained with its own API calls and state.
 
-5. **Navigation state management is complex**: `app/HomeClient.jsx` has URL normalization logic with ref guards (`authRedirectRef`, `dashboardRedirectRef`) to prevent infinite loops. Deep links (`/?tripId=X&tab=Y`) route via `WelcomePageWrapper.jsx`.
+5. **Progress chevrons are interactive**: SVG arrows that change direction (down → left) when active. Color indicates status (green/orange/gray/blue). Clicking opens overlay.
+
+## 9) Key Component APIs
+
+**CommandCenterV2 Props**:
+```typescript
+interface CommandCenterV2Props {
+  trip: Trip
+  token: string
+  user: User
+  onRefresh: (updatedTrip?: Trip) => void
+}
+```
+
+**OverlayContainer Props**:
+```typescript
+interface OverlayContainerProps {
+  isOpen: boolean
+  onClose: () => void
+  title: string
+  children: React.ReactNode
+  hasUnsavedChanges?: boolean
+  rightOffset?: string  // e.g., "56px" to not cover chevron sidebar
+}
+```
+
+**ProgressChevrons Props**:
+```typescript
+interface ProgressChevronsProps {
+  progressSteps: Record<string, boolean>
+  currentStageKey: string | null
+  onChevronClick: (overlayType: OverlayType) => void
+  activeOverlay: OverlayType
+  orientation?: 'vertical' | 'horizontal'
+}
+```
+
+**Overlay Pattern** (all overlays follow this):
+```typescript
+interface XxxOverlayProps {
+  trip: Trip
+  token: string
+  user: User
+  onRefresh: (updatedTrip?: Trip) => void
+  onClose: () => void
+  setHasUnsavedChanges: (has: boolean) => void
+  // Optional: onMemberClick for navigation to member profile
+}
+```
