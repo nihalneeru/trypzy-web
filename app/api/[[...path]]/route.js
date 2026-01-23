@@ -7086,6 +7086,8 @@ async function handleRoute(request, { params }) {
       }
       
       const tripId = path[1]
+      const body = await request.json().catch(() => ({}))
+      const forceGenerate = body.forceGenerate === true
       
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -7134,6 +7136,14 @@ async function handleRoute(request, { params }) {
           { status: 403 }
         ))
       }
+
+      // LLM disabled: fail gracefully
+      if (!process.env.OPENAI_API_KEY) {
+        return handleCORS(NextResponse.json(
+          { error: 'AI features are disabled. Ask an admin to set OPENAI_API_KEY to enable itinerary generation.' },
+          { status: 503 }
+        ))
+      }
       
       // MVP: Only allow if no versions exist
       const existingVersions = await db.collection('itinerary_versions')
@@ -7147,6 +7157,24 @@ async function handleRoute(request, { params }) {
         ))
       }
       
+      // Get top ideas by priority
+      const ideas = await db.collection('itinerary_ideas')
+        .find({ tripId })
+        .sort({ priority: -1, createdAt: -1 })
+        .limit(10)
+        .toArray()
+
+      const destinationHint = (trip.destinationHint || '').trim()
+      const hasIdeas = ideas.length > 0
+      const hasDestinationHint = destinationHint.length > 0
+
+      if (!forceGenerate && (!hasIdeas || !hasDestinationHint)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Add a destination hint or at least one idea before generating, or confirm to generate anyway.' },
+          { status: 400 }
+        ))
+      }
+
       // Update status to drafting
       await db.collection('trips').updateOne(
         { id: tripId },
@@ -7154,12 +7182,6 @@ async function handleRoute(request, { params }) {
       )
       
       try {
-        // Get top ideas by priority
-        const ideas = await db.collection('itinerary_ideas')
-          .find({ tripId })
-          .sort({ priority: -1, createdAt: -1 })
-          .limit(10)
-          .toArray()
         
         // Extract all constraints
         const allConstraints = []
@@ -7176,7 +7198,7 @@ async function handleRoute(request, { params }) {
         
         // Generate itinerary using LLM
         const itineraryContent = await generateItinerary({
-          destination: trip.description || trip.name, // Use description or name as destination hint
+          destination: destinationHint || trip.description || trip.name,
           startDate: lockedStartDate,
           endDate: lockedEndDate,
           dateList, // Pass canonical date list
@@ -7719,6 +7741,14 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json(
           { error: 'Only the trip creator or circle owner can revise an itinerary' },
           { status: 403 }
+        ))
+      }
+
+      // LLM disabled: fail gracefully
+      if (!process.env.OPENAI_API_KEY) {
+        return handleCORS(NextResponse.json(
+          { error: 'AI features are disabled. Ask an admin to set OPENAI_API_KEY to enable itinerary revisions.' },
+          { status: 503 }
         ))
       }
       
