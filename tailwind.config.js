@@ -17,6 +17,10 @@ module.exports = {
     		}
     	},
     	extend: {
+    		fontFamily: {
+    			sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+    			serif: ['Georgia', 'serif'],
+    		},
     		colors: {
     			// Trypzy Brand Colors
     			brand: {

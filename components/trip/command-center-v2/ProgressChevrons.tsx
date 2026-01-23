@@ -2,8 +2,6 @@
 
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Users } from 'lucide-react'
 
 export type OverlayType =
   | 'proposed'
@@ -147,112 +145,61 @@ export function ProgressChevrons({
 }: ProgressChevronsProps) {
   const isVertical = orientation === 'vertical'
 
+  // Filter out steps that are now in the bottom bar (Travelers/Expenses/Memories)
+  const visibleSteps = TRIP_PROGRESS_STEPS.filter(
+    step => step.key !== 'memoriesShared' && step.key !== 'expensesSettled'
+  )
+
   return (
-    <TooltipProvider>
-      <div
-        className={cn(
-          'flex items-center p-1',
-          isVertical ? 'flex-col gap-0.5' : 'flex-row gap-1'
-        )}
-      >
-        {/* Progress step chevrons */}
-        {TRIP_PROGRESS_STEPS.map((step) => {
-          const isCompleted = progressSteps[step.key]
-          const isBlocker = step.key === blockerStageKey
-          const overlayType = STEP_TO_OVERLAY[step.key]
-          const isActiveOverlay = overlayType && activeOverlay === overlayType
-          const isClickable = overlayType !== null
+    <div
+      className={cn(
+        'flex items-center p-1',
+        isVertical ? 'flex-col gap-0.5' : 'flex-row gap-1'
+      )}
+    >
+      {/* Progress step chevrons */}
+      {visibleSteps.map((step) => {
+        const isCompleted = progressSteps[step.key]
+        const isBlocker = step.key === blockerStageKey
+        const overlayType = STEP_TO_OVERLAY[step.key]
+        const isActiveOverlay = overlayType && activeOverlay === overlayType
+        const isClickable = overlayType !== null
 
-          // Blocker stage points left (toward overlay), others point down
-          const pointDirection = (isBlocker || isActiveOverlay) ? 'left' : 'down'
+        // Blocker stage points left (toward overlay), others point down
+        const pointDirection = (isBlocker || isActiveOverlay) ? 'left' : 'down'
 
-          return (
-            <Tooltip key={step.key}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => isClickable && onChevronClick(overlayType)}
-                  disabled={!isClickable}
-                  className={cn(
-                    'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-1 rounded',
-                    'flex flex-col items-center gap-0.5'
-                  )}
-                  aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isBlocker ? ' (needs attention)' : ''}`}
-                >
-                  <ChevronArrow
-                    isCompleted={isCompleted}
-                    isCurrent={isBlocker}
-                    isActiveOverlay={!!isActiveOverlay}
-                    isClickable={isClickable}
-                    icon={step.icon}
-                    size={isVertical ? 'normal' : 'small'}
-                    pointDirection={isVertical ? pointDirection : 'down'}
-                  />
-                  {/* Text label below chevron */}
-                  {isVertical && (
-                    <span className={cn(
-                      'text-[8px] font-medium leading-tight text-center w-16',
-                      isActiveOverlay ? 'text-brand-blue' : isBlocker ? 'text-brand-red' : isCompleted ? 'text-green-600' : 'text-gray-400'
-                    )}>
-                      {step.shortLabel}
-                    </span>
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side={isVertical ? 'left' : 'top'} className="max-w-[200px]">
-                <div className="text-sm">
-                  <p className="font-medium">{step.label}</p>
-                  <p className="text-gray-500 text-xs mt-0.5">{step.tooltip}</p>
-                  {isCompleted && <p className="text-green-600 text-xs mt-0.5">✓ Completed</p>}
-                  {isBlocker && !isCompleted && <p className="text-orange-600 text-xs mt-0.5">● Needs attention</p>}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )
-        })}
-
-        {/* Divider */}
-        <div className={cn(
-          'bg-gray-300',
-          isVertical ? 'w-12 h-px my-2' : 'h-6 w-px mx-1'
-        )} />
-
-        {/* Travelers button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => onChevronClick('travelers')}
-              className={cn(
-                'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-1 rounded',
-                'flex flex-col items-center gap-0.5'
-              )}
-              aria-label="View travelers"
-            >
-              <ChevronArrow
-                isCompleted={false}
-                isCurrent={false}
-                isActiveOverlay={activeOverlay === 'travelers'}
-                isClickable={true}
-                icon={Users}
-                size={isVertical ? 'normal' : 'small'}
-                pointDirection={activeOverlay === 'travelers' ? 'left' : 'down'}
-              />
-              {/* Text label below chevron */}
-              {isVertical && (
-                <span className={cn(
-                  'text-[8px] font-medium leading-tight text-center w-16',
-                  activeOverlay === 'travelers' ? 'text-brand-blue' : 'text-gray-400'
-                )}>
-                  Travelers
-                </span>
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side={isVertical ? 'left' : 'top'}>
-            <p className="text-sm font-medium">Travelers</p>
-            <p className="text-gray-500 text-xs">View and manage trip members</p>
-          </TooltipContent>
-        </Tooltip>
-      </div>
-    </TooltipProvider>
+        return (
+          <button
+            key={step.key}
+            onClick={() => isClickable && onChevronClick(overlayType)}
+            disabled={!isClickable}
+            className={cn(
+              'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-1 rounded',
+              'flex flex-col items-center gap-0.5'
+            )}
+            aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isBlocker ? ' (needs attention)' : ''}`}
+          >
+            <ChevronArrow
+              isCompleted={isCompleted}
+              isCurrent={isBlocker}
+              isActiveOverlay={!!isActiveOverlay}
+              isClickable={isClickable}
+              icon={step.icon}
+              size={isVertical ? 'normal' : 'small'}
+              pointDirection={isVertical ? pointDirection : 'down'}
+            />
+            {/* Text label below chevron */}
+            {isVertical && (
+              <span className={cn(
+                'text-[8px] font-medium leading-tight text-center w-16',
+                isActiveOverlay ? 'text-brand-blue' : isBlocker ? 'text-brand-red' : isCompleted ? 'text-green-600' : 'text-gray-400'
+              )}>
+                {step.shortLabel}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
   )
 }

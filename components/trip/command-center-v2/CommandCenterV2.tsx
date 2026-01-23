@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 // Command Center components
 import { ProgressChevrons, OverlayType } from './ProgressChevrons'
-import { TravelerStrip } from './TravelerStrip'
+import { ContextCTABar } from './ContextCTABar'
 import { OverlayContainer } from './OverlayContainer'
 
 // Overlay components
@@ -84,6 +84,7 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
   if (!datesLocked) {
     const userHasPicked = trip.userDatePicks && trip.userDatePicks.length > 0
     const userHasVoted = !!trip.userVote
+    const canLockDates = trip.canLockDates || trip.status === 'voting'
 
     if (trip.status === 'voting') {
       return {
@@ -93,6 +94,18 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
           ? 'Waiting for others to vote before dates can be locked'
           : 'Choose your preferred date window',
         ctaLabel: userHasVoted ? 'View Votes' : 'Vote Now',
+        icon: Calendar,
+        overlayType: 'scheduling'
+      }
+    }
+
+    // If everyone has picked and dates can be locked, show "Waiting on dates to be locked"
+    if (canLockDates && userHasPicked) {
+      return {
+        type: 'DATES',
+        title: 'Waiting on dates to be locked',
+        description: 'Everyone has responded. Waiting for trip leader to lock dates',
+        ctaLabel: 'View Dates',
         icon: Calendar,
         overlayType: 'scheduling'
       }
@@ -231,7 +244,7 @@ function FocusBanner({
   const Icon = blocker.icon
 
   return (
-    <div className="border-b border-gray-200 shrink-0">
+    <div className="border-b border-gray-200 shrink-0" style={{ marginRight: `${CHEVRON_BAR_WIDTH}px` }}>
       {/* Trip name and dates row */}
       <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
         <h1 className="text-base font-semibold text-gray-900 truncate">{tripName}</h1>
@@ -266,38 +279,6 @@ function FocusBanner({
   )
 }
 
-/**
- * InlineCTA - Red banner for user's next action (positioned above chat input)
- */
-function InlineCTA({
-  blocker,
-  onAction
-}: {
-  blocker: BlockerInfo
-  onAction: (overlayType: OverlayType) => void
-}) {
-  // Only show if there's an action to take
-  if (blocker.type === 'READY' || !blocker.overlayType) return null
-
-  return (
-    <div className="mx-3 mb-2 px-3 py-2 bg-red-500 text-white rounded-lg">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <blocker.icon className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium truncate">{blocker.title}</span>
-        </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="bg-white text-red-600 hover:bg-red-50 shrink-0"
-          onClick={() => onAction(blocker.overlayType)}
-        >
-          {blocker.ctaLabel}
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 /**
  * CommandCenterV2 - Main container orchestrating the chat-centric layout
@@ -307,8 +288,7 @@ function InlineCTA({
  * - Main area split into:
  *   - Chat column (flex-1) containing:
  *     - Chat messages (scrollable)
- *     - TravelerStrip (horizontal avatars)
- *     - InlineCTA (red banner)
+ *     - ContextCTABar (bottom bar with travelers/expenses/memories + focus CTA)
  *     - Chat input
  *   - Chevron sidebar (fixed width, desktop only)
  * - Mobile chevrons (horizontal, mobile only)
@@ -343,7 +323,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   // Find blocker stage key for progress chevrons - the chevron that points left matches the focus banner
   // This is based on the blocker (what needs attention), not the current stage
   const blockerStageKey = useMemo(() => {
-    switch (blocker) {
+    switch (blocker.type) {
       case 'DATES':
         return 'datesLocked'
       case 'ITINERARY':
@@ -448,17 +428,14 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
             />
           </div>
 
-          {/* Bottom section: Traveler strip + Red CTA (inside chat area, above input) */}
-          <div className="shrink-0 border-t border-gray-200 bg-white">
-            {/* Traveler Strip */}
-            <TravelerStrip
-              travelers={travelers}
-              currentUserId={user?.id}
-              onTravelerClick={handleTravelerClick}
+          {/* Bottom section: Context CTA Bar (inside chat area, above input) */}
+          <div className="shrink-0">
+            <ContextCTABar
+              trip={trip}
+              user={user}
+              travelerCount={travelers.length}
+              onOpenOverlay={openOverlay}
             />
-
-            {/* Inline CTA (red banner) - above chat input */}
-            <InlineCTA blocker={blocker} onAction={handleBlockerAction} />
           </div>
         </div>
 
@@ -478,13 +455,18 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         </div>
       </div>
 
-      {/* Overlay Container - slides in from right, offset by chevron bar width on desktop */}
+      {/* Overlay Container - slides in from right (sidebar) or bottom (bottom bar) */}
       <OverlayContainer
         isOpen={activeOverlay !== null}
         onClose={closeOverlay}
         title={getOverlayTitle(activeOverlay)}
         hasUnsavedChanges={hasUnsavedChanges}
         rightOffset={`${CHEVRON_BAR_WIDTH}px`}
+        slideFrom={
+          activeOverlay === 'travelers' || activeOverlay === 'expenses' || activeOverlay === 'memories'
+            ? 'bottom'
+            : 'right'
+        }
       >
         {/* Render appropriate overlay based on activeOverlay type */}
         {activeOverlay === 'scheduling' && (

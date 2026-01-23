@@ -362,9 +362,10 @@ export function SchedulingOverlay({
         throw new Error(error.message || 'Failed to save picks')
       }
 
+      const updatedTrip = await response.json()
       toast.success('Date picks saved!')
       setHasUnsavedChanges(false)
-      onRefresh()
+      onRefresh(updatedTrip)
     } catch (error: any) {
       toast.error(error.message || 'Failed to save picks')
     } finally {
@@ -787,7 +788,7 @@ export function SchedulingOverlay({
             )}
 
             {/* Calendar Grid */}
-            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+            <div className="space-y-4 max-h-[320px] overflow-y-auto">
               {calendarMonths.map((monthData) => (
                 <div key={`${monthData.year}-${monthData.month}`} className="space-y-1">
                   <h4 className="text-xs font-semibold text-gray-700 px-1 sticky top-0 bg-white">
@@ -829,8 +830,9 @@ export function SchedulingOverlay({
                       const isValidForPreview = day.isValidStart && activeRank && canParticipate
                       const isDisabled = !day.isInBounds || !day.isValidStart || !canParticipate
 
-                      // Show icon on hover for the start date cell
+                      // Show icon on hover for entire preview block
                       const isHoveredStartDate = hoveredStartDate === day.dateISO && activeRank
+                      const isInHoveredBlock = isInPreviewWindow && activeRank
                       const HoverIcon = activeRank ? getRankIcon(activeRank) : null
                       const UserPickIcon = userPick ? getRankIcon(userPick.rank) : null
 
@@ -866,8 +868,8 @@ export function SchedulingOverlay({
                               : ''
                           }
                         >
-                          {/* Show hover icon on start date when selecting */}
-                          {isHoveredStartDate && HoverIcon ? (
+                          {/* Show hover icon on entire preview block when selecting */}
+                          {isInHoveredBlock && HoverIcon ? (
                             <HoverIcon className={`h-4 w-4 ${getRankColor(activeRank!)}`} />
                           ) : (
                             day.date.getDate()

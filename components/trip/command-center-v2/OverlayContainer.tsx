@@ -24,13 +24,15 @@ interface OverlayContainerProps {
   hasUnsavedChanges?: boolean
   /** Right offset to not cover sidebar (e.g., "60px" for chevron bar) */
   rightOffset?: string
+  /** Slide direction - 'right' (default) or 'bottom' */
+  slideFrom?: 'right' | 'bottom'
 }
 
 /**
  * Slide-in drawer overlay container
  *
  * Features:
- * - Slides in from right side with smooth animation
+ * - Slides in from right side or bottom with smooth animation
  * - Can be offset from right edge to not cover sidebar
  * - Chat remains visible (dimmed) behind
  * - Unsaved changes protection with confirmation dialog
@@ -42,7 +44,8 @@ export function OverlayContainer({
   title,
   children,
   hasUnsavedChanges = false,
-  rightOffset = '0px'
+  rightOffset = '0px',
+  slideFrom = 'right'
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -117,30 +120,59 @@ export function OverlayContainer({
   // Don't render anything if not visible
   if (!isVisible) return null
 
+  const isBottomSlide = slideFrom === 'bottom'
+
   return (
     <>
-      {/* Backdrop - semi-transparent overlay, offset from right */}
+      {/* Backdrop - semi-transparent overlay */}
       <div
         className={cn(
           'fixed inset-0 z-40 bg-black/30 transition-opacity duration-300',
           isAnimating ? 'opacity-100' : 'opacity-0'
         )}
-        style={{ right: rightOffset }}
+        style={
+          isBottomSlide
+            ? { bottom: '56px', right: rightOffset } // Match overlay positioning for bottom slide
+            : { right: rightOffset }
+        }
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
 
-      {/* Slide-in Drawer from Right */}
+      {/* Slide-in Drawer */}
       <div
         ref={overlayRef}
         tabIndex={-1}
         className={cn(
-          'fixed top-0 z-50 h-full bg-white shadow-2xl',
+          'fixed z-50 bg-white shadow-2xl',
           'flex flex-col transition-transform duration-300 ease-out',
-          'w-full max-w-md',
-          isAnimating ? 'translate-x-0' : 'translate-x-full'
+          isBottomSlide ? [
+            // Bottom slide: constrained to chat area, positioned above bottom bar, never covers bar or chevrons
+            'left-0',
+            isAnimating ? 'translate-y-0' : 'translate-y-full'
+          ] : [
+            // Right slide: constrained to chat area, never covers chevron bar
+            'top-0',
+            isAnimating ? 'translate-x-0' : 'translate-x-full'
+          ]
         )}
-        style={{ right: rightOffset }}
+        style={
+          isBottomSlide
+            ? {
+                bottom: '56px', // Position above bottom bar
+                right: rightOffset, // Don't extend under chevron bar
+                width: `calc(100vw - ${rightOffset})`, // Exact width of chat area
+                maxWidth: '768px', // Cap at reasonable size (tailwind's 'md' breakpoint)
+                maxHeight: 'calc(100vh - 200px)' // Leave space for focus banner (~100px) and bottom bar (56px) + buffer
+              }
+            : {
+                right: rightOffset, // End at left edge of chevron bar
+                width: '448px', // Fixed width (tailwind's 'md' max-width)
+                maxWidth: `calc(100vw - ${rightOffset})`, // Never exceed chat area
+                height: '100vh', // Full viewport height
+                maxHeight: '100vh' // Explicitly cap at viewport height
+              }
+        }
         role="dialog"
         aria-modal="true"
         aria-labelledby="overlay-title"

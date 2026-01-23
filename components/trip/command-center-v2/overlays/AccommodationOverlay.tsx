@@ -401,14 +401,39 @@ export function AccommodationOverlay({
 
   // No stays added yet
   if (stays.length === 0) {
+    // Build a generic Airbnb search URL based on trip dates and destination
+    const tripDestination = trip.destinationHint || trip.destination || ''
+    const tripStart = trip.lockedStartDate || trip.startDate
+    const tripEnd = trip.lockedEndDate || trip.endDate
+
+    const handleSearchAccommodation = () => {
+      if (tripStart && tripEnd) {
+        const url = buildAirbnbSearchUrl({
+          locationName: tripDestination,
+          startDate: tripStart,
+          endDate: tripEnd
+        })
+        window.open(url, '_blank')
+      } else {
+        toast.error('Lock trip dates first to search for accommodation')
+      }
+    }
+
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Home className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Stays Needed</h3>
-        <p className="text-gray-500 max-w-sm">
-          No accommodation requirements have been added for this trip.
-          Add stays if your trip needs overnight accommodation.
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No Stays Added Yet</h3>
+        <p className="text-gray-500 max-w-sm mb-6">
+          Accommodation requirements will be automatically generated based on your trip itinerary.
+          You can also search for stays manually.
         </p>
+        <Button
+          onClick={handleSearchAccommodation}
+          className="bg-brand-red hover:bg-brand-red/90 text-white"
+        >
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Search on Airbnb
+        </Button>
       </div>
     )
   }
