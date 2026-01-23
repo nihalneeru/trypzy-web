@@ -104,6 +104,10 @@ interface Reaction {
   userId: string
   reactionKey: string
   category: string
+  user?: {
+    id: string
+    name: string
+  } | null
 }
 
 // ============================================================================
@@ -644,11 +648,42 @@ export function ItineraryOverlay({
     }
   }
 
+  // Send a chat message for the reaction
+  const sendReactionChatMessage = async (reactionLabel: string, reactionEmoji: string, isAdding: boolean) => {
+    try {
+      const action = isAdding ? 'prefers' : 'removed preference for'
+      const message = `${reactionEmoji} ${user?.name || 'Someone'} ${action} "${reactionLabel}" for the itinerary`
+      await api(
+        `/trips/${trip.id}/messages`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ content: message })
+        },
+        token
+      )
+    } catch (error) {
+      // Silent fail - chat message is optional enhancement
+      console.error('Failed to send reaction chat message:', error)
+    }
+  }
+
   // Handle quick reaction click
   const handleQuickReaction = async (reactionId: string, category: string) => {
     if (reactingChip || viewerIsReadOnly || !latestVersion) return
 
     setReactingChip(reactionId)
+
+    // Find the reaction details for the chat message
+    let reactionLabel = ''
+    let reactionEmoji = ''
+    for (const group of REACTION_GROUPS) {
+      const matching = group.reactions.find((rx) => rx.id === reactionId)
+      if (matching) {
+        reactionLabel = matching.label
+        reactionEmoji = matching.emoji
+        break
+      }
+    }
 
     try {
       const userReactionKeys = reactions.filter((r) => r.userId === user?.id).map((r) => r.reactionKey)
@@ -661,6 +696,8 @@ export function ItineraryOverlay({
           { method: 'DELETE' },
           token
         )
+        // Send chat message for removing reaction
+        await sendReactionChatMessage(reactionLabel, reactionEmoji, false)
         toast.success('Reaction removed')
       } else {
         setReactingAction('adding')
@@ -672,6 +709,8 @@ export function ItineraryOverlay({
           },
           token
         )
+        // Send chat message for adding reaction
+        await sendReactionChatMessage(reactionLabel, reactionEmoji, true)
         toast.success('Reaction added')
       }
 
@@ -1105,31 +1144,45 @@ export function ItineraryOverlay({
                         const userHasReaction = reactions.some(
                           (r) => r.userId === user?.id && r.reactionKey === reaction.id
                         )
+                        // Get names of users who reacted
+                        const reactedUsers = reactions
+                          .filter((r) => r.reactionKey === reaction.id)
+                          .map((r) => r.user?.name || 'Unknown')
 
                         return (
-                          <Button
-                            key={reaction.id}
-                            variant={userHasReaction ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => handleQuickReaction(reaction.id, group.category)}
-                            disabled={isDisabled}
-                            className="text-xs h-8"
-                          >
-                            {isReacting ? (
-                              <>
-                                <span className="mr-1">OK</span>
-                                {reactingAction === 'adding' ? 'Added!' : 'Removed!'}
-                              </>
-                            ) : (
-                              <>
-                                <span className="mr-1">{reaction.emoji}</span>
-                                {reaction.label}
-                                {reactionCount > 0 && (
-                                  <span className="ml-1 text-gray-500">({reactionCount})</span>
-                                )}
-                              </>
+                          <div key={reaction.id} className="flex flex-col items-start">
+                            <Button
+                              variant={userHasReaction ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => handleQuickReaction(reaction.id, group.category)}
+                              disabled={isDisabled}
+                              className="text-xs h-8"
+                              title={reactedUsers.length > 0 ? `Voted by: ${reactedUsers.join(', ')}` : undefined}
+                            >
+                              {isReacting ? (
+                                <>
+                                  <span className="mr-1">OK</span>
+                                  {reactingAction === 'adding' ? 'Added!' : 'Removed!'}
+                                </>
+                              ) : (
+                                <>
+                                  <span className="mr-1">{reaction.emoji}</span>
+                                  {reaction.label}
+                                  {reactionCount > 0 && (
+                                    <span className="ml-1 text-gray-500">({reactionCount})</span>
+                                  )}
+                                </>
+                              )}
+                            </Button>
+                            {/* Show who reacted below the button */}
+                            {reactedUsers.length > 0 && (
+                              <p className="text-xs text-gray-500 mt-0.5 pl-1">
+                                {reactedUsers.length <= 2
+                                  ? reactedUsers.join(', ')
+                                  : `${reactedUsers.slice(0, 2).join(', ')} +${reactedUsers.length - 2}`}
+                              </p>
                             )}
-                          </Button>
+                          </div>
                         )
                       })}
                   </div>

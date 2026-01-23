@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
 import { Calendar, ListTodo, Home, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -301,6 +301,16 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   const [overlayParams, setOverlayParams] = useState<OverlayParams>({})
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const chevronBarRef = useRef<HTMLDivElement>(null)
+  const focusBannerRef = useRef<HTMLDivElement>(null)
+  const [focusBannerHeight, setFocusBannerHeight] = useState(0)
+
+  // Measure focus banner height for overlay positioning
+  useEffect(() => {
+    if (focusBannerRef.current) {
+      const height = focusBannerRef.current.getBoundingClientRect().height
+      setFocusBannerHeight(height)
+    }
+  }, [trip]) // Re-measure when trip changes (affects banner content)
 
   // Chat hook
   const {
@@ -352,13 +362,20 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
       }))
   }, [trip?.participantsWithStatus, trip?.travelers])
 
-  // Overlay functions
+  // Overlay functions - toggle behavior: clicking same overlay closes it
   const openOverlay = useCallback((type: OverlayType, params?: OverlayParams) => {
     if (type) {
-      setActiveOverlay(type)
-      setOverlayParams(params || {})
+      // Toggle: if clicking the same overlay (without different params), close it
+      if (activeOverlay === type && !params?.memberId) {
+        setActiveOverlay(null)
+        setOverlayParams({})
+        setHasUnsavedChanges(false)
+      } else {
+        setActiveOverlay(type)
+        setOverlayParams(params || {})
+      }
     }
-  }, [])
+  }, [activeOverlay])
 
   const closeOverlay = useCallback(() => {
     setActiveOverlay(null)
@@ -394,15 +411,17 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   const isReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || trip?.status === 'canceled'
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white relative">
       {/* Focus Banner with Blocker */}
-      <FocusBanner
-        tripName={trip?.name || 'Untitled Trip'}
-        startDate={startDate}
-        endDate={endDate}
-        blocker={blocker}
-        onAction={handleBlockerAction}
-      />
+      <div ref={focusBannerRef}>
+        <FocusBanner
+          tripName={trip?.name || 'Untitled Trip'}
+          startDate={startDate}
+          endDate={endDate}
+          blocker={blocker}
+          onAction={handleBlockerAction}
+        />
+      </div>
 
       {/* Main content area */}
       <div className="flex-1 flex min-h-0">
@@ -463,6 +482,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         title={getOverlayTitle(activeOverlay)}
         hasUnsavedChanges={hasUnsavedChanges}
         rightOffset={`${CHEVRON_BAR_WIDTH}px`}
+        topOffset={`${focusBannerHeight}px`}
         bottomOffset={`${BOTTOM_BAR_HEIGHT}px`}
         slideFrom={
           activeOverlay === 'travelers' || activeOverlay === 'expenses' || activeOverlay === 'memories'

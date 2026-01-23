@@ -603,11 +603,11 @@ export function ChatTab({
                           {msg.content}
                         </div>
                       ) : (
-                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600' : 'bg-gray-100'}`}>
                           {msg.user?.id !== user.id && (
                             <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
                           )}
-                          <p>{msg.content}</p>
+                          <p className={msg.user?.id === user.id ? 'text-white' : 'text-gray-900'}>{msg.content}</p>
                         </div>
                       )}
                     </div>
