@@ -147,22 +147,31 @@ export function OverlayContainer({
           'fixed z-50 bg-white shadow-2xl',
           'flex flex-col transition-transform duration-300 ease-out',
           isBottomSlide ? [
-            // Bottom slide: constrained width matching chat column, positioned above bottom bar
-            'left-0 w-full max-w-4xl max-h-[60vh]',
+            // Bottom slide: constrained to chat area, positioned above bottom bar, never covers bar or chevrons
+            'left-0',
             isAnimating ? 'translate-y-0' : 'translate-y-full'
           ] : [
-            // Right slide: fixed width, full height, slide in from right
-            'top-0 h-full w-full max-w-md',
+            // Right slide: constrained to chat area, never covers chevron bar
+            'top-0',
             isAnimating ? 'translate-x-0' : 'translate-x-full'
           ]
         )}
         style={
           isBottomSlide
             ? {
-                bottom: '56px', // Position above bottom bar (approximate height of ContextCTABar)
-                right: rightOffset // Don't extend under chevron bar
+                bottom: '56px', // Position above bottom bar
+                right: rightOffset, // Don't extend under chevron bar
+                width: `calc(100vw - ${rightOffset})`, // Exact width of chat area
+                maxWidth: '768px', // Cap at reasonable size (tailwind's 'md' breakpoint)
+                maxHeight: 'calc(100vh - 200px)' // Leave space for focus banner (~100px) and bottom bar (56px) + buffer
               }
-            : { right: rightOffset }
+            : {
+                right: rightOffset, // End at left edge of chevron bar
+                width: '448px', // Fixed width (tailwind's 'md' max-width)
+                maxWidth: `calc(100vw - ${rightOffset})`, // Never exceed chat area
+                height: '100vh', // Full viewport height
+                maxHeight: '100vh' // Explicitly cap at viewport height
+              }
         }
         role="dialog"
         aria-modal="true"
