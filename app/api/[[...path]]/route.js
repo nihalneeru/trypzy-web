@@ -8,7 +8,12 @@ import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 
 // JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || 'trypzy-secret-key-change-in-production'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET environment variable must be set in production')
+}
+// For development, use a default
+const jwtSecret = JWT_SECRET || 'dev-only-secret-key'
 
 // MongoDB connection
 let client
@@ -40,7 +45,7 @@ async function getUserFromToken(request) {
   }
   const token = authHeader.split(' ')[1]
   try {
-    const decoded = jwt.verify(token, JWT_SECRET)
+    const decoded = jwt.verify(token, jwtSecret)
     const db = await connectToMongo()
     const user = await db.collection('users').findOne({ id: decoded.userId })
     return user
@@ -349,7 +354,7 @@ async function handleRoute(request, { params }) {
       await db.collection('users').insertOne(user)
       
       // Generate token
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' })
+      const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: '7d' })
       
       return handleCORS(NextResponse.json({
         user: { id: user.id, email: user.email, name: user.name },
@@ -385,7 +390,7 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' })
+      const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: '7d' })
       
       return handleCORS(NextResponse.json({
         user: { id: user.id, email: user.email, name: user.name },
@@ -2887,9 +2892,9 @@ async function handleRoute(request, { params }) {
         await emitTripChatEvent({
           tripId,
           circleId: trip.circleId,
-          actorUserId: joinRequest.requesterId,
+          actorUserId: auth.user.id,
           subtype: 'traveler_joined',
-          text: `${requesterName} joined the trip`,
+          text: `${auth.user.name || 'Trip organizer'} approved ${requesterName}'s request to join`,
           metadata: { requestId }
         })
       } else {

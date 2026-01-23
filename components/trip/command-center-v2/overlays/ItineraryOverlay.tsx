@@ -24,7 +24,8 @@ import {
   X,
   ThumbsUp,
   Heart,
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
 import { toast } from 'sonner'
@@ -262,6 +263,7 @@ export function ItineraryOverlay({
   // ----------------------------------------------------------------------------
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [loadingIdeas, setLoadingIdeas] = useState(false)
+  const [ideasError, setIdeasError] = useState<string | null>(null)
   const [newIdeaText, setNewIdeaText] = useState('')
   const [addingIdea, setAddingIdea] = useState(false)
 
@@ -436,9 +438,10 @@ export function ItineraryOverlay({
     try {
       const data = await api(`/trips/${trip.id}/itinerary/ideas`, { method: 'GET' }, token)
       setIdeas(data.ideas || data || [])
+      setIdeasError(null)
     } catch (error: any) {
       console.error('Failed to load ideas:', error)
-      toast.error('Failed to load ideas')
+      setIdeasError(error.message || 'Failed to load ideas')
     } finally {
       setLoadingIdeas(false)
     }
@@ -855,6 +858,21 @@ export function ItineraryOverlay({
               {loadingIdeas ? (
                 <div className="flex justify-center py-8">
                   <BrandedSpinner size="md" />
+                </div>
+              ) : ideasError ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center">
+                  <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
+                  <p className="text-sm text-gray-600 mb-4">{ideasError}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIdeasError(null)
+                      loadIdeas()
+                    }}
+                  >
+                    Try again
+                  </Button>
                 </div>
               ) : ideas.length === 0 ? (
                 <p className="text-center text-gray-500 py-6 text-sm">

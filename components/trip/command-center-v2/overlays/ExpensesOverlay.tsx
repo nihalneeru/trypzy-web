@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, DollarSign, Trash2, Calendar, ArrowRight } from 'lucide-react'
+import { Plus, DollarSign, Trash2, Calendar, ArrowRight, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { BrandedSpinner } from '@/app/HomeClient'
@@ -93,6 +93,7 @@ export function ExpensesOverlay({
 }: ExpensesOverlayProps) {
   const [expenses, setExpenses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -161,9 +162,10 @@ export function ExpensesOverlay({
     try {
       const data = await api(`/trips/${trip.id}/expenses`, { method: 'GET' }, token)
       setExpenses(data || [])
-    } catch (error: any) {
-      console.error('Failed to load expenses:', error)
-      toast.error(error.message || 'Failed to load expenses')
+      setError(null)
+    } catch (err: any) {
+      console.error('Failed to load expenses:', err)
+      setError(err.message || 'Failed to load expenses')
     } finally {
       setLoading(false)
     }
@@ -386,6 +388,25 @@ export function ExpensesOverlay({
       <div className="flex flex-col items-center justify-center py-12">
         <BrandedSpinner size="md" className="mb-4" />
         <p className="text-gray-500">Loading expenses...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
+        <p className="text-sm text-gray-600 mb-4">{error}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setError(null)
+            loadExpenses()
+          }}
+        >
+          Try again
+        </Button>
       </div>
     )
   }

@@ -26,6 +26,9 @@ import {
 // Chat component
 import { ChatTab } from '@/components/trip/TripTabs/tabs/ChatTab'
 
+// Error boundary
+import { ErrorBoundary } from '@/components/common/ErrorBoundary'
+
 // Hooks
 import { useTripChat } from '@/hooks/use-trip-chat'
 
@@ -542,91 +545,93 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
             : 'right'
         }
       >
-        {/* Render appropriate overlay based on activeOverlay type */}
-        {activeOverlay === 'scheduling' && (
-          <SchedulingOverlay
-            trip={trip}
-            token={token}
-            user={user}
-            onRefresh={onRefresh}
-            onClose={closeOverlay}
-            setHasUnsavedChanges={setHasUnsavedChanges}
-          />
-        )}
-        {activeOverlay === 'itinerary' && (
-          <ItineraryOverlay
-            trip={trip}
-            token={token}
-            user={user}
-            onRefresh={onRefresh}
-            onClose={closeOverlay}
-            setHasUnsavedChanges={setHasUnsavedChanges}
-          />
-        )}
-        {activeOverlay === 'accommodation' && (
-          <AccommodationOverlay
-            trip={trip}
-            token={token}
-            user={user}
-            onRefresh={onRefresh}
-            onClose={closeOverlay}
-            setHasUnsavedChanges={setHasUnsavedChanges}
-          />
-        )}
-        {activeOverlay === 'travelers' && (
-          <TravelersOverlay
-            trip={trip}
-            token={token}
-            user={user}
-            onRefresh={onRefresh}
-            onClose={closeOverlay}
-            setHasUnsavedChanges={setHasUnsavedChanges}
-            onMemberClick={(memberId) => openOverlay('member', { memberId })}
-          />
-        )}
-        {activeOverlay === 'prep' && (
-          <PrepOverlay
-            trip={trip}
-            token={token}
-            user={user}
-            onRefresh={onRefresh}
-            onClose={closeOverlay}
-            setHasUnsavedChanges={setHasUnsavedChanges}
-          />
-        )}
-        {activeOverlay === 'expenses' && (
-          <ExpensesOverlay
-            trip={trip}
-            token={token}
-            user={user}
-            onRefresh={onRefresh}
-            onClose={closeOverlay}
-            setHasUnsavedChanges={setHasUnsavedChanges}
-          />
-        )}
-        {activeOverlay === 'memories' && (
-          <MemoriesOverlay
-            trip={trip}
-            token={token}
-            user={user}
-            onRefresh={onRefresh}
-            onClose={closeOverlay}
-            setHasUnsavedChanges={setHasUnsavedChanges}
-          />
-        )}
-        {activeOverlay === 'member' && overlayParams.memberId && (
-          <MemberProfileOverlay
-            memberId={overlayParams.memberId}
-            token={token}
-            currentUserId={user?.id}
-            onClose={closeOverlay}
-          />
-        )}
-        {activeOverlay === 'proposed' && (
-          <div className="p-4 text-center text-gray-500">
-            Trip proposal details - view trip info and basic settings
-          </div>
-        )}
+        <ErrorBoundary>
+          {/* Render appropriate overlay based on activeOverlay type */}
+          {activeOverlay === 'scheduling' && (
+            <SchedulingOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
+            />
+          )}
+          {activeOverlay === 'itinerary' && (
+            <ItineraryOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
+            />
+          )}
+          {activeOverlay === 'accommodation' && (
+            <AccommodationOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
+            />
+          )}
+          {activeOverlay === 'travelers' && (
+            <TravelersOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
+              onMemberClick={(memberId) => openOverlay('member', { memberId })}
+            />
+          )}
+          {activeOverlay === 'prep' && (
+            <PrepOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
+            />
+          )}
+          {activeOverlay === 'expenses' && (
+            <ExpensesOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
+            />
+          )}
+          {activeOverlay === 'memories' && (
+            <MemoriesOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
+            />
+          )}
+          {activeOverlay === 'member' && overlayParams.memberId && (
+            <MemberProfileOverlay
+              memberId={overlayParams.memberId}
+              token={token}
+              currentUserId={user?.id}
+              onClose={closeOverlay}
+            />
+          )}
+          {activeOverlay === 'proposed' && (
+            <div className="p-4 text-center text-gray-500">
+              Trip proposal details - view trip info and basic settings
+            </div>
+          )}
+        </ErrorBoundary>
       </OverlayContainer>
     </div>
   )
