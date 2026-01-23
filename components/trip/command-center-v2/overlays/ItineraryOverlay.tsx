@@ -528,7 +528,7 @@ export function ItineraryOverlay({
         `/trips/${trip.id}/ideas`,
         {
           method: 'POST',
-          body: JSON.stringify({ text: newIdeaText.trim() })
+          body: JSON.stringify({ title: newIdeaText.trim() })
         },
         token
       )
