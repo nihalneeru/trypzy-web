@@ -498,19 +498,23 @@ export function ItineraryOverlay({
     }
   }, [trip?.id, token])
 
-  // Load feedback
+  // Load feedback for the current version
   const loadFeedback = useCallback(async () => {
-    if (!trip?.id || !token) return
+    if (!trip?.id || !token || !latestVersion) return
     setLoadingFeedback(true)
     try {
-      const data = await api(`/trips/${trip.id}/itinerary/feedback`, { method: 'GET' }, token)
+      const data = await api(
+        `/trips/${trip.id}/itinerary/feedback?version=${latestVersion.version}`,
+        { method: 'GET' },
+        token
+      )
       setFeedback(data.feedback || data || [])
     } catch (error: any) {
       console.error('Failed to load feedback:', error)
     } finally {
       setLoadingFeedback(false)
     }
-  }, [trip?.id, token])
+  }, [trip?.id, token, latestVersion])
 
   // Load reactions for current version
   const loadReactions = useCallback(async () => {
@@ -535,15 +539,15 @@ export function ItineraryOverlay({
   useEffect(() => {
     loadIdeas()
     loadVersions()
-    loadFeedback()
-  }, [loadIdeas, loadVersions, loadFeedback])
+  }, [loadIdeas, loadVersions])
 
-  // Load reactions when version changes
+  // Load feedback and reactions when version changes
   useEffect(() => {
     if (latestVersion) {
+      loadFeedback()
       loadReactions()
     }
-  }, [latestVersion, loadReactions])
+  }, [latestVersion, loadFeedback, loadReactions])
 
   // ----------------------------------------------------------------------------
   // Actions

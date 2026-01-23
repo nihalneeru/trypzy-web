@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -98,6 +98,60 @@ export function ChatTab({
       pickProgress: trip?.pickProgress
     })
   }, [trip, user])
+
+  // Auto-scroll refs and state
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const isNearBottomRef = useRef(true)
+  const prevMessageCountRef = useRef(messages?.length || 0)
+  const SCROLL_THRESHOLD = 100 // pixels from bottom to consider "near bottom"
+
+  // Scroll to bottom helper
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (viewport) {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior })
+    }
+  }, [])
+
+  // Track scroll position to determine if user is near bottom
+  useEffect(() => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = viewport as HTMLElement
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+      isNearBottomRef.current = distanceFromBottom < SCROLL_THRESHOLD
+    }
+
+    viewport.addEventListener('scroll', handleScroll)
+    return () => viewport.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Auto-scroll when new messages arrive (only if near bottom)
+  useEffect(() => {
+    const currentCount = messages?.length || 0
+    const prevCount = prevMessageCountRef.current
+
+    if (currentCount > prevCount && isNearBottomRef.current) {
+      // Small delay to ensure DOM has updated
+      requestAnimationFrame(() => scrollToBottom('smooth'))
+    }
+
+    prevMessageCountRef.current = currentCount
+  }, [messages, scrollToBottom])
+
+  // Wrap sendMessage to always scroll to bottom after sending
+  const handleSendMessage = useCallback(() => {
+    if (sendMessage) {
+      sendMessage()
+      // Scroll to bottom immediately when user sends a message
+      requestAnimationFrame(() => {
+        isNearBottomRef.current = true
+        scrollToBottom('instant')
+      })
+    }
+  }, [sendMessage, scrollToBottom])
 
   // Stage-aware, role-aware CTA computation using progress snapshot (P0-4)
   const chatCTA = useMemo(() => {
@@ -589,7 +643,7 @@ export function ChatTab({
   // Chat content (shared between legacy and command-center modes)
   const chatContent = (
     <>
-      <ScrollArea className={`flex-1 pr-4 ${isCommandCenter ? 'h-[400px]' : ''}`}>
+      <ScrollArea ref={scrollAreaRef} className={`flex-1 pr-4 ${isCommandCenter ? 'h-[400px]' : ''}`}>
           <div className="space-y-4">
             {/* Waiting on... clarity message (system style, at top) */}
             {blockingInfo && (
@@ -966,13 +1020,14 @@ export function ChatTab({
             placeholder={readOnlyPlaceholder}
             onKeyDown={(e) => {
               if (!viewerIsReadOnly && e.key === 'Enter' && sendMessage) {
-                sendMessage()
+                handleSendMessage()
               }
             }}
             disabled={viewerIsReadOnly}
+            className="text-brand-carbon bg-white"
           />
           <Button
-            onClick={viewerIsReadOnly ? undefined : sendMessage}
+            onClick={viewerIsReadOnly ? undefined : handleSendMessage}
             disabled={viewerIsReadOnly || sendingMessage || !newMessage.trim()}
             title={viewerIsReadOnly ? readOnlyPlaceholder : undefined}
           >
