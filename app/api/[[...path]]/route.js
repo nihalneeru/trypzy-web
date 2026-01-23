@@ -7785,6 +7785,18 @@ async function handleRoute(request, { params }) {
         .limit(5)
         .toArray()
 
+      // Get recent chat messages since last version (for context in revision)
+      // Only include non-system messages that might contain itinerary feedback
+      const recentChatMessages = await db.collection('trip_messages')
+        .find({
+          tripId,
+          createdAt: { $gt: latestVersion.createdAt },
+          isSystem: { $ne: true }
+        })
+        .sort({ createdAt: 1 })
+        .limit(30)
+        .toArray()
+
       // Update status to revising
       await db.collection('trips').updateOne(
         { id: tripId },
@@ -7792,8 +7804,8 @@ async function handleRoute(request, { params }) {
       )
 
       try {
-        // Summarize feedback WITH reactions (reactions as hard constraints)
-        const feedbackSummary = await summarizeFeedback(feedbackMessages, reactions)
+        // Summarize feedback WITH reactions (reactions as hard constraints) AND chat messages
+        const feedbackSummary = await summarizeFeedback(feedbackMessages, reactions, recentChatMessages)
         
         // Revise itinerary using LLM
         const { itinerary: revisedContent, changeLog } = await reviseItinerary({

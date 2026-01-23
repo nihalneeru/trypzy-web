@@ -503,7 +503,7 @@ export function ItineraryOverlay({
     if (!trip?.id || !token) return
     setLoadingFeedback(true)
     try {
-      const data = await api(`/trips/${trip.id}/feedback`, { method: 'GET' }, token)
+      const data = await api(`/trips/${trip.id}/itinerary/feedback`, { method: 'GET' }, token)
       setFeedback(data.feedback || data || [])
     } catch (error: any) {
       console.error('Failed to load feedback:', error)
@@ -685,14 +685,15 @@ export function ItineraryOverlay({
 
   // Submit feedback
   const handleSubmitFeedback = async () => {
-    if (!newFeedback.message.trim() || submittingFeedback || viewerIsReadOnly) return
+    if (!newFeedback.message.trim() || submittingFeedback || viewerIsReadOnly || !latestVersion) return
     setSubmittingFeedback(true)
     try {
       await api(
-        `/trips/${trip.id}/feedback`,
+        `/trips/${trip.id}/itinerary/feedback`,
         {
           method: 'POST',
           body: JSON.stringify({
+            itineraryVersion: latestVersion.version,
             type: newFeedback.type,
             target: newFeedback.target || undefined,
             message: newFeedback.message.trim()
