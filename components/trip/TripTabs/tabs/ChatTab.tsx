@@ -603,12 +603,18 @@ export function ChatTab({
                           {msg.content}
                         </div>
                       ) : (
-                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${msg.user?.id === user.id ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
-                          {msg.user?.id !== user.id && (
-                            <p className="text-xs font-medium mb-1 opacity-70">{msg.user?.name}</p>
-                          )}
-                          <p>{msg.content}</p>
-                        </div>
+                        (() => {
+                          // Check if message is from current user (handle various ID formats)
+                          const isOwnMessage = msg.user?.id === user?.id || msg.userId === user?.id
+                          return (
+                            <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isOwnMessage ? 'bg-indigo-600' : 'bg-gray-100'}`}>
+                              {!isOwnMessage && (
+                                <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
+                              )}
+                              <p className={isOwnMessage ? 'text-white' : 'text-gray-900'}>{msg.content}</p>
+                            </div>
+                          )
+                        })()
                       )}
                     </div>
                   </div>

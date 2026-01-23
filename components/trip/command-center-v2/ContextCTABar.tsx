@@ -11,7 +11,10 @@ import {
   Sparkles,
   Home,
   DollarSign,
-  Camera
+  Camera,
+  ThumbsUp,
+  Check,
+  ClipboardList
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -74,11 +77,22 @@ export function ContextCTABar({
       (i: any) => i.userId === userId || i.createdBy === userId
     )?.length || 0
 
-    // Check if itinerary exists
-    const hasItinerary = trip.itinerary?.days?.length > 0 || trip.itineraryFinalized
+    // Check if itinerary exists/finalized
+    const itineraryStatus = trip.itineraryStatus
+    const itineraryFinalized = itineraryStatus === 'selected' || itineraryStatus === 'published'
+    const hasItinerary = trip.itinerary?.days?.length > 0 || itineraryFinalized
 
     // Check accommodation status
-    const accommodationSelected = trip.accommodationSelected || trip.accommodation?.selected
+    const accommodationSelected = trip.accommodationSelected ||
+      trip.accommodation?.selected ||
+      trip.progress?.steps?.accommodationChosen
+
+    // Check if user has voted on accommodation
+    const userHasVotedOnAccommodation = trip.accommodationUserVoted ||
+      trip.accommodations?.some((a: any) => a.userVoted)
+
+    // Check prep status
+    const prepStarted = trip.prepStatus === 'in_progress' || trip.prepStatus === 'ready'
 
     // Priority-based CTA selection (lower priority number = higher importance)
 
@@ -115,12 +129,12 @@ export function ContextCTABar({
       }
     }
 
-    // 4. Add ideas (if user has fewer than 3 ideas)
-    if (userIdeasCount < 3) {
+    // 4. Add ideas (only if itinerary not finalized and user has fewer than 3 ideas)
+    if (!itineraryFinalized && userIdeasCount < 3 && datesLocked) {
       return {
         label: 'Add ideas',
         icon: Lightbulb,
-        overlayType: 'proposed',
+        overlayType: 'itinerary',
         priority: 4
       }
     }
@@ -135,13 +149,42 @@ export function ContextCTABar({
       }
     }
 
-    // 6. Choose stay (if accommodation not selected and dates locked)
-    if (!accommodationSelected && datesLocked) {
+    // 6. Accommodation actions (after itinerary is finalized)
+    if (itineraryFinalized && !accommodationSelected && datesLocked) {
+      // Leader: Select accommodation
+      if (isLeader) {
+        return {
+          label: 'Select stay',
+          icon: Check,
+          overlayType: 'accommodation',
+          priority: 6
+        }
+      }
+      // Traveler: Vote on accommodation (if hasn't voted yet)
+      if (!userHasVotedOnAccommodation) {
+        return {
+          label: 'Vote on stay',
+          icon: ThumbsUp,
+          overlayType: 'accommodation',
+          priority: 6
+        }
+      }
+      // Traveler who has voted: View accommodation
       return {
-        label: 'Choose stay',
+        label: 'View stays',
         icon: Home,
         overlayType: 'accommodation',
         priority: 6
+      }
+    }
+
+    // 7. Prep phase (after accommodation selected)
+    if (accommodationSelected && !prepStarted) {
+      return {
+        label: 'Start prep',
+        icon: ClipboardList,
+        overlayType: 'prep',
+        priority: 7
       }
     }
 

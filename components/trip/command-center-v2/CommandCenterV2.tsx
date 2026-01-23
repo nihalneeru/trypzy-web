@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
-import { Calendar, ListTodo, Home, CheckCircle2 } from 'lucide-react'
+import { Calendar, ListTodo, Home, CheckCircle2, ClipboardList } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +35,7 @@ import { deriveTripPrimaryStage, TripPrimaryStage } from '@/lib/trips/stage'
 
 // Constants
 const CHEVRON_BAR_WIDTH = 72 // Width of the chevron sidebar in pixels
+const BOTTOM_BAR_HEIGHT = 56 // Height of the ContextCTABar in pixels
 
 // Types
 interface CommandCenterV2Props {
@@ -52,7 +53,7 @@ interface OverlayParams {
 /**
  * Blocker types that determine what's blocking a trip
  */
-type BlockerType = 'DATES' | 'ITINERARY' | 'ACCOMMODATION' | 'READY'
+type BlockerType = 'DATES' | 'ITINERARY' | 'ACCOMMODATION' | 'PREP' | 'READY'
 
 interface BlockerInfo {
   type: BlockerType
@@ -139,7 +140,9 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
   }
 
   // Blocker 3: Accommodation not decided
-  const accommodationChosen = trip.progress?.steps?.accommodationChosen || false
+  const accommodationChosen = trip.progress?.steps?.accommodationChosen ||
+    trip.accommodationSelected ||
+    trip.accommodation?.selected
 
   if (!accommodationChosen) {
     return {
@@ -149,6 +152,21 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
       ctaLabel: 'Find Stays',
       icon: Home,
       overlayType: 'accommodation'
+    }
+  }
+
+  // Blocker 4: Prep not started
+  const prepStarted = trip.prepStatus === 'in_progress' || trip.prepStatus === 'ready' ||
+    trip.progress?.steps?.prepStarted
+
+  if (!prepStarted) {
+    return {
+      type: 'PREP',
+      title: 'Prepare for the trip',
+      description: 'Add transport, packing lists, and documents',
+      ctaLabel: 'Start Prep',
+      icon: ClipboardList,
+      overlayType: 'prep'
     }
   }
 
@@ -220,24 +238,27 @@ function FocusBanner({
   }, [startDate, endDate])
 
   // Color scheme based on blocker type
-  const colorClasses = {
+  const colorClasses: Record<BlockerType, string> = {
     DATES: 'border-blue-200 bg-blue-50',
     ITINERARY: 'border-purple-200 bg-purple-50',
     ACCOMMODATION: 'border-orange-200 bg-orange-50',
+    PREP: 'border-teal-200 bg-teal-50',
     READY: 'border-green-200 bg-green-50'
   }
 
-  const buttonClasses = {
+  const buttonClasses: Record<BlockerType, string> = {
     DATES: 'bg-blue-600 hover:bg-blue-700',
     ITINERARY: 'bg-purple-600 hover:bg-purple-700',
     ACCOMMODATION: 'bg-orange-600 hover:bg-orange-700',
+    PREP: 'bg-teal-600 hover:bg-teal-700',
     READY: 'bg-green-600 hover:bg-green-700'
   }
 
-  const iconClasses = {
+  const iconClasses: Record<BlockerType, string> = {
     DATES: 'text-blue-600',
     ITINERARY: 'text-purple-600',
     ACCOMMODATION: 'text-orange-600',
+    PREP: 'text-teal-600',
     READY: 'text-green-600'
   }
 
@@ -267,7 +288,7 @@ function FocusBanner({
           {blocker.type !== 'READY' && blocker.overlayType && (
             <Button
               size="sm"
-              className={cn('shrink-0', buttonClasses[blocker.type])}
+              className={cn('shrink-0 text-white', buttonClasses[blocker.type])}
               onClick={() => onAction(blocker.overlayType)}
             >
               {blocker.ctaLabel}
@@ -300,6 +321,16 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   const [overlayParams, setOverlayParams] = useState<OverlayParams>({})
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const chevronBarRef = useRef<HTMLDivElement>(null)
+  const focusBannerRef = useRef<HTMLDivElement>(null)
+  const [focusBannerHeight, setFocusBannerHeight] = useState(0)
+
+  // Measure focus banner height for overlay positioning
+  useEffect(() => {
+    if (focusBannerRef.current) {
+      const height = focusBannerRef.current.getBoundingClientRect().height
+      setFocusBannerHeight(height)
+    }
+  }, [trip]) // Re-measure when trip changes (affects banner content)
 
   // Chat hook
   const {
@@ -330,6 +361,8 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         return 'itineraryFinalized'
       case 'ACCOMMODATION':
         return 'accommodationChosen'
+      case 'PREP':
+        return 'prepStarted'
       case 'READY':
         return null // No chevron points left when ready
       default:
@@ -351,13 +384,20 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
       }))
   }, [trip?.participantsWithStatus, trip?.travelers])
 
-  // Overlay functions
+  // Overlay functions - toggle behavior: clicking same overlay closes it
   const openOverlay = useCallback((type: OverlayType, params?: OverlayParams) => {
     if (type) {
-      setActiveOverlay(type)
-      setOverlayParams(params || {})
+      // Toggle: if clicking the same overlay (without different params), close it
+      if (activeOverlay === type && !params?.memberId) {
+        setActiveOverlay(null)
+        setOverlayParams({})
+        setHasUnsavedChanges(false)
+      } else {
+        setActiveOverlay(type)
+        setOverlayParams(params || {})
+      }
     }
-  }, [])
+  }, [activeOverlay])
 
   const closeOverlay = useCallback(() => {
     setActiveOverlay(null)
@@ -393,15 +433,17 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   const isReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || trip?.status === 'canceled'
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white relative">
       {/* Focus Banner with Blocker */}
-      <FocusBanner
-        tripName={trip?.name || 'Untitled Trip'}
-        startDate={startDate}
-        endDate={endDate}
-        blocker={blocker}
-        onAction={handleBlockerAction}
-      />
+      <div ref={focusBannerRef}>
+        <FocusBanner
+          tripName={trip?.name || 'Untitled Trip'}
+          startDate={startDate}
+          endDate={endDate}
+          blocker={blocker}
+          onAction={handleBlockerAction}
+        />
+      </div>
 
       {/* Main content area */}
       <div className="flex-1 flex min-h-0">
@@ -462,6 +504,8 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         title={getOverlayTitle(activeOverlay)}
         hasUnsavedChanges={hasUnsavedChanges}
         rightOffset={`${CHEVRON_BAR_WIDTH}px`}
+        topOffset={`${focusBannerHeight}px`}
+        bottomOffset={`${BOTTOM_BAR_HEIGHT}px`}
         slideFrom={
           activeOverlay === 'travelers' || activeOverlay === 'expenses' || activeOverlay === 'memories'
             ? 'bottom'
