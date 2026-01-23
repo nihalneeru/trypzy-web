@@ -726,7 +726,7 @@ export function ChatTab({
                           {msg.content}
                         </div>
                       ) : (
-                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isFromCurrentUser ? 'bg-indigo-600' : 'bg-gray-100'}`}>
+                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isFromCurrentUser ? 'bg-brand-red border border-brand-red/20 shadow-sm' : 'bg-gray-100'}`}>
                           {!isFromCurrentUser && (
                             <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
                           )}
