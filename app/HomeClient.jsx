@@ -40,6 +40,7 @@ import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/routes'
 import { formatTripDateRange } from '@/lib/utils'
 import { CommandCenterV2 } from '@/components/trip/command-center-v2'
+import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 
 // Branded Spinner Component
 export function BrandedSpinner({ className = '', size = 'default' }) {
@@ -2327,38 +2328,40 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
         )}
         {view === 'trip' && selectedTrip && (
           <div data-testid="trip-page">
-            <TripDetailView
-              trip={selectedTrip}
-              token={token}
-              user={user}
-              onRefresh={(updatedTrip) => {
-                // If updated trip provided, merge it into existing trip state (avoids refetch for immediate UI update)
-                if (updatedTrip) {
-                  // Merge updated fields into existing trip to preserve enriched fields (circle, participantsWithStatus, etc.)
-                  const mergedTrip = {
-                    ...selectedTrip,
-                    ...updatedTrip,
-                    // Preserve computed fields that might not be in raw trip document
-                    circle: selectedTrip.circle || updatedTrip.circle,
-                    participantsWithStatus: selectedTrip.participantsWithStatus || updatedTrip.participantsWithStatus,
-                    viewer: selectedTrip.viewer || updatedTrip.viewer
+            <ErrorBoundary>
+              <TripDetailView
+                trip={selectedTrip}
+                token={token}
+                user={user}
+                onRefresh={(updatedTrip) => {
+                  // If updated trip provided, merge it into existing trip state (avoids refetch for immediate UI update)
+                  if (updatedTrip) {
+                    // Merge updated fields into existing trip to preserve enriched fields (circle, participantsWithStatus, etc.)
+                    const mergedTrip = {
+                      ...selectedTrip,
+                      ...updatedTrip,
+                      // Preserve computed fields that might not be in raw trip document
+                      circle: selectedTrip.circle || updatedTrip.circle,
+                      participantsWithStatus: selectedTrip.participantsWithStatus || updatedTrip.participantsWithStatus,
+                      viewer: selectedTrip.viewer || updatedTrip.viewer
+                    }
+
+                    // Compute stage and progress flags for merged trip
+                    const stage = deriveTripPrimaryStage(mergedTrip)
+                    const primaryTab = getPrimaryTabForStage(stage)
+                    const progressFlags = computeProgressFlags(mergedTrip)
+                    mergedTrip._computedStage = stage
+                    mergedTrip._primaryTab = primaryTab
+                    mergedTrip._progressFlags = progressFlags
+
+                    setSelectedTrip(mergedTrip)
+                  } else {
+                    // Otherwise refetch (backward compatibility)
+                    openTrip(selectedTrip.id)
                   }
-                  
-                  // Compute stage and progress flags for merged trip
-                  const stage = deriveTripPrimaryStage(mergedTrip)
-                  const primaryTab = getPrimaryTabForStage(stage)
-                  const progressFlags = computeProgressFlags(mergedTrip)
-                  mergedTrip._computedStage = stage
-                  mergedTrip._primaryTab = primaryTab
-                  mergedTrip._progressFlags = progressFlags
-                  
-                  setSelectedTrip(mergedTrip)
-                } else {
-                  // Otherwise refetch (backward compatibility)
-                  openTrip(selectedTrip.id)
-                }
-              }}
-            />
+                }}
+              />
+            </ErrorBoundary>
           </div>
         )}
         {view === 'discover' && (

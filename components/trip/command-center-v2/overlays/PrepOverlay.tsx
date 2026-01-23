@@ -29,7 +29,8 @@ import {
   Check,
   Package,
   ExternalLink,
-  Trash2
+  Trash2,
+  AlertTriangle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
@@ -82,6 +83,7 @@ export function PrepOverlay({
 }: PrepOverlayProps) {
   const [prepData, setPrepData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showTransportDialog, setShowTransportDialog] = useState(false)
   const [showPackingDialog, setShowPackingDialog] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -126,9 +128,10 @@ export function PrepOverlay({
     try {
       const data = await api(`/trips/${trip.id}/prep`, { method: 'GET' }, token)
       setPrepData(data)
-    } catch (error) {
-      console.error('Failed to load prep data:', error)
-      toast.error('Failed to load prep data')
+      setError(null)
+    } catch (err: any) {
+      console.error('Failed to load prep data:', err)
+      setError(err.message || 'Failed to load prep data')
     } finally {
       setLoading(false)
     }
@@ -350,6 +353,25 @@ export function PrepOverlay({
       <div className="flex flex-col items-center justify-center py-12">
         <BrandedSpinner size="md" className="mb-4" />
         <p className="text-gray-500">Loading prep data...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
+        <p className="text-sm text-gray-600 mb-4">{error}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setError(null)
+            loadPrepData()
+          }}
+        >
+          Try again
+        </Button>
       </div>
     )
   }

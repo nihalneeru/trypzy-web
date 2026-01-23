@@ -220,7 +220,17 @@ export async function POST(request, { params }) {
         { status: 400 }
       ))
     }
-    
+
+    // Defensive check: ensure splitCount is not zero to prevent division by zero
+    // when calculating per-person shares downstream
+    const splitCount = splitBetweenUserIds.length
+    if (!splitCount || splitCount === 0) {
+      return handleCORS(NextResponse.json(
+        { error: 'At least one person must be selected for expense split' },
+        { status: 400 }
+      ))
+    }
+
     // Create expense object
     const expense = {
       _id: new ObjectId(),
@@ -290,34 +300,48 @@ export async function DELETE(request, { params }) {
         { status: 403 }
       ))
     }
-    
-    // Find and remove expense
+
+    // Find expense and verify permission (user must be expense creator or trip leader)
     const expenses = trip.expenses || []
-    const expenseIndex = expenses.findIndex((e) => {
+    const expense = expenses.find((e) => {
       const eId = e._id?.toString() || e.id
       return eId === expenseId
     })
-    
-    if (expenseIndex === -1) {
+
+    if (!expense) {
       return handleCORS(NextResponse.json(
         { error: 'Expense not found' },
         { status: 404 }
       ))
     }
-    
-    // Remove expense from array
-    expenses.splice(expenseIndex, 1)
-    
-    await db.collection('trips').updateOne(
+
+    // Check if user has permission to delete (must be expense creator or trip leader)
+    const isExpenseCreator = expense.paidByUserId === auth.user.id
+    const isTripLeader = trip.ownerId === auth.user.id || trip.leaderId === auth.user.id
+
+    if (!isExpenseCreator && !isTripLeader) {
+      return handleCORS(NextResponse.json(
+        { error: 'Only the expense creator or trip leader can delete this expense' },
+        { status: 403 }
+      ))
+    }
+
+    // Use atomic $pull to remove expense (prevents race conditions)
+    const result = await db.collection('trips').updateOne(
       { id: tripId },
-      { 
-        $set: { 
-          expenses,
-          updatedAt: new Date().toISOString()
-        }
+      {
+        $pull: { expenses: { _id: new ObjectId(expenseId) } },
+        $set: { updatedAt: new Date().toISOString() }
       }
     )
-    
+
+    if (result.modifiedCount === 0) {
+      return handleCORS(NextResponse.json(
+        { error: 'Expense not found or already deleted' },
+        { status: 404 }
+      ))
+    }
+
     return handleCORS(NextResponse.json({ message: 'Expense deleted' }))
   } catch (error) {
     console.error('Error in DELETE /api/trips/:tripId/expenses:', error)

@@ -65,7 +65,12 @@ export function useTripChat({
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [failureCount, setFailureCount] = useState(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Clear error helper
+  const clearError = useCallback(() => setError(null), [])
 
   // Load messages
   const loadMessages = useCallback(async () => {
@@ -74,8 +79,20 @@ export function useTripChat({
     try {
       const data = await api(`/trips/${tripId}/messages`, { method: 'GET' }, token)
       setMessages(data || [])
-    } catch (error) {
-      console.error('Failed to load messages:', error)
+      setError(null) // Clear error on success
+      setFailureCount(0) // Reset failure count on success
+    } catch (err: any) {
+      console.error('Failed to load messages:', err)
+      setError(err.message || 'Failed to load messages')
+      setFailureCount(prev => {
+        const newCount = prev + 1
+        // Stop polling after 3 consecutive failures
+        if (newCount >= 3 && intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
+        return newCount
+      })
     }
   }, [tripId, token])
 
@@ -137,6 +154,8 @@ export function useTripChat({
     sendingMessage,
     sendMessage,
     loading,
+    error,
+    clearError,
     refresh: loadMessages
   }
 }

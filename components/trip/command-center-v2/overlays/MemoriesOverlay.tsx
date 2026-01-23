@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Camera, Trash2, X, Image as ImageIcon, Upload } from 'lucide-react'
+import { Plus, Camera, Trash2, X, Image as ImageIcon, Upload, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
 
@@ -77,6 +77,7 @@ export function MemoriesOverlay({
 }: MemoriesOverlayProps) {
   const [memories, setMemories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -105,11 +106,12 @@ export function MemoriesOverlay({
       // Load posts/memories for this trip
       const data = await api(`/trips/${trip.id}/posts`, { method: 'GET' }, token)
       setMemories(data?.posts || data || [])
-    } catch (error: any) {
-      console.error('Failed to load memories:', error)
-      // Don't show error toast if 404 (no posts endpoint)
-      if (!error.message?.includes('404')) {
-        toast.error(error.message || 'Failed to load memories')
+      setError(null)
+    } catch (err: any) {
+      console.error('Failed to load memories:', err)
+      // Don't show error state if 404 (no posts endpoint)
+      if (!err.message?.includes('404')) {
+        setError(err.message || 'Failed to load memories')
       }
       setMemories([])
     } finally {
@@ -237,6 +239,25 @@ export function MemoriesOverlay({
       <div className="flex flex-col items-center justify-center py-12">
         <BrandedSpinner size="md" className="mb-4" />
         <p className="text-gray-500">Loading memories...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
+        <p className="text-sm text-gray-600 mb-4">{error}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setError(null)
+            loadMemories()
+          }}
+        >
+          Try again
+        </Button>
       </div>
     )
   }
