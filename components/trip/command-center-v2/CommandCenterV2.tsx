@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
-import { Calendar, ListTodo, Home, CheckCircle2 } from 'lucide-react'
+import { Calendar, ListTodo, Home, CheckCircle2, ClipboardList } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -53,7 +53,7 @@ interface OverlayParams {
 /**
  * Blocker types that determine what's blocking a trip
  */
-type BlockerType = 'DATES' | 'ITINERARY' | 'ACCOMMODATION' | 'READY'
+type BlockerType = 'DATES' | 'ITINERARY' | 'ACCOMMODATION' | 'PREP' | 'READY'
 
 interface BlockerInfo {
   type: BlockerType
@@ -140,7 +140,9 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
   }
 
   // Blocker 3: Accommodation not decided
-  const accommodationChosen = trip.progress?.steps?.accommodationChosen || false
+  const accommodationChosen = trip.progress?.steps?.accommodationChosen ||
+    trip.accommodationSelected ||
+    trip.accommodation?.selected
 
   if (!accommodationChosen) {
     return {
@@ -150,6 +152,21 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
       ctaLabel: 'Find Stays',
       icon: Home,
       overlayType: 'accommodation'
+    }
+  }
+
+  // Blocker 4: Prep not started
+  const prepStarted = trip.prepStatus === 'in_progress' || trip.prepStatus === 'ready' ||
+    trip.progress?.steps?.prepStarted
+
+  if (!prepStarted) {
+    return {
+      type: 'PREP',
+      title: 'Prepare for the trip',
+      description: 'Add transport, packing lists, and documents',
+      ctaLabel: 'Start Prep',
+      icon: ClipboardList,
+      overlayType: 'prep'
     }
   }
 
@@ -221,24 +238,27 @@ function FocusBanner({
   }, [startDate, endDate])
 
   // Color scheme based on blocker type
-  const colorClasses = {
+  const colorClasses: Record<BlockerType, string> = {
     DATES: 'border-blue-200 bg-blue-50',
     ITINERARY: 'border-purple-200 bg-purple-50',
     ACCOMMODATION: 'border-orange-200 bg-orange-50',
+    PREP: 'border-teal-200 bg-teal-50',
     READY: 'border-green-200 bg-green-50'
   }
 
-  const buttonClasses = {
+  const buttonClasses: Record<BlockerType, string> = {
     DATES: 'bg-blue-600 hover:bg-blue-700',
     ITINERARY: 'bg-purple-600 hover:bg-purple-700',
     ACCOMMODATION: 'bg-orange-600 hover:bg-orange-700',
+    PREP: 'bg-teal-600 hover:bg-teal-700',
     READY: 'bg-green-600 hover:bg-green-700'
   }
 
-  const iconClasses = {
+  const iconClasses: Record<BlockerType, string> = {
     DATES: 'text-blue-600',
     ITINERARY: 'text-purple-600',
     ACCOMMODATION: 'text-orange-600',
+    PREP: 'text-teal-600',
     READY: 'text-green-600'
   }
 
@@ -341,6 +361,8 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         return 'itineraryFinalized'
       case 'ACCOMMODATION':
         return 'accommodationChosen'
+      case 'PREP':
+        return 'prepStarted'
       case 'READY':
         return null // No chevron points left when ready
       default:
