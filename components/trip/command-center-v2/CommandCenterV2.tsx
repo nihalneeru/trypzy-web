@@ -84,6 +84,7 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
   if (!datesLocked) {
     const userHasPicked = trip.userDatePicks && trip.userDatePicks.length > 0
     const userHasVoted = !!trip.userVote
+    const canLockDates = trip.canLockDates || trip.status === 'voting'
 
     if (trip.status === 'voting') {
       return {
@@ -93,6 +94,18 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
           ? 'Waiting for others to vote before dates can be locked'
           : 'Choose your preferred date window',
         ctaLabel: userHasVoted ? 'View Votes' : 'Vote Now',
+        icon: Calendar,
+        overlayType: 'scheduling'
+      }
+    }
+
+    // If everyone has picked and dates can be locked, show "Waiting on dates to be locked"
+    if (canLockDates && userHasPicked) {
+      return {
+        type: 'DATES',
+        title: 'Waiting on dates to be locked',
+        description: 'Everyone has responded. Waiting for trip leader to lock dates',
+        ctaLabel: 'View Dates',
         icon: Calendar,
         overlayType: 'scheduling'
       }
@@ -231,7 +244,7 @@ function FocusBanner({
   const Icon = blocker.icon
 
   return (
-    <div className="border-b border-gray-200 shrink-0">
+    <div className="border-b border-gray-200 shrink-0" style={{ marginRight: `${CHEVRON_BAR_WIDTH}px` }}>
       {/* Trip name and dates row */}
       <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
         <h1 className="text-base font-semibold text-gray-900 truncate">{tripName}</h1>
@@ -310,7 +323,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   // Find blocker stage key for progress chevrons - the chevron that points left matches the focus banner
   // This is based on the blocker (what needs attention), not the current stage
   const blockerStageKey = useMemo(() => {
-    switch (blocker) {
+    switch (blocker.type) {
       case 'DATES':
         return 'datesLocked'
       case 'ITINERARY':
@@ -442,13 +455,18 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         </div>
       </div>
 
-      {/* Overlay Container - slides in from right, offset by chevron bar width on desktop */}
+      {/* Overlay Container - slides in from right (sidebar) or bottom (bottom bar) */}
       <OverlayContainer
         isOpen={activeOverlay !== null}
         onClose={closeOverlay}
         title={getOverlayTitle(activeOverlay)}
         hasUnsavedChanges={hasUnsavedChanges}
         rightOffset={`${CHEVRON_BAR_WIDTH}px`}
+        slideFrom={
+          activeOverlay === 'travelers' || activeOverlay === 'expenses' || activeOverlay === 'memories'
+            ? 'bottom'
+            : 'right'
+        }
       >
         {/* Render appropriate overlay based on activeOverlay type */}
         {activeOverlay === 'scheduling' && (

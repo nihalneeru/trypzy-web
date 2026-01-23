@@ -430,7 +430,7 @@ export function ItineraryOverlay({
     if (!trip?.id || !token) return
     setLoadingIdeas(true)
     try {
-      const data = await api(`/trips/${trip.id}/ideas`, { method: 'GET' }, token)
+      const data = await api(`/trips/${trip.id}/itinerary/ideas`, { method: 'GET' }, token)
       setIdeas(data.ideas || data || [])
     } catch (error: any) {
       console.error('Failed to load ideas:', error)
@@ -525,10 +525,10 @@ export function ItineraryOverlay({
     setAddingIdea(true)
     try {
       await api(
-        `/trips/${trip.id}/ideas`,
+        `/trips/${trip.id}/itinerary/ideas`,
         {
           method: 'POST',
-          body: JSON.stringify({ title: newIdeaText.trim() })
+          body: JSON.stringify({ text: newIdeaText.trim() })
         },
         token
       )
@@ -547,7 +547,7 @@ export function ItineraryOverlay({
   const handleLikeIdea = async (ideaId: string) => {
     if (viewerIsReadOnly) return
     try {
-      await api(`/trips/${trip.id}/ideas/${ideaId}/like`, { method: 'POST' }, token)
+      await api(`/trips/${trip.id}/itinerary/ideas/${ideaId}/like`, { method: 'POST' }, token)
       await loadIdeas()
     } catch (error: any) {
       toast.error(error.message || 'Failed to like idea')
@@ -588,7 +588,7 @@ export function ItineraryOverlay({
     if (!isLeader || generating) return
     setGenerating(true)
     try {
-      await api(`/trips/${trip.id}/generate-itinerary`, { method: 'POST' }, token)
+      await api(`/trips/${trip.id}/itinerary/generate`, { method: 'POST' }, token)
       toast.success('Itinerary generated!')
       await loadVersions()
       onRefresh()
