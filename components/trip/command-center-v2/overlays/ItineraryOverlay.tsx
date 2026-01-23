@@ -670,7 +670,7 @@ export function ItineraryOverlay({
     try {
       setLlmDisabledMessage(null)
       // P0-3: Get updated trip for immediate UI refresh
-      const result = await api(`/trips/${trip.id}/revise-itinerary`, { method: 'POST' }, token)
+      const result = await api(`/trips/${trip.id}/itinerary/revise`, { method: 'POST' }, token)
       toast.success('Itinerary revised!')
       await loadVersions()
       await loadFeedback()

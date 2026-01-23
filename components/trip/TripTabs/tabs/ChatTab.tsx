@@ -706,9 +706,11 @@ export function ChatTab({
               <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
             ) : (
               messages.map((msg: any) => {
+                // Determine if message is from current user (used for alignment and styling)
+                const isFromCurrentUser = !msg.isSystem && (msg.user?.id === user?.id || msg.userId === user?.id)
                 return (
-                  <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : msg.user?.id === user.id ? 'items-end' : 'items-start'}`}>
-                    <div className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
+                  <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex ${msg.isSystem ? 'justify-center' : isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
                       {msg.isSystem ? (
                         <div 
                           className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
@@ -724,18 +726,12 @@ export function ChatTab({
                           {msg.content}
                         </div>
                       ) : (
-                        (() => {
-                          // Check if message is from current user (handle various ID formats)
-                          const isOwnMessage = msg.user?.id === user?.id || msg.userId === user?.id
-                          return (
-                            <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isOwnMessage ? 'bg-indigo-600' : 'bg-gray-100'}`}>
-                              {!isOwnMessage && (
-                                <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
-                              )}
-                              <p className={isOwnMessage ? 'text-white' : 'text-gray-900'}>{msg.content}</p>
-                            </div>
-                          )
-                        })()
+                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isFromCurrentUser ? 'bg-indigo-600' : 'bg-gray-100'}`}>
+                          {!isFromCurrentUser && (
+                            <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
+                          )}
+                          <p className={isFromCurrentUser ? 'text-white' : 'text-gray-900'}>{msg.content}</p>
+                        </div>
                       )}
                     </div>
                   </div>
