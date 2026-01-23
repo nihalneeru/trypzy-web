@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken'
 import { generateItinerary, summarizeFeedback, reviseItinerary } from '@/lib/server/llm.js'
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
+import { ITINERARY_CONFIG } from '@/lib/itinerary/config.js'
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET
@@ -7025,8 +7026,14 @@ async function handleRoute(request, { params }) {
           creator: creator ? { id: creator.id, name: creator.name } : null
         }
       })
-      
-      return handleCORS(NextResponse.json(versionsWithCreators))
+
+      // Return versions with metadata for version limit enforcement
+      return handleCORS(NextResponse.json({
+        versions: versionsWithCreators,
+        versionCount: versions.length,
+        maxVersions: ITINERARY_CONFIG.MAX_VERSIONS,
+        canRevise: versions.length < ITINERARY_CONFIG.MAX_VERSIONS
+      }))
     }
     
     // Get latest itinerary version - GET /api/trips/:tripId/itinerary/versions/latest
@@ -7146,14 +7153,16 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // MVP: Only allow if no versions exist
-      const existingVersions = await db.collection('itinerary_versions')
-        .find({ tripId })
-        .toArray()
-      
-      if (existingVersions.length > 0) {
+      // Only allow generate if no versions exist (use revise for subsequent versions)
+      const existingVersionCount = await db.collection('itinerary_versions')
+        .countDocuments({ tripId })
+
+      if (existingVersionCount > 0) {
         return handleCORS(NextResponse.json(
-          { error: 'Itinerary already generated. Use revise endpoint to create new versions.' },
+          {
+            error: 'Itinerary already generated. Use revise endpoint to create new versions.',
+            code: 'ITINERARY_EXISTS'
+          },
           { status: 400 }
         ))
       }
@@ -7753,17 +7762,36 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Get latest version
+      // Get latest version and count total versions
       const latestVersion = await db.collection('itinerary_versions')
         .findOne({ tripId }, { sort: { version: -1 } })
-      
+
       if (!latestVersion) {
         return handleCORS(NextResponse.json(
-          { error: 'No itinerary version found. Generate an initial itinerary first.' },
+          {
+            error: 'No itinerary version found. Generate an initial itinerary first.',
+            code: 'NO_ITINERARY'
+          },
           { status: 400 }
         ))
       }
-      
+
+      // Check version limit
+      const versionCount = await db.collection('itinerary_versions')
+        .countDocuments({ tripId })
+
+      if (versionCount >= ITINERARY_CONFIG.MAX_VERSIONS) {
+        return handleCORS(NextResponse.json(
+          {
+            error: `Maximum of ${ITINERARY_CONFIG.MAX_VERSIONS} itinerary versions reached. This trip's itinerary is now finalized.`,
+            code: 'VERSION_LIMIT_REACHED',
+            maxVersions: ITINERARY_CONFIG.MAX_VERSIONS,
+            currentVersions: versionCount
+          },
+          { status: 400 }
+        ))
+      }
+
       // Get feedback for latest version
       const feedbackMessages = await db.collection('itinerary_feedback')
         .find({ tripId, itineraryVersion: latestVersion.version })
@@ -7872,19 +7900,36 @@ async function handleRoute(request, { params }) {
           ? stays.map(s => `${s.locationName} (${s.nights} night${s.nights !== 1 ? 's' : ''})`).join(', ')
           : 'No stay segments identified'
         
-        // Emit chat event for itinerary revised
+        // Emit chat event for itinerary revised (different message if final version)
         const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
-        await emitTripChatEvent({
-          tripId,
-          circleId: trip.circleId,
-          actorUserId: auth.user.id,
-          subtype: 'milestone',
-          text: `✨ Itinerary updated to version ${newVersion.version}. Review the changes in the Itinerary tab.`,
-          metadata: {
-            key: 'itinerary_revised',
-            version: newVersion.version
-          }
-        })
+        const isFinalVersion = newVersion.version >= ITINERARY_CONFIG.MAX_VERSIONS
+
+        if (isFinalVersion) {
+          await emitTripChatEvent({
+            tripId,
+            circleId: trip.circleId,
+            actorUserId: auth.user.id,
+            subtype: 'milestone',
+            text: `📋 Final itinerary version created (v${newVersion.version}). The plan is now set!`,
+            metadata: {
+              key: 'itinerary_finalized',
+              version: newVersion.version,
+              maxVersions: ITINERARY_CONFIG.MAX_VERSIONS
+            }
+          })
+        } else {
+          await emitTripChatEvent({
+            tripId,
+            circleId: trip.circleId,
+            actorUserId: auth.user.id,
+            subtype: 'milestone',
+            text: `✨ Itinerary updated to version ${newVersion.version}. Review the changes in the Itinerary tab.`,
+            metadata: {
+              key: 'itinerary_revised',
+              version: newVersion.version
+            }
+          })
+        }
 
         // Emit chat event for stay requirements synced if changed
         if (syncResult.created > 0 || syncResult.updated > 0) {

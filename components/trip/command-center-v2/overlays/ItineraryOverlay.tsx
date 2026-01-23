@@ -39,6 +39,7 @@ import {
 } from 'lucide-react'
 import { BrandedSpinner } from '@/app/HomeClient'
 import { toast } from 'sonner'
+import { ITINERARY_CONFIG } from '@/lib/itinerary/config'
 
 // ============================================================================
 // Types
@@ -183,8 +184,8 @@ const REACTION_GROUPS = [
   }
 ]
 
-const MAX_IDEAS_PER_USER = 3
-const MAX_IDEA_LENGTH = 120
+// Use centralized config for easy post-MVP adjustment
+const { MAX_IDEAS_PER_USER, MAX_IDEA_LENGTH, MAX_VERSIONS } = ITINERARY_CONFIG
 
 // ============================================================================
 // Helpers
@@ -193,6 +194,16 @@ const MAX_IDEA_LENGTH = 120
 /**
  * API Helper - makes authenticated requests to the backend
  */
+// Custom error class to preserve API error codes
+class ApiError extends Error {
+  code?: string
+  constructor(message: string, code?: string) {
+    super(message)
+    this.code = code
+    this.name = 'ApiError'
+  }
+}
+
 async function api(endpoint: string, options: RequestInit = {}, token: string | null = null): Promise<any> {
   const headers: Record<string, string> = {}
 
@@ -214,7 +225,7 @@ async function api(endpoint: string, options: RequestInit = {}, token: string | 
   const data = await response.json()
 
   if (!response.ok) {
-    throw new Error(data.error || 'Something went wrong')
+    throw new ApiError(data.error || 'Something went wrong', data.code)
   }
 
   return data
@@ -291,6 +302,10 @@ export function ItineraryOverlay({
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [revising, setRevising] = useState(false)
+  // Version limit tracking (server is source of truth via data.canRevise)
+  const [versionCount, setVersionCount] = useState(0)
+  const [maxVersions, setMaxVersions] = useState(MAX_VERSIONS)
+  const [canRevise, setCanRevise] = useState(true)
 
   // ----------------------------------------------------------------------------
   // Feedback State
@@ -449,11 +464,14 @@ export function ItineraryOverlay({
       .filter(Boolean)
   }, [reactions, user?.id])
 
-  // Check if revise should be enabled
-  const canRevise = useMemo(() => {
+  // Check if revise button should be enabled (combines server canRevise with UI conditions)
+  const reviseButtonEnabled = useMemo(() => {
+    // Server says we've hit version limit
+    if (!canRevise) return false
+    // Must have a version, be leader, have feedback, and not be revising
     if (!latestVersion || !isLeader) return false
     return newFeedbackCount > 0 && !revising
-  }, [latestVersion, isLeader, newFeedbackCount, revising])
+  }, [canRevise, latestVersion, isLeader, newFeedbackCount, revising])
 
   // ----------------------------------------------------------------------------
   // Data Loading
@@ -482,6 +500,12 @@ export function ItineraryOverlay({
     try {
       const data = await api(`/trips/${trip.id}/itinerary/versions`, { method: 'GET' }, token)
       const versions = data.versions || data || []
+
+      // Track version metadata from server (source of truth for version limit)
+      setVersionCount(data.versionCount ?? versions.length)
+      setMaxVersions(data.maxVersions ?? MAX_VERSIONS)
+      setCanRevise(data.canRevise ?? versions.length < MAX_VERSIONS)
+
       if (versions.length > 0) {
         // Get the latest version (highest version number)
         const latest = versions.reduce((a: ItineraryVersion, b: ItineraryVersion) =>
@@ -665,7 +689,7 @@ export function ItineraryOverlay({
 
   // Revise itinerary (leader only)
   const handleReviseItinerary = async () => {
-    if (!isLeader || revising || !canRevise || llmDisabled) return
+    if (!isLeader || revising || !reviseButtonEnabled || llmDisabled) return
     setRevising(true)
     try {
       setLlmDisabledMessage(null)
@@ -678,10 +702,17 @@ export function ItineraryOverlay({
       onRefresh(result?.trip || undefined)
     } catch (error: any) {
       const message = error.message || 'Failed to revise itinerary'
-      if (message.includes('AI features are disabled')) {
+
+      // Handle specific error codes
+      if (error.code === 'VERSION_LIMIT_REACHED') {
+        setCanRevise(false)
+        toast.info('This itinerary is now finalized')
+      } else if (message.includes('AI features are disabled')) {
         setLlmDisabledMessage(message)
+        toast.error(message)
+      } else {
+        toast.error(message)
       }
-      toast.error(message)
     } finally {
       setRevising(false)
     }
@@ -1008,9 +1039,16 @@ export function ItineraryOverlay({
                 Itinerary
               </CardTitle>
               {latestVersion && (
-                <Badge variant="outline" className="mt-1">
-                  Version {latestVersion.version}
-                </Badge>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline">
+                    Version {latestVersion.version} of {maxVersions}
+                  </Badge>
+                  {!canRevise && (
+                    <Badge variant="secondary" className="text-xs bg-brand-sand text-brand-carbon">
+                      Final
+                    </Badge>
+                  )}
+                </div>
               )}
             </div>
             {isLeader && !latestVersion && (
@@ -1185,7 +1223,11 @@ export function ItineraryOverlay({
               </div>
               {isLeader && (
                 <div className="flex flex-col items-end gap-1">
-                  {canRevise ? (
+                  {!canRevise ? (
+                    <p className="text-xs text-gray-500">
+                      Maximum {maxVersions} versions reached
+                    </p>
+                  ) : newFeedbackCount > 0 ? (
                     <p className="text-xs text-gray-500">
                       {newFeedbackCount} new {newFeedbackCount === 1 ? 'item' : 'items'} since v
                       {latestVersion.version}
@@ -1193,12 +1235,17 @@ export function ItineraryOverlay({
                   ) : (
                     <p className="text-xs text-gray-400">Waiting for feedback</p>
                   )}
+                  {canRevise && versionCount < maxVersions && (
+                    <p className="text-xs text-gray-400">
+                      {maxVersions - versionCount} revision{maxVersions - versionCount !== 1 ? 's' : ''} remaining
+                    </p>
+                  )}
                   {llmDisabledMessage && (
                     <p className="text-xs text-amber-700">{llmDisabledMessage}</p>
                   )}
                   <Button
                     onClick={handleReviseItinerary}
-                    disabled={!canRevise || llmDisabled}
+                    disabled={!reviseButtonEnabled || llmDisabled}
                     size="sm"
                     variant="outline"
                   >
