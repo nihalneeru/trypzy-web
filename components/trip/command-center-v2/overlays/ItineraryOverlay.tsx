@@ -11,6 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
+import {
   Lightbulb,
   ListTodo,
   MessageCircle,
@@ -303,6 +313,12 @@ export function ItineraryOverlay({
   const [reactingChip, setReactingChip] = useState<string | null>(null)
   const [reactingAction, setReactingAction] = useState<'adding' | 'removing' | null>(null)
   const [showAdvancedPreferences, setShowAdvancedPreferences] = useState(false)
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false)
+  const [generateWarning, setGenerateWarning] = useState({
+    needsIdeas: false,
+    needsDestinationHint: false
+  })
+  const [llmDisabledMessage, setLlmDisabledMessage] = useState<string | null>(null)
 
   // ----------------------------------------------------------------------------
   // Derived State
@@ -319,6 +335,7 @@ export function ItineraryOverlay({
         ? "You've left this trip"
         : null
   const isLeader = trip?.isCreator === true
+  const destinationHint = (trip?.destinationHint || '').trim()
 
   // Track unsaved changes for idea input
   useEffect(() => {
@@ -337,6 +354,17 @@ export function ItineraryOverlay({
     if (!ideas || !user?.id) return 0
     return ideas.filter((idea) => getAuthorId(idea) === user.id).length
   }, [ideas, user?.id])
+
+  const generateNeedsIdeas = ideas.length === 0
+  const generateNeedsDestinationHint = destinationHint.length === 0
+  const llmDisabled = Boolean(llmDisabledMessage)
+
+  const generateWarningDetails = useMemo(() => {
+    const parts = []
+    if (generateWarning.needsIdeas) parts.push('no trip ideas yet')
+    if (generateWarning.needsDestinationHint) parts.push('no destination hint')
+    return parts.join(' and ')
+  }, [generateWarning])
 
   // Group ideas by traveler
   const groupedIdeas = useMemo(() => {
@@ -592,28 +620,51 @@ export function ItineraryOverlay({
   }
 
   // Generate itinerary (leader only)
-  const handleGenerateItinerary = async () => {
+  const handleGenerateItinerary = async (forceGenerate = false) => {
     if (!isLeader || generating) return
     setGenerating(true)
     try {
-      // P0-3: Get updated trip for immediate UI refresh
-      const result = await api(`/trips/${trip.id}/itinerary/generate`, { method: 'POST' }, token)
+      setLlmDisabledMessage(null)
+      const body = forceGenerate ? JSON.stringify({ forceGenerate: true }) : undefined
+      const result = await api(
+        `/trips/${trip.id}/itinerary/generate`,
+        { method: 'POST', body },
+        token
+      )
       toast.success('Itinerary generated!')
       await loadVersions()
       // Pass updated trip if returned, otherwise trigger refetch
       onRefresh(result?.trip || undefined)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate itinerary')
+      const message = error.message || 'Failed to generate itinerary'
+      if (message.includes('AI features are disabled')) {
+        setLlmDisabledMessage(message)
+      }
+      toast.error(message)
     } finally {
       setGenerating(false)
     }
   }
 
+  const handleGenerateClick = () => {
+    if (!isLeader || generating || llmDisabled) return
+    if (generateNeedsIdeas || generateNeedsDestinationHint) {
+      setGenerateWarning({
+        needsIdeas: generateNeedsIdeas,
+        needsDestinationHint: generateNeedsDestinationHint
+      })
+      setShowGenerateConfirm(true)
+      return
+    }
+    handleGenerateItinerary(false)
+  }
+
   // Revise itinerary (leader only)
   const handleReviseItinerary = async () => {
-    if (!isLeader || revising || !canRevise) return
+    if (!isLeader || revising || !canRevise || llmDisabled) return
     setRevising(true)
     try {
+      setLlmDisabledMessage(null)
       // P0-3: Get updated trip for immediate UI refresh
       const result = await api(`/trips/${trip.id}/revise-itinerary`, { method: 'POST' }, token)
       toast.success('Itinerary revised!')
@@ -622,7 +673,11 @@ export function ItineraryOverlay({
       // Pass updated trip if returned, otherwise trigger refetch
       onRefresh(result?.trip || undefined)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to revise itinerary')
+      const message = error.message || 'Failed to revise itinerary'
+      if (message.includes('AI features are disabled')) {
+        setLlmDisabledMessage(message)
+      }
+      toast.error(message)
     } finally {
       setRevising(false)
     }
@@ -955,8 +1010,8 @@ export function ItineraryOverlay({
             </div>
             {isLeader && !latestVersion && (
               <Button
-                onClick={handleGenerateItinerary}
-                disabled={generating}
+                onClick={handleGenerateClick}
+                disabled={generating || llmDisabled}
                 size="sm"
               >
                 {generating ? (
@@ -989,6 +1044,12 @@ export function ItineraryOverlay({
                     {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from{' '}
                     {groupedIdeas.length} {groupedIdeas.length === 1 ? 'traveler' : 'travelers'}
                   </p>
+                )}
+                {llmDisabledMessage && (
+                  <div className="mt-3 inline-flex items-center gap-2 text-xs text-amber-700">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span>{llmDisabledMessage}</span>
+                  </div>
                 )}
                 {generating && (
                   <p className="text-xs text-gray-500 mt-2">Building a day-by-day plan...</p>
@@ -1127,9 +1188,12 @@ export function ItineraryOverlay({
                   ) : (
                     <p className="text-xs text-gray-400">Waiting for feedback</p>
                   )}
+                  {llmDisabledMessage && (
+                    <p className="text-xs text-amber-700">{llmDisabledMessage}</p>
+                  )}
                   <Button
                     onClick={handleReviseItinerary}
-                    disabled={!canRevise}
+                    disabled={!canRevise || llmDisabled}
                     size="sm"
                     variant="outline"
                   >
@@ -1322,6 +1386,30 @@ export function ItineraryOverlay({
           </CardContent>
         </Card>
       )}
+      <AlertDialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Generate itinerary anyway?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {generateWarningDetails
+                ? `This trip has ${generateWarningDetails}. The itinerary may be generic. You can add a destination hint or a couple ideas for better results.`
+                : 'This itinerary may be generic without more context. Add a destination hint or ideas for better results.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={generating}>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowGenerateConfirm(false)
+                handleGenerateItinerary(true)
+              }}
+              disabled={generating}
+            >
+              {generating ? 'Generating...' : 'Generate anyway'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
