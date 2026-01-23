@@ -120,7 +120,7 @@ export function ContextCTABar({
       return {
         label: 'Add ideas',
         icon: Lightbulb,
-        overlayType: 'proposed',
+        overlayType: 'itinerary',
         priority: 4
       }
     }

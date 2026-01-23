@@ -35,6 +35,7 @@ import { deriveTripPrimaryStage, TripPrimaryStage } from '@/lib/trips/stage'
 
 // Constants
 const CHEVRON_BAR_WIDTH = 72 // Width of the chevron sidebar in pixels
+const BOTTOM_BAR_HEIGHT = 56 // Height of the ContextCTABar in pixels
 
 // Types
 interface CommandCenterV2Props {
@@ -267,7 +268,7 @@ function FocusBanner({
           {blocker.type !== 'READY' && blocker.overlayType && (
             <Button
               size="sm"
-              className={cn('shrink-0', buttonClasses[blocker.type])}
+              className={cn('shrink-0 text-white', buttonClasses[blocker.type])}
               onClick={() => onAction(blocker.overlayType)}
             >
               {blocker.ctaLabel}
@@ -462,6 +463,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         title={getOverlayTitle(activeOverlay)}
         hasUnsavedChanges={hasUnsavedChanges}
         rightOffset={`${CHEVRON_BAR_WIDTH}px`}
+        bottomOffset={`${BOTTOM_BAR_HEIGHT}px`}
         slideFrom={
           activeOverlay === 'travelers' || activeOverlay === 'expenses' || activeOverlay === 'memories'
             ? 'bottom'

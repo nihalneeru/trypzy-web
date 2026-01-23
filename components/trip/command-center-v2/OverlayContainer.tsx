@@ -22,8 +22,12 @@ interface OverlayContainerProps {
   children: React.ReactNode
   /** Set to true when overlay has unsaved changes - prevents accidental close */
   hasUnsavedChanges?: boolean
-  /** Right offset to not cover sidebar (e.g., "60px" for chevron bar) */
+  /** Right offset to not cover sidebar (e.g., "72px" for chevron bar) */
   rightOffset?: string
+  /** Top offset to not cover focus banner (e.g., "100px") */
+  topOffset?: string
+  /** Bottom offset to not cover bottom bar (e.g., "56px") */
+  bottomOffset?: string
   /** Slide direction - 'right' (default) or 'bottom' */
   slideFrom?: 'right' | 'bottom'
 }
@@ -45,6 +49,8 @@ export function OverlayContainer({
   children,
   hasUnsavedChanges = false,
   rightOffset = '0px',
+  topOffset = '0px',
+  bottomOffset = '0px',
   slideFrom = 'right'
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
@@ -124,17 +130,18 @@ export function OverlayContainer({
 
   return (
     <>
-      {/* Backdrop - semi-transparent overlay */}
+      {/* Backdrop - semi-transparent overlay, constrained to chat area */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-black/30 transition-opacity duration-300',
+          'fixed z-40 bg-black/30 transition-opacity duration-300',
           isAnimating ? 'opacity-100' : 'opacity-0'
         )}
-        style={
-          isBottomSlide
-            ? { bottom: '56px', right: rightOffset } // Match overlay positioning for bottom slide
-            : { right: rightOffset }
-        }
+        style={{
+          top: topOffset,
+          bottom: bottomOffset,
+          left: 0,
+          right: rightOffset
+        }}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
@@ -151,26 +158,25 @@ export function OverlayContainer({
             'left-0',
             isAnimating ? 'translate-y-0' : 'translate-y-full'
           ] : [
-            // Right slide: constrained to chat area, never covers chevron bar
-            'top-0',
+            // Right slide: constrained to chat area, never covers chevron bar or bottom bar
             isAnimating ? 'translate-x-0' : 'translate-x-full'
           ]
         )}
         style={
           isBottomSlide
             ? {
-                bottom: '56px', // Position above bottom bar
+                bottom: bottomOffset, // Position above bottom bar
                 right: rightOffset, // Don't extend under chevron bar
-                width: `calc(100vw - ${rightOffset})`, // Exact width of chat area
-                maxWidth: '768px', // Cap at reasonable size (tailwind's 'md' breakpoint)
-                maxHeight: 'calc(100vh - 200px)' // Leave space for focus banner (~100px) and bottom bar (56px) + buffer
+                width: `calc(100% - ${rightOffset})`, // Width of chat area (not viewport)
+                maxWidth: '768px', // Cap at reasonable size
+                maxHeight: `calc(100vh - ${topOffset} - ${bottomOffset} - 20px)` // Leave space for focus banner and bottom bar
               }
             : {
+                top: topOffset, // Start below focus banner
+                bottom: bottomOffset, // End above bottom bar
                 right: rightOffset, // End at left edge of chevron bar
-                width: '448px', // Fixed width (tailwind's 'md' max-width)
-                maxWidth: `calc(100vw - ${rightOffset})`, // Never exceed chat area
-                height: '100vh', // Full viewport height
-                maxHeight: '100vh' // Explicitly cap at viewport height
+                width: '448px', // Fixed width
+                maxWidth: `calc(100vw - ${rightOffset})` // Never exceed chat area width
               }
         }
         role="dialog"
