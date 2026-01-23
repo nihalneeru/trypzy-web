@@ -1,4 +1,4 @@
-# CLAUDE_CONTEXT.md
+# CLAUDE.md
 
 ## 0) Product in 60 seconds
 
@@ -80,7 +80,25 @@ The product should feel like a helpful organizer, not a manager.
 - No AI-first experiences that replace user intent
 - No multi-product surface area (Trips first, everything else later)
 
-## 1) Current MVP Funnel (as implemented)
+## 1) Trypzy Brand Colors
+
+**CSS Variables** (defined in `app/globals.css`):
+```css
+--brand-red: #FA3823;      /* Attention/CTAs/Blockers */
+--brand-blue: #00334D;     /* Secondary CTAs/Links */
+--brand-carbon: #2E303B;   /* Text/Dark elements */
+--brand-sand: #F2EDDA;     /* Light backgrounds/Highlights */
+```
+
+**Tailwind Usage**:
+- `text-brand-red`, `bg-brand-red` - Primary CTAs, blockers, errors
+- `text-brand-blue`, `bg-brand-blue` - Secondary CTAs, links, active states
+- `text-brand-carbon`, `bg-brand-carbon` - Text, dark UI elements
+- `bg-brand-sand` - Highlights, selected states, light backgrounds
+
+**Typography**: Inter font family (`font-inter`)
+
+## 2) Current MVP Funnel (as implemented)
 
 **Trip stages** (from `lib/trips/stage.js`):
 1. **PROPOSED** - Trip created, dates not locked
@@ -104,7 +122,7 @@ The product should feel like a helpful organizer, not a manager.
 - **Participation minimums**: None enforced. System can progress with partial participation
 - **Post-lock read-only behavior**: Once dates are locked, availability/voting actions are blocked. Canceled trips are read-only. Left travelers cannot send messages (ChatTab checks `viewer.isActiveParticipant`)
 
-## 2) Architecture snapshot
+## 3) Architecture snapshot
 
 **Frameworks/libraries**:
 - Next.js 14.2.3 (App Router)
@@ -143,7 +161,7 @@ The product should feel like a helpful organizer, not a manager.
 - **Traveler status**: Server-side via `isActiveTraveler()` function
 - **Privacy**: Server-side via `canViewerSeeTrip()` and `applyProfileTripPrivacy()` (`lib/trips/applyProfileTripPrivacy.js`)
 
-## 3) Key file map (high-signal only)
+## 4) Key file map (high-signal only)
 
 **Routes/pages**:
 - `app/page.js` - Root page (wraps WelcomePageWrapper)
@@ -161,16 +179,15 @@ The product should feel like a helpful organizer, not a manager.
 ```
 components/trip/command-center-v2/
 ├── CommandCenterV2.tsx           # Main orchestrator (~600 lines)
-├── FocusBannerV2.tsx            # Top banner showing trip blocker
+├── FocusBannerV2.tsx            # Top banner showing trip name/dates
 ├── ProgressChevrons.tsx         # Right sidebar with arrow-shaped stage indicators
-├── TravelerStrip.tsx            # Horizontal avatar strip below chat
-├── ContextCTABar.tsx            # Red action bar above chat input
-├── OverlayContainer.tsx         # Slide-in drawer wrapper with animations
+├── ContextCTABar.tsx            # Bottom bar: travelers/expenses/memories + priority CTA
+├── OverlayContainer.tsx         # Slide-in drawer wrapper (right or bottom)
 ├── index.ts                     # Exports
 └── overlays/
     ├── SchedulingOverlay.tsx    # Date picking, voting, lock (~950 lines)
     ├── ItineraryOverlay.tsx     # Ideas, generation, feedback (~1250 lines)
-    ├── AccommodationOverlay.tsx # Stays, options, selection (~800 lines)
+    ├── AccommodationOverlay.tsx # Stays, options, Airbnb search (~800 lines)
     ├── TravelersOverlay.tsx     # Join requests, leave, transfer (~600 lines)
     ├── PrepOverlay.tsx          # Transport, packing, documents (~650 lines)
     ├── ExpensesOverlay.tsx      # Add expense, balances (~700 lines)
@@ -221,13 +238,13 @@ components/trip/command-center-v2/
 - `tests/trips/` - Trip utility tests (voting status, blocking users)
 - `e2e/` - Playwright E2E tests (navigation, discover flow)
 
-## 4) Command Center V2 - Current Implementation
+## 5) Command Center V2 - Current Implementation
 
 **Layout Structure**:
 ```
 ┌─────────────────────────────────────────┬─────┐
-│  Focus Banner (Trip Name + Blocker)     │  ▼  │ ← Proposed chevron
-├─────────────────────────────────────────┤  ▼  │ ← Dates chevron (orange if current)
+│  Focus Banner (Trip Name + Dates)       │  ▼  │ ← Proposed chevron
+├─────────────────────────────────────────┤  ▼  │ ← Dates chevron
 │                                         │  ▼  │ ← Itinerary chevron
 │           CHAT FEED                     │  ▼  │ ← Accommodation chevron
 │         (scrollable)                    │  ▼  │ ← Prep chevron
@@ -237,34 +254,45 @@ components/trip/command-center-v2/
 │                                         │─────│
 │                                         │  👥 │ ← Travelers button
 ├─────────────────────────────────────────┴─────┤
-│  [👤][👤][👤] ← Traveler Strip (clickable)    │
-├───────────────────────────────────────────────┤
-│  [  Pick your dates  📅 ]  ← Red CTA Bar      │
-├───────────────────────────────────────────────┤
 │  [  Type a message...              ] [➤]      │
+├───────────────────────────────────────────────┤
+│  [👥 4] [💰] [📷]     [Pick your dates  📅]   │ ← Context CTA Bar
 └───────────────────────────────────────────────┘
 ```
 
 **Key Features**:
-- **Progress Chevrons**: SVG arrow shapes on right sidebar
-  - Green = completed, Orange = current stage, Gray = future, Blue = active overlay
-  - Points DOWN by default, LEFT when active (indicating overlay direction)
+- **Progress Chevrons**: SVG arrow shapes on right sidebar (72px wide)
+  - Green = completed, Red (`brand-red`) = current blocker, Gray = future, Blue (`brand-blue`) = active overlay
+  - Points DOWN by default, LEFT when it's the blocker (indicating what needs attention)
   - Always visible on right side (desktop and mobile)
-- **Slide-in Overlays**: Drawer from right (max-width 448px)
+- **Slide-in Overlays**: Drawer from right or bottom
+  - Right overlays: scheduling, itinerary, accommodation, prep, member profile (max-width 448px)
+  - Bottom overlays: travelers, expenses, memories
   - Offset from chevron sidebar (doesn't cover it)
   - Backdrop click or Escape to close
   - Unsaved changes protection with confirmation dialog
-- **Traveler Strip**: Horizontal avatar scroll, clickable to open member profile
-- **CTA Bar**: Red banner showing next action, opens relevant overlay
-- **Focus Banner**: Shows trip name, dates, and current blocker
+- **Context CTA Bar**: Bottom bar with two sections
+  - Left: Travelers count, Expenses, Memories quick-action buttons
+  - Right: Priority-based CTA button (red background)
+- **Focus Banner**: Shows trip name and locked dates (if any)
+
+**CTA Priority Algorithm** (in `ContextCTABar.tsx`):
+1. Lock dates (leader only, when `canLockDates` and status is `voting`)
+2. Vote on dates (if voting open and user hasn't voted)
+3. Pick dates (if user hasn't submitted availability)
+4. Add ideas (if collecting ideas and user has < 3 ideas)
+5. Generate itinerary (leader only, when dates locked and no itinerary)
+6. Choose stay (when dates locked and accommodation not selected)
 
 **Overlay Triggers**:
-| Trigger | Opens |
-|---------|-------|
-| Progress chevron | Corresponding stage overlay |
-| CTA bar button | Context-sensitive overlay |
-| Traveler avatar | Member profile overlay |
-| Travelers chevron | Travelers management overlay |
+| Trigger | Opens | Slide Direction |
+|---------|-------|-----------------|
+| Progress chevron | Corresponding stage overlay | Right |
+| CTA bar button | Context-sensitive overlay | Right |
+| Travelers button (left of CTA) | Travelers overlay | Bottom |
+| Expenses button | Expenses overlay | Bottom |
+| Memories button | Memories overlay | Bottom |
+| Traveler avatar | Member profile overlay | Right |
 
 **State Management**:
 ```typescript
@@ -276,62 +304,39 @@ const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
 const [overlayParams, setOverlayParams] = useState<{ memberId?: string }>({})
 ```
 
-**Blocker Detection** (in `FocusBannerV2.tsx`):
+**Blocker Detection** (drives chevron highlighting):
 ```typescript
-function deriveBlocker(trip, user): 'DATES' | 'ITINERARY' | 'ACCOMMODATION' | 'READY'
 // Priority: DATES (if not locked) → ITINERARY (if no itinerary) → ACCOMMODATION → READY
+function deriveBlockerStageKey(trip): 'scheduling' | 'itinerary' | 'accommodation' | null
 ```
 
-## 5) Recent Changes (January 2025)
+## 6) API Routes Reference
 
-**Command Center V2 Complete** (Phases 1-8):
-- Phase 1-6: Built V2 with chat-centric layout, all overlay components
-- Phase 7: Made V2 the default trip view
-- Phase 8: Removed ~8,300 lines of legacy code:
-  - Deleted `components/trip/command-center/` (V1 command center)
-  - Deleted most of `components/trip/TripTabs/` (kept ChatTab.tsx)
-  - Deleted `TripDetailViewLegacy` function (~1,600 lines)
-  - Removed `?ui=v1` and `?ui=legacy` fallback modes
-- Bundle size improved: ~36kB reduction (273kB → 237kB First Load JS)
+**Itinerary endpoints** (updated namespace):
+- `GET /api/trips/:tripId/itinerary/ideas` - List ideas
+- `POST /api/trips/:tripId/itinerary/ideas` - Add idea
+- `POST /api/trips/:tripId/itinerary/ideas/:ideaId/like` - Like idea
+- `POST /api/trips/:tripId/itinerary/generate` - Generate itinerary (leader only)
 
-**Files Removed**:
-- `components/trip/command-center/TripCommandCenter.tsx`
-- `components/trip/command-center/TripFocusBanner.tsx`
-- `components/trip/command-center/AccommodationShortlist.tsx`
-- `components/trip/command-center/decision-modules/*.tsx`
-- `components/trip/TripTabs/TripTabs.tsx`
-- `components/trip/TripTabs/tabs/*.tsx` (except ChatTab.tsx)
-- `components/trip/TripTabs/types.ts`
+**Circle updates** (activity feed):
+- `circle_created` - When circle owner creates circle
+- `circle_member_joined` - When members join circle
+- Updates derived from `memberships` collection with `joinedAt` timestamps
 
-**Files Kept** (shared/reused):
-- `components/trip/TripTabs/tabs/ChatTab.tsx` - Used by V2
-- `components/trip/chat/ActionCard.tsx` - CTA component
-- `components/trip/TransferLeadershipDialog.tsx`
-- `components/trip/CancelTripDialog.tsx`
+## 7) Progress Step Icons
 
-## 6) MVP Readiness: Known Risks
+| Step | Icon | Color (when current) |
+|------|------|---------------------|
+| tripProposed | Lightbulb | brand-red |
+| datesLocked | Calendar | brand-red |
+| itinerarySelected | Map | brand-red |
+| accommodationChosen | Home | brand-red |
+| prepStarted | Clipboard | brand-red |
+| tripOngoing | Rocket | brand-red |
+| memoriesAdded | Camera | gray (utility) |
+| expensesSplit | DollarSign | gray (utility) |
 
-**Risk 1: Leader leaves trip without transfer**
-- Trip becomes unactionable if leader leaves without transferring
-- Fix: Require `transferToUserId` for leaders, or auto-transfer
-
-**Risk 2: Stage transition edge cases**
-- Voting after lock, lock twice, pick availability after lock
-- Fix: Ensure `validateStageAction()` covers all cases
-
-**Risk 3: Refresh mid-action loses perceived state**
-- No optimistic UI updates
-- Fix: Add optimistic updates or persist loading state
-
-**Risk 4: Multi-tab behavior**
-- No real-time updates between tabs
-- Fix: Add polling on focus or "Refresh" button
-
-**Risk 5: API/UI mismatch on traveler validation**
-- Frontend uses `participantsWithStatus`, backend uses `isActiveTraveler()`
-- Fix: Ensure consistent logic
-
-## 7) How to run locally
+## 8) How to run locally
 
 **Prerequisites**:
 - Node.js 18+
@@ -370,19 +375,19 @@ npm run seed
 ```
 Creates test users: alex.traveler@example.com / password123
 
-## 8) "If you only read 5 things" (for Claude)
+## 9) "If you only read 5 things" (for Claude)
 
-1. **Command Center V2 is the only trip view**: No legacy fallbacks. Chat-centric with slide-in overlays triggered by progress chevrons on right sidebar.
+1. **Command Center V2 is the only trip view**: Chat-centric with slide-in overlays. Progress chevrons on right sidebar (72px), overlays slide from right or bottom depending on type.
 
-2. **Stage computation is client-side but validated server-side**: `deriveTripPrimaryStage()` for UI, `validateStageAction()` for API. Must stay in sync.
+2. **Blocker-driven UI**: The red chevron shows what's blocking the trip (dates → itinerary → accommodation). CTA bar shows the priority action based on user role and trip state.
 
 3. **Traveler determination differs by trip type**: Collaborative = circle members. Hosted = explicit participants. See `isActiveTraveler()`.
 
-4. **Overlay architecture**: `OverlayContainer` handles animations and unsaved changes. Each overlay is self-contained with its own API calls and state.
+4. **Brand colors are enforced**: Use `brand-red` for CTAs/blockers, `brand-blue` for secondary actions/links, `brand-sand` for highlights. Never use generic Tailwind colors (red-600, blue-500).
 
-5. **Progress chevrons are interactive**: SVG arrows that change direction (down → left) when active. Color indicates status (green/orange/gray/blue). Clicking opens overlay.
+5. **API routes for itinerary use `/itinerary/` namespace**: Ideas at `/trips/:id/itinerary/ideas`, generation at `/trips/:id/itinerary/generate`.
 
-## 9) Key Component APIs
+## 10) Key Component APIs
 
 **CommandCenterV2 Props**:
 ```typescript
@@ -402,7 +407,8 @@ interface OverlayContainerProps {
   title: string
   children: React.ReactNode
   hasUnsavedChanges?: boolean
-  rightOffset?: string  // e.g., "56px" to not cover chevron sidebar
+  rightOffset?: string      // e.g., "72px" to not cover chevron sidebar
+  slideFrom?: 'right' | 'bottom'  // default: 'right'
 }
 ```
 
@@ -410,10 +416,21 @@ interface OverlayContainerProps {
 ```typescript
 interface ProgressChevronsProps {
   progressSteps: Record<string, boolean>
-  currentStageKey: string | null
+  blockerStageKey: string | null  // which chevron points left (the blocker)
   onChevronClick: (overlayType: OverlayType) => void
   activeOverlay: OverlayType
-  orientation?: 'vertical' | 'horizontal'
+}
+```
+
+**ContextCTABar Props**:
+```typescript
+interface ContextCTABarProps {
+  trip: Trip
+  user: User
+  onTravelersClick: () => void
+  onExpensesClick: () => void
+  onMemoriesClick: () => void
+  onCTAClick: (overlayType: OverlayType) => void
 }
 ```
 
