@@ -257,7 +257,8 @@ export function AccommodationOverlay({
 
     setAdding(true)
     try {
-      await api(`/trips/${trip.id}/accommodations`, {
+      // P0-3: Get updated trip for immediate UI refresh
+      const result = await api(`/trips/${trip.id}/accommodations`, {
         method: 'POST',
         body: JSON.stringify({
           stayRequirementId: selectedStayId || null,
@@ -274,7 +275,8 @@ export function AccommodationOverlay({
       setShowAddDialog(false)
       resetForm()
       loadData()
-      onRefresh?.()
+      // Pass updated trip if returned, otherwise trigger refetch
+      onRefresh?.(result?.trip || undefined)
     } catch (error: any) {
       console.error('Failed to add accommodation:', error)
       toast.error(error.message || 'Failed to add accommodation')
@@ -289,13 +291,15 @@ export function AccommodationOverlay({
 
     setVoting(optionId)
     try {
-      await api(`/trips/${trip.id}/accommodations/${optionId}/vote`, {
+      // P0-3: Get updated trip for immediate UI refresh
+      const result = await api(`/trips/${trip.id}/accommodations/${optionId}/vote`, {
         method: 'POST'
       }, token)
 
       toast.success('Vote recorded')
       loadData()
-      onRefresh?.()
+      // Pass updated trip if returned, otherwise trigger refetch
+      onRefresh?.(result?.trip || undefined)
     } catch (error: any) {
       console.error('Failed to vote:', error)
       toast.error(error.message || 'Failed to vote')
@@ -315,7 +319,8 @@ export function AccommodationOverlay({
 
     setSelecting(true)
     try {
-      await api(`/trips/${trip.id}/accommodations/${optionToSelect}/select`, {
+      // P0-3: Get updated trip for immediate UI refresh
+      const result = await api(`/trips/${trip.id}/accommodations/${optionToSelect}/select`, {
         method: 'POST'
       }, token)
 
@@ -323,7 +328,8 @@ export function AccommodationOverlay({
       setShowSelectConfirm(false)
       setOptionToSelect(null)
       loadData()
-      onRefresh?.()
+      // Pass updated trip if returned, otherwise trigger refetch
+      onRefresh?.(result?.trip || undefined)
     } catch (error: any) {
       console.error('Failed to select accommodation:', error)
       toast.error(error.message || 'Failed to select accommodation')

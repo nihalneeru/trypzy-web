@@ -175,8 +175,9 @@ export function OverlayContainer({
                 top: topOffset, // Start below focus banner
                 bottom: bottomOffset, // End above bottom bar
                 right: rightOffset, // End at left edge of chevron bar
-                width: '448px', // Fixed width
-                maxWidth: `calc(100vw - ${rightOffset})` // Never exceed chat area width
+                // Responsive width: full width on mobile (with padding), fixed on desktop
+                width: 'min(448px, calc(100vw - 20px))', // 448px max, but never wider than viewport minus padding
+                maxWidth: `calc(100vw - ${rightOffset} - 10px)` // Never exceed chat area width (with small margin)
               }
         }
         role="dialog"

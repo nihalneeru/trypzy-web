@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle } from 'lucide-react'
+import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
 
@@ -111,8 +111,10 @@ export function TravelersOverlay({
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
   const [showTransferDialog, setShowTransferDialog] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [showStandaloneTransferDialog, setShowStandaloneTransferDialog] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [canceling, setCanceling] = useState(false)
+  const [transferring, setTransferring] = useState(false)
   const [joinRequests, setJoinRequests] = useState<any[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
   const [processingRequest, setProcessingRequest] = useState<string | null>(null)
@@ -216,8 +218,11 @@ export function TravelersOverlay({
         throw new Error(error.error || 'Failed to process request')
       }
 
+      // P0-3: Get updated trip for immediate UI refresh (travelers list + progress)
+      const result = await response.json()
+
       toast.success(action === 'approve' ? 'Join request approved' : 'Join request rejected')
-      onRefresh()
+      onRefresh(result?.trip || undefined)
       await loadJoinRequests()
     } catch (error: any) {
       toast.error(error.message || 'Failed to process request')
@@ -296,6 +301,33 @@ export function TravelersOverlay({
       setShowTransferDialog(true)
     } else {
       setShowCancelDialog(true)
+    }
+  }
+
+  const handleStandaloneTransfer = async () => {
+    if (!selectedNewLeader) {
+      setValidationError('Please select a new leader')
+      return
+    }
+
+    if (!trip?.id || !token) return
+
+    setValidationError('')
+    setTransferring(true)
+    try {
+      await api(`/trips/${trip.id}/transfer-leadership`, {
+        method: 'POST',
+        body: JSON.stringify({ newLeaderId: selectedNewLeader })
+      }, token)
+      toast.success('Leadership transferred successfully')
+      setSelectedNewLeader('')
+      setShowStandaloneTransferDialog(false)
+      onRefresh()
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to transfer leadership'
+      toast.error(errorMessage)
+    } finally {
+      setTransferring(false)
     }
   }
 
@@ -479,9 +511,23 @@ export function TravelersOverlay({
         </div>
       )}
 
+      {/* Leader Actions Section */}
+      {canLeaveLeader && hasEligibleSuccessors && (
+        <div className="pt-4 border-t border-gray-200">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setShowStandaloneTransferDialog(true)}
+          >
+            <ArrowRightLeft className="h-4 w-4 mr-2" />
+            Transfer Leadership
+          </Button>
+        </div>
+      )}
+
       {/* Leave Trip Section */}
       {(canLeaveNonLeader || canLeaveLeader) && (
-        <div className="pt-4 border-t border-gray-200">
+        <div className={canLeaveLeader && hasEligibleSuccessors ? "pt-2" : "pt-4 border-t border-gray-200"}>
           {canLeaveNonLeader && (
             <Button
               variant="outline"
@@ -606,6 +652,61 @@ export function TravelersOverlay({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Standalone Transfer Leadership Dialog */}
+      <Dialog open={showStandaloneTransferDialog} onOpenChange={setShowStandaloneTransferDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer Leadership</DialogTitle>
+            <DialogDescription>
+              Transfer trip leadership to another active traveler. You will remain as a traveler on the trip.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="standalone-new-leader">Select new leader</Label>
+            <Select
+              value={selectedNewLeader}
+              onValueChange={(value) => {
+                setSelectedNewLeader(value)
+                setValidationError('')
+              }}
+            >
+              <SelectTrigger id="standalone-new-leader" className="mt-2">
+                <SelectValue placeholder="Choose a member..." />
+              </SelectTrigger>
+              <SelectContent>
+                {eligibleUsers.map((eligibleUser) => (
+                  <SelectItem key={eligibleUser.userId} value={eligibleUser.userId}>
+                    {eligibleUser.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {validationError && (
+              <p className="text-xs text-red-500 mt-2">{validationError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowStandaloneTransferDialog(false)
+                setSelectedNewLeader('')
+                setValidationError('')
+              }}
+              disabled={transferring}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleStandaloneTransfer}
+              disabled={!selectedNewLeader || transferring}
+            >
+              {transferring ? 'Transferring...' : 'Transfer Leadership'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -17,6 +17,7 @@ import {
   ClipboardList
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { computeTripProgressSnapshot } from '@/lib/trips/progressSnapshot'
 
 interface CTAConfig {
   label: string
@@ -42,6 +43,8 @@ interface ContextCTABarProps {
  * Shows:
  * - Left section: Travelers, Expenses, and Memories buttons
  * - Right section: Primary focus CTA button based on user's next recommended action
+ *
+ * Uses computeTripProgressSnapshot() as single source of truth for CTA decisions (P0-4)
  */
 export function ContextCTABar({
   trip,
@@ -49,70 +52,57 @@ export function ContextCTABar({
   travelerCount,
   onOpenOverlay
 }: ContextCTABarProps) {
-  // Determine the current CTA based on trip state and user context
+  // Compute progress snapshot as single source of truth for CTA decisions (P0-4)
+  const progressSnapshot = useMemo(() => {
+    return computeTripProgressSnapshot(trip, user, {
+      pickProgress: trip?.pickProgress
+    })
+  }, [trip, user])
+
+  // Determine the current CTA based on progress snapshot and user context
   const ctaConfig = useMemo((): CTAConfig | null => {
     if (!trip || !user) return null
 
-    const isLeader = trip.leaderId === user.id || trip.createdBy === user.id
+    const isLeader = progressSnapshot.isTripLeader
     const userId = user.id
 
-    // Check user's availability submission status (supports both new and legacy modes)
-    const userAvailability = trip.availability?.find(
-      (a: any) => a.userId === userId
-    )
+    // Use progress snapshot for core state decisions
+    const datesLocked = progressSnapshot.datesLocked
+    const leaderNeedsToLock = progressSnapshot.leaderNeedsToLock
+    const itineraryFinalized = progressSnapshot.itineraryFinalized
+    const accommodationChosen = progressSnapshot.accommodationChosen
+    const prepStarted = progressSnapshot.prepStarted
+
+    // User-specific state (not in snapshot, requires user context)
     const hasSubmittedDatePicks = trip.userDatePicks && trip.userDatePicks.length > 0
+    const userAvailability = trip.availability?.find((a: any) => a.userId === userId)
     const hasSubmittedAvailability = hasSubmittedDatePicks || !!userAvailability?.dates?.length
-
-    // Check voting status
-    const votingOpen = trip.votingStatus === 'open' || trip.dateVotingOpen
-    const userHasVoted = trip.dateVotes?.some(
-      (v: any) => v.userId === userId
-    ) || !!trip.userVote
-
-    // Check if dates are locked
-    const datesLocked = trip.datesLocked || trip.lockedDates || trip.status === 'locked'
-
-    // Check user's ideas count
+    const votingOpen = trip.votingStatus === 'open' || trip.dateVotingOpen || trip.status === 'voting'
+    const userHasVoted = trip.dateVotes?.some((v: any) => v.userId === userId) || !!trip.userVote
     const userIdeasCount = trip.ideas?.filter(
       (i: any) => i.userId === userId || i.createdBy === userId
     )?.length || 0
-
-    // Check if itinerary exists/finalized
-    const itineraryStatus = trip.itineraryStatus
-    const itineraryFinalized = itineraryStatus === 'selected' || itineraryStatus === 'published'
     const hasItinerary = trip.itinerary?.days?.length > 0 || itineraryFinalized
-
-    // Check accommodation status
-    const accommodationSelected = trip.accommodationSelected ||
-      trip.accommodation?.selected ||
-      trip.progress?.steps?.accommodationChosen
-
-    // Check if user has voted on accommodation
     const userHasVotedOnAccommodation = trip.accommodationUserVoted ||
       trip.accommodations?.some((a: any) => a.userVoted)
-
-    // Check prep status
-    const prepStarted = trip.prepStatus === 'in_progress' || trip.prepStatus === 'ready'
 
     // Priority-based CTA selection (lower priority number = higher importance)
 
     // 1. Lock dates (if leader and can lock - highest priority for leader)
-    if (isLeader && !datesLocked) {
-      // Check if enough people have submitted to lock
-      if (trip.canLockDates || trip.status === 'voting') {
-        return {
-          label: 'Lock dates',
-          icon: Lock,
-          overlayType: 'scheduling',
-          priority: 1
-        }
+    if (isLeader && !datesLocked && leaderNeedsToLock) {
+      return {
+        label: 'Lock dates',
+        icon: Lock,
+        overlayType: 'scheduling',
+        priority: 1
       }
     }
 
     // 2. Vote on dates (if voting is open and user hasn't voted)
+    // P1-5: Use inviting language - "Share your vote" instead of "Vote now"
     if (votingOpen && !userHasVoted && !datesLocked) {
       return {
-        label: 'Vote on dates',
+        label: 'Share your vote',
         icon: Vote,
         overlayType: 'scheduling',
         priority: 2
@@ -130,9 +120,10 @@ export function ContextCTABar({
     }
 
     // 4. Add ideas (only if itinerary not finalized and user has fewer than 3 ideas)
+    // P1-5: Use inviting language - "Add your ideas" instead of "Submit ideas"
     if (!itineraryFinalized && userIdeasCount < 3 && datesLocked) {
       return {
-        label: 'Add ideas',
+        label: 'Add your ideas',
         icon: Lightbulb,
         overlayType: 'itinerary',
         priority: 4
@@ -150,7 +141,7 @@ export function ContextCTABar({
     }
 
     // 6. Accommodation actions (after itinerary is finalized)
-    if (itineraryFinalized && !accommodationSelected && datesLocked) {
+    if (itineraryFinalized && !accommodationChosen && datesLocked) {
       // Leader: Select accommodation
       if (isLeader) {
         return {
@@ -161,9 +152,10 @@ export function ContextCTABar({
         }
       }
       // Traveler: Vote on accommodation (if hasn't voted yet)
+      // P1-5: Use inviting language - "Share your pick" instead of "Vote now"
       if (!userHasVotedOnAccommodation) {
         return {
-          label: 'Vote on stay',
+          label: 'Share your pick',
           icon: ThumbsUp,
           overlayType: 'accommodation',
           priority: 6
@@ -179,7 +171,7 @@ export function ContextCTABar({
     }
 
     // 7. Prep phase (after accommodation selected)
-    if (accommodationSelected && !prepStarted) {
+    if (accommodationChosen && !prepStarted) {
       return {
         label: 'Start prep',
         icon: ClipboardList,
@@ -190,54 +182,60 @@ export function ContextCTABar({
 
     // No action needed
     return null
-  }, [trip, user])
+  }, [trip, user, progressSnapshot])
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5" style={{ backgroundColor: 'var(--brand-red)' }}>
+    <div className="flex items-center justify-between px-2 md:px-4 py-2" style={{ backgroundColor: 'var(--brand-red)' }}>
       {/* Left section: Travelers, Expenses, Memories buttons */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 md:gap-2">
         <Button
           onClick={() => onOpenOverlay('travelers')}
           variant="ghost"
-          size="sm"
           className={cn(
-            'flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white',
-            'border-0 shadow-none'
+            'flex items-center gap-1 md:gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'border-0 shadow-none',
+            // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
+            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]'
           )}
           aria-label={`View ${travelerCount} travelers`}
         >
-          <Users className="h-4 w-4" />
-          <span className="text-sm font-medium">
+          <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="text-sm font-medium hidden sm:inline">
             {travelerCount} going
+          </span>
+          <span className="text-sm font-medium sm:hidden">
+            {travelerCount}
           </span>
         </Button>
 
         <Button
           onClick={() => onOpenOverlay('expenses')}
           variant="ghost"
-          size="sm"
           className={cn(
-            'flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white',
-            'border-0 shadow-none'
+            'flex items-center gap-1 md:gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'border-0 shadow-none',
+            // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
+            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]'
           )}
           aria-label="View expenses"
         >
-          <DollarSign className="h-4 w-4" />
-          <span className="text-sm font-medium">Expenses</span>
+          <DollarSign className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="text-sm font-medium hidden sm:inline">Expenses</span>
         </Button>
 
         <Button
           onClick={() => onOpenOverlay('memories')}
           variant="ghost"
-          size="sm"
           className={cn(
-            'flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white',
-            'border-0 shadow-none'
+            'flex items-center gap-1 md:gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'border-0 shadow-none',
+            // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
+            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]'
           )}
           aria-label="View memories"
         >
-          <Camera className="h-4 w-4" />
-          <span className="text-sm font-medium">Memories</span>
+          <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="text-sm font-medium hidden sm:inline">Memories</span>
         </Button>
       </div>
 
@@ -247,12 +245,14 @@ export function ContextCTABar({
           onClick={() => onOpenOverlay(ctaConfig.overlayType)}
           className={cn(
             'bg-white text-brand-red hover:bg-white/90',
-            'font-semibold shadow-md'
+            'font-semibold shadow-md',
+            // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
+            'h-11 md:h-9 px-3 md:px-4 min-w-[44px]'
           )}
-          size="sm"
         >
-          <ctaConfig.icon className="h-4 w-4 mr-1.5" />
-          {ctaConfig.label}
+          <ctaConfig.icon className="h-4 w-4 mr-1.5 shrink-0" aria-hidden="true" />
+          <span className="hidden xs:inline">{ctaConfig.label}</span>
+          <span className="xs:hidden">{ctaConfig.label.split(' ')[0]}</span>
         </Button>
       )}
     </div>

@@ -12,12 +12,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { MessageCircle, Send, X, Lock } from 'lucide-react'
-import { getNextAction } from '@/lib/trips/nextAction'
 import { ActionCard } from '@/components/trip/chat/ActionCard'
 import { toast } from 'sonner'
 import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import { getBlockingUsers } from '@/lib/trips/getBlockingUsers'
 import { formatLeadingOption } from '@/lib/trips/getVotingStatus'
+import { computeTripProgressSnapshot } from '@/lib/trips/progressSnapshot'
 
 // API helper (local to this component)
 const api = async (endpoint, options = {}, token = null) => {
@@ -92,19 +92,23 @@ export function ChatTab({
   // Get actionRequired flag (computed server-side via getUserActionRequired)
   const actionRequired = trip?.actionRequired === true
   
-  // Stage-aware, role-aware CTA computation
+  // Compute progress snapshot as single source of truth for CTA decisions (P0-4)
+  const progressSnapshot = useMemo(() => {
+    return computeTripProgressSnapshot(trip, user, {
+      pickProgress: trip?.pickProgress
+    })
+  }, [trip, user])
+
+  // Stage-aware, role-aware CTA computation using progress snapshot (P0-4)
   const chatCTA = useMemo(() => {
     if (!trip || !user || !trip.type) return null
-    
+
     // Only show CTAs for collaborative trips in active stages
     if (trip.type !== 'collaborative') return null
-    
-    // Locked/completed: no action CTA unless explicitly required by business logic
-    if (tripStatus === 'locked' || tripStatus === 'completed') {
-      // No CTA for locked/completed trips (actionRequired should be false per getUserActionRequired)
-      return null
-    }
-    
+
+    // Use progress snapshot for core state decisions (P0-4)
+    const { datesLocked, everyoneResponded, leaderNeedsToLock, itineraryFinalized, accommodationChosen, prepStarted } = progressSnapshot
+
     // Scheduling stage: show "Pick your dates" only if user hasn't picked
     if (tripStatus === 'proposed' || tripStatus === 'scheduling') {
       if (!userHasPicked) {
@@ -118,8 +122,8 @@ export function ChatTab({
           actionRequired
         }
       }
-      // User has picked, but check if leader needs to lock
-      if (isTripLeader && trip.pickProgress?.respondedCount >= trip.pickProgress?.totalCount) {
+      // User has picked, but check if leader needs to lock (from snapshot)
+      if (leaderNeedsToLock) {
         return {
           id: 'lock-dates',
           title: 'Lock dates',
@@ -129,14 +133,14 @@ export function ChatTab({
           actionRequired: false // Leader actions are not "action required" for red styling
         }
       }
-      // Non-leader waiting for lock
-      if (!isTripLeader && trip.pickProgress?.respondedCount >= trip.pickProgress?.totalCount) {
+      // Non-leader waiting for lock (everyone responded from snapshot)
+      if (!isTripLeader && everyoneResponded) {
         return null // No CTA, show read-only status (handled by description in messages)
       }
       // Still waiting for responses
       return null
     }
-    
+
     // Voting stage: show "Vote on dates" only if user hasn't voted
     if (tripStatus === 'voting') {
       if (!userHasVoted) {
@@ -163,22 +167,85 @@ export function ChatTab({
       }
       return null
     }
-    
-    return null
-  }, [trip, user, tripStatus, isTripLeader, userHasPicked, userHasVoted, actionRequired])
-  
-  // Use chatCTA if available, otherwise fall back to getNextAction for locked/completed stages
-  const nextAction = useMemo(() => {
-    if (chatCTA) return chatCTA
-    if (!trip || !user) return null
-    // For locked/completed stages, use getNextAction (for itinerary, accommodation, etc.)
+
+    // Post-lock stages: show CTAs for itinerary, accommodation, prep, and view itinerary
     if (tripStatus === 'locked' || tripStatus === 'completed') {
-      const action = getNextAction({ trip, user })
-      // Only return if action exists and actionRequired is true (to avoid showing non-critical CTAs)
-      return action?.priority <= 2 ? action : null
+      const itineraryStatus = trip.itineraryStatus
+
+      // Check accommodation options availability (not in snapshot, UI-specific)
+      const hasAccommodationOptions = trip.accommodationOptions?.length > 0 ||
+        trip.accommodations?.length > 0 ||
+        trip.stayRequirements?.some((req: any) => req.options?.length > 0)
+      const userHasVotedOnAccommodation = trip.accommodationUserVoted ||
+        trip.accommodations?.some((a: any) => a.userVoted)
+
+      // Get user's ideas count (not in snapshot, user-specific)
+      const userIdeasCount = trip.ideas?.filter(
+        (i: any) => i.userId === user.id || i.createdBy === user.id
+      )?.length || 0
+
+      // 1. "Add your ideas" - when collecting ideas and user has fewer than 3 ideas
+      if (datesLocked && itineraryStatus === 'collecting_ideas' && userIdeasCount < 3) {
+        return {
+          id: 'add-ideas',
+          title: 'Add your ideas',
+          description: 'Share what you would love to do on this trip',
+          ctaLabel: 'Add your ideas',
+          kind: 'deeplink',
+          deeplinkTab: 'itinerary',
+          actionRequired: userIdeasCount === 0
+        }
+      }
+
+      // 2. "Vote on stays" - when accommodation options exist but not selected (use snapshot)
+      if (itineraryFinalized && !accommodationChosen && hasAccommodationOptions && !userHasVotedOnAccommodation) {
+        return {
+          id: 'vote-stays',
+          title: 'Vote on stays',
+          description: 'Help pick where the group will stay',
+          ctaLabel: 'Vote on stays',
+          kind: 'deeplink',
+          deeplinkTab: 'accommodation',
+          actionRequired: true
+        }
+      }
+
+      // 3. "Add transport & packing" - when prep phase is active (use snapshot)
+      if (accommodationChosen && !prepStarted) {
+        return {
+          id: 'add-prep',
+          title: 'Add transport & packing',
+          description: 'Coordinate travel plans and packing lists',
+          ctaLabel: 'Start prep',
+          kind: 'deeplink',
+          deeplinkTab: 'prep',
+          actionRequired: false
+        }
+      }
+
+      // 4. "View itinerary" - when itinerary is published
+      if (itineraryStatus === 'published') {
+        return {
+          id: 'view-itinerary',
+          title: 'View itinerary',
+          description: 'Check out the finalized trip plan',
+          ctaLabel: 'View itinerary',
+          kind: 'deeplink',
+          deeplinkTab: 'itinerary',
+          actionRequired: false
+        }
+      }
+
+      return null
     }
+
     return null
-  }, [chatCTA, trip, user, tripStatus])
+  }, [trip, user, tripStatus, isTripLeader, userHasPicked, userHasVoted, actionRequired, progressSnapshot])
+  
+  // Use chatCTA directly - we now handle all stages including post-lock
+  const nextAction = useMemo(() => {
+    return chatCTA
+  }, [chatCTA])
 
   // Generate dismiss key for localStorage
   const dismissKey = useMemo(() => {

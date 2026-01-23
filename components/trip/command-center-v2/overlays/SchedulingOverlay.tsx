@@ -392,8 +392,11 @@ export function SchedulingOverlay({
         throw new Error(error.message || 'Failed to submit vote')
       }
 
+      // P0-3: Get updated trip for immediate UI refresh
+      const updatedTrip = await response.json()
+
       toast.success(trip.userVote ? 'Vote updated!' : 'Vote submitted!')
-      onRefresh()
+      onRefresh(updatedTrip)
     } catch (error: any) {
       toast.error(error.message || 'Failed to submit vote')
     } finally {
@@ -430,10 +433,13 @@ export function SchedulingOverlay({
         throw new Error(error.message || 'Failed to lock dates')
       }
 
+      // P0-3: Get updated trip for immediate UI refresh
+      const updatedTrip = await response.json()
+
       toast.success('Trip dates locked!')
       setShowLockConfirmation(false)
       setPendingLockDate(null)
-      onRefresh()
+      onRefresh(updatedTrip)
     } catch (error: any) {
       if (error.message?.includes('403') || error.message?.includes('Only')) {
         toast.error('Only the trip organizer can lock dates.')

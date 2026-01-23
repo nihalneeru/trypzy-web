@@ -850,4 +850,321 @@ describe('CTA Priority Logic', () => {
       expect(result.priority).toBe(5)
     })
   })
+
+  describe('User ideas count edge cases', () => {
+    it('should show "Add ideas" when user has exactly 0 ideas', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        ideas: []
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result.label).toBe('Add ideas')
+    })
+
+    it('should show "Add ideas" when user has 1 idea', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        ideas: [{ userId: 'traveler-1', text: 'My idea' }]
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result.label).toBe('Add ideas')
+    })
+
+    it('should show "Add ideas" when user has 2 ideas', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        ideas: [
+          { userId: 'traveler-1', text: 'Idea 1' },
+          { userId: 'traveler-1', text: 'Idea 2' }
+        ]
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result.label).toBe('Add ideas')
+    })
+
+    it('should NOT show "Add ideas" when user has exactly 3 ideas', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        ideas: [
+          { userId: 'traveler-1', text: 'Idea 1' },
+          { userId: 'traveler-1', text: 'Idea 2' },
+          { userId: 'traveler-1', text: 'Idea 3' }
+        ]
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result?.label).not.toBe('Add ideas')
+    })
+
+    it('should NOT show "Add ideas" when user has more than 3 ideas', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        ideas: [
+          { userId: 'traveler-1', text: 'Idea 1' },
+          { userId: 'traveler-1', text: 'Idea 2' },
+          { userId: 'traveler-1', text: 'Idea 3' },
+          { userId: 'traveler-1', text: 'Idea 4' },
+          { userId: 'traveler-1', text: 'Idea 5' }
+        ]
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result?.label).not.toBe('Add ideas')
+    })
+
+    it('should only count ideas by the current user, not others', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        ideas: [
+          { userId: 'other-user', text: 'Other idea 1' },
+          { userId: 'other-user', text: 'Other idea 2' },
+          { userId: 'other-user', text: 'Other idea 3' },
+          { userId: 'traveler-1', text: 'My only idea' }
+        ]
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      // User only has 1 idea, so should see Add ideas
+      expect(result.label).toBe('Add ideas')
+    })
+  })
+
+  describe('Accommodation voting edge cases', () => {
+    it('should show "Vote on stay" when user has NOT voted on accommodation', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        itineraryStatus: 'selected',
+        accommodationSelected: false,
+        accommodationUserVoted: false,
+        accommodations: []
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result.label).toBe('Vote on stay')
+    })
+
+    it('should show "View stays" when user has already voted via accommodationUserVoted', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        itineraryStatus: 'selected',
+        accommodationSelected: false,
+        accommodationUserVoted: true
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result.label).toBe('View stays')
+    })
+
+    it('should show "View stays" when user has voted via accommodations[].userVoted', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        itineraryStatus: 'selected',
+        accommodationSelected: false,
+        accommodationUserVoted: false,
+        accommodations: [
+          { id: 'acc-1', name: 'Hotel A', userVoted: true }
+        ]
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result.label).toBe('View stays')
+    })
+
+    it('should show "Vote on stay" when accommodations exist but none have userVoted', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        itineraryStatus: 'selected',
+        accommodationSelected: false,
+        accommodationUserVoted: false,
+        accommodations: [
+          { id: 'acc-1', name: 'Hotel A', userVoted: false },
+          { id: 'acc-2', name: 'Hotel B', userVoted: false }
+        ]
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result.label).toBe('Vote on stay')
+    })
+  })
+
+  describe('Leader-only CTA enforcement', () => {
+    it('should show "Lock dates" only for leader, not traveler', () => {
+      const trip = mockTrip({
+        canLockDates: true,
+        status: 'voting'
+      })
+
+      // Leader sees Lock dates
+      const leaderResult = getCTAConfig(trip, mockUser({ id: 'leader-1' }))
+      expect(leaderResult.label).toBe('Lock dates')
+
+      // Traveler does NOT see Lock dates
+      const travelerResult = getCTAConfig(trip, mockUser({ id: 'traveler-1' }))
+      expect(travelerResult?.label).not.toBe('Lock dates')
+    })
+
+    it('should show "Generate itinerary" only for leader with >= 3 ideas', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        itinerary: null,
+        ideas: [
+          { userId: 'leader-1', text: 'Idea 1' },
+          { userId: 'leader-1', text: 'Idea 2' },
+          { userId: 'leader-1', text: 'Idea 3' }
+        ]
+      })
+
+      // Leader sees Generate itinerary
+      const leaderResult = getCTAConfig(trip, mockUser({ id: 'leader-1' }))
+      expect(leaderResult.label).toBe('Generate itinerary')
+
+      // Traveler does NOT see Generate itinerary (returns null since they have no ideas)
+      const travelerTrip = mockTrip({
+        datesLocked: true,
+        itinerary: null,
+        ideas: [
+          { userId: 'traveler-1', text: 'Idea 1' },
+          { userId: 'traveler-1', text: 'Idea 2' },
+          { userId: 'traveler-1', text: 'Idea 3' }
+        ]
+      })
+      const travelerResult = getCTAConfig(travelerTrip, mockUser({ id: 'traveler-1' }))
+      expect(travelerResult?.label).not.toBe('Generate itinerary')
+    })
+
+    it('should show "Select stay" for leader, "Vote on stay" for traveler', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        itineraryStatus: 'selected',
+        accommodationSelected: false,
+        accommodationUserVoted: false
+      })
+
+      // Leader sees Select stay
+      const leaderResult = getCTAConfig(trip, mockUser({ id: 'leader-1' }))
+      expect(leaderResult.label).toBe('Select stay')
+
+      // Traveler sees Vote on stay
+      const travelerResult = getCTAConfig(trip, mockUser({ id: 'traveler-1' }))
+      expect(travelerResult.label).toBe('Vote on stay')
+    })
+  })
+
+  describe('Stage transition CTA changes', () => {
+    it('should transition from "Pick your dates" to no date CTA when dates locked', () => {
+      const user = mockUser({ id: 'traveler-1' })
+
+      // Before locking: Pick your dates
+      const beforeLock = mockTrip({
+        datesLocked: false,
+        availability: []
+      })
+      const beforeResult = getCTAConfig(beforeLock, user)
+      expect(beforeResult.label).toBe('Pick your dates')
+
+      // After locking: No longer Pick your dates
+      const afterLock = mockTrip({
+        datesLocked: true,
+        availability: [],
+        ideas: []
+      })
+      const afterResult = getCTAConfig(afterLock, user)
+      expect(afterResult?.label).not.toBe('Pick your dates')
+    })
+
+    it('should transition from "Add ideas" to accommodation CTA when itinerary finalized', () => {
+      const user = mockUser({ id: 'traveler-1' })
+
+      // Before finalization: Add ideas
+      const beforeFinalize = mockTrip({
+        datesLocked: true,
+        itineraryStatus: 'draft',
+        ideas: []
+      })
+      const beforeResult = getCTAConfig(beforeFinalize, user)
+      expect(beforeResult.label).toBe('Add ideas')
+
+      // After finalization: Accommodation CTA
+      const afterFinalize = mockTrip({
+        datesLocked: true,
+        itineraryStatus: 'selected',
+        ideas: [],
+        accommodationSelected: false,
+        accommodationUserVoted: false
+      })
+      const afterResult = getCTAConfig(afterFinalize, user)
+      expect(afterResult.label).toBe('Vote on stay')
+    })
+
+    it('should transition from accommodation CTA to prep CTA when stay selected', () => {
+      const user = mockUser({ id: 'traveler-1' })
+
+      // Before accommodation selection
+      const beforeAccom = mockTrip({
+        datesLocked: true,
+        availability: [{ userId: 'traveler-1', dates: ['2024-06-01'] }],
+        itineraryStatus: 'selected',
+        accommodationSelected: false,
+        accommodationUserVoted: true
+      })
+      const beforeResult = getCTAConfig(beforeAccom, user)
+      expect(beforeResult.label).toBe('View stays')
+
+      // After accommodation selection: Start prep
+      const afterAccom = mockTrip({
+        datesLocked: true,
+        availability: [{ userId: 'traveler-1', dates: ['2024-06-01'] }],
+        itineraryStatus: 'selected',
+        accommodationSelected: true,
+        prepStatus: null
+      })
+      const afterResult = getCTAConfig(afterAccom, user)
+      expect(afterResult.label).toBe('Start prep')
+    })
+
+    it('should return null when prep is started (all CTAs complete)', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        availability: [{ userId: 'traveler-1', dates: ['2024-06-01'] }],
+        itineraryStatus: 'selected',
+        accommodationSelected: true,
+        prepStatus: 'in_progress'
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('Mixed user/createdBy field matching', () => {
+    it('should count ideas using both userId and createdBy fields', () => {
+      const trip = mockTrip({
+        datesLocked: true,
+        ideas: [
+          { userId: 'traveler-1', text: 'Idea via userId' },
+          { createdBy: 'traveler-1', text: 'Idea via createdBy' },
+          { createdBy: 'traveler-1', text: 'Another via createdBy' }
+        ]
+      })
+      const user = mockUser({ id: 'traveler-1' })
+      const result = getCTAConfig(trip, user)
+
+      // User has 3 ideas total (1 via userId, 2 via createdBy)
+      expect(result?.label).not.toBe('Add ideas')
+    })
+  })
 })

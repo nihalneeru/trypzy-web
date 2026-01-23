@@ -115,8 +115,8 @@ export function CircleOnboardingInterstitial({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <div className="flex items-center justify-center mb-4">
-              <div className="rounded-full bg-green-100 p-3">
-                <CheckCircle2 className="h-8 w-8 text-green-600" />
+              <div className="rounded-full bg-brand-blue/10 p-3">
+                <CheckCircle2 className="h-8 w-8 text-brand-blue" />
               </div>
             </div>
             <DialogTitle className="text-center">Circle Created!</DialogTitle>
@@ -274,8 +274,8 @@ export function CircleOnboardingInterstitial({
             <div className="space-y-2">
               <Label>Invite Code</Label>
               <div className="flex items-center gap-2">
-                <div className="flex-1 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                  <p className="text-2xl font-mono font-bold text-indigo-800 text-center">
+                <div className="flex-1 p-3 bg-brand-sand border border-brand-carbon/20 rounded-lg">
+                  <p className="text-2xl font-mono font-bold text-brand-carbon text-center">
                     {circle.inviteCode || 'N/A'}
                   </p>
                 </div>
@@ -285,11 +285,11 @@ export function CircleOnboardingInterstitial({
                   onClick={handleCopyInviteCode}
                   className="flex-shrink-0"
                 >
-                  <Copy className={`h-4 w-4 ${inviteCopied ? 'text-green-600' : ''}`} />
+                  <Copy className={`h-4 w-4 ${inviteCopied ? 'text-brand-blue' : ''}`} />
                 </Button>
               </div>
               {inviteCopied && (
-                <p className="text-sm text-green-600">Copied to clipboard!</p>
+                <p className="text-sm text-brand-blue">Copied to clipboard!</p>
               )}
             </div>
             

@@ -32,9 +32,12 @@ import { useTripChat } from '@/hooks/use-trip-chat'
 // Helpers
 import { computeProgressSteps } from '@/lib/trips/progress'
 import { deriveTripPrimaryStage, TripPrimaryStage } from '@/lib/trips/stage'
+import { computeTripProgressSnapshot, TripProgressSnapshot } from '@/lib/trips/progressSnapshot'
 
 // Constants
-const CHEVRON_BAR_WIDTH = 72 // Width of the chevron sidebar in pixels
+// Chevron bar: 56px on mobile (compact for touch), 72px on desktop
+const CHEVRON_BAR_WIDTH_MOBILE = 56 // Compact width for mobile
+const CHEVRON_BAR_WIDTH_DESKTOP = 72 // Standard width for desktop
 const BOTTOM_BAR_HEIGHT = 56 // Height of the ContextCTABar in pixels
 
 // Types
@@ -65,9 +68,10 @@ interface BlockerInfo {
 }
 
 /**
- * Derive the current blocker from trip data using deterministic heuristics
+ * Derive the current blocker from trip data using progress snapshot (P0-4)
+ * Uses computeTripProgressSnapshot() as single source of truth for consistency
  */
-function deriveBlocker(trip: any, user: any): BlockerInfo {
+function deriveBlocker(trip: any, user: any, progressSnapshot: TripProgressSnapshot): BlockerInfo {
   if (!trip) {
     return {
       type: 'DATES',
@@ -79,44 +83,48 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
     }
   }
 
-  const datesLocked = trip.status === 'locked' || (trip.lockedStartDate && trip.lockedEndDate)
+  // Use progress snapshot for core state decisions (P0-4)
+  const { datesLocked, everyoneResponded, itineraryFinalized, accommodationChosen, prepStarted } = progressSnapshot
+
+  // User-specific state (not in snapshot)
+  const userHasPicked = trip.userDatePicks && trip.userDatePicks.length > 0
+  const userHasVoted = !!trip.userVote
 
   // Blocker 1: Dates not locked
   if (!datesLocked) {
-    const userHasPicked = trip.userDatePicks && trip.userDatePicks.length > 0
-    const userHasVoted = !!trip.userVote
-    const canLockDates = trip.canLockDates || trip.status === 'voting'
-
+    // P1-5: Use inviting language - "Share your vote" not "Vote Now"
     if (trip.status === 'voting') {
       return {
         type: 'DATES',
-        title: userHasVoted ? 'Waiting on votes' : 'Vote on dates',
+        title: userHasVoted ? 'Votes in progress' : 'Share your vote',
         description: userHasVoted
-          ? 'Waiting for others to vote before dates can be locked'
+          ? 'Others are still voting on dates'
           : 'Choose your preferred date window',
-        ctaLabel: userHasVoted ? 'View Votes' : 'Vote Now',
+        ctaLabel: userHasVoted ? 'View Votes' : 'Share Vote',
         icon: Calendar,
         overlayType: 'scheduling'
       }
     }
 
-    // If everyone has picked and dates can be locked, show "Waiting on dates to be locked"
-    if (canLockDates && userHasPicked) {
+    // If everyone has responded (from snapshot), show encouraging message
+    // P1-5: Remove "waiting on you" pressure language
+    if (everyoneResponded && userHasPicked) {
       return {
         type: 'DATES',
-        title: 'Waiting on dates to be locked',
-        description: 'Everyone has responded. Waiting for trip leader to lock dates',
+        title: 'Ready to lock dates',
+        description: 'Everyone has responded. The trip leader can now lock in the dates',
         ctaLabel: 'View Dates',
         icon: Calendar,
         overlayType: 'scheduling'
       }
     }
 
+    // P1-5: Use inviting language, avoid pressure
     return {
       type: 'DATES',
-      title: userHasPicked ? 'Waiting on dates' : 'Pick your dates',
+      title: userHasPicked ? 'Dates in progress' : 'Pick your dates',
       description: userHasPicked
-        ? 'Waiting for others to respond before dates can be locked'
+        ? 'Others are still sharing their availability'
         : 'Share your date preferences to help coordinate the trip',
       ctaLabel: userHasPicked ? 'View Progress' : 'Pick Dates',
       icon: Calendar,
@@ -124,10 +132,7 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
     }
   }
 
-  // Blocker 2: Itinerary not finalized
-  const itineraryStatus = trip.itineraryStatus
-  const itineraryFinalized = itineraryStatus === 'selected' || itineraryStatus === 'published'
-
+  // Blocker 2: Itinerary not finalized (from snapshot)
   if (!itineraryFinalized) {
     return {
       type: 'ITINERARY',
@@ -139,11 +144,7 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
     }
   }
 
-  // Blocker 3: Accommodation not decided
-  const accommodationChosen = trip.progress?.steps?.accommodationChosen ||
-    trip.accommodationSelected ||
-    trip.accommodation?.selected
-
+  // Blocker 3: Accommodation not chosen (from snapshot)
   if (!accommodationChosen) {
     return {
       type: 'ACCOMMODATION',
@@ -155,10 +156,7 @@ function deriveBlocker(trip: any, user: any): BlockerInfo {
     }
   }
 
-  // Blocker 4: Prep not started
-  const prepStarted = trip.prepStatus === 'in_progress' || trip.prepStatus === 'ready' ||
-    trip.progress?.steps?.prepStarted
-
+  // Blocker 4: Prep not started (from snapshot)
   if (!prepStarted) {
     return {
       type: 'PREP',
@@ -217,13 +215,15 @@ function FocusBanner({
   startDate,
   endDate,
   blocker,
-  onAction
+  onAction,
+  chevronBarWidth
 }: {
   tripName: string
   startDate?: string
   endDate?: string
   blocker: BlockerInfo
   onAction: (overlayType: OverlayType) => void
+  chevronBarWidth: number
 }) {
   // Format dates for display
   const dateDisplay = useMemo(() => {
@@ -237,40 +237,44 @@ function FocusBanner({
     }
   }, [startDate, endDate])
 
-  // Color scheme based on blocker type
+  // Color scheme based on blocker type (using brand colors)
+  // brand-red: CTAs, blockers, errors, current action
+  // brand-blue: completed states, secondary actions
+  // brand-carbon: text, dark UI elements
+  // brand-sand: highlights, backgrounds
   const colorClasses: Record<BlockerType, string> = {
-    DATES: 'border-blue-200 bg-blue-50',
-    ITINERARY: 'border-purple-200 bg-purple-50',
-    ACCOMMODATION: 'border-orange-200 bg-orange-50',
-    PREP: 'border-teal-200 bg-teal-50',
-    READY: 'border-green-200 bg-green-50'
+    DATES: 'border-brand-red/30 bg-brand-red/5',
+    ITINERARY: 'border-brand-red/30 bg-brand-red/5',
+    ACCOMMODATION: 'border-brand-red/30 bg-brand-red/5',
+    PREP: 'border-brand-red/30 bg-brand-red/5',
+    READY: 'border-brand-blue/30 bg-brand-blue/5'
   }
 
   const buttonClasses: Record<BlockerType, string> = {
-    DATES: 'bg-blue-600 hover:bg-blue-700',
-    ITINERARY: 'bg-purple-600 hover:bg-purple-700',
-    ACCOMMODATION: 'bg-orange-600 hover:bg-orange-700',
-    PREP: 'bg-teal-600 hover:bg-teal-700',
-    READY: 'bg-green-600 hover:bg-green-700'
+    DATES: 'bg-brand-red hover:bg-brand-red/90',
+    ITINERARY: 'bg-brand-red hover:bg-brand-red/90',
+    ACCOMMODATION: 'bg-brand-red hover:bg-brand-red/90',
+    PREP: 'bg-brand-red hover:bg-brand-red/90',
+    READY: 'bg-brand-blue hover:bg-brand-blue/90'
   }
 
   const iconClasses: Record<BlockerType, string> = {
-    DATES: 'text-blue-600',
-    ITINERARY: 'text-purple-600',
-    ACCOMMODATION: 'text-orange-600',
-    PREP: 'text-teal-600',
-    READY: 'text-green-600'
+    DATES: 'text-brand-red',
+    ITINERARY: 'text-brand-red',
+    ACCOMMODATION: 'text-brand-red',
+    PREP: 'text-brand-red',
+    READY: 'text-brand-blue'
   }
 
   const Icon = blocker.icon
 
   return (
-    <div className="border-b border-gray-200 shrink-0" style={{ marginRight: `${CHEVRON_BAR_WIDTH}px` }}>
+    <div className="border-b border-gray-200 shrink-0" style={{ marginRight: `${chevronBarWidth}px` }}>
       {/* Trip name and dates row */}
-      <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
-        <h1 className="text-base font-semibold text-gray-900 truncate">{tripName}</h1>
-        <span className="text-gray-400">•</span>
-        <span className="text-sm text-gray-600">{dateDisplay}</span>
+      <div className="px-3 md:px-4 py-2 bg-gray-50 flex items-center gap-2">
+        <h1 className="text-sm md:text-base font-semibold text-gray-900 truncate">{tripName}</h1>
+        <span className="text-gray-500 hidden sm:inline" aria-hidden="true">•</span>
+        <span className="text-xs md:text-sm text-gray-600 hidden sm:inline">{dateDisplay}</span>
       </div>
 
       {/* Blocker card */}
@@ -278,7 +282,7 @@ function FocusBanner({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className={cn('p-2 rounded-full bg-white shrink-0', iconClasses[blocker.type])}>
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-gray-900 text-sm">{blocker.title}</h3>
@@ -323,6 +327,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   const chevronBarRef = useRef<HTMLDivElement>(null)
   const focusBannerRef = useRef<HTMLDivElement>(null)
   const [focusBannerHeight, setFocusBannerHeight] = useState(0)
+  const [chevronBarWidth, setChevronBarWidth] = useState(CHEVRON_BAR_WIDTH_DESKTOP)
 
   // Measure focus banner height for overlay positioning
   useEffect(() => {
@@ -331,6 +336,22 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
       setFocusBannerHeight(height)
     }
   }, [trip]) // Re-measure when trip changes (affects banner content)
+
+  // Handle responsive chevron bar width
+  useEffect(() => {
+    const handleResize = () => {
+      // Use mobile width for screens < 768px (md breakpoint)
+      const isMobile = window.innerWidth < 768
+      setChevronBarWidth(isMobile ? CHEVRON_BAR_WIDTH_MOBILE : CHEVRON_BAR_WIDTH_DESKTOP)
+    }
+
+    // Set initial value
+    handleResize()
+
+    // Listen for resize events
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Chat hook
   const {
@@ -349,7 +370,15 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   // Compute derived state
   const progressSteps = useMemo(() => computeProgressSteps(trip), [trip])
   const currentStage = useMemo(() => deriveTripPrimaryStage(trip), [trip])
-  const blocker = useMemo(() => deriveBlocker(trip, user), [trip, user])
+
+  // Compute progress snapshot as single source of truth (P0-4)
+  const progressSnapshot = useMemo(() => {
+    return computeTripProgressSnapshot(trip, user, {
+      pickProgress: trip?.pickProgress
+    })
+  }, [trip, user])
+
+  const blocker = useMemo(() => deriveBlocker(trip, user, progressSnapshot), [trip, user, progressSnapshot])
 
   // Find blocker stage key for progress chevrons - the chevron that points left matches the focus banner
   // This is based on the blocker (what needs attention), not the current stage
@@ -442,6 +471,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
           endDate={endDate}
           blocker={blocker}
           onAction={handleBlockerAction}
+          chevronBarWidth={chevronBarWidth}
         />
       </div>
 
@@ -482,10 +512,10 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         </div>
 
         {/* Progress Chevrons sidebar - always on right side */}
+        {/* Responsive width: 56px on mobile, 72px on desktop */}
         <div
           ref={chevronBarRef}
-          className="flex flex-col items-center justify-start border-l border-gray-200 bg-gray-50 shrink-0 overflow-y-auto py-2"
-          style={{ width: CHEVRON_BAR_WIDTH }}
+          className="flex flex-col items-center justify-start border-l border-gray-200 bg-gray-50 shrink-0 overflow-y-auto py-2 w-14 md:w-[72px]"
         >
           <ProgressChevrons
             progressSteps={progressSteps}
@@ -503,7 +533,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         onClose={closeOverlay}
         title={getOverlayTitle(activeOverlay)}
         hasUnsavedChanges={hasUnsavedChanges}
-        rightOffset={`${CHEVRON_BAR_WIDTH}px`}
+        rightOffset={`${chevronBarWidth}px`}
         topOffset={`${focusBannerHeight}px`}
         bottomOffset={`${BOTTOM_BAR_HEIGHT}px`}
         slideFrom={

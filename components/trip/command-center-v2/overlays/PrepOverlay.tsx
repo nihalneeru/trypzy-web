@@ -28,7 +28,8 @@ import {
   Sparkles,
   Check,
   Package,
-  ExternalLink
+  ExternalLink,
+  Trash2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
@@ -86,6 +87,8 @@ export function PrepOverlay({
   const [adding, setAdding] = useState(false)
   const [generatingSuggestions, setGeneratingSuggestions] = useState(false)
   const [markingComplete, setMarkingComplete] = useState(false)
+  const [deletingTransport, setDeletingTransport] = useState<string | null>(null)
+  const [deletingChecklist, setDeletingChecklist] = useState<string | null>(null)
 
   const [newTransport, setNewTransport] = useState({
     mode: 'other',
@@ -163,6 +166,7 @@ export function PrepOverlay({
         notes: ''
       })
       loadPrepData()
+      // P0-3: Trigger trip refresh
       onRefresh()
     } catch (error: any) {
       toast.error(error.message || 'Failed to add transport')
@@ -259,6 +263,49 @@ export function PrepOverlay({
     } finally {
       setMarkingComplete(false)
     }
+  }
+
+  const handleDeleteTransport = async (transportId: string) => {
+    if (isReadOnly) return
+
+    setDeletingTransport(transportId)
+    try {
+      await api(`/trips/${trip.id}/prep/transport/${transportId}`, {
+        method: 'DELETE'
+      }, token)
+
+      toast.success('Transport deleted')
+      loadPrepData()
+      onRefresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete transport')
+    } finally {
+      setDeletingTransport(null)
+    }
+  }
+
+  const handleDeleteChecklist = async (itemId: string) => {
+    if (isReadOnly) return
+
+    setDeletingChecklist(itemId)
+    try {
+      await api(`/trips/${trip.id}/prep/checklist/${itemId}`, {
+        method: 'DELETE'
+      }, token)
+
+      toast.success('Item deleted')
+      loadPrepData()
+      onRefresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete item')
+    } finally {
+      setDeletingChecklist(null)
+    }
+  }
+
+  // Check if user can delete an item (owner or leader)
+  const canDeleteItem = (ownerUserId: string) => {
+    return !isReadOnly && (ownerUserId === user?.id || isTripLeader)
   }
 
   const getTransportIcon = (mode: string) => {
@@ -423,6 +470,17 @@ export function PrepOverlay({
                         </a>
                       )}
                     </div>
+                    {canDeleteItem(item.ownerUserId) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                        onClick={() => handleDeleteTransport(item.id)}
+                        disabled={deletingTransport === item.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -483,6 +541,17 @@ export function PrepOverlay({
                     <p className="text-xs text-gray-500 mt-0.5">{item.notes}</p>
                   )}
                 </div>
+                {canDeleteItem(item.ownerUserId) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                    onClick={() => handleDeleteChecklist(item.id)}
+                    disabled={deletingChecklist === item.id}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
