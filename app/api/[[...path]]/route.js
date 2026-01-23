@@ -3272,6 +3272,7 @@ async function handleRoute(request, { params }) {
         subtype: m.subtype || null,
         metadata: m.metadata || {},
         createdAt: m.createdAt,
+        userId: m.userId, // Include userId for own-message detection
         user: m.userId ? users.find(u => u.id === m.userId) : null
       })).map(m => ({
         ...m,

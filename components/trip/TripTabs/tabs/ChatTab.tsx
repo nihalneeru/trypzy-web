@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -98,6 +98,60 @@ export function ChatTab({
       pickProgress: trip?.pickProgress
     })
   }, [trip, user])
+
+  // Auto-scroll refs and state
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const isNearBottomRef = useRef(true)
+  const prevMessageCountRef = useRef(messages?.length || 0)
+  const SCROLL_THRESHOLD = 100 // pixels from bottom to consider "near bottom"
+
+  // Scroll to bottom helper
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (viewport) {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior })
+    }
+  }, [])
+
+  // Track scroll position to determine if user is near bottom
+  useEffect(() => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = viewport as HTMLElement
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+      isNearBottomRef.current = distanceFromBottom < SCROLL_THRESHOLD
+    }
+
+    viewport.addEventListener('scroll', handleScroll)
+    return () => viewport.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Auto-scroll when new messages arrive (only if near bottom)
+  useEffect(() => {
+    const currentCount = messages?.length || 0
+    const prevCount = prevMessageCountRef.current
+
+    if (currentCount > prevCount && isNearBottomRef.current) {
+      // Small delay to ensure DOM has updated
+      requestAnimationFrame(() => scrollToBottom('smooth'))
+    }
+
+    prevMessageCountRef.current = currentCount
+  }, [messages, scrollToBottom])
+
+  // Wrap sendMessage to always scroll to bottom after sending
+  const handleSendMessage = useCallback(() => {
+    if (sendMessage) {
+      sendMessage()
+      // Scroll to bottom immediately when user sends a message
+      requestAnimationFrame(() => {
+        isNearBottomRef.current = true
+        scrollToBottom('instant')
+      })
+    }
+  }, [sendMessage, scrollToBottom])
 
   // Stage-aware, role-aware CTA computation using progress snapshot (P0-4)
   const chatCTA = useMemo(() => {
@@ -589,7 +643,7 @@ export function ChatTab({
   // Chat content (shared between legacy and command-center modes)
   const chatContent = (
     <>
-      <ScrollArea className={`flex-1 pr-4 ${isCommandCenter ? 'h-[400px]' : ''}`}>
+      <ScrollArea ref={scrollAreaRef} className={`flex-1 pr-4 ${isCommandCenter ? 'h-[400px]' : ''}`}>
           <div className="space-y-4">
             {/* Waiting on... clarity message (system style, at top) */}
             {blockingInfo && (
@@ -652,9 +706,11 @@ export function ChatTab({
               <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
             ) : (
               messages.map((msg: any) => {
+                // Determine if message is from current user (used for alignment and styling)
+                const isFromCurrentUser = !msg.isSystem && (msg.user?.id === user?.id || msg.userId === user?.id)
                 return (
-                  <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : msg.user?.id === user.id ? 'items-end' : 'items-start'}`}>
-                    <div className={`flex ${msg.isSystem ? 'justify-center' : msg.user?.id === user.id ? 'justify-end' : 'justify-start'}`}>
+                  <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex ${msg.isSystem ? 'justify-center' : isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
                       {msg.isSystem ? (
                         <div 
                           className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
@@ -670,18 +726,12 @@ export function ChatTab({
                           {msg.content}
                         </div>
                       ) : (
-                        (() => {
-                          // Check if message is from current user (handle various ID formats)
-                          const isOwnMessage = msg.user?.id === user?.id || msg.userId === user?.id
-                          return (
-                            <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isOwnMessage ? 'bg-indigo-600' : 'bg-gray-100'}`}>
-                              {!isOwnMessage && (
-                                <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
-                              )}
-                              <p className={isOwnMessage ? 'text-white' : 'text-gray-900'}>{msg.content}</p>
-                            </div>
-                          )
-                        })()
+                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isFromCurrentUser ? 'bg-brand-red border border-brand-red/20 shadow-sm' : 'bg-gray-100'}`}>
+                          {!isFromCurrentUser && (
+                            <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
+                          )}
+                          <p className={isFromCurrentUser ? 'text-white' : 'text-gray-900'}>{msg.content}</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -966,13 +1016,14 @@ export function ChatTab({
             placeholder={readOnlyPlaceholder}
             onKeyDown={(e) => {
               if (!viewerIsReadOnly && e.key === 'Enter' && sendMessage) {
-                sendMessage()
+                handleSendMessage()
               }
             }}
             disabled={viewerIsReadOnly}
+            className="text-brand-carbon bg-white"
           />
           <Button
-            onClick={viewerIsReadOnly ? undefined : sendMessage}
+            onClick={viewerIsReadOnly ? undefined : handleSendMessage}
             disabled={viewerIsReadOnly || sendingMessage || !newMessage.trim()}
             title={viewerIsReadOnly ? readOnlyPlaceholder : undefined}
           >
