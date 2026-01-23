@@ -66,6 +66,7 @@ chainlit.md
 .chainlit
 .ipynb_checkpoints/
 .ac
+.claude/settings.local.json
 
 # Deployment
 .vercel
