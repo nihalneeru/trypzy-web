@@ -9,7 +9,9 @@ import {
   Lock,
   Lightbulb,
   Sparkles,
-  Home
+  Home,
+  DollarSign,
+  Camera
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -27,25 +29,22 @@ interface ContextCTABarProps {
   user: any
   /** Number of travelers going */
   travelerCount: number
-  /** Callback when travelers section is clicked */
-  onTravelersClick: () => void
-  /** Callback when CTA button is clicked */
-  onCTAClick: (overlayType: string) => void
+  /** Callback when overlay is opened */
+  onOpenOverlay: (overlayType: string) => void
 }
 
 /**
  * Context-sensitive action bar for Command Center V2
  *
  * Shows:
- * - Left: Travelers icon with count, clickable to open travelers overlay
- * - Right: Primary CTA button based on user's next recommended action
+ * - Left section: Travelers, Expenses, and Memories buttons
+ * - Right section: Primary focus CTA button based on user's next recommended action
  */
 export function ContextCTABar({
   trip,
   user,
   travelerCount,
-  onTravelersClick,
-  onCTAClick
+  onOpenOverlay
 }: ContextCTABarProps) {
   // Determine the current CTA based on trip state and user context
   const ctaConfig = useMemo((): CTAConfig | null => {
@@ -152,30 +151,61 @@ export function ContextCTABar({
   }, [trip, user])
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
-      {/* Left side: Travelers count */}
-      <button
-        onClick={onTravelersClick}
-        className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg',
-          'hover:bg-gray-100 transition-colors',
-          'focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-1'
-        )}
-        aria-label={`View ${travelerCount} travelers`}
-      >
-        <Users className="h-5 w-5 text-gray-600" />
-        <span className="text-sm font-medium text-gray-700">
-          {travelerCount} going
-        </span>
-      </button>
+    <div className="flex items-center justify-between px-4 py-2.5 bg-brand-red">
+      {/* Left section: Travelers, Expenses, Memories buttons */}
+      <div className="flex items-center gap-2">
+        <Button
+          onClick={() => onOpenOverlay('travelers')}
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'border-0 shadow-none'
+          )}
+          aria-label={`View ${travelerCount} travelers`}
+        >
+          <Users className="h-4 w-4" />
+          <span className="text-sm font-medium">
+            {travelerCount} going
+          </span>
+        </Button>
 
-      {/* Right side: Primary CTA button */}
+        <Button
+          onClick={() => onOpenOverlay('expenses')}
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'border-0 shadow-none'
+          )}
+          aria-label="View expenses"
+        >
+          <DollarSign className="h-4 w-4" />
+          <span className="text-sm font-medium">Expenses</span>
+        </Button>
+
+        <Button
+          onClick={() => onOpenOverlay('memories')}
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'border-0 shadow-none'
+          )}
+          aria-label="View memories"
+        >
+          <Camera className="h-4 w-4" />
+          <span className="text-sm font-medium">Memories</span>
+        </Button>
+      </div>
+
+      {/* Right section: Primary focus CTA button */}
       {ctaConfig && (
         <Button
-          onClick={() => onCTAClick(ctaConfig.overlayType)}
+          onClick={() => onOpenOverlay(ctaConfig.overlayType)}
           className={cn(
-            'bg-brand-red hover:opacity-90 text-white',
-            'font-medium shadow-sm'
+            'bg-white text-brand-red hover:bg-white/90',
+            'font-semibold shadow-md'
           )}
           size="sm"
         >

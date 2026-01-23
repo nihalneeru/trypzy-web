@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 // Command Center components
 import { ProgressChevrons, OverlayType } from './ProgressChevrons'
-import { TravelerStrip } from './TravelerStrip'
+import { ContextCTABar } from './ContextCTABar'
 import { OverlayContainer } from './OverlayContainer'
 
 // Overlay components
@@ -266,38 +266,6 @@ function FocusBanner({
   )
 }
 
-/**
- * InlineCTA - Red banner for user's next action (positioned above chat input)
- */
-function InlineCTA({
-  blocker,
-  onAction
-}: {
-  blocker: BlockerInfo
-  onAction: (overlayType: OverlayType) => void
-}) {
-  // Only show if there's an action to take
-  if (blocker.type === 'READY' || !blocker.overlayType) return null
-
-  return (
-    <div className="mx-3 mb-2 px-3 py-2 bg-red-500 text-white rounded-lg">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <blocker.icon className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium truncate">{blocker.title}</span>
-        </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="bg-white text-red-600 hover:bg-red-50 shrink-0"
-          onClick={() => onAction(blocker.overlayType)}
-        >
-          {blocker.ctaLabel}
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 /**
  * CommandCenterV2 - Main container orchestrating the chat-centric layout
@@ -307,8 +275,7 @@ function InlineCTA({
  * - Main area split into:
  *   - Chat column (flex-1) containing:
  *     - Chat messages (scrollable)
- *     - TravelerStrip (horizontal avatars)
- *     - InlineCTA (red banner)
+ *     - ContextCTABar (bottom bar with travelers/expenses/memories + focus CTA)
  *     - Chat input
  *   - Chevron sidebar (fixed width, desktop only)
  * - Mobile chevrons (horizontal, mobile only)
@@ -448,17 +415,14 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
             />
           </div>
 
-          {/* Bottom section: Traveler strip + Red CTA (inside chat area, above input) */}
-          <div className="shrink-0 border-t border-gray-200 bg-white">
-            {/* Traveler Strip */}
-            <TravelerStrip
-              travelers={travelers}
-              currentUserId={user?.id}
-              onTravelerClick={handleTravelerClick}
+          {/* Bottom section: Context CTA Bar (inside chat area, above input) */}
+          <div className="shrink-0">
+            <ContextCTABar
+              trip={trip}
+              user={user}
+              travelerCount={travelers.length}
+              onOpenOverlay={openOverlay}
             />
-
-            {/* Inline CTA (red banner) - above chat input */}
-            <InlineCTA blocker={blocker} onAction={handleBlockerAction} />
           </div>
         </div>
 
