@@ -5663,16 +5663,30 @@ async function handleRoute(request, { params }) {
         .find({ tripId })
         .toArray()
 
+      // Get voter user info
+      const voterIds = [...new Set(votes.map(v => v.votedBy).filter(Boolean))]
+      const allUserIds = [...new Set([...userIds, ...voterIds])]
+      const allUsers = await db.collection('users')
+        .find({ id: { $in: allUserIds } })
+        .toArray()
+
       // Check if current user has voted
       const userVote = votes.find(v => v.votedBy === auth.user.id)
 
       const optionsWithUsers = options.map(option => {
-        const user = users.find(u => u.id === option.addedByUserId)
+        const addedByUser = allUsers.find(u => u.id === option.addedByUserId)
         const optionVotes = votes.filter(v => v.optionId === option.id)
+        // Get voter names for this option
+        const voters = optionVotes.map(v => {
+          const voter = allUsers.find(u => u.id === v.votedBy)
+          return voter ? { id: voter.id, name: voter.name } : null
+        }).filter(Boolean)
+
         return {
           ...option,
-          addedBy: user ? { id: user.id, name: user.name } : null,
-          votes: optionVotes.length,
+          addedBy: addedByUser ? { id: addedByUser.id, name: addedByUser.name } : null,
+          voteCount: optionVotes.length,
+          voters,
           userVoted: userVote?.optionId === option.id
         }
       })
@@ -5808,16 +5822,11 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Check user is a participant
-      const participant = await db.collection('trip_participants').findOne({
-        tripId,
-        userId: auth.user.id,
-        status: 'active'
-      })
-
-      if (!participant) {
+      // Check user is an active traveler (handles both collaborative and hosted trips)
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
         return handleCORS(NextResponse.json(
-          { error: 'You are not an active participant in this trip' },
+          { error: 'You are not an active traveler for this trip' },
           { status: 403 }
         ))
       }

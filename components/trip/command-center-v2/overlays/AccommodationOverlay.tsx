@@ -74,6 +74,7 @@ interface AccommodationOption {
   status: 'proposed' | 'voted' | 'selected'
   voteCount?: number
   userVoted?: boolean
+  voters?: Array<{ id: string; name: string }>
   addedBy?: {
     id: string
     name: string
@@ -594,15 +595,23 @@ export function AccommodationOverlay({
                             </a>
                           )}
 
-                          {/* Vote count */}
+                          {/* Vote count and voters */}
                           {voteCount > 0 && (
-                            <div className="mt-2 flex items-center gap-1 text-sm text-gray-600">
-                              <ThumbsUp className="h-3 w-3" />
-                              <span>{voteCount} vote{voteCount !== 1 ? 's' : ''}</span>
-                              {hasVoted && (
-                                <Badge variant="outline" className="text-xs ml-2">
-                                  You voted
-                                </Badge>
+                            <div className="mt-2">
+                              <div className="flex items-center gap-1 text-sm text-gray-600">
+                                <ThumbsUp className="h-3 w-3" />
+                                <span>{voteCount} vote{voteCount !== 1 ? 's' : ''}</span>
+                                {hasVoted && (
+                                  <Badge variant="outline" className="text-xs ml-2">
+                                    You voted
+                                  </Badge>
+                                )}
+                              </div>
+                              {/* Show who voted */}
+                              {option.voters && option.voters.length > 0 && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Voted by: {option.voters.map(v => v.name).join(', ')}
+                                </p>
                               )}
                             </div>
                           )}
