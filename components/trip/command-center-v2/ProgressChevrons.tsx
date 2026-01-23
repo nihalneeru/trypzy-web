@@ -2,7 +2,6 @@
 
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
-import { Users } from 'lucide-react'
 
 export type OverlayType =
   | 'proposed'
@@ -146,6 +145,11 @@ export function ProgressChevrons({
 }: ProgressChevronsProps) {
   const isVertical = orientation === 'vertical'
 
+  // Filter out steps that are now in the bottom bar (Travelers/Expenses/Memories)
+  const visibleSteps = TRIP_PROGRESS_STEPS.filter(
+    step => step.key !== 'memoriesShared' && step.key !== 'expensesSettled'
+  )
+
   return (
     <div
       className={cn(
@@ -154,7 +158,7 @@ export function ProgressChevrons({
       )}
     >
       {/* Progress step chevrons */}
-      {TRIP_PROGRESS_STEPS.map((step) => {
+      {visibleSteps.map((step) => {
         const isCompleted = progressSteps[step.key]
         const isBlocker = step.key === blockerStageKey
         const overlayType = STEP_TO_OVERLAY[step.key]
@@ -196,41 +200,6 @@ export function ProgressChevrons({
           </button>
         )
       })}
-
-      {/* Divider */}
-      <div className={cn(
-        'bg-gray-300',
-        isVertical ? 'w-12 h-px my-2' : 'h-6 w-px mx-1'
-      )} />
-
-      {/* Travelers button */}
-      <button
-        onClick={() => onChevronClick('travelers')}
-        className={cn(
-          'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-1 rounded',
-          'flex flex-col items-center gap-0.5'
-        )}
-        aria-label="View travelers"
-      >
-        <ChevronArrow
-          isCompleted={false}
-          isCurrent={false}
-          isActiveOverlay={activeOverlay === 'travelers'}
-          isClickable={true}
-          icon={Users}
-          size={isVertical ? 'normal' : 'small'}
-          pointDirection={activeOverlay === 'travelers' ? 'left' : 'down'}
-        />
-        {/* Text label below chevron */}
-        {isVertical && (
-          <span className={cn(
-            'text-[8px] font-medium leading-tight text-center w-16',
-            activeOverlay === 'travelers' ? 'text-brand-blue' : 'text-gray-400'
-          )}>
-            Travelers
-          </span>
-        )}
-      </button>
     </div>
   )
 }

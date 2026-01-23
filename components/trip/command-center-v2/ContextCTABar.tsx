@@ -53,20 +53,21 @@ export function ContextCTABar({
     const isLeader = trip.leaderId === user.id || trip.createdBy === user.id
     const userId = user.id
 
-    // Check user's availability submission status
+    // Check user's availability submission status (supports both new and legacy modes)
     const userAvailability = trip.availability?.find(
       (a: any) => a.userId === userId
     )
-    const hasSubmittedAvailability = !!userAvailability?.dates?.length
+    const hasSubmittedDatePicks = trip.userDatePicks && trip.userDatePicks.length > 0
+    const hasSubmittedAvailability = hasSubmittedDatePicks || !!userAvailability?.dates?.length
 
     // Check voting status
     const votingOpen = trip.votingStatus === 'open' || trip.dateVotingOpen
     const userHasVoted = trip.dateVotes?.some(
       (v: any) => v.userId === userId
-    )
+    ) || !!trip.userVote
 
     // Check if dates are locked
-    const datesLocked = trip.datesLocked || trip.lockedDates
+    const datesLocked = trip.datesLocked || trip.lockedDates || trip.status === 'locked'
 
     // Check user's ideas count
     const userIdeasCount = trip.ideas?.filter(
@@ -81,13 +82,16 @@ export function ContextCTABar({
 
     // Priority-based CTA selection (lower priority number = higher importance)
 
-    // 1. Pick your dates (if user hasn't submitted availability and dates not locked)
-    if (!hasSubmittedAvailability && !datesLocked) {
-      return {
-        label: 'Pick your dates',
-        icon: Calendar,
-        overlayType: 'scheduling',
-        priority: 1
+    // 1. Lock dates (if leader and can lock - highest priority for leader)
+    if (isLeader && !datesLocked) {
+      // Check if enough people have submitted to lock
+      if (trip.canLockDates || trip.status === 'voting') {
+        return {
+          label: 'Lock dates',
+          icon: Lock,
+          overlayType: 'scheduling',
+          priority: 1
+        }
       }
     }
 
@@ -101,18 +105,13 @@ export function ContextCTABar({
       }
     }
 
-    // 3. Lock dates (if leader and can lock - voting complete but not locked)
-    if (isLeader && !datesLocked && hasSubmittedAvailability) {
-      const allMembersSubmitted = trip.members?.every(
-        (m: any) => trip.availability?.some((a: any) => a.userId === m.userId)
-      )
-      if (allMembersSubmitted || trip.canLockDates) {
-        return {
-          label: 'Lock dates',
-          icon: Lock,
-          overlayType: 'scheduling',
-          priority: 3
-        }
+    // 3. Pick your dates (if user hasn't submitted availability and dates not locked)
+    if (!hasSubmittedAvailability && !datesLocked) {
+      return {
+        label: 'Pick your dates',
+        icon: Calendar,
+        overlayType: 'scheduling',
+        priority: 3
       }
     }
 
@@ -151,7 +150,7 @@ export function ContextCTABar({
   }, [trip, user])
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 bg-brand-red">
+    <div className="flex items-center justify-between px-4 py-2.5" style={{ backgroundColor: 'var(--brand-red)' }}>
       {/* Left section: Travelers, Expenses, Memories buttons */}
       <div className="flex items-center gap-2">
         <Button
