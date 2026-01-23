@@ -387,7 +387,36 @@ Creates test users: alex.traveler@example.com / password123
 
 5. **API routes for itinerary use `/itinerary/` namespace**: Ideas at `/trips/:id/itinerary/ideas`, generation at `/trips/:id/itinerary/generate`.
 
-## 10) Key Component APIs
+## 10) Recent MVP Hardening (2026-01-23)
+
+**Round 1 (feat/mvp-hardening branch)**:
+- Chat-first ActionCards for post-lock stages
+- Post-mutation state refresh in all overlays
+- Progress snapshot wiring for CTA decisions
+- Prep item DELETE endpoints
+- Transfer leadership endpoint
+- Brand color enforcement (partial)
+- Mobile responsiveness (44px touch targets)
+- E2E and unit test coverage
+
+**Round 2 (Private Beta Hardening)**:
+- `ErrorBoundary` component (`components/common/ErrorBoundary.tsx`) - catches React errors gracefully
+- Expense fixes: division by zero protection, race condition fix using atomic `$pull`
+- JWT secret: fails in production if not set (no more hardcoded fallback)
+- Overlay error states: all overlays now show error UI with retry button
+- `useTripChat` hook: exposes `error` state, stops polling after 3 failures
+- Join request actor fix: shows "Leader approved X's request" instead of "X joined"
+
+**Deferred until public launch**:
+- Rate limiting
+- CORS wildcard fix
+- Remaining generic Tailwind colors (30+ files)
+- Skeleton loaders
+- Accessibility polish (aria-hidden, color contrast)
+
+**Reference**: See `MVP_HARDENING_PLAN_V2.md` for full audit findings.
+
+## 11) Key Component APIs
 
 **CommandCenterV2 Props**:
 ```typescript

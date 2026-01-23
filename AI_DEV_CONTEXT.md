@@ -766,6 +766,30 @@ Fix privacy bug where "Upcoming Trips Visibility = Private" incorrectly hides tr
 
 ---
 
+## Recent MVP Hardening (2026-01-23)
+
+**Security & Error Handling (Private Beta Hardening)**:
+- `ErrorBoundary` component wraps main content (`components/common/ErrorBoundary.tsx`)
+- JWT secret validation: Fails in production if `JWT_SECRET` not set (`route.js:10-16`, `auth.js:4-9`)
+- Expense race condition fixed: Uses atomic `$pull` instead of `findIndex+splice`
+- Division by zero protection in expense splitting
+- All overlays have error states with retry buttons
+- `useTripChat` hook exposes error state, stops polling after 3 consecutive failures
+
+**Chat-First Improvements**:
+- Join request approval now shows correct actor: "Leader approved X's request to join"
+- Post-lock ActionCards in ChatTab (ideas, accommodation, prep)
+- Post-mutation state refresh in all overlays
+
+**Test Coverage**:
+- 481 unit tests passing
+- E2E tests for core trip flows (`e2e/trip-flow.spec.ts`)
+- Tests for progress snapshot, CTA priority, prep delete, transfer leadership
+
+**Reference**: See `MVP_HARDENING_PLAN_V2.md` for full audit findings.
+
+---
+
 ## Needs Confirmation
 
 The following items may need verification:
