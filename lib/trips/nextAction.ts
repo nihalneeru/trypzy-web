@@ -54,6 +54,7 @@ export function getNextAction({
   const snapshot = computeTripProgressSnapshot(trip, user, options)
 
   // Handle availability/scheduling state first
+  // P1-5: Use inviting language, avoid "waiting on you" pressure
   if (trip.type === 'collaborative' && !snapshot.datesLocked) {
     // Check if user is invited (should show invite CTA, not availability CTA)
     const userParticipantStatus = trip.viewer?.participantStatus
@@ -62,14 +63,14 @@ export function getNextAction({
       // Return null so ChatTab can show its own invite card
       return null
     }
-    
+
     if (!snapshot.everyoneResponded) {
       // Still waiting for responses - show availability CTA only while pending
       // everyoneResponded now accounts for INVITED participants (no INVITED remaining)
       return {
         id: 'availability-pending',
-        title: 'Discuss dates',
-        description: 'Share your availability and coordinate dates',
+        title: 'Share your dates',
+        description: 'Help coordinate by sharing when you\'re available',
         ctaLabel: 'Go to Planning',
         kind: 'deeplink',
         deeplinkTab: TripTabKey.PLANNING,
@@ -80,18 +81,18 @@ export function getNextAction({
       // Leader needs to lock
       return {
         id: 'lock-dates',
-        title: 'Lock dates',
-        description: 'Everyone has responded. Lock the trip dates.',
+        title: 'Ready to lock dates',
+        description: 'Everyone has responded. You can now lock in the trip dates.',
         ctaLabel: 'Lock Dates',
         kind: 'inline',
         priority: 1
       }
     } else if (!snapshot.isTripLeader) {
-      // Non-leader waiting for lock
+      // Non-leader waiting for lock - use neutral language
       return {
         id: 'waiting-for-lock',
-        title: 'Waiting for leader',
-        description: 'Waiting for trip leader to lock dates',
+        title: 'Dates coming soon',
+        description: 'The trip leader will lock in the dates shortly',
         ctaLabel: 'View Planning',
         kind: 'deeplink',
         deeplinkTab: TripTabKey.PLANNING,
@@ -106,10 +107,11 @@ export function getNextAction({
   // Map stage to next action based on existing primary tab logic
   // This matches the behavior of getPrimaryTabForStage
   switch (stage) {
+    // P1-5: Use inviting language throughout - "Add your ideas" not "Submit ideas"
     case TripPrimaryStage.PROPOSED:
       return {
         id: 'planning-required',
-        title: 'Plan your trip',
+        title: 'Start planning',
         description: 'Set dates and coordinate with your group',
         ctaLabel: 'Go to Planning',
         kind: 'deeplink',
@@ -120,8 +122,8 @@ export function getNextAction({
     case TripPrimaryStage.DATES_LOCKED:
       return {
         id: 'itinerary-required',
-        title: 'Create itinerary',
-        description: 'Plan your activities and schedule',
+        title: 'Add your ideas',
+        description: 'Share activities and build the itinerary together',
         ctaLabel: 'Go to Itinerary',
         kind: 'deeplink',
         deeplinkTab: TripTabKey.ITINERARY,
@@ -131,8 +133,8 @@ export function getNextAction({
     case TripPrimaryStage.ITINERARY:
       return {
         id: 'accommodation-required',
-        title: 'Choose accommodation',
-        description: 'Select where you\'ll stay',
+        title: 'Pick where to stay',
+        description: 'Browse and choose accommodation together',
         ctaLabel: 'Go to Accommodation',
         kind: 'deeplink',
         deeplinkTab: TripTabKey.ACCOMMODATION,
@@ -143,7 +145,7 @@ export function getNextAction({
       // Accommodation is chosen, but prep hasn't started
       return {
         id: 'prep-required',
-        title: 'Start trip prep',
+        title: 'Get ready',
         description: 'Prepare for your upcoming trip',
         ctaLabel: 'Go to Prep',
         kind: 'deeplink',

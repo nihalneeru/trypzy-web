@@ -93,7 +93,7 @@ export function computeTripProgressSnapshot(
   const hasLeftTrip = trip.viewer?.participantStatus === 'left'
   
   // Dates locked
-  const datesLocked = trip.status === 'locked' || (trip.lockedStartDate && trip.lockedEndDate)
+  const datesLocked = trip.status === 'locked' || Boolean(trip.lockedStartDate && trip.lockedEndDate)
   
   // Availability/Scheduling state
   const pickProgress = options.pickProgress || trip.pickProgress

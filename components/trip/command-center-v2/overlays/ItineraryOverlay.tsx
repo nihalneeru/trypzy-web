@@ -563,7 +563,8 @@ export function ItineraryOverlay({
     if (!isLeader) return
     setSavingDestinationHint(true)
     try {
-      await api(
+      // P0-3: Get updated trip for immediate UI refresh
+      const updatedTrip = await api(
         `/trips/${trip.id}`,
         {
           method: 'PATCH',
@@ -573,7 +574,7 @@ export function ItineraryOverlay({
       )
       toast.success('Destination hint updated')
       setEditingDestinationHint(false)
-      onRefresh()
+      onRefresh(updatedTrip)
     } catch (error: any) {
       toast.error(error.message || 'Failed to update destination hint')
     } finally {
@@ -592,10 +593,12 @@ export function ItineraryOverlay({
     if (!isLeader || generating) return
     setGenerating(true)
     try {
-      await api(`/trips/${trip.id}/itinerary/generate`, { method: 'POST' }, token)
+      // P0-3: Get updated trip for immediate UI refresh
+      const result = await api(`/trips/${trip.id}/itinerary/generate`, { method: 'POST' }, token)
       toast.success('Itinerary generated!')
       await loadVersions()
-      onRefresh()
+      // Pass updated trip if returned, otherwise trigger refetch
+      onRefresh(result?.trip || undefined)
     } catch (error: any) {
       toast.error(error.message || 'Failed to generate itinerary')
     } finally {
@@ -608,11 +611,13 @@ export function ItineraryOverlay({
     if (!isLeader || revising || !canRevise) return
     setRevising(true)
     try {
-      await api(`/trips/${trip.id}/revise-itinerary`, { method: 'POST' }, token)
+      // P0-3: Get updated trip for immediate UI refresh
+      const result = await api(`/trips/${trip.id}/revise-itinerary`, { method: 'POST' }, token)
       toast.success('Itinerary revised!')
       await loadVersions()
       await loadFeedback()
-      onRefresh()
+      // Pass updated trip if returned, otherwise trigger refetch
+      onRefresh(result?.trip || undefined)
     } catch (error: any) {
       toast.error(error.message || 'Failed to revise itinerary')
     } finally {

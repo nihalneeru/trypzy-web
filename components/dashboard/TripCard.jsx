@@ -133,7 +133,7 @@ export function TripCard({ trip, circleId = null }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex-shrink-0 ml-2">
-                    <Info className="h-4 w-4 text-gray-400" />
+                    <Info className="h-4 w-4 text-gray-500" aria-hidden="true" />
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -150,13 +150,13 @@ export function TripCard({ trip, circleId = null }) {
           
           {/* Traveler count */}
           <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
-            <Users className="h-3 w-3" />
+            <Users className="h-3 w-3" aria-hidden="true" />
             <span>{trip.travelerCount} {trip.travelerCount === 1 ? 'traveler' : 'travelers'}</span>
           </div>
           
           {/* Date range */}
           <div className="flex items-center gap-1 text-sm text-gray-600 mb-3">
-            <Calendar className="h-3 w-3" />
+            <Calendar className="h-3 w-3" aria-hidden="true" />
             <span className="line-clamp-1">
               {trip.startDate && trip.endDate 
                 ? formatTripDateRange(trip.startDate, trip.endDate)
@@ -174,11 +174,11 @@ export function TripCard({ trip, circleId = null }) {
           {/* Latest activity */}
           {trip.latestActivity && (
             <div className="flex items-start gap-1 text-xs text-gray-500 mb-3 min-w-0">
-              <Clock className="h-3 w-3 mt-0.5 flex-shrink-0" />
+              <Clock className="h-3 w-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-2">{trip.latestActivity.text}</p>
                 {trip.latestActivity.createdAt && (
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 mt-1">
                     {formatRelativeTime(trip.latestActivity.createdAt)}
                   </p>
                 )}
@@ -194,7 +194,7 @@ export function TripCard({ trip, circleId = null }) {
             {/* "Waiting on you" badge - shown when action required */}
             {trip.actionRequired && (
               <div className="flex items-center justify-center">
-                <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-indigo-600 border border-indigo-100">
+                <span className="inline-flex items-center rounded-md bg-brand-sand px-2 py-1 text-xs font-medium text-brand-red border border-brand-red/20">
                   Waiting on you
                 </span>
               </div>

@@ -25,23 +25,35 @@ export function TripProgressMini({ trip }) {
   const showNext = currentIndex < TRIP_PROGRESS_STEPS.length - 1
   const remainingFuture = TRIP_PROGRESS_STEPS.length - completedCount - (showCurrent ? 1 : 0) - (showNext ? 1 : 0)
   
+  // Calculate progress label for screen readers
+  const progressLabel = showCurrent
+    ? `Trip progress: Step ${completedCount + 1} of ${TRIP_PROGRESS_STEPS.length} - ${TRIP_PROGRESS_STEPS[currentIndex].shortLabel}`
+    : `Trip progress: All ${TRIP_PROGRESS_STEPS.length} steps completed`
+
   return (
-    <div className="flex flex-col gap-1">
+    <div
+      className="flex flex-col gap-1"
+      role="progressbar"
+      aria-valuenow={completedCount + (showCurrent ? 1 : 0)}
+      aria-valuemin={0}
+      aria-valuemax={TRIP_PROGRESS_STEPS.length}
+      aria-label={progressLabel}
+    >
       {/* Node row */}
-      <div className="flex items-center gap-1.5 overflow-hidden">
+      <div className="flex items-center gap-1.5 overflow-hidden" aria-hidden="true">
         {/* Completed steps as small dots (show up to 2, then connector) */}
         {completedCount > 0 && (
           <>
             {Array.from({ length: Math.min(completedCount, 2) }).map((_, i) => (
               <div key={`completed-${i}`} className="flex items-center flex-shrink-0">
-                <div className="h-2 w-2 rounded-full bg-green-600 flex-shrink-0" />
+                <div className="h-2 w-2 rounded-full bg-brand-blue flex-shrink-0" />
                 {i < Math.min(completedCount, 2) - 1 && (
-                  <div className="h-0.5 w-2 mx-0.5 bg-green-600 flex-shrink-0" />
+                  <div className="h-0.5 w-2 mx-0.5 bg-brand-blue flex-shrink-0" />
                 )}
               </div>
             ))}
             {completedCount > 2 && (
-              <div className="h-0.5 w-2 mx-0.5 bg-green-600 flex-shrink-0" />
+              <div className="h-0.5 w-2 mx-0.5 bg-brand-blue flex-shrink-0" />
             )}
           </>
         )}
@@ -50,23 +62,23 @@ export function TripProgressMini({ trip }) {
         {showCurrent && (
           <div className="flex items-center flex-shrink-0">
             <div className="relative">
-              <Circle className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" strokeWidth={2} />
+              <Circle className="h-3.5 w-3.5 text-brand-red flex-shrink-0" strokeWidth={2} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                <div className="h-1.5 w-1.5 rounded-full bg-brand-red" />
               </div>
             </div>
             {showNext && (
-              <div className="h-0.5 w-2 mx-0.5 bg-gray-200 flex-shrink-0" />
+              <div className="h-0.5 w-2 mx-0.5 bg-brand-carbon/20 flex-shrink-0" />
             )}
           </div>
         )}
-        
+
         {/* Next step */}
         {showNext && (
           <div className="flex items-center flex-shrink-0">
-            <Circle className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" strokeWidth={1.5} />
+            <Circle className="h-3.5 w-3.5 text-brand-carbon/30 flex-shrink-0" strokeWidth={1.5} />
             {remainingFuture > 0 && (
-              <div className="h-0.5 w-2 mx-0.5 bg-gray-200 flex-shrink-0" />
+              <div className="h-0.5 w-2 mx-0.5 bg-brand-carbon/20 flex-shrink-0" />
             )}
           </div>
         )}
@@ -74,16 +86,16 @@ export function TripProgressMini({ trip }) {
         {/* Remaining future steps indicator */}
         {remainingFuture > 0 && (
           <div className="flex items-center gap-0.5 flex-shrink-0">
-            <span className="text-xs text-gray-400">···</span>
+            <span className="text-xs text-gray-500">···</span>
           </div>
         )}
       </div>
       
       {/* Labels row */}
-      <div className="flex items-center gap-2 overflow-hidden min-h-[16px]">
+      <div className="flex items-center gap-2 overflow-hidden min-h-[16px]" aria-hidden="true">
         {/* Current step label */}
         {showCurrent && (
-          <span className="text-xs font-medium text-blue-600 truncate max-w-[90px]">
+          <span className="text-xs font-medium text-brand-red truncate max-w-[90px]">
             {TRIP_PROGRESS_STEPS[currentIndex].shortLabel}
           </span>
         )}

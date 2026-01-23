@@ -66,8 +66,8 @@ function ChevronArrow({
   const getFillColor = () => {
     if (isActiveOverlay) return '#00334D' // brand-blue
     if (isCurrent) return '#FA3823' // brand-red (attention/blocker)
-    if (isCompleted) return '#22c55e' // green-500
-    return '#e5e7eb' // gray-200
+    if (isCompleted) return '#00334D' // brand-blue (completed state)
+    return '#2E303B33' // brand-carbon at 20% opacity
   }
 
   const getIconColor = () => {
@@ -75,8 +75,12 @@ function ChevronArrow({
     return 'text-gray-500'
   }
 
+  // Chevron visual dimensions (the actual drawn shape)
   const dimensions = size === 'small' ? { width: 32, height: 36 } : { width: 48, height: 40 }
+  // Icon size inside chevron
   const iconSize = size === 'small' ? 'w-3.5 h-3.5' : 'w-5 h-5'
+  // Touch target dimensions - minimum 44x44px per WCAG guidelines
+  const touchTargetSize = size === 'small' ? { width: 44, height: 44 } : { width: 48, height: 44 }
 
   // SVG paths for different directions
   // Down-pointing chevron (like ▼ with flat top)
@@ -88,38 +92,50 @@ function ChevronArrow({
   const path = pointDirection === 'left' ? leftPath : downPath
 
   return (
+    // Outer container provides 44x44px minimum touch target (WCAG AA compliant)
     <div
       className={cn(
-        'relative transition-all duration-200',
+        'relative flex items-center justify-center transition-all duration-200',
         isClickable && 'cursor-pointer hover:scale-105',
         !isClickable && 'cursor-default opacity-60'
       )}
-      style={{ width: dimensions.width, height: dimensions.height }}
+      style={{
+        width: touchTargetSize.width,
+        height: touchTargetSize.height,
+        minWidth: touchTargetSize.width,
+        minHeight: touchTargetSize.height
+      }}
     >
-      {/* Chevron/Arrow shape using SVG */}
-      <svg
-        width={dimensions.width}
-        height={dimensions.height}
-        viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
-        className="absolute inset-0"
-      >
-        <path
-          d={path}
-          fill={getFillColor()}
-          className="transition-colors duration-200"
-        />
-      </svg>
-
-      {/* Icon centered on the chevron */}
+      {/* Inner container for visual chevron (may be smaller than touch target) */}
       <div
-        className="absolute inset-0 flex items-center justify-center"
-        style={{
-          // Adjust icon position based on chevron direction
-          marginBottom: pointDirection === 'down' ? '4px' : '0',
-          marginLeft: pointDirection === 'left' ? '4px' : '0'
-        }}
+        className="relative"
+        style={{ width: dimensions.width, height: dimensions.height }}
       >
-        <Icon className={cn(iconSize, getIconColor())} />
+        {/* Chevron/Arrow shape using SVG */}
+        <svg
+          width={dimensions.width}
+          height={dimensions.height}
+          viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+          className="absolute inset-0"
+        >
+          <path
+            d={path}
+            fill={getFillColor()}
+            className="transition-colors duration-200"
+          />
+        </svg>
+
+        {/* Icon centered on the chevron */}
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{
+            // Adjust icon position based on chevron direction
+            marginBottom: pointDirection === 'down' ? '4px' : '0',
+            marginLeft: pointDirection === 'left' ? '4px' : '0'
+          }}
+        >
+          <Icon className={cn(iconSize, getIconColor())} />
+        </div>
       </div>
     </div>
   )
@@ -192,7 +208,7 @@ export function ProgressChevrons({
             {isVertical && (
               <span className={cn(
                 'text-[8px] font-medium leading-tight text-center w-16',
-                isActiveOverlay ? 'text-brand-blue' : isBlocker ? 'text-brand-red' : isCompleted ? 'text-green-600' : 'text-gray-400'
+                isActiveOverlay ? 'text-brand-blue' : isBlocker ? 'text-brand-red' : isCompleted ? 'text-brand-blue' : 'text-brand-carbon/40'
               )}>
                 {step.shortLabel}
               </span>

@@ -65,19 +65,22 @@ function formatDateRange(startDateStr: string | null, endDateStr: string | null)
 
 /**
  * Get the color classes for blocker text based on blocker type
+ * Using brand colors:
+ * - brand-red: CTAs, blockers, errors, current action
+ * - brand-blue: completed states, secondary actions
  */
 function getBlockerColorClasses(blockerType: BlockerType): string {
   switch (blockerType) {
     case 'DATES':
-      return 'text-blue-600 bg-blue-50'
+      return 'text-brand-red bg-brand-red/10'
     case 'ITINERARY':
-      return 'text-purple-600 bg-purple-50'
+      return 'text-brand-red bg-brand-red/10'
     case 'ACCOMMODATION':
-      return 'text-orange-600 bg-orange-50'
+      return 'text-brand-red bg-brand-red/10'
     case 'READY':
-      return 'text-green-600 bg-green-50'
+      return 'text-brand-blue bg-brand-blue/10'
     default:
-      return 'text-gray-500'
+      return 'text-brand-carbon/60'
   }
 }
 
@@ -111,7 +114,7 @@ export function FocusBannerV2({
         <h1 className="text-lg font-semibold text-gray-900 truncate">
           {tripName}
         </h1>
-        <span className="text-gray-400">-</span>
+        <span className="text-gray-500" aria-hidden="true">-</span>
         <span
           className={cn(
             'text-sm',
@@ -120,7 +123,7 @@ export function FocusBannerV2({
         >
           {dateRange}
           {hasLockedDates && (
-            <span className="ml-1 text-xs text-green-600">(confirmed)</span>
+            <span className="ml-1 text-xs text-brand-blue">(confirmed)</span>
           )}
         </span>
       </div>

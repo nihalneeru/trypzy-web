@@ -44,7 +44,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-gray-600" />
+              <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />
               <h2 className="text-xl font-semibold">
                 <Link href={dashboardCircleHref(circle.id)} className="hover:underline">
                   {circle.name}
@@ -56,7 +56,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
               size="sm"
               onClick={() => setShowCreateTrip(true)}
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
               Create trip
             </Button>
           </div>
@@ -66,7 +66,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
             <div className="text-center py-8 text-gray-500">
               <p className="text-sm mb-4">No trips yet in this circle</p>
               <Button variant="outline" size="sm" onClick={() => setShowCreateTrip(true)}>
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
                 Create trip
               </Button>
             </div>

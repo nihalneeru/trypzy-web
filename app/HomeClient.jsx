@@ -2977,7 +2977,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                   </div>
                 ) : updates.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-sm text-gray-500">No updates yet — propose a trip to get things going.</p>
+                    <p className="text-sm text-gray-500">No updates yet. Activity will appear here as the circle grows.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">

@@ -35,7 +35,7 @@ function NotificationRow({ notification, compact = false }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-900 leading-tight">{notification.title}</span>
-          <span className="text-sm text-gray-400 leading-tight">—</span>
+          <span className="text-sm text-gray-500 leading-tight" aria-hidden="true">—</span>
           <span className="text-sm text-gray-600 leading-tight">{notification.ctaLabel}</span>
         </div>
       </div>
@@ -64,7 +64,7 @@ export function GlobalNotifications({ notifications }) {
         {/* Header row */}
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-gray-600" />
+            <Bell className="h-4 w-4 text-gray-600" aria-hidden="true" />
             <span className="text-sm font-medium text-gray-900 leading-tight">Notifications</span>
           </div>
           <div className="flex items-center gap-4">
