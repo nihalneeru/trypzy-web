@@ -51,20 +51,35 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
   }, [open])
 
   const handleCreate = async () => {
-    if (!tripForm.name || !tripForm.startDate || !tripForm.endDate) {
-      toast.error('Please fill in all required fields')
+    // Validate: name is always required
+    if (!tripForm.name) {
+      toast.error('Please enter a trip name')
       return
     }
+
+    // Hosted trips require dates; collaborative trips dates are optional
+    if (tripForm.type === 'hosted' && (!tripForm.startDate || !tripForm.endDate)) {
+      toast.error('Hosted trips require start and end dates')
+      return
+    }
+
     setCreating(true)
-    
+
     try {
+      // For collaborative trips, only include dates if both are provided
+      const payload = { ...tripForm, circleId }
+      if (tripForm.type === 'collaborative' && (!tripForm.startDate || !tripForm.endDate)) {
+        delete payload.startDate
+        delete payload.endDate
+      }
+
       const response = await fetch('/api/trips', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ ...tripForm, circleId })
+        body: JSON.stringify(payload)
       })
       
       const data = await response.json()
@@ -148,23 +163,34 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
             </div>
           )}
           <div className="space-y-2">
-            <Label>Planning Window</Label>
-            <p className="text-xs text-gray-500">These set the possible date range. Your group will finalize dates later.</p>
+            <Label>
+              {tripForm.type === 'hosted' ? 'Trip Dates' : 'Planning Window'}
+              {tripForm.type === 'collaborative' && (
+                <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
+              )}
+            </Label>
+            <p className="text-xs text-gray-500">
+              {tripForm.type === 'hosted'
+                ? 'Set the fixed dates for your trip. Participants join if they can make it.'
+                : 'Optionally set a date range. Your group can suggest windows and finalize dates later.'}
+            </p>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Earliest possible date</Label>
+                <Label>{tripForm.type === 'hosted' ? 'Start date' : 'Earliest possible date'}</Label>
                 <Input
                   type="date"
                   value={tripForm.startDate}
                   onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                  required={tripForm.type === 'hosted'}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Latest possible date</Label>
+                <Label>{tripForm.type === 'hosted' ? 'End date' : 'Latest possible date'}</Label>
                 <Input
                   type="date"
                   value={tripForm.endDate}
                   onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                  required={tripForm.type === 'hosted'}
                 />
               </div>
             </div>

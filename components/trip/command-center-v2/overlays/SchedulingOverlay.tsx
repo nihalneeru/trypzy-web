@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { formatTripDateRange } from '@/lib/utils'
+import { SchedulingFunnelCard } from '@/components/trip/scheduling/SchedulingFunnelCard'
 
 // Types
 interface DatePick {
@@ -66,10 +67,11 @@ function getInitials(name: string) {
  * SchedulingOverlay - Handles all date scheduling functionality
  *
  * Supports:
- * 1. Availability Submission (before voting) - Pick top 3 date windows
- * 2. Voting Phase - Vote on proposed date options
- * 3. Lock Dates - Leader only, finalize trip dates
- * 4. Read-only state - Show locked dates
+ * 1. Scheduling Funnel (funnel mode) - Window proposals + date reactions
+ * 2. Availability Submission (top3_heatmap mode) - Pick top 3 date windows
+ * 3. Voting Phase - Vote on proposed date options
+ * 4. Lock Dates - Leader only, finalize trip dates
+ * 5. Read-only state - Show locked dates
  */
 export function SchedulingOverlay({
   trip,
@@ -79,6 +81,9 @@ export function SchedulingOverlay({
   onClose,
   setHasUnsavedChanges
 }: SchedulingOverlayProps) {
+  // Check scheduling mode - use funnel for 'funnel' mode trips
+  const isFunnelMode = trip.schedulingMode === 'funnel'
+
   // State for date picks (top 3 heatmap mode)
   const [datePicks, setDatePicks] = useState<DatePick[]>([])
   const [activeRank, setActiveRank] = useState<1 | 2 | 3 | null>(null)
@@ -474,6 +479,22 @@ export function SchedulingOverlay({
 
     return { voteCounts: counts, votersByOption: voters }
   }, [trip.votes])
+
+  // Use scheduling funnel for 'funnel' mode trips (checked after all hooks)
+  if (isFunnelMode) {
+    const memberCount = trip.effectiveActiveVoterCount ?? trip.memberCount ?? 1
+    return (
+      <SchedulingFunnelCard
+        trip={trip}
+        token={token}
+        user={user}
+        memberCount={memberCount}
+        onRefresh={onRefresh}
+        onClose={onClose}
+        setHasUnsavedChanges={setHasUnsavedChanges}
+      />
+    )
+  }
 
   // Render locked state
   if (isLocked) {

@@ -698,53 +698,84 @@ async function handleRoute(request, { params }) {
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const body = await request.json()
       const { circleId, name, description, type, startDate, endDate, duration } = body
-      
-      if (!circleId || !name || !type || !startDate || !endDate) {
+
+      // Validate required fields
+      if (!circleId || !name || !type) {
         return handleCORS(NextResponse.json(
-          { error: 'Circle ID, name, type, start date, and end date are required' },
+          { error: 'Circle ID, name, and type are required' },
           { status: 400 }
         ))
       }
-      
+
+      // Validate type is valid
+      if (type !== 'collaborative' && type !== 'hosted') {
+        return handleCORS(NextResponse.json(
+          { error: 'Type must be "collaborative" or "hosted"' },
+          { status: 400 }
+        ))
+      }
+
+      // Hosted trips REQUIRE dates at creation
+      if (type === 'hosted' && (!startDate || !endDate)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Hosted trips require start and end dates' },
+          { status: 400 }
+        ))
+      }
+
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
         circleId
       })
-      
+
       if (!membership) {
         return handleCORS(NextResponse.json(
           { error: 'You are not a member of this circle' },
           { status: 403 }
         ))
       }
-      
-      // New scheduling mode: default to top3_heatmap for new trips
-      // Backward compatibility: old trips without schedulingMode use legacy availability flow
-      const schedulingMode = body.schedulingMode || 'top3_heatmap'
-      
+
+      // Scheduling mode: collaborative trips use 'funnel' mode (window proposals → date proposal → lock)
+      // Legacy trips without schedulingMode use top3_heatmap flow
+      const schedulingMode = type === 'hosted' ? null : (body.schedulingMode || 'funnel')
+
+      // For collaborative trips: dates are optional planning bounds, NOT locked
+      // For hosted trips: dates are required and locked immediately
+      const isHosted = type === 'hosted'
+
       const trip = {
         id: uuidv4(),
         circleId,
         name,
         description: description || '',
         type, // 'collaborative' or 'hosted'
-        startDate, // YYYY-MM-DD (legacy, kept for backward compatibility)
-        endDate,   // YYYY-MM-DD (legacy, kept for backward compatibility)
+        // Legacy date fields (kept for backward compatibility)
+        startDate: startDate || null,
+        endDate: endDate || null,
         duration: duration || 3,
-        // New fields for top3_heatmap scheduling
+        // Scheduling configuration
         schedulingMode,
-        startBound: body.startBound || startDate, // YYYY-MM-DD (lower bound for window start dates)
-        endBound: body.endBound || endDate,       // YYYY-MM-DD (upper bound)
-        tripLengthDays: body.tripLengthDays || duration || 3, // Fixed trip length in days
-        status: type === 'hosted' ? 'locked' : 'proposed', // proposed, scheduling, voting, locked
-        lockedStartDate: type === 'hosted' ? startDate : null,
-        lockedEndDate: type === 'hosted' ? endDate : null,
-        itineraryStatus: type === 'hosted' ? 'collecting_ideas' : null, // collecting_ideas, drafting, published, revising
-        destinationHint: body.destinationHint?.trim() || null, // Optional destination hint
+        // For collaborative: optional planning bounds; for hosted: ignored (dates are locked)
+        startBound: !isHosted ? (body.startBound || startDate || null) : null,
+        endBound: !isHosted ? (body.endBound || endDate || null) : null,
+        tripLengthDays: body.tripLengthDays || duration || 3,
+        // Status and lock state
+        status: isHosted ? 'locked' : 'proposed',
+        datesLocked: isHosted ? true : false,
+        lockedStartDate: isHosted ? startDate : null,
+        lockedEndDate: isHosted ? endDate : null,
+        // Scheduling funnel fields (collaborative only)
+        windowProposals: isHosted ? null : [],      // Array of proposed time windows
+        windowPreferences: isHosted ? null : [],    // Array of member preferences on windows
+        dateProposal: null,                          // Single active date proposal
+        dateReactions: isHosted ? null : [],         // Array of reactions to date proposal
+        // Itinerary
+        itineraryStatus: isHosted ? 'collecting_ideas' : null,
+        destinationHint: body.destinationHint?.trim() || null,
         createdBy: auth.user.id,
         createdAt: new Date().toISOString()
       }
@@ -1626,7 +1657,556 @@ async function handleRoute(request, { params }) {
       
       return handleCORS(NextResponse.json({ message: 'Vote recorded' }))
     }
-    
+
+    // ============ SCHEDULING FUNNEL ENDPOINTS (collaborative trips) ============
+
+    // Propose a time window - POST /api/trips/:id/windows/propose
+    if (route.match(/^\/trips\/[^/]+\/windows\/propose$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { description, startHint, endHint } = body
+
+      if (!description || typeof description !== 'string' || description.trim().length === 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'Description is required' },
+          { status: 400 }
+        ))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Only collaborative trips use the scheduling funnel
+      if (trip.type !== 'collaborative') {
+        return handleCORS(NextResponse.json(
+          { error: 'Window proposals are only available for collaborative trips' },
+          { status: 400 }
+        ))
+      }
+
+      // Check if windows are frozen (dateProposal exists)
+      if (trip.dateProposal?.startDate && trip.dateProposal?.endDate) {
+        return handleCORS(NextResponse.json(
+          { error: 'Windows are frozen. A date proposal is active.' },
+          { status: 400 }
+        ))
+      }
+
+      // Check if dates are already locked
+      if (trip.datesLocked || trip.status === 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Dates are already locked' },
+          { status: 400 }
+        ))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Check if user is active participant
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      if (userParticipant && (userParticipant.status === 'left' || userParticipant.status === 'removed')) {
+        return handleCORS(NextResponse.json(
+          { error: 'You have left this trip' },
+          { status: 403 }
+        ))
+      }
+
+      const windowProposal = {
+        id: uuidv4(),
+        userId: auth.user.id,
+        userName: auth.user.name,
+        description: description.trim(),
+        startHint: startHint || null,
+        endHint: endHint || null,
+        archived: false,
+        createdAt: new Date().toISOString()
+      }
+
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $push: { windowProposals: windowProposal },
+          $set: { status: 'scheduling' }  // Move to scheduling if not already
+        }
+      )
+
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'window_proposed',
+        text: `📅 ${auth.user.name} suggested a time window: "${description.trim()}"`,
+        metadata: { windowId: windowProposal.id, description: description.trim() }
+      })
+
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+      return handleCORS(NextResponse.json(updatedTrip))
+    }
+
+    // Set preference on a window - POST /api/trips/:id/windows/preference
+    if (route.match(/^\/trips\/[^/]+\/windows\/preference$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { windowId, preference, note } = body
+
+      if (!windowId) {
+        return handleCORS(NextResponse.json({ error: 'windowId is required' }, { status: 400 }))
+      }
+
+      const validPreferences = ['WORKS', 'MAYBE', 'NO']
+      if (!preference || !validPreferences.includes(preference)) {
+        return handleCORS(NextResponse.json(
+          { error: 'preference must be WORKS, MAYBE, or NO' },
+          { status: 400 }
+        ))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      if (trip.type !== 'collaborative') {
+        return handleCORS(NextResponse.json(
+          { error: 'Preferences are only available for collaborative trips' },
+          { status: 400 }
+        ))
+      }
+
+      // Check if windows are frozen
+      if (trip.dateProposal?.startDate && trip.dateProposal?.endDate) {
+        return handleCORS(NextResponse.json(
+          { error: 'Windows are frozen. A date proposal is active.' },
+          { status: 400 }
+        ))
+      }
+
+      if (trip.datesLocked || trip.status === 'locked') {
+        return handleCORS(NextResponse.json({ error: 'Dates are already locked' }, { status: 400 }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Check active participant
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      if (userParticipant && (userParticipant.status === 'left' || userParticipant.status === 'removed')) {
+        return handleCORS(NextResponse.json({ error: 'You have left this trip' }, { status: 403 }))
+      }
+
+      // Verify window exists and is not archived
+      const windowProposal = (trip.windowProposals || []).find(w => w.id === windowId)
+      if (!windowProposal) {
+        return handleCORS(NextResponse.json({ error: 'Window not found' }, { status: 404 }))
+      }
+      if (windowProposal.archived) {
+        return handleCORS(NextResponse.json({ error: 'Window has been archived' }, { status: 400 }))
+      }
+
+      const now = new Date().toISOString()
+
+      // Remove existing preference for this user+window, then add new one
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $pull: { windowPreferences: { userId: auth.user.id, windowId } }
+        }
+      )
+
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $push: {
+            windowPreferences: {
+              userId: auth.user.id,
+              userName: auth.user.name,
+              windowId,
+              preference,
+              note: note || null,
+              createdAt: now,
+              updatedAt: now
+            }
+          }
+        }
+      )
+
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+      return handleCORS(NextResponse.json(updatedTrip))
+    }
+
+    // Compress windows (leader only) - POST /api/trips/:id/windows/compress
+    if (route.match(/^\/trips\/[^/]+\/windows\/compress$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { keepWindowIds } = body  // Optional: array of window IDs to keep
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Only leader can compress
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json({ error: 'Only the trip leader can compress windows' }, { status: 403 }))
+      }
+
+      if (trip.type !== 'collaborative') {
+        return handleCORS(NextResponse.json({ error: 'Only collaborative trips have windows' }, { status: 400 }))
+      }
+
+      if (trip.dateProposal?.startDate && trip.dateProposal?.endDate) {
+        return handleCORS(NextResponse.json({ error: 'Windows are already frozen' }, { status: 400 }))
+      }
+
+      if (trip.datesLocked || trip.status === 'locked') {
+        return handleCORS(NextResponse.json({ error: 'Dates are already locked' }, { status: 400 }))
+      }
+
+      const windows = trip.windowProposals || []
+      const preferences = trip.windowPreferences || []
+
+      // Score windows: +3 per WORKS, +1 per MAYBE, -2 per NO
+      const scoredWindows = windows.filter(w => !w.archived).map(w => {
+        const windowPrefs = preferences.filter(p => p.windowId === w.id)
+        const works = windowPrefs.filter(p => p.preference === 'WORKS').length
+        const maybe = windowPrefs.filter(p => p.preference === 'MAYBE').length
+        const no = windowPrefs.filter(p => p.preference === 'NO').length
+        const score = (works * 3) + (maybe * 1) + (no * -2)
+        return { ...w, score, works, maybe, no }
+      }).sort((a, b) => b.score - a.score)
+
+      // Determine which windows to keep
+      let idsToKeep
+      if (Array.isArray(keepWindowIds) && keepWindowIds.length > 0) {
+        idsToKeep = new Set(keepWindowIds)
+      } else {
+        // Default: keep top 2 scoring windows
+        idsToKeep = new Set(scoredWindows.slice(0, 2).map(w => w.id))
+      }
+
+      // Archive all windows not in keepWindowIds
+      const updatedWindows = windows.map(w => ({
+        ...w,
+        archived: !idsToKeep.has(w.id) ? true : w.archived
+      }))
+
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: { windowProposals: updatedWindows } }
+      )
+
+      const keptCount = updatedWindows.filter(w => !w.archived).length
+      const archivedCount = updatedWindows.filter(w => w.archived).length - windows.filter(w => w.archived).length
+
+      // Emit chat event if any were archived
+      if (archivedCount > 0) {
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId,
+          circleId: trip.circleId,
+          actorUserId: auth.user.id,
+          subtype: 'windows_compressed',
+          text: `📋 ${auth.user.name} narrowed down to ${keptCount} window${keptCount !== 1 ? 's' : ''} based on group preferences.`,
+          metadata: { keptCount, archivedCount }
+        })
+      }
+
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+      return handleCORS(NextResponse.json(updatedTrip))
+    }
+
+    // Propose concrete dates (leader only) - POST /api/trips/:id/dates/propose
+    if (route.match(/^\/trips\/[^/]+\/dates\/propose$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { startDate, endDate, note } = body
+
+      if (!startDate || !endDate) {
+        return handleCORS(NextResponse.json({ error: 'startDate and endDate are required' }, { status: 400 }))
+      }
+
+      // Validate date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+        return handleCORS(NextResponse.json({ error: 'Dates must be in YYYY-MM-DD format' }, { status: 400 }))
+      }
+
+      if (startDate > endDate) {
+        return handleCORS(NextResponse.json({ error: 'startDate must be before or equal to endDate' }, { status: 400 }))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Only leader can propose dates
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json({ error: 'Only the trip leader can propose dates' }, { status: 403 }))
+      }
+
+      if (trip.type !== 'collaborative') {
+        return handleCORS(NextResponse.json({ error: 'Only collaborative trips use date proposals' }, { status: 400 }))
+      }
+
+      if (trip.datesLocked || trip.status === 'locked') {
+        return handleCORS(NextResponse.json({ error: 'Dates are already locked' }, { status: 400 }))
+      }
+
+      const dateProposal = {
+        startDate,
+        endDate,
+        proposedBy: auth.user.id,
+        proposedAt: new Date().toISOString(),
+        note: note || null
+      }
+
+      // Set dateProposal and clear any existing reactions (new proposal = fresh reactions)
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $set: {
+            dateProposal,
+            dateReactions: [],  // Clear reactions for new proposal
+            status: 'voting'    // Move to voting status
+          }
+        }
+      )
+
+      // Format dates for chat message
+      const startObj = new Date(startDate + 'T12:00:00')
+      const endObj = new Date(endDate + 'T12:00:00')
+      const dateRangeStr = `${startObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'date_proposed',
+        text: `📆 ${auth.user.name} proposed dates: ${dateRangeStr}. React to let them know if this works!`,
+        metadata: { startDate, endDate }
+      })
+
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+      return handleCORS(NextResponse.json(updatedTrip))
+    }
+
+    // React to date proposal - POST /api/trips/:id/dates/react
+    if (route.match(/^\/trips\/[^/]+\/dates\/react$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { reactionType, note } = body
+
+      const validReactions = ['WORKS', 'CAVEAT', 'CANT']
+      if (!reactionType || !validReactions.includes(reactionType)) {
+        return handleCORS(NextResponse.json(
+          { error: 'reactionType must be WORKS, CAVEAT, or CANT' },
+          { status: 400 }
+        ))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      if (trip.type !== 'collaborative') {
+        return handleCORS(NextResponse.json({ error: 'Only collaborative trips use date reactions' }, { status: 400 }))
+      }
+
+      // Must have an active date proposal
+      if (!trip.dateProposal?.startDate || !trip.dateProposal?.endDate) {
+        return handleCORS(NextResponse.json({ error: 'No active date proposal to react to' }, { status: 400 }))
+      }
+
+      if (trip.datesLocked || trip.status === 'locked') {
+        return handleCORS(NextResponse.json({ error: 'Dates are already locked' }, { status: 400 }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
+      }
+
+      // Check active participant
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      if (userParticipant && (userParticipant.status === 'left' || userParticipant.status === 'removed')) {
+        return handleCORS(NextResponse.json({ error: 'You have left this trip' }, { status: 403 }))
+      }
+
+      const now = new Date().toISOString()
+
+      // Remove existing reaction from this user, then add new one
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $pull: { dateReactions: { userId: auth.user.id } } }
+      )
+
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $push: {
+            dateReactions: {
+              userId: auth.user.id,
+              userName: auth.user.name,
+              reactionType,
+              note: note || null,
+              createdAt: now,
+              updatedAt: now
+            }
+          }
+        }
+      )
+
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+
+      // Compute approval status for response
+      const memberCount = await (async () => {
+        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const participants = await db.collection('trip_participants').find({ tripId }).toArray()
+        const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
+        let count = 0
+        for (const m of circleMemberships) {
+          const status = statusMap.get(m.userId)
+          if (!status || status === 'active') count++
+        }
+        return count
+      })()
+
+      const approvals = (updatedTrip.dateReactions || []).filter(r => r.reactionType === 'WORKS').length
+      const requiredApprovals = Math.ceil(memberCount / 2)
+
+      return handleCORS(NextResponse.json({
+        ...updatedTrip,
+        approvalSummary: {
+          approvals,
+          requiredApprovals,
+          memberCount,
+          readyToLock: approvals >= requiredApprovals
+        }
+      }))
+    }
+
+    // Suggest date adjustments (leader only) - POST /api/trips/:id/dates/suggest-adjustments
+    if (route.match(/^\/trips\/[^/]+\/dates\/suggest-adjustments$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json({ error: 'Only the trip leader can request suggestions' }, { status: 403 }))
+      }
+
+      if (!trip.dateProposal?.startDate || !trip.dateProposal?.endDate) {
+        return handleCORS(NextResponse.json({ error: 'No active date proposal' }, { status: 400 }))
+      }
+
+      if (trip.datesLocked || trip.status === 'locked') {
+        return handleCORS(NextResponse.json({ error: 'Dates are already locked' }, { status: 400 }))
+      }
+
+      // Generate deterministic adjustments: +/- 1 week
+      const start = new Date(trip.dateProposal.startDate + 'T12:00:00')
+      const end = new Date(trip.dateProposal.endDate + 'T12:00:00')
+      const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+
+      const adjustments = []
+
+      // 1 week earlier
+      const earlierStart = new Date(start)
+      earlierStart.setDate(earlierStart.getDate() - 7)
+      const earlierEnd = new Date(earlierStart)
+      earlierEnd.setDate(earlierEnd.getDate() + duration)
+      adjustments.push({
+        startDate: earlierStart.toISOString().split('T')[0],
+        endDate: earlierEnd.toISOString().split('T')[0],
+        label: '1 week earlier'
+      })
+
+      // 1 week later
+      const laterStart = new Date(start)
+      laterStart.setDate(laterStart.getDate() + 7)
+      const laterEnd = new Date(laterStart)
+      laterEnd.setDate(laterEnd.getDate() + duration)
+      adjustments.push({
+        startDate: laterStart.toISOString().split('T')[0],
+        endDate: laterEnd.toISOString().split('T')[0],
+        label: '1 week later'
+      })
+
+      return handleCORS(NextResponse.json({ adjustments }))
+    }
+
     // Submit date picks - POST /api/trips/:id/date-picks (new top3_heatmap scheduling)
     if (route.match(/^\/trips\/[^/]+\/date-picks$/) && method === 'POST') {
       const auth = await requireAuth(request)
@@ -1940,17 +2520,20 @@ async function handleRoute(request, { params }) {
     }
     
     // Lock trip - POST /api/trips/:id/lock
-    // Supports both old format (optionKey) and new format (startDateISO for top3_heatmap)
+    // Supports:
+    // 1. funnel mode (no body required, locks from dateProposal)
+    // 2. top3_heatmap (startDateISO in body)
+    // 3. legacy voting (optionKey in body)
     if (route.match(/^\/trips\/[^/]+\/lock$/) && method === 'POST') {
       const auth = await requireAuth(request)
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const tripId = path[1]
       const body = await request.json()
       const { optionKey, startDateISO } = body
-      
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -1958,9 +2541,9 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
       const circle = await db.collection('circles').findOne({ id: trip?.circleId })
-      
+
       // Validate stage action (checks trip existence, leader permission, and stage)
       const validation = validateStageAction(trip, 'lock', auth.user.id, circle)
       if (!validation.ok) {
@@ -1969,41 +2552,66 @@ async function handleRoute(request, { params }) {
           { status: validation.status }
         ))
       }
-      
+
       // Backward compatibility: default status for old trips (needed for payload-specific validation)
       const tripStatus = trip.status || (trip.type === 'hosted' ? 'locked' : 'scheduling')
-      
+
       let lockedStartDate, lockedEndDate
-      
-      // New format: top3_heatmap uses startDateISO
-      if (trip.schedulingMode === 'top3_heatmap' && startDateISO) {
+
+      // Mode 1: Scheduling funnel with dateProposal
+      if (trip.schedulingMode === 'funnel' && trip.dateProposal?.startDate && trip.dateProposal?.endDate) {
+        // Check approval threshold
+        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const participants = await db.collection('trip_participants').find({ tripId }).toArray()
+        const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
+        let memberCount = 0
+        for (const m of circleMemberships) {
+          const status = statusMap.get(m.userId)
+          if (!status || status === 'active') memberCount++
+        }
+
+        const approvals = (trip.dateReactions || []).filter(r => r.reactionType === 'WORKS').length
+        const requiredApprovals = Math.ceil(memberCount / 2)
+
+        if (approvals < requiredApprovals) {
+          return handleCORS(NextResponse.json(
+            { error: `Not enough approvals. Need ${requiredApprovals}, have ${approvals}.` },
+            { status: 400 }
+          ))
+        }
+
+        lockedStartDate = trip.dateProposal.startDate
+        lockedEndDate = trip.dateProposal.endDate
+      }
+      // Mode 2: top3_heatmap uses startDateISO
+      else if (trip.schedulingMode === 'top3_heatmap' && startDateISO) {
         const startBound = trip.startBound || trip.startDate
         const endBound = trip.endBound || trip.endDate
         const tripLengthDays = trip.tripLengthDays || trip.duration || 3
-        
+
         if (startDateISO < startBound || startDateISO > endBound) {
           return handleCORS(NextResponse.json(
             { error: `Start date ${startDateISO} is outside trip bounds` },
             { status: 400 }
           ))
         }
-        
+
         const startDateObj = new Date(startDateISO + 'T12:00:00')
         const endDateObj = new Date(startDateObj)
         endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
         const endDateISO = endDateObj.toISOString().split('T')[0]
-        
+
         if (endDateISO > endBound) {
           return handleCORS(NextResponse.json(
             { error: `Window extends beyond end bound` },
             { status: 400 }
           ))
         }
-        
+
         lockedStartDate = startDateISO
         lockedEndDate = endDateISO
       } else if (optionKey) {
-        // Old format: legacy voting uses optionKey
+        // Mode 3: legacy voting uses optionKey
         // Guard: Locking only allowed during voting phase for legacy trips
         if (tripStatus !== 'voting') {
           return handleCORS(NextResponse.json(
@@ -2011,24 +2619,25 @@ async function handleRoute(request, { params }) {
             { status: 400 }
           ))
         }
-        
+
         [lockedStartDate, lockedEndDate] = optionKey.split('_')
       } else {
         return handleCORS(NextResponse.json(
-          { error: 'Must provide either optionKey (legacy) or startDateISO (top3_heatmap)' },
+          { error: 'Cannot lock: no date proposal, startDateISO, or optionKey provided' },
           { status: 400 }
         ))
       }
-      
+
       await db.collection('trips').updateOne(
         { id: tripId },
-        { 
-          $set: { 
+        {
+          $set: {
             status: 'locked',
+            datesLocked: true,
             lockedStartDate,
             lockedEndDate,
             itineraryStatus: 'collecting_ideas' // Default to collecting ideas when locked
-          } 
+          }
         }
       )
       
