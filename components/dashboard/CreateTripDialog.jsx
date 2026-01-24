@@ -157,14 +157,14 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
                 Just a starting point—your group can adjust this later.
               </p>
               <Select
-                value={tripForm.duration ? tripForm.duration.toString() : ''}
-                onValueChange={(v) => setTripForm({ ...tripForm, duration: v ? parseInt(v) : '' })}
+                value={tripForm.duration ? tripForm.duration.toString() : 'none'}
+                onValueChange={(v) => setTripForm({ ...tripForm, duration: v === 'none' ? '' : parseInt(v) })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="No preference" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No preference</SelectItem>
+                  <SelectItem value="none">No preference</SelectItem>
                   {[2, 3, 4, 5, 6, 7].map((d) => (
                     <SelectItem key={d} value={d.toString()}>{d} days</SelectItem>
                   ))}
