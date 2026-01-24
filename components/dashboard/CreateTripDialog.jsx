@@ -32,7 +32,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
     type: 'collaborative',
     startDate: '',
     endDate: '',
-    duration: 3
+    duration: ''
   })
   const [creating, setCreating] = useState(false)
 
@@ -45,7 +45,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
         type: 'collaborative',
         startDate: '',
         endDate: '',
-        duration: 3
+        duration: ''
       })
     }
   }, [open])
@@ -71,6 +71,9 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
       if (tripForm.type === 'collaborative' && (!tripForm.startDate || !tripForm.endDate)) {
         delete payload.startDate
         delete payload.endDate
+      }
+      if (!tripForm.duration) {
+        delete payload.duration
       }
 
       const response = await fetch('/api/trips', {
@@ -146,15 +149,22 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
           </div>
           {tripForm.type === 'collaborative' && (
             <div className="space-y-2">
-              <Label>Trip Duration (days)</Label>
-              <Select 
-                value={tripForm.duration.toString()} 
-                onValueChange={(v) => setTripForm({ ...tripForm, duration: parseInt(v) })}
+              <Label>
+                Roughly how long are you imagining this trip?
+                <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
+              </Label>
+              <p className="text-xs text-gray-500">
+                Just a starting point—your group can adjust this later.
+              </p>
+              <Select
+                value={tripForm.duration ? tripForm.duration.toString() : ''}
+                onValueChange={(v) => setTripForm({ ...tripForm, duration: v ? parseInt(v) : '' })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="No preference" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="">No preference</SelectItem>
                   {[2, 3, 4, 5, 6, 7].map((d) => (
                     <SelectItem key={d} value={d.toString()}>{d} days</SelectItem>
                   ))}
