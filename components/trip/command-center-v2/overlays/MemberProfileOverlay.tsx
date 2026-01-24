@@ -25,6 +25,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getTripDisplayDates } from '@/lib/trips/dateState.js'
 
 // Types
 interface MemberProfileOverlayProps {
@@ -92,16 +93,17 @@ function getInitials(name: string): string {
 }
 
 // Format date range
-function formatDateRange(startDate?: string, endDate?: string): string {
-  if (!startDate || !endDate) return 'Dates not locked'
+function formatDateRange(trip: any): string {
+  const { startDate, endDate, label } = getTripDisplayDates(trip)
+  if (!startDate || !endDate) return 'Dates TBD'
 
-  const start = new Date(startDate)
-  const end = new Date(endDate)
+  const start = new Date(startDate + 'T12:00:00')
+  const end = new Date(endDate + 'T12:00:00')
 
   const startFormatted = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const endFormatted = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-  return `${startFormatted} - ${endFormatted}`
+  return `${startFormatted} - ${endFormatted}${label === 'proposed' ? ' (Proposed)' : ''}`
 }
 
 // Format member since date
@@ -455,7 +457,7 @@ export function MemberProfileOverlay({
                           </span>
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {formatDateRange(trip.startDate, trip.endDate)}
+                            {formatDateRange(trip)}
                           </span>
                         </div>
                       </div>

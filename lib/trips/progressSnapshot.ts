@@ -6,6 +6,7 @@
  */
 
 import { deriveTripPrimaryStage, TripPrimaryStage } from './stage.js'
+import { getNormalizedTripDates, getTripDateState, TripDateState } from './dateState.js'
 
 /**
  * Trip Progress Snapshot - unified state computation
@@ -84,31 +85,41 @@ export function computeTripProgressSnapshot(
   }
 
   const today = new Date().toISOString().split('T')[0]
-  const startDate = trip.lockedStartDate || trip.startDate
-  const endDate = trip.lockedEndDate || trip.endDate
+  const { lockedStart, lockedEnd, datesLocked } = getNormalizedTripDates(trip)
+  const startDate = lockedStart || trip.startDate
+  const endDate = lockedEnd || trip.endDate
   
   // User role context
-  const isTripLeader = trip.createdBy === user.id
+  const createdById = typeof trip.createdBy === 'string' ? trip.createdBy : trip.createdBy?.id
+  const isTripLeader = trip.viewer?.isTripLeader || createdById === user.id
   const isParticipant = trip.isParticipant || trip.viewer?.isParticipant || false
   const hasLeftTrip = trip.viewer?.participantStatus === 'left'
   
   // Dates locked
-  const datesLocked = trip.status === 'locked' || Boolean(trip.lockedStartDate && trip.lockedEndDate)
+  const datesLockedResolved = datesLocked
   
   // Availability/Scheduling state
   const pickProgress = options.pickProgress || trip.pickProgress
   const everyoneResponded = pickProgress 
     ? pickProgress.respondedCount >= pickProgress.totalCount
     : false
-  const leaderNeedsToLock = isTripLeader && 
-    trip.type === 'collaborative' && 
-    trip.status !== 'locked' && 
-    everyoneResponded
+  const totalMembers = trip.memberCount || trip.activeTravelerCount || (
+    Array.isArray(trip.participantsWithStatus)
+      ? trip.participantsWithStatus.filter((p: any) => (p.status || 'active') === 'active').length
+      : 0
+  )
+  const dateState = getTripDateState(trip, totalMembers)
+  const leaderNeedsToLock = isTripLeader &&
+    !datesLockedResolved &&
+    (
+      (trip.type === 'collaborative' && trip.status !== 'locked' && everyoneResponded) ||
+      dateState === TripDateState.READY_TO_LOCK
+    )
   
   // Itinerary state
   const itineraryStatus = trip.itineraryStatus
   const itineraryFinalized = itineraryStatus === 'selected' || itineraryStatus === 'published'
-  const itineraryPending = datesLocked && !itineraryFinalized
+  const itineraryPending = datesLockedResolved && !itineraryFinalized
   
   // Accommodation state
   const accommodationChosen = trip.progress?.steps?.accommodationChosen || false
@@ -133,7 +144,7 @@ export function computeTripProgressSnapshot(
   return {
     everyoneResponded,
     leaderNeedsToLock,
-    datesLocked,
+    datesLocked: datesLockedResolved,
     itineraryPending,
     itineraryFinalized,
     accommodationPending,

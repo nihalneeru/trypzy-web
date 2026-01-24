@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { formatTripDateRange } from '@/lib/utils'
+import { getTripDateState, getTripDisplayDates, TripDateState } from '@/lib/trips/dateState.js'
 
 // Types
 interface DatePick {
@@ -51,6 +53,7 @@ interface SchedulingOverlayProps {
   user: any
   onRefresh: (updatedTrip?: any) => void
   onClose: () => void
+  onViewItinerary?: () => void
   setHasUnsavedChanges: (has: boolean) => void
 }
 
@@ -77,6 +80,7 @@ export function SchedulingOverlay({
   user,
   onRefresh,
   onClose,
+  onViewItinerary,
   setHasUnsavedChanges
 }: SchedulingOverlayProps) {
   // State for date picks (top 3 heatmap mode)
@@ -93,6 +97,12 @@ export function SchedulingOverlay({
   const [showLockConfirmation, setShowLockConfirmation] = useState(false)
   const [pendingLockDate, setPendingLockDate] = useState<string | null>(null)
   const [locking, setLocking] = useState(false)
+  const [showProposalForm, setShowProposalForm] = useState(false)
+  const [proposalStart, setProposalStart] = useState('')
+  const [proposalEnd, setProposalEnd] = useState('')
+  const [savingProposal, setSavingProposal] = useState(false)
+  const [savingReaction, setSavingReaction] = useState(false)
+  const [lockingProposal, setLockingProposal] = useState(false)
 
   // Trip scheduling parameters
   const startBound = trip.startBound || trip.startDate
@@ -101,7 +111,16 @@ export function SchedulingOverlay({
   const isLocked = trip.status === 'locked'
   const isVoting = trip.status === 'voting'
   const canParticipate = trip?.viewer?.isActiveParticipant === true
-  const isCreator = trip.isCreator || trip.createdBy === user?.id
+  const createdById = typeof trip?.createdBy === 'string' ? trip.createdBy : trip?.createdBy?.id
+  const isCreator = trip.isCreator || createdById === user?.id
+  const isLeader = trip?.viewer?.isTripLeader || trip?.viewer?.isCircleLeader || isCreator
+  const totalMembers = trip.memberCount || trip.activeTravelerCount || (
+    Array.isArray(trip.participantsWithStatus)
+      ? trip.participantsWithStatus.filter((p: any) => (p.status || 'active') === 'active').length
+      : 0
+  )
+  const dateState = getTripDateState(trip, totalMembers)
+  const usesProposalFlow = trip.type === 'hosted' || trip.schedulingMode === 'proposal'
 
   // Initialize picks from trip data
   useEffect(() => {
@@ -116,6 +135,11 @@ export function SchedulingOverlay({
       setSelectedVote(trip.userVote)
     }
   }, [trip.userVote])
+
+  useEffect(() => {
+    setProposalStart(trip.proposedStart || '')
+    setProposalEnd(trip.proposedEnd || '')
+  }, [trip.proposedStart, trip.proposedEnd])
 
   // Compute activeRank based on current picks
   useEffect(() => {
@@ -405,7 +429,7 @@ export function SchedulingOverlay({
   }
 
   const lockDates = async (startDateISO: string) => {
-    if (!isCreator) {
+    if (!isLeader) {
       toast.error('Only the trip organizer can lock dates.')
       return
     }
@@ -453,6 +477,86 @@ export function SchedulingOverlay({
     }
   }
 
+  const submitProposal = async () => {
+    if (!proposalStart || !proposalEnd) {
+      toast.error('Please provide both a start and end date.')
+      return
+    }
+    if (proposalStart > proposalEnd) {
+      toast.error('Start date must be before end date.')
+      return
+    }
+    setSavingProposal(true)
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/propose-dates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ start: proposalStart, end: proposalEnd })
+      })
+      const updatedTrip = await response.json()
+      if (!response.ok) {
+        throw new Error(updatedTrip.error || 'Failed to propose dates')
+      }
+      toast.success('Dates proposed!')
+      setShowProposalForm(false)
+      onRefresh(updatedTrip)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to propose dates')
+    } finally {
+      setSavingProposal(false)
+    }
+  }
+
+  const submitReaction = async (reactionType: 'WORKS' | 'CAVEAT' | 'CANT') => {
+    setSavingReaction(true)
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/date-reaction`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ reactionType })
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update reaction')
+      }
+      const updatedTrip = result.trip || result
+      onRefresh(updatedTrip)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update reaction')
+    } finally {
+      setSavingReaction(false)
+    }
+  }
+
+  const lockProposedDates = async () => {
+    setLockingProposal(true)
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/lock-dates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const updatedTrip = await response.json()
+      if (!response.ok) {
+        throw new Error(updatedTrip.error || 'Failed to lock dates')
+      }
+      toast.success('Trip dates locked!')
+      onRefresh(updatedTrip)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to lock dates')
+    } finally {
+      setLockingProposal(false)
+    }
+  }
+
   // Compute vote counts and voters by option
   const { voteCounts, votersByOption } = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -475,8 +579,166 @@ export function SchedulingOverlay({
     return { voteCounts: counts, votersByOption: voters }
   }, [trip.votes])
 
+  if (usesProposalFlow) {
+    const { startDate: displayStart, endDate: displayEnd } = getTripDisplayDates(trip)
+    const reactions = Array.isArray(trip.dateProposalReactions) ? trip.dateProposalReactions : []
+    const userReaction = reactions.find(r => r.userId === user?.id)
+    const worksCount = reactions.filter(r => r.reactionType === 'WORKS').length
+    const approvalTarget = Math.ceil(Math.max(totalMembers || 0, 1) / 2)
+    const approvalsReady = worksCount >= approvalTarget
+    const respondedCount = new Set(reactions.map(r => r.userId)).size
+
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              {dateState === TripDateState.DATES_LOCKED && 'Dates locked'}
+              {dateState === TripDateState.NO_DATES && 'Dates not decided yet'}
+              {dateState === TripDateState.DATE_PROPOSED && 'Proposed dates'}
+              {dateState === TripDateState.READY_TO_LOCK && 'Dates are ready to lock'}
+            </CardTitle>
+            <CardDescription>
+              {dateState === TripDateState.DATES_LOCKED && 'Trip dates are finalized.'}
+              {dateState === TripDateState.NO_DATES && 'Create the trip first—pick dates together next.'}
+              {dateState === TripDateState.DATE_PROPOSED && 'Share if these dates work for you.'}
+              {dateState === TripDateState.READY_TO_LOCK && 'This finalizes the trip timeline and unlocks itinerary planning.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(dateState === TripDateState.DATES_LOCKED || dateState === TripDateState.DATE_PROPOSED || dateState === TripDateState.READY_TO_LOCK) && (
+              <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                {displayStart && displayEnd ? (
+                  <>
+                    <span className="font-medium">{formatTripDateRange(displayStart, displayEnd)}</span>
+                    {dateState !== TripDateState.DATES_LOCKED && (
+                      <Badge variant="secondary" className="ml-2">Proposed</Badge>
+                    )}
+                  </>
+                ) : (
+                  'Dates TBD'
+                )}
+              </div>
+            )}
+
+            {dateState === TripDateState.NO_DATES && isLeader && (
+              <div className="space-y-3">
+                {!showProposalForm ? (
+                  <Button onClick={() => setShowProposalForm(true)} className="w-full">
+                    Propose dates
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Proposed start</Label>
+                        <Input
+                          type="date"
+                          value={proposalStart}
+                          onChange={(e) => setProposalStart(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Proposed end</Label>
+                        <Input
+                          type="date"
+                          value={proposalEnd}
+                          onChange={(e) => setProposalEnd(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setShowProposalForm(false)} className="flex-1">
+                        Cancel
+                      </Button>
+                      <Button onClick={submitProposal} disabled={savingProposal} className="flex-1">
+                        {savingProposal ? 'Saving...' : 'Propose'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {dateState === TripDateState.NO_DATES && !isLeader && (
+              <div className="rounded-lg border border-dashed p-3 text-sm text-gray-600">
+                Waiting for the trip leader to propose dates.
+              </div>
+            )}
+
+            {dateState === TripDateState.DATE_PROPOSED && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                  <Button
+                    variant={userReaction?.reactionType === 'WORKS' ? 'default' : 'outline'}
+                    onClick={() => submitReaction('WORKS')}
+                    disabled={savingReaction || !canParticipate}
+                  >
+                    Works
+                  </Button>
+                  <Button
+                    variant={userReaction?.reactionType === 'CAVEAT' ? 'default' : 'outline'}
+                    onClick={() => submitReaction('CAVEAT')}
+                    disabled={savingReaction || !canParticipate}
+                  >
+                    Works with caveat
+                  </Button>
+                  <Button
+                    variant={userReaction?.reactionType === 'CANT' ? 'default' : 'outline'}
+                    onClick={() => submitReaction('CANT')}
+                    disabled={savingReaction || !canParticipate}
+                  >
+                    Can&apos;t make it
+                  </Button>
+                </div>
+                <div className="text-sm text-gray-600">
+                  {worksCount}/{totalMembers || 0} works
+                  {respondedCount ? ` • ${respondedCount} responded` : ''}
+                  {approvalTarget ? ` • need ${approvalTarget} to lock` : ''}
+                </div>
+                {approvalsReady && isLeader && (
+                  <Button onClick={lockProposedDates} disabled={lockingProposal} className="w-full">
+                    {lockingProposal ? 'Locking...' : 'Lock dates'}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {dateState === TripDateState.READY_TO_LOCK && (
+              <div className="space-y-3">
+                {isLeader ? (
+                  <Button onClick={lockProposedDates} disabled={lockingProposal} className="w-full">
+                    {lockingProposal ? 'Locking...' : 'Lock dates'}
+                  </Button>
+                ) : (
+                  <div className="rounded-lg border border-dashed p-3 text-sm text-gray-600">
+                    Waiting for the trip leader to lock dates.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {dateState === TripDateState.DATES_LOCKED && (
+              <div className="space-y-3">
+                <Button onClick={() => onViewItinerary?.()} className="w-full" variant="default">
+                  View itinerary
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Button variant="outline" onClick={onClose} className="w-full">
+          Close
+        </Button>
+      </div>
+    )
+  }
+
   // Render locked state
   if (isLocked) {
+    const { startDate: lockedStart, endDate: lockedEnd } = getTripDisplayDates(trip)
     return (
       <div className="space-y-4">
         <Card className="bg-green-50 border-green-200">
@@ -487,7 +749,7 @@ export function SchedulingOverlay({
               Trip dates have been finalized
             </p>
             <div className="text-3xl font-bold text-green-800 mb-4">
-              {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
+              {formatTripDateRange(lockedStart, lockedEnd)}
             </div>
             <p className="text-sm text-green-700">
               Your trip dates are confirmed. Time to start planning the details!
@@ -599,7 +861,7 @@ export function SchedulingOverlay({
                   : 'Submit Vote'}
               </Button>
 
-              {isCreator && selectedVote && canParticipate && (
+              {isLeader && selectedVote && canParticipate && (
                 <Button
                   variant="default"
                   onClick={() => lockDates(selectedVote)}
@@ -611,7 +873,7 @@ export function SchedulingOverlay({
               )}
             </div>
 
-            {!isCreator && (
+            {!isLeader && (
               <p className="text-xs text-gray-500 mt-2">
                 Only the trip organizer can lock dates.
               </p>

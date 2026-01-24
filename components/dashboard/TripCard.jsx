@@ -7,6 +7,7 @@ import { tripHref } from '@/lib/navigation/routes'
 import { TripProgressMini } from './TripProgressMini'
 import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import { formatTripDateRange } from '@/lib/utils'
+import { getTripDisplayDates } from '@/lib/trips/dateState.js'
 import {
   Tooltip,
   TooltipContent,
@@ -25,24 +26,6 @@ import {
  * @property {Object|null} latestActivity
  * @property {Array} pendingActions
  */
-
-/**
- * Format date range for display
- * @param {string|null} startDate
- * @param {string|null} endDate
- * @returns {string}
- */
-function formatDateRange(startDate, endDate) {
-  if (!startDate || !endDate) return 'Dates not locked'
-  
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  
-  const startFormatted = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const endFormatted = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  
-  return `${startFormatted} - ${endFormatted}`
-}
 
 /**
  * Format relative time
@@ -117,6 +100,8 @@ export function TripCard({ trip, circleId = null }) {
     }
   }
   
+  const { startDate, endDate, label: dateLabel } = getTripDisplayDates(trip)
+
   // Get countdown label if dates are locked
   const countdownLabel = getTripCountdownLabel(trip, trip.name)
   
@@ -158,9 +143,9 @@ export function TripCard({ trip, circleId = null }) {
           <div className="flex items-center gap-1 text-sm text-gray-600 mb-3">
             <Calendar className="h-3 w-3" aria-hidden="true" />
             <span className="line-clamp-1">
-              {trip.startDate && trip.endDate 
-                ? formatTripDateRange(trip.startDate, trip.endDate)
-                : 'Dates not locked'}
+              {startDate && endDate 
+                ? `${formatTripDateRange(startDate, endDate)}${dateLabel === 'proposed' ? ' (Proposed)' : ''}`
+                : 'Dates TBD'}
             </span>
           </div>
           

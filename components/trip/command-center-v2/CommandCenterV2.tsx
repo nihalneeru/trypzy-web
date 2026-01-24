@@ -36,6 +36,7 @@ import { useTripChat } from '@/hooks/use-trip-chat'
 import { computeProgressSteps } from '@/lib/trips/progress'
 import { deriveTripPrimaryStage, TripPrimaryStage } from '@/lib/trips/stage'
 import { computeTripProgressSnapshot, TripProgressSnapshot } from '@/lib/trips/progressSnapshot'
+import { getTripDisplayDates } from '@/lib/trips/dateState.js'
 
 // Constants
 // Chevron bar: 56px on mobile (compact for touch), 72px on desktop
@@ -217,6 +218,7 @@ function FocusBanner({
   tripName,
   startDate,
   endDate,
+  dateLabel,
   blocker,
   onAction,
   chevronBarWidth
@@ -224,21 +226,23 @@ function FocusBanner({
   tripName: string
   startDate?: string
   endDate?: string
+  dateLabel?: string
   blocker: BlockerInfo
   onAction: (overlayType: OverlayType) => void
   chevronBarWidth: number
 }) {
   // Format dates for display
   const dateDisplay = useMemo(() => {
-    if (!startDate || !endDate) return 'Dates not set'
+    if (!startDate || !endDate) return 'Dates TBD'
     try {
       const start = new Date(startDate)
       const end = new Date(endDate)
-      return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`
+      const base = `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`
+      return dateLabel === 'proposed' ? `${base} (Proposed)` : base
     } catch {
-      return 'Dates not set'
+      return 'Dates TBD'
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, dateLabel])
 
   // Color scheme based on blocker type (using brand colors)
   // brand-red: CTAs, blockers, errors, current action
@@ -457,8 +461,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   }, [openOverlay])
 
   // Get trip dates
-  const startDate = trip?.lockedStartDate || trip?.startDate
-  const endDate = trip?.lockedEndDate || trip?.endDate
+  const dateDisplay = getTripDisplayDates(trip)
 
   // Determine if viewer is read-only
   const viewer = trip?.viewer || {}
@@ -470,8 +473,9 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
       <div ref={focusBannerRef}>
         <FocusBanner
           tripName={trip?.name || 'Untitled Trip'}
-          startDate={startDate}
-          endDate={endDate}
+          startDate={dateDisplay.startDate || undefined}
+          endDate={dateDisplay.endDate || undefined}
+          dateLabel={dateDisplay.label}
           blocker={blocker}
           onAction={handleBlockerAction}
           chevronBarWidth={chevronBarWidth}
@@ -554,6 +558,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
               user={user}
               onRefresh={onRefresh}
               onClose={closeOverlay}
+              onViewItinerary={() => openOverlay('itinerary')}
               setHasUnsavedChanges={setHasUnsavedChanges}
             />
           )}

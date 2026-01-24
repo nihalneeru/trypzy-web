@@ -46,14 +46,27 @@ export function CircleOnboardingInterstitial({
     endDate: '',
     duration: 3
   })
+  const [showOptionalDates, setShowOptionalDates] = useState(false)
   const [creating, setCreating] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
 
   if (!circle) return null
 
   const handleCreateTrip = async () => {
-    if (!tripForm.name || !tripForm.startDate || !tripForm.endDate) {
+    const hasDates = Boolean(tripForm.startDate && tripForm.endDate)
+    const hasPartialDates = Boolean(tripForm.startDate || tripForm.endDate)
+    const isHosted = tripForm.type === 'hosted'
+
+    if (!tripForm.name) {
       toast.error('Please fill in all required fields')
+      return
+    }
+    if (isHosted && !hasDates) {
+      toast.error('Hosted trips require start and end dates')
+      return
+    }
+    if (!isHosted && hasPartialDates && !hasDates) {
+      toast.error('Please provide both a start and end date')
       return
     }
     setCreating(true)
@@ -188,7 +201,11 @@ export function CircleOnboardingInterstitial({
               <Label>Trip Type</Label>
               <Select 
                 value={tripForm.type} 
-                onValueChange={(v) => setTripForm({ ...tripForm, type: v })}
+                onValueChange={(v) => {
+                  setTripForm({ ...tripForm, type: v })
+                  const hasDates = Boolean(tripForm.startDate || tripForm.endDate)
+                  setShowOptionalDates(v === 'hosted' ? true : hasDates)
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -199,24 +216,62 @@ export function CircleOnboardingInterstitial({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            {tripForm.type === 'collaborative' ? (
               <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input
-                  type="date"
-                  value={tripForm.startDate}
-                  onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
-                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="px-0 text-sm"
+                  onClick={() => setShowOptionalDates(!showOptionalDates)}
+                >
+                  {showOptionalDates ? 'Hide dates' : 'Add dates (optional)'}
+                </Button>
+                {showOptionalDates && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Proposed start</Label>
+                      <Input
+                        type="date"
+                        value={tripForm.startDate}
+                        onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Proposed end</Label>
+                      <Input
+                        type="date"
+                        value={tripForm.endDate}
+                        onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
+            ) : (
               <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={tripForm.endDate}
-                  onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
-                />
+                <Label>Trip Dates</Label>
+                <p className="text-xs text-gray-500">Hosted trips have fixed dates.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start date</Label>
+                    <Input
+                      type="date"
+                      value={tripForm.startDate}
+                      onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End date</Label>
+                    <Input
+                      type="date"
+                      value={tripForm.endDate}
+                      onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
             {tripForm.type === 'collaborative' && (
               <div className="space-y-2">
                 <Label>Trip Duration (days)</Label>
@@ -247,7 +302,7 @@ export function CircleOnboardingInterstitial({
             </Button>
             <Button 
               onClick={handleCreateTrip} 
-              disabled={creating || !tripForm.name || !tripForm.startDate || !tripForm.endDate}
+              disabled={creating || !tripForm.name || (tripForm.type === 'hosted' && (!tripForm.startDate || !tripForm.endDate))}
               className="flex-1"
             >
               {creating ? 'Creating...' : 'Create Trip'}

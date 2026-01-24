@@ -39,6 +39,7 @@ import { getUserActionRequired } from '@/lib/trips/getUserActionRequired.js'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/routes'
 import { formatTripDateRange } from '@/lib/utils'
+import { getTripDisplayDates } from '@/lib/trips/dateState.js'
 import { CommandCenterV2 } from '@/components/trip/command-center-v2'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 
@@ -2590,6 +2591,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     endDate: '',
     duration: 3
   })
+  const [showOptionalDates, setShowOptionalDates] = useState(false)
   const [creating, setCreating] = useState(false)
   const [updates, setUpdates] = useState([])
   const [loadingUpdates, setLoadingUpdates] = useState(false)
@@ -2639,8 +2641,20 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
   }, [activeTab])
 
   const createTrip = async () => {
-    if (!tripForm.name || !tripForm.startDate || !tripForm.endDate) {
+    const hasDates = Boolean(tripForm.startDate && tripForm.endDate)
+    const hasPartialDates = Boolean(tripForm.startDate || tripForm.endDate)
+    const isHosted = tripForm.type === 'hosted'
+
+    if (!tripForm.name) {
       toast.error('Please fill in all required fields')
+      return
+    }
+    if (isHosted && !hasDates) {
+      toast.error('Hosted trips require start and end dates')
+      return
+    }
+    if (!isHosted && hasPartialDates && !hasDates) {
+      toast.error('Please provide both a start and end date')
       return
     }
     setCreating(true)
@@ -2654,6 +2668,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
       toast.success('Trip created!')
       setShowCreateTrip(false)
       setTripForm({ name: '', description: '', type: 'collaborative', startDate: '', endDate: '', duration: 3 })
+      setShowOptionalDates(false)
       onRefresh()
     } catch (error) {
       toast.error(error.message)
@@ -2854,7 +2869,11 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                     <Label>Trip Type</Label>
                     <Select 
                       value={tripForm.type} 
-                      onValueChange={(v) => setTripForm({ ...tripForm, type: v })}
+                      onValueChange={(v) => {
+                        setTripForm({ ...tripForm, type: v })
+                        const hasDates = Boolean(tripForm.startDate || tripForm.endDate)
+                        setShowOptionalDates(v === 'hosted' ? true : hasDates)
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -2883,28 +2902,65 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                       </Select>
                     </div>
                   )}
-                  <div className="space-y-2">
-                    <Label>Planning Window</Label>
-                    <p className="text-xs text-gray-500">These are the possible dates your group can choose from. Final dates are locked later.</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Earliest possible date</Label>
-                        <Input
-                          type="date"
-                          value={tripForm.startDate}
-                          onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Latest possible date</Label>
-                        <Input
-                          type="date"
-                          value={tripForm.endDate}
-                          onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
-                        />
+                  {tripForm.type === 'collaborative' ? (
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="px-0 text-sm"
+                        onClick={() => setShowOptionalDates(!showOptionalDates)}
+                      >
+                        {showOptionalDates ? 'Hide dates' : 'Add dates (optional)'}
+                      </Button>
+                      {showOptionalDates && (
+                        <>
+                          <p className="text-xs text-gray-500">If you already have a proposal, add it here.</p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Proposed start</Label>
+                              <Input
+                                type="date"
+                                value={tripForm.startDate}
+                                onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Proposed end</Label>
+                              <Input
+                                type="date"
+                                value={tripForm.endDate}
+                                onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Trip Dates</Label>
+                      <p className="text-xs text-gray-500">Hosted trips have fixed dates.</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Start date</Label>
+                          <Input
+                            type="date"
+                            value={tripForm.startDate}
+                            onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>End date</Label>
+                          <Input
+                            type="date"
+                            value={tripForm.endDate}
+                            onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button onClick={createTrip} disabled={creating}>
@@ -3714,7 +3770,12 @@ export function Top3HeatmapScheduling({ trip, token, user, onRefresh, datePicks,
           {isLocked ? (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-green-800 font-medium">
-                Dates locked: {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
+                {(() => {
+                  const { startDate, endDate, label } = getTripDisplayDates(trip)
+                  return startDate && endDate
+                    ? `Dates ${label === 'proposed' ? 'proposed' : 'locked'}: ${formatTripDateRange(startDate, endDate)}`
+                    : 'Dates TBD'
+                })()}
               </p>
             </div>
           ) : (

@@ -34,6 +34,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
     endDate: '',
     duration: 3
   })
+  const [showOptionalDates, setShowOptionalDates] = useState(false)
   const [creating, setCreating] = useState(false)
 
   // Reset form when dialog opens/closes
@@ -47,12 +48,25 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
         endDate: '',
         duration: 3
       })
+      setShowOptionalDates(false)
     }
   }, [open])
 
   const handleCreate = async () => {
-    if (!tripForm.name || !tripForm.startDate || !tripForm.endDate) {
+    const hasDates = Boolean(tripForm.startDate && tripForm.endDate)
+    const hasPartialDates = Boolean(tripForm.startDate || tripForm.endDate)
+    const isHosted = tripForm.type === 'hosted'
+
+    if (!tripForm.name) {
       toast.error('Please fill in all required fields')
+      return
+    }
+    if (isHosted && !hasDates) {
+      toast.error('Hosted trips require start and end dates')
+      return
+    }
+    if (!isHosted && hasPartialDates && !hasDates) {
+      toast.error('Please provide both a start and end date')
       return
     }
     setCreating(true)
@@ -118,7 +132,11 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
             <Label>Trip Type</Label>
             <Select 
               value={tripForm.type} 
-              onValueChange={(v) => setTripForm({ ...tripForm, type: v })}
+              onValueChange={(v) => {
+                setTripForm({ ...tripForm, type: v })
+                const hasDates = Boolean(tripForm.startDate || tripForm.endDate)
+                setShowOptionalDates(v === 'hosted' ? true : hasDates)
+              }}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -147,28 +165,65 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
               </Select>
             </div>
           )}
-          <div className="space-y-2">
-            <Label>Planning Window</Label>
-            <p className="text-xs text-gray-500">These set the possible date range. Your group will finalize dates later.</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Earliest possible date</Label>
-                <Input
-                  type="date"
-                  value={tripForm.startDate}
-                  onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Latest possible date</Label>
-                <Input
-                  type="date"
-                  value={tripForm.endDate}
-                  onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
-                />
+          {tripForm.type === 'collaborative' ? (
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="px-0 text-sm"
+                onClick={() => setShowOptionalDates(!showOptionalDates)}
+              >
+                {showOptionalDates ? 'Hide dates' : 'Add dates (optional)'}
+              </Button>
+              {showOptionalDates && (
+                <>
+                  <p className="text-xs text-gray-500">If you already have a proposal, add it here.</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Proposed start</Label>
+                      <Input
+                        type="date"
+                        value={tripForm.startDate}
+                        onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Proposed end</Label>
+                      <Input
+                        type="date"
+                        value={tripForm.endDate}
+                        onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Trip Dates</Label>
+              <p className="text-xs text-gray-500">Hosted trips have fixed dates.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start date</Label>
+                  <Input
+                    type="date"
+                    value={tripForm.startDate}
+                    onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>End date</Label>
+                  <Input
+                    type="date"
+                    value={tripForm.endDate}
+                    onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

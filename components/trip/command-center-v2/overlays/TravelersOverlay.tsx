@@ -5,6 +5,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -28,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
+import { tripHref } from '@/lib/navigation/routes'
 
 interface TravelersOverlayProps {
   trip: any
@@ -120,12 +123,27 @@ export function TravelersOverlay({
   const [processingRequest, setProcessingRequest] = useState<string | null>(null)
   const [selectedNewLeader, setSelectedNewLeader] = useState('')
   const [validationError, setValidationError] = useState('')
+  const [joinRequestInfo, setJoinRequestInfo] = useState<{
+    status: 'none' | 'pending' | 'approved' | 'rejected'
+    requestId?: string
+    source?: 'invite' | 'request'
+  }>({ status: 'none' })
+  const [loadingJoinStatus, setLoadingJoinStatus] = useState(false)
+  const [showJoinDialog, setShowJoinDialog] = useState(false)
+  const [joinMessage, setJoinMessage] = useState('')
+  const [submittingJoin, setSubmittingJoin] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [circleMembers, setCircleMembers] = useState<any[]>([])
+  const [loadingMembers, setLoadingMembers] = useState(false)
+  const [selectedInvitees, setSelectedInvitees] = useState<string[]>([])
+  const [sendingInvites, setSendingInvites] = useState(false)
 
-  const isTripLeader = trip?.viewer?.isTripLeader || false
+  const createdById = typeof trip?.createdBy === 'string' ? trip.createdBy : trip?.createdBy?.id
+  const isTripLeader = trip?.viewer?.isTripLeader || createdById === user?.id || false
   const completed = isTripCompleted(trip)
   const activeLabel = completed ? 'Went' : 'Going'
   const currentUserId = user?.id
-  const tripLeaderUserId = trip?.createdBy
+  const tripLeaderUserId = createdById
 
   // Get participants with status from trip data
   const participantsWithStatus = trip?.participantsWithStatus || []
@@ -151,6 +169,11 @@ export function TravelersOverlay({
   const viewer = trip?.viewer || {}
   const canLeaveNonLeader = viewer.isActiveParticipant && !viewer.isTripLeader
   const canLeaveLeader = viewer.isActiveParticipant && viewer.isTripLeader
+  const canRequestJoin = trip?.type === 'hosted' &&
+    !viewer.isActiveParticipant &&
+    !viewer.isTripLeader &&
+    !viewer.isCircleLeader &&
+    createdById !== user?.id
 
   // Build eligible users for leadership transfer (active participants, excluding current user)
   const eligibleUsers = useMemo(() =>
@@ -173,6 +196,150 @@ export function TravelersOverlay({
       loadJoinRequests()
     }
   }, [isTripLeader, trip?.id])
+
+  useEffect(() => {
+    if (canRequestJoin && trip?.id) {
+      loadJoinRequestStatus()
+    }
+  }, [canRequestJoin, trip?.id])
+
+  useEffect(() => {
+    if (isTripLeader && trip?.circleId && trip?.type === 'hosted') {
+      loadCircleMembers()
+    }
+  }, [isTripLeader, trip?.circleId, trip?.type])
+
+  const loadJoinRequestStatus = async () => {
+    if (!trip?.id || !token) return
+
+    setLoadingJoinStatus(true)
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/join-requests/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setJoinRequestInfo({
+          status: data?.status || 'none',
+          requestId: data?.requestId,
+          source: data?.source || 'request'
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load join request status:', error)
+    } finally {
+      setLoadingJoinStatus(false)
+    }
+  }
+
+  const loadCircleMembers = async () => {
+    if (!trip?.circleId || !token) return
+
+    setLoadingMembers(true)
+    try {
+      const response = await fetch(`/api/circles/${trip.circleId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setCircleMembers(data?.members || [])
+      } else {
+        setCircleMembers([])
+      }
+    } catch (error) {
+      console.error('Failed to load circle members:', error)
+      setCircleMembers([])
+    } finally {
+      setLoadingMembers(false)
+    }
+  }
+
+  const handleInviteToggle = (userId: string) => {
+    setSelectedInvitees(prev => (
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    ))
+  }
+
+  const handleSendInvites = async () => {
+    if (!trip?.id || !token || selectedInvitees.length === 0) return
+    setSendingInvites(true)
+    try {
+      await api(`/trips/${trip.id}/invite`, {
+        method: 'POST',
+        body: JSON.stringify({ userIds: selectedInvitees })
+      }, token)
+      toast.success('Invites sent')
+      setSelectedInvitees([])
+      await loadJoinRequests()
+      onRefresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send invites')
+    } finally {
+      setSendingInvites(false)
+    }
+  }
+
+  const handleJoinRequest = async () => {
+    if (!trip?.id || !token) return
+    setSubmittingJoin(true)
+    try {
+      await api(`/trips/${trip.id}/join-requests`, {
+        method: 'POST',
+        body: JSON.stringify({ message: joinMessage.trim() })
+      }, token)
+      toast.success('Join request sent')
+      setJoinRequestInfo(prev => ({
+        ...prev,
+        status: 'pending',
+        source: 'request'
+      }))
+      setShowJoinDialog(false)
+      setJoinMessage('')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send join request')
+    } finally {
+      setSubmittingJoin(false)
+    }
+  }
+
+  const handleCopyTripLink = async () => {
+    try {
+      const url = `${window.location.origin}${tripHref(trip.id)}`
+      await navigator.clipboard.writeText(url)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+      toast.success('Trip link copied')
+    } catch (error) {
+      toast.error('Failed to copy trip link')
+    }
+  }
+
+  const handleInviteResponse = async (action: 'approve' | 'reject') => {
+    if (!trip?.id || !token || !joinRequestInfo.requestId) return
+    setSubmittingJoin(true)
+    try {
+      await api(`/trips/${trip.id}/join-requests/${joinRequestInfo.requestId}/respond`, {
+        method: 'POST',
+        body: JSON.stringify({ action })
+      }, token)
+      setJoinRequestInfo(prev => ({
+        ...prev,
+        status: action === 'approve' ? 'approved' : 'rejected'
+      }))
+      toast.success(action === 'approve' ? 'Invite accepted' : 'Invite declined')
+      onRefresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to respond to invite')
+    } finally {
+      setSubmittingJoin(false)
+    }
+  }
 
   const loadJoinRequests = async () => {
     if (!trip?.id || !token) return
@@ -343,6 +510,127 @@ export function TravelersOverlay({
 
   return (
     <div className="space-y-6">
+      {canRequestJoin && (
+        <Card>
+          <CardContent className="py-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">
+                <UserPlus className="h-5 w-5 text-brand-red" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-sm text-gray-900">Join this hosted trip</p>
+                <p className="text-xs text-gray-500">
+                  Request access from the trip leader to participate.
+                </p>
+              </div>
+            </div>
+            {loadingJoinStatus ? (
+              <p className="text-xs text-gray-500">Checking request status...</p>
+            ) : joinRequestInfo.status === 'pending' && joinRequestInfo.source === 'invite' ? (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleInviteResponse('reject')}
+                  disabled={submittingJoin}
+                  className="flex-1"
+                >
+                  Decline
+                </Button>
+                <Button
+                  onClick={() => handleInviteResponse('approve')}
+                  disabled={submittingJoin}
+                  className="flex-1"
+                >
+                  Accept invite
+                </Button>
+              </div>
+            ) : joinRequestInfo.status === 'pending' ? (
+              <Badge variant="secondary">Request pending</Badge>
+            ) : joinRequestInfo.status === 'approved' ? (
+              <Badge className="bg-green-100 text-green-800">Approved</Badge>
+            ) : (
+              <Button
+                onClick={() => setShowJoinDialog(true)}
+                disabled={submittingJoin}
+                className="w-full"
+              >
+                {joinRequestInfo.status === 'rejected' ? 'Request again' : 'Request to join'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isTripLeader && trip?.type === 'hosted' && (
+        <Card>
+          <CardContent className="py-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">
+                <UserPlus className="h-5 w-5 text-brand-blue" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-sm text-gray-900">Invite circle members</p>
+                <p className="text-xs text-gray-500">
+                  Select members to invite to this hosted trip.
+                </p>
+              </div>
+            </div>
+            {loadingMembers ? (
+              <div className="text-xs text-gray-500">Loading members...</div>
+            ) : (
+              <div className="space-y-2">
+                {circleMembers.length === 0 ? (
+                  <div className="text-xs text-gray-500">No circle members found.</div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border border-gray-200 p-2">
+                    {circleMembers.map((member: any) => {
+                      const memberId = member.id
+                      const isActive = activeParticipants.some(p => (p.user?.id || p.userId) === memberId)
+                      const hasPending = joinRequests.some(r => r.requesterId === memberId && r.status === 'pending')
+                      const disabled = isActive || hasPending || memberId === currentUserId
+
+                      return (
+                        <label
+                          key={memberId}
+                          className={`flex items-center gap-2 text-sm ${
+                            disabled ? 'text-gray-400' : 'text-gray-700'
+                          }`}
+                        >
+                          <Checkbox
+                            checked={selectedInvitees.includes(memberId)}
+                            disabled={disabled}
+                            onCheckedChange={() => handleInviteToggle(memberId)}
+                          />
+                          <span className="flex-1 truncate">{member.name}</span>
+                          {isActive && <Badge variant="secondary">Active</Badge>}
+                          {!isActive && hasPending && <Badge variant="outline">Pending</Badge>}
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleCopyTripLink}
+                    className="flex-1"
+                  >
+                    {linkCopied ? 'Link copied' : 'Copy trip link'}
+                  </Button>
+                  <Button
+                    onClick={handleSendInvites}
+                    disabled={sendingInvites || selectedInvitees.length === 0}
+                    className="flex-1"
+                  >
+                    {sendingInvites ? 'Sending...' : 'Send invites'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Join Requests Section (Trip Leader only) */}
       {isTripLeader && (
         <div>
@@ -474,6 +762,34 @@ export function TravelersOverlay({
           </div>
         )}
       </div>
+
+      <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request to join {trip?.name}</DialogTitle>
+            <DialogDescription>
+              Add a short note for the trip leader (optional).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Message</Label>
+            <Textarea
+              value={joinMessage}
+              onChange={(e) => setJoinMessage(e.target.value)}
+              placeholder="Excited to join this trip!"
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowJoinDialog(false)} disabled={submittingJoin}>
+              Cancel
+            </Button>
+            <Button onClick={handleJoinRequest} disabled={submittingJoin}>
+              {submittingJoin ? 'Sending...' : 'Send request'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Past Travelers */}
       {pastParticipants.length > 0 && (

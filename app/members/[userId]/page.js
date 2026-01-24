@@ -20,6 +20,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
 import { dashboardCircleHref } from '@/lib/navigation/routes'
+import { getTripDisplayDates } from '@/lib/trips/dateState.js'
 
 const api = async (endpoint, options = {}, token) => {
   const response = await fetch(`/api${endpoint}`, {
@@ -48,16 +49,17 @@ function getInitials(name) {
 }
 
 // Format date range
-function formatDateRange(startDate, endDate) {
-  if (!startDate || !endDate) return 'Dates not locked'
+function formatDateRange(trip) {
+  const { startDate, endDate, label } = getTripDisplayDates(trip)
+  if (!startDate || !endDate) return 'Dates TBD'
   
-  const start = new Date(startDate)
-  const end = new Date(endDate)
+  const start = new Date(startDate + 'T12:00:00')
+  const end = new Date(endDate + 'T12:00:00')
   
   const startFormatted = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const endFormatted = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   
-  return `${startFormatted} - ${endFormatted}`
+  return `${startFormatted} - ${endFormatted}${label === 'proposed' ? ' (Proposed)' : ''}`
 }
 
 export default function MemberProfilePage() {
@@ -431,7 +433,7 @@ export default function MemberProfilePage() {
                               </span>
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {formatDateRange(trip.startDate, trip.endDate)}
+                                {formatDateRange(trip)}
                               </span>
                             </div>
                           </div>

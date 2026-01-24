@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Users,
+  UserPlus,
   Calendar,
   Vote,
   Lock,
@@ -85,6 +86,17 @@ export function ContextCTABar({
     const hasItinerary = trip.itinerary?.days?.length > 0 || itineraryFinalized
     const userHasVotedOnAccommodation = trip.accommodationUserVoted ||
       trip.accommodations?.some((a: any) => a.userVoted)
+    const isParticipant = progressSnapshot.isParticipant
+    const isCircleLeader = trip?.viewer?.isCircleLeader || false
+
+    if (trip.type === 'hosted' && !isParticipant && !isLeader && !isCircleLeader) {
+      return {
+        label: 'Request to join',
+        icon: UserPlus,
+        overlayType: 'travelers',
+        priority: 0
+      }
+    }
 
     // Priority-based CTA selection (lower priority number = higher importance)
 
