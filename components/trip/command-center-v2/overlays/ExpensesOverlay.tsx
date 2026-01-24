@@ -111,7 +111,7 @@ export function ExpensesOverlay({
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.status === 'canceled'
+  const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
 
   // Get travelers for select dropdowns from participantsWithStatus
   const travelers = useMemo(() => {

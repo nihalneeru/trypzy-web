@@ -111,7 +111,7 @@ export function PrepOverlay({
   })
 
   const isTripLeader = trip?.createdBy === user?.id
-  const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.status === 'canceled'
+  const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
 
   useEffect(() => {
     if (trip?.id && trip.status === 'locked') {

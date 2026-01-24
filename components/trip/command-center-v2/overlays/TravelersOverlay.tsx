@@ -130,6 +130,9 @@ export function TravelersOverlay({
   const currentUserId = user?.id
   const tripLeaderUserId = trip?.createdBy
 
+  // Check if trip is cancelled
+  const isCancelled = trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
+
   // Pending leadership transfer info
   const pendingTransfer = trip?.viewer?.pendingLeadershipTransfer || trip?.pendingLeadershipTransfer || null
   const isPendingLeader = trip?.viewer?.isPendingLeader || false
@@ -672,8 +675,8 @@ export function TravelersOverlay({
         </div>
       )}
 
-      {/* Leader Actions Section */}
-      {canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer && (
+      {/* Leader Actions Section - hidden for cancelled trips */}
+      {!isCancelled && canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer && (
         <div className="pt-4 border-t border-gray-200">
           <Button
             variant="outline"
@@ -686,8 +689,8 @@ export function TravelersOverlay({
         </div>
       )}
 
-      {/* Leave Trip Section */}
-      {(canLeaveNonLeader || canLeaveLeader) && (
+      {/* Leave Trip Section - hidden for cancelled trips */}
+      {!isCancelled && (canLeaveNonLeader || canLeaveLeader) && (
         <div className={(canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer) ? "pt-2" : "pt-4 border-t border-gray-200"}>
           {canLeaveNonLeader && (
             <Button
