@@ -1316,7 +1316,10 @@ async function handleRoute(request, { params }) {
           isCircleLeader: circle ? (circle.ownerId === auth.user.id) : false,
           hasParticipantRecord: !!userParticipant,
           participantStatus: userParticipantStatus || (trip.type === 'collaborative' && circleMemberUserIds.has(auth.user.id) ? 'active' : null),
-          isActiveParticipant
+          isActiveParticipant,
+          // Pending leadership transfer info
+          pendingLeadershipTransfer: trip.pendingLeadershipTransfer || null,
+          isPendingLeader: trip.pendingLeadershipTransfer?.toUserId === auth.user.id
         },
         // Progress tracking stats
         totalMembers,
@@ -3002,8 +3005,8 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(response))
     }
 
-    // Transfer leadership (standalone) - POST /api/trips/:tripId/transfer-leadership
-    // Allows leader to transfer without leaving
+    // Transfer leadership (initiate pending transfer) - POST /api/trips/:tripId/transfer-leadership
+    // Creates a pending transfer that must be accepted by the recipient
     if (route.match(/^\/trips\/[^/]+\/transfer-leadership$/) && method === 'POST') {
       const auth = await requireAuth(request)
       if (auth.error) {
@@ -3029,7 +3032,7 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Only current leader can transfer leadership
+      // Only current leader can initiate transfer
       if (trip.createdBy !== auth.user.id) {
         return handleCORS(NextResponse.json(
           { error: 'Only the trip leader can transfer leadership' },
@@ -3045,6 +3048,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Check if there's already a pending transfer
+      if (trip.pendingLeadershipTransfer) {
+        return handleCORS(NextResponse.json(
+          { error: 'A leadership transfer is already pending. Cancel it before initiating a new one.' },
+          { status: 400 }
+        ))
+      }
+
       // Validate new leader is an active traveler
       const newLeaderIsActive = await isActiveTraveler(db, trip, newLeaderId)
       if (!newLeaderIsActive) {
@@ -3054,14 +3065,101 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Transfer leadership
+      // Create pending transfer
+      const pendingTransfer = {
+        toUserId: newLeaderId,
+        fromUserId: auth.user.id,
+        createdAt: new Date().toISOString()
+      }
+
       await db.collection('trips').updateOne(
         { id: tripId },
-        { $set: { createdBy: newLeaderId } }
+        { $set: { pendingLeadershipTransfer: pendingTransfer } }
       )
 
       // Get new leader info for system message
       const newLeader = await db.collection('users').findOne({ id: newLeaderId })
+
+      // Emit system message about pending transfer
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'leadership_transfer_pending',
+        text: `${auth.user.name} requested to transfer trip leadership to ${newLeader?.name || 'another member'}`,
+        metadata: {
+          fromUserId: auth.user.id,
+          toUserId: newLeaderId
+        }
+      })
+
+      return handleCORS(NextResponse.json({
+        message: 'Leadership transfer initiated. Waiting for acceptance.',
+        pendingLeadershipTransfer: pendingTransfer
+      }))
+    }
+
+    // Accept leadership transfer - POST /api/trips/:tripId/transfer-leadership/accept
+    if (route.match(/^\/trips\/[^/]+\/transfer-leadership\/accept$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check if there's a pending transfer
+      if (!trip.pendingLeadershipTransfer) {
+        return handleCORS(NextResponse.json(
+          { error: 'No pending leadership transfer to accept' },
+          { status: 400 }
+        ))
+      }
+
+      // Only the intended recipient can accept
+      if (trip.pendingLeadershipTransfer.toUserId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the intended recipient can accept the transfer' },
+          { status: 403 }
+        ))
+      }
+
+      // Verify recipient is still an active traveler
+      const isStillActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isStillActive) {
+        // Clear the pending transfer since recipient is no longer active
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $unset: { pendingLeadershipTransfer: '' } }
+        )
+        return handleCORS(NextResponse.json(
+          { error: 'You are no longer an active traveler and cannot accept leadership' },
+          { status: 403 }
+        ))
+      }
+
+      const previousLeaderId = trip.createdBy
+
+      // Accept transfer: update createdBy and clear pending transfer
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $set: { createdBy: auth.user.id },
+          $unset: { pendingLeadershipTransfer: '' }
+        }
+      )
+
+      // Get previous leader info for system message
+      const previousLeader = await db.collection('users').findOne({ id: previousLeaderId })
 
       // Emit system message
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
@@ -3070,16 +3168,142 @@ async function handleRoute(request, { params }) {
         circleId: trip.circleId,
         actorUserId: auth.user.id,
         subtype: 'leadership_transferred',
-        text: `${auth.user.name} transferred trip leadership to ${newLeader?.name || 'another member'}`,
+        text: `${auth.user.name} accepted trip leadership from ${previousLeader?.name || 'the previous leader'}`,
         metadata: {
-          previousLeaderId: auth.user.id,
-          newLeaderId: newLeaderId
+          previousLeaderId: previousLeaderId,
+          newLeaderId: auth.user.id
         }
       })
 
       return handleCORS(NextResponse.json({
-        message: 'Leadership transferred successfully',
-        newLeaderId
+        message: 'Leadership transfer accepted. You are now the trip leader.',
+        newLeaderId: auth.user.id
+      }))
+    }
+
+    // Decline leadership transfer - POST /api/trips/:tripId/transfer-leadership/decline
+    if (route.match(/^\/trips\/[^/]+\/transfer-leadership\/decline$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check if there's a pending transfer
+      if (!trip.pendingLeadershipTransfer) {
+        return handleCORS(NextResponse.json(
+          { error: 'No pending leadership transfer to decline' },
+          { status: 400 }
+        ))
+      }
+
+      // Only the intended recipient can decline
+      if (trip.pendingLeadershipTransfer.toUserId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the intended recipient can decline the transfer' },
+          { status: 403 }
+        ))
+      }
+
+      const fromUserId = trip.pendingLeadershipTransfer.fromUserId
+
+      // Decline transfer: clear pending transfer
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $unset: { pendingLeadershipTransfer: '' } }
+      )
+
+      // Get original leader info for system message
+      const originalLeader = await db.collection('users').findOne({ id: fromUserId })
+
+      // Emit system message
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'leadership_transfer_declined',
+        text: `${auth.user.name} declined the leadership transfer from ${originalLeader?.name || 'the leader'}`,
+        metadata: {
+          fromUserId: fromUserId,
+          declinedByUserId: auth.user.id
+        }
+      })
+
+      return handleCORS(NextResponse.json({
+        message: 'Leadership transfer declined.'
+      }))
+    }
+
+    // Cancel pending leadership transfer - POST /api/trips/:tripId/transfer-leadership/cancel
+    if (route.match(/^\/trips\/[^/]+\/transfer-leadership\/cancel$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Check if there's a pending transfer
+      if (!trip.pendingLeadershipTransfer) {
+        return handleCORS(NextResponse.json(
+          { error: 'No pending leadership transfer to cancel' },
+          { status: 400 }
+        ))
+      }
+
+      // Only the current leader (who initiated) can cancel
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip leader can cancel a pending transfer' },
+          { status: 403 }
+        ))
+      }
+
+      const toUserId = trip.pendingLeadershipTransfer.toUserId
+
+      // Cancel transfer: clear pending transfer
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $unset: { pendingLeadershipTransfer: '' } }
+      )
+
+      // Get intended recipient info for system message
+      const intendedRecipient = await db.collection('users').findOne({ id: toUserId })
+
+      // Emit system message
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'leadership_transfer_canceled',
+        text: `${auth.user.name} canceled the leadership transfer to ${intendedRecipient?.name || 'another member'}`,
+        metadata: {
+          canceledByUserId: auth.user.id,
+          intendedRecipientUserId: toUserId
+        }
+      })
+
+      return handleCORS(NextResponse.json({
+        message: 'Leadership transfer canceled.'
       }))
     }
 
