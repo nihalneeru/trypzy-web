@@ -1,17 +1,19 @@
 /**
- * API tests for transfer-leadership endpoint
+ * API tests for leadership transfer endpoints
  *
  * Tests:
- * - POST /api/trips/:tripId/transfer-leadership
+ * - POST /api/trips/:tripId/transfer-leadership (initiate pending transfer)
+ * - POST /api/trips/:tripId/transfer-leadership/accept
+ * - POST /api/trips/:tripId/transfer-leadership/decline
+ * - POST /api/trips/:tripId/transfer-leadership/cancel
  *
  * Verifies:
  * - Authentication required
- * - Trip not found handling
- * - Only current leader can transfer
- * - Cannot transfer to self
- * - New leader must be an active traveler
- * - Successful transfer updates createdBy
- * - System message emitted on transfer
+ * - Pending transfer workflow
+ * - Only one pending transfer at a time
+ * - Accept/decline by recipient only
+ * - Cancel by initiator only
+ * - Leadership can be transferred multiple times
  */
 
 import { MongoClient } from 'mongodb'
@@ -121,7 +123,7 @@ describe('Transfer Leadership API', () => {
     await db.collection('chat_events').deleteMany({ tripId })
   }
 
-  describe('POST /api/trips/:tripId/transfer-leadership', () => {
+  describe('POST /api/trips/:tripId/transfer-leadership (initiate)', () => {
     it('should return 401 when not authenticated', async () => {
       const tripId = 'trip-transfer-noauth'
 
@@ -190,7 +192,7 @@ describe('Transfer Leadership API', () => {
       await db.collection('users').deleteMany({ id: leaderId })
     })
 
-    it('should return 403 when non-leader tries to transfer leadership', async () => {
+    it('should return 403 when non-leader tries to initiate transfer', async () => {
       const leaderId = 'leader-transfer-perm'
       const travelerId = 'traveler-transfer-perm'
       const circleId = 'circle-transfer-perm'
@@ -254,9 +256,7 @@ describe('Transfer Leadership API', () => {
       await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId] })
     })
 
-    it('should return 403 when new leader is not a circle member (non-active traveler)', async () => {
-      // For collaborative trips, being a circle member is enough to be "active traveler"
-      // So we test with a user who is NOT a circle member at all
+    it('should return 403 when new leader is not an active traveler', async () => {
       const leaderId = 'leader-transfer-inactive'
       const outsiderId = 'outsider-transfer'
       const circleId = 'circle-transfer-inactive'
@@ -289,52 +289,10 @@ describe('Transfer Leadership API', () => {
       await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, outsiderId] })
     })
 
-    it('should return 403 when new leader has left the trip', async () => {
-      const leaderId = 'leader-transfer-left'
-      const leftId = 'left-transfer'
-      const circleId = 'circle-transfer-left'
-
-      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
-      await createTestUser({ id: leftId, name: 'Left User', email: 'left@test.com' })
-      await createTestCircle({ id: circleId, ownerId: leaderId })
-      const trip = await createTestTrip({ ownerId: leaderId, circleId })
-      await addMembership({ userId: leaderId, circleId, role: 'owner' })
-      await addMembership({ userId: leftId, circleId, role: 'member' })
-      await addParticipant({ tripId: trip.id, userId: leaderId })
-      await addParticipant({ tripId: trip.id, userId: leftId, status: 'left' })
-
-      const token = createToken(leaderId)
-      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
-      const request = new NextRequest(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ newLeaderId: leftId })
-      })
-
-      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
-
-      // Note: For collaborative trips, the isActiveTraveler check returns true for circle members
-      // unless they have an explicit 'left' or 'removed' status in trip_participants.
-      // The test verifies either 403 (if properly rejected) or 200 (if edge case handling allows it)
-      // as the implementation may vary based on how trip participation is tracked.
-      if (response.status === 403) {
-        const data = await response.json()
-        expect(data.error).toContain('New leader must be an active traveler')
-      } else {
-        // If the transfer succeeds, it means the implementation allows this edge case
-        expect(response.status).toBe(200)
-      }
-
-      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, leftId] })
-    })
-
-    it('should successfully transfer leadership to an active traveler', async () => {
-      const leaderId = 'leader-transfer-success'
-      const travelerId = 'traveler-transfer-success'
-      const circleId = 'circle-transfer-success'
+    it('should create pending transfer when valid', async () => {
+      const leaderId = 'leader-transfer-pending'
+      const travelerId = 'traveler-transfer-pending'
+      const circleId = 'circle-transfer-pending'
 
       await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
       await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
@@ -360,29 +318,50 @@ describe('Transfer Leadership API', () => {
 
       expect(response.status).toBe(200)
       const data = await response.json()
-      expect(data.message).toContain('Leadership transferred successfully')
-      expect(data.newLeaderId).toBe(travelerId)
+      expect(data.message).toContain('Waiting for acceptance')
+      expect(data.pendingLeadershipTransfer).toBeDefined()
+      expect(data.pendingLeadershipTransfer.toUserId).toBe(travelerId)
+      expect(data.pendingLeadershipTransfer.fromUserId).toBe(leaderId)
 
-      // Verify trip createdBy is updated
+      // Verify trip still has original leader
       const updatedTrip = await db.collection('trips').findOne({ id: trip.id })
-      expect(updatedTrip.createdBy).toBe(travelerId)
+      expect(updatedTrip.createdBy).toBe(leaderId)
+      expect(updatedTrip.pendingLeadershipTransfer).toBeDefined()
 
       await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
     })
 
-    it('should emit a system message on successful transfer', async () => {
-      const leaderId = 'leader-transfer-msg'
-      const travelerId = 'traveler-transfer-msg'
-      const circleId = 'circle-transfer-msg'
+    it('should return 400 when pending transfer already exists', async () => {
+      const leaderId = 'leader-transfer-dup'
+      const travelerId = 'traveler-transfer-dup'
+      const traveler2Id = 'traveler2-transfer-dup'
+      const circleId = 'circle-transfer-dup'
 
       await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
       await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestUser({ id: traveler2Id, name: 'Traveler2', email: 'traveler2@test.com' })
       await createTestCircle({ id: circleId, ownerId: leaderId })
       const trip = await createTestTrip({ ownerId: leaderId, circleId })
       await addMembership({ userId: leaderId, circleId, role: 'owner' })
       await addMembership({ userId: travelerId, circleId, role: 'member' })
+      await addMembership({ userId: traveler2Id, circleId, role: 'member' })
       await addParticipant({ tripId: trip.id, userId: leaderId })
       await addParticipant({ tripId: trip.id, userId: travelerId })
+      await addParticipant({ tripId: trip.id, userId: traveler2Id })
+
+      // Create pending transfer
+      await db.collection('trips').updateOne(
+        { id: trip.id },
+        {
+          $set: {
+            pendingLeadershipTransfer: {
+              toUserId: travelerId,
+              fromUserId: leaderId,
+              createdAt: new Date().toISOString()
+            }
+          }
+        }
+      )
 
       const token = createToken(leaderId)
       const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
@@ -392,86 +371,24 @@ describe('Transfer Leadership API', () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ newLeaderId: travelerId })
+        body: JSON.stringify({ newLeaderId: traveler2Id })
       })
 
       const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
 
-      expect(response.status).toBe(200)
-
-      // Verify system message was emitted (if the chat event system is enabled in test environment)
-      const systemMessage = await db.collection('chat_events').findOne({
-        tripId: trip.id,
-        subtype: 'leadership_transferred'
-      })
-
-      // System message may or may not be created depending on test environment configuration
-      if (systemMessage) {
-        expect(systemMessage.text).toContain('transferred trip leadership')
-        expect(systemMessage.metadata.previousLeaderId).toBe(leaderId)
-        expect(systemMessage.metadata.newLeaderId).toBe(travelerId)
-      }
-
-      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
-    })
-
-    it('should allow new leader to perform leader-only actions after transfer', async () => {
-      const leaderId = 'leader-transfer-action'
-      const travelerId = 'traveler-transfer-action'
-      const circleId = 'circle-transfer-action'
-
-      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
-      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
-      await createTestCircle({ id: circleId, ownerId: leaderId })
-      const trip = await createTestTrip({ ownerId: leaderId, circleId })
-      await addMembership({ userId: leaderId, circleId, role: 'owner' })
-      await addMembership({ userId: travelerId, circleId, role: 'member' })
-      await addParticipant({ tripId: trip.id, userId: leaderId })
-      await addParticipant({ tripId: trip.id, userId: travelerId })
-
-      // Transfer leadership
-      const leaderToken = createToken(leaderId)
-      const transferUrl = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
-      const transferRequest = new NextRequest(transferUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${leaderToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ newLeaderId: travelerId })
-      })
-
-      await POST(transferRequest, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
-
-      // Now the new leader should be able to transfer leadership again
-      const newLeaderToken = createToken(travelerId)
-      const secondTransferUrl = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
-      const secondTransferRequest = new NextRequest(secondTransferUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${newLeaderToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ newLeaderId: leaderId })
-      })
-
-      const response = await POST(secondTransferRequest, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
-
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(400)
       const data = await response.json()
-      expect(data.newLeaderId).toBe(leaderId)
+      expect(data.error).toContain('already pending')
 
-      // Verify final state
-      const finalTrip = await db.collection('trips').findOne({ id: trip.id })
-      expect(finalTrip.createdBy).toBe(leaderId)
-
-      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId, traveler2Id] })
     })
+  })
 
-    it('should prevent old leader from performing leader actions after transfer', async () => {
-      const leaderId = 'leader-transfer-old'
-      const travelerId = 'traveler-transfer-old'
-      const circleId = 'circle-transfer-old'
+  describe('POST /api/trips/:tripId/transfer-leadership/accept', () => {
+    it('should return 400 when no pending transfer exists', async () => {
+      const leaderId = 'leader-accept-none'
+      const travelerId = 'traveler-accept-none'
+      const circleId = 'circle-accept-none'
 
       await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
       await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
@@ -479,41 +396,545 @@ describe('Transfer Leadership API', () => {
       const trip = await createTestTrip({ ownerId: leaderId, circleId })
       await addMembership({ userId: leaderId, circleId, role: 'owner' })
       await addMembership({ userId: travelerId, circleId, role: 'member' })
-      await addParticipant({ tripId: trip.id, userId: leaderId })
-      await addParticipant({ tripId: trip.id, userId: travelerId })
 
-      // Transfer leadership
-      const leaderToken = createToken(leaderId)
-      const transferUrl = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
-      const transferRequest = new NextRequest(transferUrl, {
+      const token = createToken(travelerId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/accept`)
+      const request = new NextRequest(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${leaderToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ newLeaderId: travelerId })
+        }
       })
 
-      await POST(transferRequest, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'accept'] } })
 
-      // Old leader should no longer be able to transfer leadership
-      const secondTransferUrl = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
-      const secondTransferRequest = new NextRequest(secondTransferUrl, {
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toContain('No pending leadership transfer')
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+    })
+
+    it('should return 403 when non-recipient tries to accept', async () => {
+      const leaderId = 'leader-accept-wrong'
+      const travelerId = 'traveler-accept-wrong'
+      const otherId = 'other-accept-wrong'
+      const circleId = 'circle-accept-wrong'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestUser({ id: otherId, name: 'Other', email: 'other@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: travelerId, circleId, role: 'member' })
+      await addMembership({ userId: otherId, circleId, role: 'member' })
+
+      // Create pending transfer to travelerId
+      await db.collection('trips').updateOne(
+        { id: trip.id },
+        {
+          $set: {
+            pendingLeadershipTransfer: {
+              toUserId: travelerId,
+              fromUserId: leaderId,
+              createdAt: new Date().toISOString()
+            }
+          }
+        }
+      )
+
+      // otherId tries to accept
+      const token = createToken(otherId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/accept`)
+      const request = new NextRequest(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${leaderToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ newLeaderId: travelerId })
+        }
       })
 
-      const response = await POST(secondTransferRequest, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'accept'] } })
 
       expect(response.status).toBe(403)
       const data = await response.json()
-      expect(data.error).toContain('Only the trip leader can transfer leadership')
+      expect(data.error).toContain('Only the intended recipient')
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId, otherId] })
+    })
+
+    it('should successfully transfer leadership on accept', async () => {
+      const leaderId = 'leader-accept-success'
+      const travelerId = 'traveler-accept-success'
+      const circleId = 'circle-accept-success'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: travelerId, circleId, role: 'member' })
+      await addParticipant({ tripId: trip.id, userId: leaderId })
+      await addParticipant({ tripId: trip.id, userId: travelerId })
+
+      // Create pending transfer
+      await db.collection('trips').updateOne(
+        { id: trip.id },
+        {
+          $set: {
+            pendingLeadershipTransfer: {
+              toUserId: travelerId,
+              fromUserId: leaderId,
+              createdAt: new Date().toISOString()
+            }
+          }
+        }
+      )
+
+      const token = createToken(travelerId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/accept`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'accept'] } })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.message).toContain('accepted')
+      expect(data.newLeaderId).toBe(travelerId)
+
+      // Verify trip has new leader and no pending transfer
+      const updatedTrip = await db.collection('trips').findOne({ id: trip.id })
+      expect(updatedTrip.createdBy).toBe(travelerId)
+      expect(updatedTrip.pendingLeadershipTransfer).toBeUndefined()
 
       await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+    })
+  })
+
+  describe('POST /api/trips/:tripId/transfer-leadership/decline', () => {
+    it('should return 400 when no pending transfer exists', async () => {
+      const leaderId = 'leader-decline-none'
+      const travelerId = 'traveler-decline-none'
+      const circleId = 'circle-decline-none'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+
+      const token = createToken(travelerId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/decline`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'decline'] } })
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toContain('No pending leadership transfer')
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+    })
+
+    it('should return 403 when non-recipient tries to decline', async () => {
+      const leaderId = 'leader-decline-wrong'
+      const travelerId = 'traveler-decline-wrong'
+      const otherId = 'other-decline-wrong'
+      const circleId = 'circle-decline-wrong'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestUser({ id: otherId, name: 'Other', email: 'other@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+
+      // Create pending transfer to travelerId
+      await db.collection('trips').updateOne(
+        { id: trip.id },
+        {
+          $set: {
+            pendingLeadershipTransfer: {
+              toUserId: travelerId,
+              fromUserId: leaderId,
+              createdAt: new Date().toISOString()
+            }
+          }
+        }
+      )
+
+      // otherId tries to decline
+      const token = createToken(otherId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/decline`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'decline'] } })
+
+      expect(response.status).toBe(403)
+      const data = await response.json()
+      expect(data.error).toContain('Only the intended recipient')
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId, otherId] })
+    })
+
+    it('should clear pending transfer on decline', async () => {
+      const leaderId = 'leader-decline-success'
+      const travelerId = 'traveler-decline-success'
+      const circleId = 'circle-decline-success'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+
+      // Create pending transfer
+      await db.collection('trips').updateOne(
+        { id: trip.id },
+        {
+          $set: {
+            pendingLeadershipTransfer: {
+              toUserId: travelerId,
+              fromUserId: leaderId,
+              createdAt: new Date().toISOString()
+            }
+          }
+        }
+      )
+
+      const token = createToken(travelerId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/decline`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'decline'] } })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.message).toContain('declined')
+
+      // Verify trip still has original leader and no pending transfer
+      const updatedTrip = await db.collection('trips').findOne({ id: trip.id })
+      expect(updatedTrip.createdBy).toBe(leaderId)
+      expect(updatedTrip.pendingLeadershipTransfer).toBeUndefined()
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+    })
+  })
+
+  describe('POST /api/trips/:tripId/transfer-leadership/cancel', () => {
+    it('should return 400 when no pending transfer exists', async () => {
+      const leaderId = 'leader-cancel-none'
+      const circleId = 'circle-cancel-none'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+
+      const token = createToken(leaderId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/cancel`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'cancel'] } })
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toContain('No pending leadership transfer')
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId] })
+    })
+
+    it('should return 403 when non-leader tries to cancel', async () => {
+      const leaderId = 'leader-cancel-wrong'
+      const travelerId = 'traveler-cancel-wrong'
+      const circleId = 'circle-cancel-wrong'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+
+      // Create pending transfer
+      await db.collection('trips').updateOne(
+        { id: trip.id },
+        {
+          $set: {
+            pendingLeadershipTransfer: {
+              toUserId: travelerId,
+              fromUserId: leaderId,
+              createdAt: new Date().toISOString()
+            }
+          }
+        }
+      )
+
+      // travelerId tries to cancel
+      const token = createToken(travelerId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/cancel`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'cancel'] } })
+
+      expect(response.status).toBe(403)
+      const data = await response.json()
+      expect(data.error).toContain('Only the trip leader')
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+    })
+
+    it('should clear pending transfer on cancel', async () => {
+      const leaderId = 'leader-cancel-success'
+      const travelerId = 'traveler-cancel-success'
+      const circleId = 'circle-cancel-success'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+
+      // Create pending transfer
+      await db.collection('trips').updateOne(
+        { id: trip.id },
+        {
+          $set: {
+            pendingLeadershipTransfer: {
+              toUserId: travelerId,
+              fromUserId: leaderId,
+              createdAt: new Date().toISOString()
+            }
+          }
+        }
+      )
+
+      const token = createToken(leaderId)
+      const url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/cancel`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'cancel'] } })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.message).toContain('canceled')
+
+      // Verify trip still has original leader and no pending transfer
+      const updatedTrip = await db.collection('trips').findOne({ id: trip.id })
+      expect(updatedTrip.createdBy).toBe(leaderId)
+      expect(updatedTrip.pendingLeadershipTransfer).toBeUndefined()
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId] })
+    })
+  })
+
+  describe('Multiple transfers', () => {
+    it('should allow leadership to be transferred multiple times', async () => {
+      const user1Id = 'user1-multi'
+      const user2Id = 'user2-multi'
+      const user3Id = 'user3-multi'
+      const circleId = 'circle-multi'
+
+      await createTestUser({ id: user1Id, name: 'User1', email: 'user1@test.com' })
+      await createTestUser({ id: user2Id, name: 'User2', email: 'user2@test.com' })
+      await createTestUser({ id: user3Id, name: 'User3', email: 'user3@test.com' })
+      await createTestCircle({ id: circleId, ownerId: user1Id })
+      const trip = await createTestTrip({ ownerId: user1Id, circleId })
+      await addMembership({ userId: user1Id, circleId, role: 'owner' })
+      await addMembership({ userId: user2Id, circleId, role: 'member' })
+      await addMembership({ userId: user3Id, circleId, role: 'member' })
+      await addParticipant({ tripId: trip.id, userId: user1Id })
+      await addParticipant({ tripId: trip.id, userId: user2Id })
+      await addParticipant({ tripId: trip.id, userId: user3Id })
+
+      // First transfer: user1 -> user2
+      let token = createToken(user1Id)
+      let url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
+      let request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newLeaderId: user2Id })
+      })
+      await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
+
+      // user2 accepts
+      token = createToken(user2Id)
+      url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/accept`)
+      request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'accept'] } })
+
+      // Verify user2 is now leader
+      let updatedTrip = await db.collection('trips').findOne({ id: trip.id })
+      expect(updatedTrip.createdBy).toBe(user2Id)
+
+      // Second transfer: user2 -> user3
+      token = createToken(user2Id)
+      url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
+      request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newLeaderId: user3Id })
+      })
+      await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
+
+      // user3 accepts
+      token = createToken(user3Id)
+      url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/accept`)
+      request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'accept'] } })
+
+      // Verify user3 is now leader
+      updatedTrip = await db.collection('trips').findOne({ id: trip.id })
+      expect(updatedTrip.createdBy).toBe(user3Id)
+
+      // Third transfer: user3 -> user1 (back to original)
+      token = createToken(user3Id)
+      url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
+      request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newLeaderId: user1Id })
+      })
+      await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
+
+      // user1 accepts
+      token = createToken(user1Id)
+      url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/accept`)
+      request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'accept'] } })
+
+      expect(response.status).toBe(200)
+
+      // Verify user1 is leader again
+      updatedTrip = await db.collection('trips').findOne({ id: trip.id })
+      expect(updatedTrip.createdBy).toBe(user1Id)
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [user1Id, user2Id, user3Id] })
+    })
+
+    it('should allow new leader to initiate transfer after accepting', async () => {
+      const leaderId = 'leader-chain'
+      const travelerId = 'traveler-chain'
+      const traveler2Id = 'traveler2-chain'
+      const circleId = 'circle-chain'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: travelerId, name: 'Traveler', email: 'traveler@test.com' })
+      await createTestUser({ id: traveler2Id, name: 'Traveler2', email: 'traveler2@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      const trip = await createTestTrip({ ownerId: leaderId, circleId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: travelerId, circleId, role: 'member' })
+      await addMembership({ userId: traveler2Id, circleId, role: 'member' })
+      await addParticipant({ tripId: trip.id, userId: leaderId })
+      await addParticipant({ tripId: trip.id, userId: travelerId })
+      await addParticipant({ tripId: trip.id, userId: traveler2Id })
+
+      // First: leader initiates transfer to traveler
+      let token = createToken(leaderId)
+      let url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
+      let request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newLeaderId: travelerId })
+      })
+      await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
+
+      // traveler accepts
+      token = createToken(travelerId)
+      url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership/accept`)
+      request = new NextRequest(url, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      })
+      await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership', 'accept'] } })
+
+      // Now traveler (new leader) can initiate transfer to traveler2
+      token = createToken(travelerId)
+      url = new URL(`http://localhost:3000/api/trips/${trip.id}/transfer-leadership`)
+      request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ newLeaderId: traveler2Id })
+      })
+      const response = await POST(request, { params: { path: ['trips', trip.id, 'transfer-leadership'] } })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.pendingLeadershipTransfer.toUserId).toBe(traveler2Id)
+      expect(data.pendingLeadershipTransfer.fromUserId).toBe(travelerId)
+
+      await cleanupTestData({ tripId: trip.id, circleId, userIds: [leaderId, travelerId, traveler2Id] })
     })
   })
 })

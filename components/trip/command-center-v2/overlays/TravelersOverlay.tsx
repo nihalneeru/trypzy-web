@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft } from 'lucide-react'
+import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
 
@@ -115,6 +115,9 @@ export function TravelersOverlay({
   const [leaving, setLeaving] = useState(false)
   const [canceling, setCanceling] = useState(false)
   const [transferring, setTransferring] = useState(false)
+  const [acceptingTransfer, setAcceptingTransfer] = useState(false)
+  const [decliningTransfer, setDecliningTransfer] = useState(false)
+  const [cancelingTransfer, setCancelingTransfer] = useState(false)
   const [joinRequests, setJoinRequests] = useState<any[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
   const [processingRequest, setProcessingRequest] = useState<string | null>(null)
@@ -126,6 +129,11 @@ export function TravelersOverlay({
   const activeLabel = completed ? 'Went' : 'Going'
   const currentUserId = user?.id
   const tripLeaderUserId = trip?.createdBy
+
+  // Pending leadership transfer info
+  const pendingTransfer = trip?.viewer?.pendingLeadershipTransfer || trip?.pendingLeadershipTransfer || null
+  const isPendingLeader = trip?.viewer?.isPendingLeader || false
+  const hasPendingTransfer = !!pendingTransfer
 
   // Get participants with status from trip data
   const participantsWithStatus = trip?.participantsWithStatus || []
@@ -319,15 +327,69 @@ export function TravelersOverlay({
         method: 'POST',
         body: JSON.stringify({ newLeaderId: selectedNewLeader })
       }, token)
-      toast.success('Leadership transferred successfully')
+      toast.success('Leadership transfer request sent')
       setSelectedNewLeader('')
       setShowStandaloneTransferDialog(false)
       onRefresh()
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to transfer leadership'
+      const errorMessage = err.message || 'Failed to initiate leadership transfer'
       toast.error(errorMessage)
     } finally {
       setTransferring(false)
+    }
+  }
+
+  // Accept pending leadership transfer
+  const handleAcceptTransfer = async () => {
+    if (!trip?.id || !token) return
+
+    setAcceptingTransfer(true)
+    try {
+      await api(`/trips/${trip.id}/transfer-leadership/accept`, {
+        method: 'POST'
+      }, token)
+      toast.success('You are now the trip leader!')
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to accept transfer')
+    } finally {
+      setAcceptingTransfer(false)
+    }
+  }
+
+  // Decline pending leadership transfer
+  const handleDeclineTransfer = async () => {
+    if (!trip?.id || !token) return
+
+    setDecliningTransfer(true)
+    try {
+      await api(`/trips/${trip.id}/transfer-leadership/decline`, {
+        method: 'POST'
+      }, token)
+      toast.success('Leadership transfer declined')
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to decline transfer')
+    } finally {
+      setDecliningTransfer(false)
+    }
+  }
+
+  // Cancel pending leadership transfer (leader only)
+  const handleCancelPendingTransfer = async () => {
+    if (!trip?.id || !token) return
+
+    setCancelingTransfer(true)
+    try {
+      await api(`/trips/${trip.id}/transfer-leadership/cancel`, {
+        method: 'POST'
+      }, token)
+      toast.success('Leadership transfer canceled')
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel transfer')
+    } finally {
+      setCancelingTransfer(false)
     }
   }
 
@@ -341,8 +403,107 @@ export function TravelersOverlay({
     )
   }
 
+  // Find the pending recipient's name for display
+  const pendingRecipientName = useMemo(() => {
+    if (!pendingTransfer?.toUserId) return null
+    const participant = activeParticipants.find(
+      (p: any) => (p.user?.id || p.userId) === pendingTransfer.toUserId
+    )
+    return participant?.user?.name || 'a member'
+  }, [pendingTransfer, activeParticipants])
+
   return (
     <div className="space-y-6">
+      {/* Pending Leadership Transfer Section */}
+      {hasPendingTransfer && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+            Pending Leadership Transfer
+          </h3>
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="py-4 px-4">
+              {isPendingLeader ? (
+                // Show to pending recipient
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm text-gray-900">
+                        You've been asked to lead this trip
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Accept to become the trip leader, or decline to keep the current leader.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-8">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDeclineTransfer}
+                      disabled={decliningTransfer || acceptingTransfer}
+                      className="text-gray-600"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      {decliningTransfer ? 'Declining...' : 'Decline'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleAcceptTransfer}
+                      disabled={acceptingTransfer || decliningTransfer}
+                      className="bg-brand-blue hover:opacity-90"
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      {acceptingTransfer ? 'Accepting...' : 'Accept Leadership'}
+                    </Button>
+                  </div>
+                </div>
+              ) : isTripLeader ? (
+                // Show to current leader who initiated the transfer
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm text-gray-900">
+                        Waiting for {pendingRecipientName} to accept leadership
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        They need to accept before the transfer is complete.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="ml-8">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCancelPendingTransfer}
+                      disabled={cancelingTransfer}
+                      className="text-gray-600"
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      {cancelingTransfer ? 'Canceling...' : 'Cancel Transfer'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                // Show to other members (read-only notice)
+                <div className="flex items-start gap-3">
+                  <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm text-gray-900">
+                      Leadership transfer pending
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {pendingRecipientName} has been asked to become the trip leader.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Join Requests Section (Trip Leader only) */}
       {isTripLeader && (
         <div>
@@ -512,7 +673,7 @@ export function TravelersOverlay({
       )}
 
       {/* Leader Actions Section */}
-      {canLeaveLeader && hasEligibleSuccessors && (
+      {canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer && (
         <div className="pt-4 border-t border-gray-200">
           <Button
             variant="outline"
@@ -527,7 +688,7 @@ export function TravelersOverlay({
 
       {/* Leave Trip Section */}
       {(canLeaveNonLeader || canLeaveLeader) && (
-        <div className={canLeaveLeader && hasEligibleSuccessors ? "pt-2" : "pt-4 border-t border-gray-200"}>
+        <div className={(canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer) ? "pt-2" : "pt-4 border-t border-gray-200"}>
           {canLeaveNonLeader && (
             <Button
               variant="outline"
@@ -538,7 +699,7 @@ export function TravelersOverlay({
               Leave Trip
             </Button>
           )}
-          {canLeaveLeader && (
+          {canLeaveLeader && !hasPendingTransfer && (
             <Button
               variant="outline"
               className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -547,6 +708,11 @@ export function TravelersOverlay({
               <LogOut className="h-4 w-4 mr-2" />
               {hasEligibleSuccessors ? 'Leave Trip' : 'Cancel Trip'}
             </Button>
+          )}
+          {canLeaveLeader && hasPendingTransfer && (
+            <p className="text-xs text-gray-500 text-center">
+              Resolve the pending transfer before leaving.
+            </p>
           )}
         </div>
       )}
@@ -659,7 +825,7 @@ export function TravelersOverlay({
           <DialogHeader>
             <DialogTitle>Transfer Leadership</DialogTitle>
             <DialogDescription>
-              Transfer trip leadership to another active traveler. You will remain as a traveler on the trip.
+              Request to transfer trip leadership to another active traveler. They'll need to accept before becoming the new leader. You will remain as a traveler on the trip.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -702,7 +868,7 @@ export function TravelersOverlay({
               onClick={handleStandaloneTransfer}
               disabled={!selectedNewLeader || transferring}
             >
-              {transferring ? 'Transferring...' : 'Transfer Leadership'}
+              {transferring ? 'Sending...' : 'Send Request'}
             </Button>
           </DialogFooter>
         </DialogContent>
