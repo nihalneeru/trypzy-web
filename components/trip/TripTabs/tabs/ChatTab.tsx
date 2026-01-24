@@ -76,8 +76,9 @@ export function ChatTab({
   // Check if viewer is read-only (left trip or trip is canceled)
   // Use prop if provided, otherwise compute from trip data
   const viewer = trip?.viewer || {}
-  const viewerIsReadOnly = isReadOnly !== undefined ? isReadOnly : (!viewer.isActiveParticipant || viewer.participantStatus === 'left' || trip?.status === 'canceled')
-  const readOnlyPlaceholder = trip?.status === 'canceled' 
+  const isCancelled = trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
+  const viewerIsReadOnly = isReadOnly !== undefined ? isReadOnly : (!viewer.isActiveParticipant || viewer.participantStatus === 'left' || isCancelled)
+  const readOnlyPlaceholder = isCancelled
     ? 'Trip is canceled'
     : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
     ? "You've left this trip"

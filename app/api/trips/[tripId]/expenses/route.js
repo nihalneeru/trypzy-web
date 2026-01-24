@@ -130,7 +130,15 @@ export async function POST(request, { params }) {
         { status: 404 }
       ))
     }
-    
+
+    // Block modifications on cancelled trips
+    if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+      return handleCORS(NextResponse.json(
+        { error: 'This trip has been canceled and is read-only' },
+        { status: 400 }
+      ))
+    }
+
     // Check if user is an active traveler
     const isTraveler = await isActiveTraveler(db, trip, auth.user.id)
     if (!isTraveler) {
@@ -139,7 +147,7 @@ export async function POST(request, { params }) {
         { status: 403 }
       ))
     }
-    
+
     // Validate that paidByUserId and all splitBetweenUserIds are travelers
     // Match isActiveTraveler logic: for collaborative trips, all circle members are valid
     // unless they have a trip_participants record with status left/removed
@@ -291,7 +299,15 @@ export async function DELETE(request, { params }) {
         { status: 404 }
       ))
     }
-    
+
+    // Block modifications on cancelled trips
+    if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+      return handleCORS(NextResponse.json(
+        { error: 'This trip has been canceled and is read-only' },
+        { status: 400 }
+      ))
+    }
+
     // Check if user is an active traveler
     const isTraveler = await isActiveTraveler(db, trip, auth.user.id)
     if (!isTraveler) {

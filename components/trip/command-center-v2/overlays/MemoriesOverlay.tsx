@@ -90,7 +90,7 @@ export function MemoriesOverlay({
   const [discoverable, setDiscoverable] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.status === 'canceled'
+  const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
 
   useEffect(() => {
     if (trip?.id) {

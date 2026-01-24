@@ -462,10 +462,19 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
 
   // Determine if viewer is read-only
   const viewer = trip?.viewer || {}
-  const isReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || trip?.status === 'canceled'
+  const isCancelled = trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
+  const isReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || isCancelled
 
   return (
     <div className="flex flex-col h-full bg-white relative">
+      {/* Cancelled Trip Banner */}
+      {isCancelled && (
+        <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center justify-center gap-2">
+          <span className="text-gray-600 text-sm font-medium">🚫 This trip has been canceled</span>
+          <span className="text-gray-500 text-xs">(read-only)</span>
+        </div>
+      )}
+
       {/* Focus Banner with Blocker */}
       <div ref={focusBannerRef}>
         <FocusBanner
