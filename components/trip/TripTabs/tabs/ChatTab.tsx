@@ -641,13 +641,46 @@ export function ChatTab({
     return getBlockingUsers(trip, user)
   }, [trip, user])
   
+  const shouldShowInitialBlocking = useMemo(() => {
+    if (!blockingInfo || blockingInfo.reasonCode !== 'initial_scheduling') return false
+    if (!Array.isArray(messages)) return false
+    const hasNonCreateSystemMessage = messages.some((m: any) =>
+      m.isSystem && m.metadata?.key && m.metadata.key !== 'trip_created'
+    )
+    const hasUserMessage = messages.some((m: any) => !m.isSystem)
+    return !hasNonCreateSystemMessage && !hasUserMessage
+  }, [blockingInfo, messages])
+
+  const [allowInitialBlocking, setAllowInitialBlocking] = useState(false)
+
+  useEffect(() => {
+    if (!blockingInfo || blockingInfo.reasonCode !== 'initial_scheduling') {
+      setAllowInitialBlocking(false)
+      return
+    }
+    if (!shouldShowInitialBlocking || !trip?.id || !user?.id) {
+      setAllowInitialBlocking(false)
+      return
+    }
+    const storageKey = `trypzy.initial_scheduling.${trip.id}.${user.id}`
+    const seen = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : '1'
+    if (seen) {
+      setAllowInitialBlocking(false)
+      return
+    }
+    setAllowInitialBlocking(true)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(storageKey, '1')
+    }
+  }, [blockingInfo, shouldShowInitialBlocking, trip?.id, user?.id])
+
   // Chat content (shared between legacy and command-center modes)
   const chatContent = (
     <>
       <ScrollArea ref={scrollAreaRef} className={`flex-1 pr-4 ${isCommandCenter ? 'h-[400px]' : ''}`}>
           <div className="space-y-4">
             {/* Waiting on... clarity message (system style, at top) */}
-            {blockingInfo && (
+            {blockingInfo && (blockingInfo.reasonCode !== 'initial_scheduling' || allowInitialBlocking) && (
               <div className="flex justify-center">
                 <div className="bg-blue-50 border border-blue-200 rounded-full px-4 py-2 text-sm text-blue-700">
                   ⏳ {blockingInfo.message}

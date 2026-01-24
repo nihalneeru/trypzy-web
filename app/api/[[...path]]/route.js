@@ -756,13 +756,19 @@ async function handleRoute(request, { params }) {
         // Legacy date fields (kept for backward compatibility)
         startDate: startDate || null,
         endDate: endDate || null,
-        duration: duration || 3,
+        // Duration: for hosted trips, derive from dates; for collaborative, store as soft preference (null = no preference)
+        duration: isHosted && startDate && endDate
+          ? Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1
+          : (duration || null),
         // Scheduling configuration
         schedulingMode,
         // For collaborative: optional planning bounds; for hosted: ignored (dates are locked)
         startBound: !isHosted ? (body.startBound || startDate || null) : null,
         endBound: !isHosted ? (body.endBound || endDate || null) : null,
-        tripLengthDays: body.tripLengthDays || duration || 3,
+        // tripLengthDays: soft preference, not enforced (null = no preference)
+        tripLengthDays: isHosted && startDate && endDate
+          ? Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1
+          : (body.tripLengthDays || duration || null),
         // Status and lock state
         tripStatus: 'ACTIVE', // Lifecycle status: ACTIVE | CANCELLED | COMPLETED
         status: isHosted ? 'locked' : 'proposed',

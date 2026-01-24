@@ -44,7 +44,7 @@ export function CircleOnboardingInterstitial({
     type: 'collaborative',
     startDate: '',
     endDate: '',
-    duration: 3
+    duration: ''
   })
   const [creating, setCreating] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
@@ -59,13 +59,17 @@ export function CircleOnboardingInterstitial({
     setCreating(true)
     
     try {
+      const payload = { ...tripForm, circleId: circle.id }
+      if (!tripForm.duration) {
+        delete payload.duration
+      }
       const response = await fetch('/api/trips', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ ...tripForm, circleId: circle.id })
+        body: JSON.stringify(payload)
       })
       
       const data = await response.json()
@@ -220,16 +224,16 @@ export function CircleOnboardingInterstitial({
             {tripForm.type === 'collaborative' && (
               <div className="space-y-2">
                 <Label>Trip Duration (days)</Label>
-                <Select 
-                  value={tripForm.duration.toString()} 
-                  onValueChange={(v) => setTripForm({ ...tripForm, duration: parseInt(v) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[2, 3, 4, 5, 6, 7].map((d) => (
-                      <SelectItem key={d} value={d.toString()}>{d} days</SelectItem>
+              <Select 
+                value={tripForm.duration ? tripForm.duration.toString() : ''}
+                onValueChange={(v) => setTripForm({ ...tripForm, duration: v ? parseInt(v) : '' })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select duration (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2, 3, 4, 5, 6, 7].map((d) => (
+                    <SelectItem key={d} value={d.toString()}>{d} days</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

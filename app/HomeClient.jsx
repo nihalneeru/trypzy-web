@@ -2588,7 +2588,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     type: 'collaborative',
     startDate: '',
     endDate: '',
-    duration: 3
+    duration: ''
   })
   const [creating, setCreating] = useState(false)
   const [updates, setUpdates] = useState([])
@@ -2646,14 +2646,18 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
     setCreating(true)
     
     try {
+      const payload = { ...tripForm, circleId: circle.id }
+      if (!tripForm.duration) {
+        delete payload.duration
+      }
       await api('/trips', {
         method: 'POST',
-        body: JSON.stringify({ ...tripForm, circleId: circle.id })
+        body: JSON.stringify(payload)
       }, token)
       
       toast.success('Trip created!')
       setShowCreateTrip(false)
-      setTripForm({ name: '', description: '', type: 'collaborative', startDate: '', endDate: '', duration: 3 })
+      setTripForm({ name: '', description: '', type: 'collaborative', startDate: '', endDate: '', duration: '' })
       onRefresh()
     } catch (error) {
       toast.error(error.message)
@@ -2869,11 +2873,11 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                     <div className="space-y-2">
                       <Label>Trip Duration (days)</Label>
                       <Select 
-                        value={tripForm.duration.toString()} 
-                        onValueChange={(v) => setTripForm({ ...tripForm, duration: parseInt(v) })}
+                        value={tripForm.duration ? tripForm.duration.toString() : ''}
+                        onValueChange={(v) => setTripForm({ ...tripForm, duration: v ? parseInt(v) : '' })}
                       >
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Select duration (optional)" />
                         </SelectTrigger>
                         <SelectContent>
                           {[2, 3, 4, 5, 6, 7].map((d) => (
