@@ -2921,6 +2921,29 @@ async function handleRoute(request, { params }) {
       const { WINDOW_CONFIG } = await import('@/lib/trips/normalizeWindow.js')
       const userWindowCount = windows.filter(w => w.proposedBy === auth.user.id).length
 
+      // Compute approval summary if there's a proposed window
+      let approvalSummary = null
+      if (trip.proposedWindowId) {
+        const reactions = trip.proposedWindowReactions || []
+        const approvals = reactions.filter(r => r.reactionType === 'WORKS').length
+        const caveats = reactions.filter(r => r.reactionType === 'CAVEAT').length
+        const cants = reactions.filter(r => r.reactionType === 'CANT').length
+        const requiredApprovals = Math.ceil(travelers.length / 2)
+        const userReaction = reactions.find(r => r.userId === auth.user.id)
+
+        approvalSummary = {
+          approvals,
+          caveats,
+          cants,
+          totalReactions: reactions.length,
+          requiredApprovals,
+          memberCount: travelers.length,
+          readyToLock: approvals >= requiredApprovals,
+          userReaction: userReaction?.reactionType || null,
+          reactions  // Full list for UI to display
+        }
+      }
+
       return handleCORS(NextResponse.json({
         phase,
         windows: enrichedWindows,
@@ -2930,7 +2953,8 @@ async function handleRoute(request, { params }) {
         isLeader: trip.createdBy === auth.user.id,
         userWindowCount,
         maxWindows: WINDOW_CONFIG.MAX_WINDOWS_PER_USER,
-        canCreateWindow: phase === 'COLLECTING' && userWindowCount < WINDOW_CONFIG.MAX_WINDOWS_PER_USER
+        canCreateWindow: phase === 'COLLECTING' && userWindowCount < WINDOW_CONFIG.MAX_WINDOWS_PER_USER,
+        approvalSummary
       }))
     }
 
@@ -3352,14 +3376,15 @@ async function handleRoute(request, { params }) {
         }, { status: 400 }))
       }
 
-      // Set the proposed window
+      // Set the proposed window and clear any previous reactions
       await db.collection('trips').updateOne(
         { id: tripId },
         {
           $set: {
             proposedWindowId: windowId,
             proposedAt: new Date().toISOString(),
-            proposedByOverride: leaderOverride
+            proposedByOverride: leaderOverride,
+            proposedWindowReactions: []  // Clear reactions for new proposal
           }
         }
       )
@@ -3409,14 +3434,15 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: validation.message }, { status: validation.status }))
       }
 
-      // Clear the proposed window
+      // Clear the proposed window and reactions
       await db.collection('trips').updateOne(
         { id: tripId },
         {
           $unset: {
             proposedWindowId: '',
             proposedAt: '',
-            proposedByOverride: ''
+            proposedByOverride: '',
+            proposedWindowReactions: ''
           }
         }
       )
@@ -3441,6 +3467,117 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // React to proposed window - POST /api/trips/:id/proposed-window/react
+    // Travelers react with WORKS, CAVEAT, or CANT to the proposed dates
+    if (route.match(/^\/trips\/[^/]+\/proposed-window\/react$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { reactionType, note } = body
+
+      const validReactions = ['WORKS', 'CAVEAT', 'CANT']
+      if (!reactionType || !validReactions.includes(reactionType)) {
+        return handleCORS(NextResponse.json(
+          { error: 'reactionType must be WORKS, CAVEAT, or CANT' },
+          { status: 400 }
+        ))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      if (trip.type !== 'collaborative') {
+        return handleCORS(NextResponse.json({ error: 'Only collaborative trips support reactions' }, { status: 400 }))
+      }
+
+      // Must have an active proposed window
+      if (!trip.proposedWindowId) {
+        return handleCORS(NextResponse.json({ error: 'No dates are proposed to react to' }, { status: 400 }))
+      }
+
+      if (trip.status === 'locked' || trip.lockedStartDate) {
+        return handleCORS(NextResponse.json({ error: 'Dates are already locked' }, { status: 400 }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
+      }
+
+      // Check active participant
+      const userParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      if (userParticipant && (userParticipant.status === 'left' || userParticipant.status === 'removed')) {
+        return handleCORS(NextResponse.json({ error: 'You have left this trip' }, { status: 403 }))
+      }
+
+      const now = new Date().toISOString()
+
+      // Remove existing reaction from this user, then add new one
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $pull: { proposedWindowReactions: { userId: auth.user.id } } }
+      )
+
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $push: {
+            proposedWindowReactions: {
+              userId: auth.user.id,
+              userName: auth.user.name,
+              reactionType,
+              note: note || null,
+              createdAt: now
+            }
+          }
+        }
+      )
+
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+
+      // Compute approval status for response
+      const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+      const participants = await db.collection('trip_participants').find({ tripId }).toArray()
+      const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
+      let memberCount = 0
+      for (const m of circleMemberships) {
+        const status = statusMap.get(m.userId)
+        if (!status || status === 'active') memberCount++
+      }
+
+      const reactions = updatedTrip.proposedWindowReactions || []
+      const approvals = reactions.filter(r => r.reactionType === 'WORKS').length
+      const caveats = reactions.filter(r => r.reactionType === 'CAVEAT').length
+      const cants = reactions.filter(r => r.reactionType === 'CANT').length
+      const requiredApprovals = Math.ceil(memberCount / 2)
+
+      return handleCORS(NextResponse.json({
+        trip: updatedTrip,
+        approvalSummary: {
+          approvals,
+          caveats,
+          cants,
+          totalReactions: reactions.length,
+          requiredApprovals,
+          memberCount,
+          readyToLock: approvals >= requiredApprovals
+        }
+      }))
+    }
+
     // Lock dates from proposed window - POST /api/trips/:id/lock-proposed
     // Locks the currently proposed window (new funnel flow)
     if (route.match(/^\/trips\/[^/]+\/lock-proposed$/) && method === 'POST') {
@@ -3450,6 +3587,15 @@ async function handleRoute(request, { params }) {
       }
 
       const tripId = path[1]
+
+      // Parse body for optional leaderOverride flag
+      let body = {}
+      try {
+        body = await request.json()
+      } catch {
+        // Empty body is fine
+      }
+      const { leaderOverride = false } = body
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -3478,6 +3624,35 @@ async function handleRoute(request, { params }) {
       const proposedWindow = await db.collection('date_windows').findOne({ id: trip.proposedWindowId })
       if (!proposedWindow) {
         return handleCORS(NextResponse.json({ error: 'Proposed window not found' }, { status: 404 }))
+      }
+
+      // Check approval threshold (unless leader override)
+      if (!leaderOverride) {
+        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const participants = await db.collection('trip_participants').find({ tripId }).toArray()
+        const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
+        let memberCount = 0
+        for (const m of circleMemberships) {
+          const status = statusMap.get(m.userId)
+          if (!status || status === 'active') memberCount++
+        }
+
+        const reactions = trip.proposedWindowReactions || []
+        const approvals = reactions.filter(r => r.reactionType === 'WORKS').length
+        const requiredApprovals = Math.ceil(memberCount / 2)
+
+        if (approvals < requiredApprovals) {
+          return handleCORS(NextResponse.json({
+            error: `Not enough approvals to lock dates. Need ${requiredApprovals}, have ${approvals}. You can lock anyway by using the override option.`,
+            code: 'INSUFFICIENT_APPROVALS',
+            approvalSummary: {
+              approvals,
+              requiredApprovals,
+              memberCount,
+              reactions
+            }
+          }, { status: 400 }))
+        }
       }
 
       // Lock the dates
