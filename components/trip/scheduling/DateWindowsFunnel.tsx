@@ -130,6 +130,12 @@ export function DateWindowsFunnel({
   const [newDateText, setNewDateText] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Manual date entry fallback (when normalization fails)
+  const [showManualEntry, setShowManualEntry] = useState(false)
+  const [manualStartDate, setManualStartDate] = useState('')
+  const [manualEndDate, setManualEndDate] = useState('')
+  const [normalizationError, setNormalizationError] = useState<string | null>(null)
+
   // Similarity nudge state
   const [similarWindowId, setSimilarWindowId] = useState<string | null>(null)
   const [similarScore, setSimilarScore] = useState<number | null>(null)
@@ -191,6 +197,7 @@ export function DateWindowsFunnel({
 
     try {
       setSubmitting(true)
+      setNormalizationError(null)
       const response = await fetch(`/api/trips/${trip.id}/date-windows`, {
         method: 'POST',
         headers: {
@@ -206,6 +213,11 @@ export function DateWindowsFunnel({
       const data = await response.json()
 
       if (!response.ok) {
+        // Check if this is a normalization error - offer to accept anyway
+        if (data.error && (data.error.includes('Could not understand') || data.error.includes('one date range at a time'))) {
+          setNormalizationError(data.error)
+          return
+        }
         throw new Error(data.error || 'Failed to add dates')
       }
 
@@ -219,11 +231,7 @@ export function DateWindowsFunnel({
       }
 
       toast.success('Dates added')
-      setNewDateText('')
-      setPendingWindowText('')
-      setShowAddWindow(false)
-      setShowSimilarNudge(false)
-      setSimilarWindowId(null)
+      resetFormState()
       await fetchWindows()
       onRefresh()
     } catch (err: any) {
@@ -231,6 +239,108 @@ export function DateWindowsFunnel({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Handle manual date entry (fallback when normalization fails)
+  const handleManualSubmit = async (acknowledgeOverlap = false) => {
+    if (!manualStartDate || !manualEndDate) {
+      toast.error('Please enter both start and end dates')
+      return
+    }
+
+    if (manualStartDate > manualEndDate) {
+      toast.error('Start date must be before end date')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      const response = await fetch(`/api/trips/${trip.id}/date-windows`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: manualStartDate,
+          endDate: manualEndDate,
+          acknowledgeOverlap
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add dates')
+      }
+
+      // Check if API is asking for overlap acknowledgement
+      if (data.requiresAcknowledgement && data.similarWindowId) {
+        setSimilarWindowId(data.similarWindowId)
+        setSimilarScore(data.similarScore)
+        setShowSimilarNudge(true)
+        return
+      }
+
+      toast.success('Dates added')
+      resetFormState()
+      await fetchWindows()
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle force accept (when normalization fails but user wants to proceed)
+  const handleForceAccept = async () => {
+    if (!newDateText.trim()) {
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      const response = await fetch(`/api/trips/${trip.id}/date-windows`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: newDateText,
+          forceAccept: true
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add dates')
+      }
+
+      toast.success('Dates added')
+      resetFormState()
+      await fetchWindows()
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Reset all form state
+  const resetFormState = () => {
+    setNewDateText('')
+    setPendingWindowText('')
+    setShowAddWindow(false)
+    setShowSimilarNudge(false)
+    setSimilarWindowId(null)
+    setShowManualEntry(false)
+    setManualStartDate('')
+    setManualEndDate('')
+    setNormalizationError(null)
   }
 
   // Handle supporting a window
@@ -586,27 +696,62 @@ export function DateWindowsFunnel({
               {/* Free-form text input */}
               {!showSimilarNudge && (
                 <>
-                  <div>
-                    <Label htmlFor="dateText" className="text-sm">When could you do this trip?</Label>
-                    <Input
-                      id="dateText"
-                      type="text"
-                      value={newDateText}
-                      onChange={(e) => setNewDateText(e.target.value)}
-                      placeholder="e.g., Feb 7-9, early March, first weekend of April"
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Examples: "Feb 7-9", "mid March", "late April"
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => handleAddWindow(false)}
-                    disabled={submitting || !newDateText.trim()}
-                    className="w-full bg-brand-blue hover:bg-brand-blue/90"
-                  >
-                    {submitting ? 'Adding...' : 'Add these dates'}
-                  </Button>
+                  {/* Show normalization error with accept anyway option */}
+                  {normalizationError && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                      <p className="text-sm text-amber-800 mb-2">
+                        {normalizationError}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setNormalizationError(null)
+                            setNewDateText('')
+                          }}
+                          className="flex-1"
+                        >
+                          Try again
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleForceAccept()}
+                          disabled={submitting}
+                          className="flex-1 bg-brand-blue hover:bg-brand-blue/90"
+                        >
+                          {submitting ? 'Adding...' : 'Accept anyway'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Free-form text input (hidden when showing error) */}
+                  {!normalizationError && (
+                    <>
+                      <div>
+                        <Label htmlFor="dateText" className="text-sm">When could you do this trip?</Label>
+                        <Input
+                          id="dateText"
+                          type="text"
+                          value={newDateText}
+                          onChange={(e) => setNewDateText(e.target.value)}
+                          placeholder="e.g., Feb 7-9, early March, first weekend of April"
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Examples: "Feb 7-9", "mid March", "late April"
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleAddWindow(false)}
+                        disabled={submitting || !newDateText.trim()}
+                        className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                      >
+                        {submitting ? 'Adding...' : 'Add these dates'}
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
             </CardContent>
@@ -642,9 +787,12 @@ export function DateWindowsFunnel({
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-brand-carbon">
-                          {formatDate(window.startDate)} – {formatDate(window.endDate)}
+                          {window.precision === 'unstructured'
+                            ? `"${window.sourceText}"`
+                            : `${formatDate(window.startDate)} – ${formatDate(window.endDate)}`
+                          }
                         </span>
                         {isLeading && (
                           <Badge variant="outline" className="text-xs bg-brand-blue/10 text-brand-blue border-brand-blue/30">
@@ -654,6 +802,11 @@ export function DateWindowsFunnel({
                         {window.precision === 'approx' && (
                           <Badge variant="outline" className="text-xs">
                             ~approx
+                          </Badge>
+                        )}
+                        {window.precision === 'unstructured' && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                            flexible
                           </Badge>
                         )}
                       </div>

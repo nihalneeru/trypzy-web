@@ -2856,7 +2856,7 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { startDate, endDate, text, acknowledgeOverlap } = body
+      const { startDate, endDate, text, acknowledgeOverlap, forceAccept } = body
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -2908,7 +2908,7 @@ async function handleRoute(request, { params }) {
       let normalizedStart, normalizedEnd, precision, sourceText
 
       if (text && typeof text === 'string' && text.trim()) {
-        // Free-form text input - normalize it
+        // Free-form text input - try to normalize it
         sourceText = text.trim()
         const context = {
           startBound: trip.startBound || trip.startDate,
@@ -2916,11 +2916,19 @@ async function handleRoute(request, { params }) {
         }
         const normResult = normalizeWindow(sourceText, context)
         if (normResult.error) {
-          return handleCORS(NextResponse.json({ error: normResult.error }, { status: 400 }))
+          // If forceAccept is true, accept the text as-is without normalized dates
+          if (forceAccept) {
+            normalizedStart = null
+            normalizedEnd = null
+            precision = 'unstructured'
+          } else {
+            return handleCORS(NextResponse.json({ error: normResult.error }, { status: 400 }))
+          }
+        } else {
+          normalizedStart = normResult.startISO
+          normalizedEnd = normResult.endISO
+          precision = normResult.precision
         }
-        normalizedStart = normResult.startISO
-        normalizedEnd = normResult.endISO
-        precision = normResult.precision
       } else if (startDate && endDate) {
         // Structured input - validate format
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/
@@ -2948,40 +2956,44 @@ async function handleRoute(request, { params }) {
         }, { status: 400 }))
       }
 
-      // Validate dates are within trip bounds
-      const boundsCheck = validateWindowBounds(
-        normalizedStart,
-        normalizedEnd,
-        trip.startBound || trip.startDate,
-        trip.endBound || trip.endDate
-      )
-      if (!boundsCheck.valid) {
-        return handleCORS(NextResponse.json({ error: boundsCheck.error }, { status: 400 }))
-      }
+      // Only validate dates if we have normalized dates (skip for unstructured)
+      let similarMatch = null
+      if (precision !== 'unstructured' && normalizedStart && normalizedEnd) {
+        // Validate dates are within trip bounds
+        const boundsCheck = validateWindowBounds(
+          normalizedStart,
+          normalizedEnd,
+          trip.startBound || trip.startDate,
+          trip.endBound || trip.endDate
+        )
+        if (!boundsCheck.valid) {
+          return handleCORS(NextResponse.json({ error: boundsCheck.error }, { status: 400 }))
+        }
 
-      // Check for exact duplicate (same normalized dates by same user)
-      const exactDuplicate = existingWindows.find(w =>
-        w.proposedBy === auth.user.id &&
-        (w.normalizedStart || w.startDate) === normalizedStart &&
-        (w.normalizedEnd || w.endDate) === normalizedEnd
-      )
-      if (exactDuplicate) {
-        return handleCORS(NextResponse.json({ error: 'You have already proposed this date range' }, { status: 400 }))
-      }
+        // Check for exact duplicate (same normalized dates by same user)
+        const exactDuplicate = existingWindows.find(w =>
+          w.proposedBy === auth.user.id &&
+          (w.normalizedStart || w.startDate) === normalizedStart &&
+          (w.normalizedEnd || w.endDate) === normalizedEnd
+        )
+        if (exactDuplicate) {
+          return handleCORS(NextResponse.json({ error: 'You have already proposed this date range' }, { status: 400 }))
+        }
 
-      // Check for similar windows (overlap detection)
-      const newWindowForComparison = { startISO: normalizedStart, endISO: normalizedEnd }
-      const similarMatch = getMostSimilarWindow(newWindowForComparison, existingWindows)
+        // Check for similar windows (overlap detection)
+        const newWindowForComparison = { startISO: normalizedStart, endISO: normalizedEnd }
+        similarMatch = getMostSimilarWindow(newWindowForComparison, existingWindows)
 
-      // If similar window found and user hasn't acknowledged, return nudge without creating
-      if (similarMatch && !acknowledgeOverlap) {
-        return handleCORS(NextResponse.json({
-          similarWindowId: similarMatch.windowId,
-          similarScore: similarMatch.score,
-          pendingWindow: { normalizedStart, normalizedEnd, sourceText, precision },
-          message: 'Similar date range exists. Support it or create anyway.',
-          requiresAcknowledgement: true
-        }))
+        // If similar window found and user hasn't acknowledged, return nudge without creating
+        if (similarMatch && !acknowledgeOverlap) {
+          return handleCORS(NextResponse.json({
+            similarWindowId: similarMatch.windowId,
+            similarScore: similarMatch.score,
+            pendingWindow: { normalizedStart, normalizedEnd, sourceText, precision },
+            message: 'Similar date range exists. Support it or create anyway.',
+            requiresAcknowledgement: true
+          }))
+        }
       }
 
       // Create window with normalized fields
@@ -3021,14 +3033,17 @@ async function handleRoute(request, { params }) {
 
       // Emit chat event
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
-      const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const formatDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null
+      const chatText = precision === 'unstructured'
+        ? `📅 ${auth.user.name} proposed dates: "${sourceText}"`
+        : `📅 ${auth.user.name} proposed dates: ${formatDate(normalizedStart)}–${formatDate(normalizedEnd)}`
       await emitTripChatEvent({
         tripId,
         circleId: trip.circleId,
         actorUserId: auth.user.id,
         subtype: 'window_proposed',
-        text: `📅 ${auth.user.name} proposed dates: ${formatDate(normalizedStart)}–${formatDate(normalizedEnd)}`,
-        metadata: { windowId, startDate: normalizedStart, endDate: normalizedEnd }
+        text: chatText,
+        metadata: { windowId, startDate: normalizedStart, endDate: normalizedEnd, sourceText }
       })
 
       // Build response with similarity info if applicable
