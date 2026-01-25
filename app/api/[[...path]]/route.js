@@ -2755,7 +2755,523 @@ async function handleRoute(request, { params }) {
       // Client-side stage computation (deriveTripPrimaryStage) will handle the rest
       return handleCORS(NextResponse.json(updatedTrip))
     }
-    
+
+    // ============================================
+    // DATE-LOCKING FUNNEL V2 ENDPOINTS
+    // Phases: COLLECTING → PROPOSED → LOCKED
+    // ============================================
+
+    // Get date windows - GET /api/trips/:id/date-windows
+    // Returns windows with support counts and proposal readiness
+    if (route.match(/^\/trips\/[^/]+\/date-windows$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
+      }
+
+      // Get windows and supports
+      const windows = await db.collection('date_windows').find({ tripId }).sort({ createdAt: 1 }).toArray()
+      const supports = await db.collection('window_supports').find({ tripId }).toArray()
+
+      // Get travelers for proposal readiness calculation
+      const { computeProposalReady, getSchedulingPhase } = await import('@/lib/trips/proposalReady.js')
+
+      let travelers = []
+      if (trip.type === 'collaborative') {
+        const memberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const participants = await db.collection('trip_participants').find({ tripId }).toArray()
+        const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
+
+        travelers = memberships
+          .filter(m => {
+            const status = statusMap.get(m.userId)
+            return !status || status === 'active'
+          })
+          .map(m => ({ id: m.userId }))
+      } else {
+        const participants = await db.collection('trip_participants').find({ tripId, status: 'active' }).toArray()
+        travelers = participants.map(p => ({ id: p.userId }))
+      }
+
+      // Compute proposal readiness
+      const proposalStatus = computeProposalReady(trip, travelers, windows, supports)
+      const phase = getSchedulingPhase(trip)
+
+      // Enrich windows with support counts
+      const enrichedWindows = windows.map(w => {
+        const windowSupports = supports.filter(s => s.windowId === w.id)
+        return {
+          ...w,
+          supportCount: windowSupports.length,
+          supporterIds: windowSupports.map(s => s.userId),
+          isProposed: trip.proposedWindowId === w.id
+        }
+      })
+
+      // Check if current user supports each window
+      const userSupports = supports.filter(s => s.userId === auth.user.id)
+      const userSupportedWindowIds = new Set(userSupports.map(s => s.windowId))
+
+      return handleCORS(NextResponse.json({
+        phase,
+        windows: enrichedWindows,
+        proposalStatus,
+        userSupportedWindowIds: Array.from(userSupportedWindowIds),
+        proposedWindowId: trip.proposedWindowId || null,
+        isLeader: trip.createdBy === auth.user.id
+      }))
+    }
+
+    // Create date window - POST /api/trips/:id/date-windows
+    // Blocked when in PROPOSED phase
+    if (route.match(/^\/trips\/[^/]+\/date-windows$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { startDate, endDate } = body
+
+      if (!startDate || !endDate) {
+        return handleCORS(NextResponse.json({ error: 'startDate and endDate are required' }, { status: 400 }))
+      }
+
+      // Validate date format
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+        return handleCORS(NextResponse.json({ error: 'Dates must be in YYYY-MM-DD format' }, { status: 400 }))
+      }
+
+      if (startDate > endDate) {
+        return handleCORS(NextResponse.json({ error: 'startDate must be before or equal to endDate' }, { status: 400 }))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
+
+      // Validate stage action (blocks in PROPOSED and LOCKED phases)
+      const validation = validateStageAction(trip, 'submit_date_window', auth.user.id, circle)
+      if (!validation.ok) {
+        return handleCORS(NextResponse.json({ error: validation.message }, { status: validation.status }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
+      }
+
+      // Check if user is active participant
+      const isActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isActive) {
+        return handleCORS(NextResponse.json({ error: 'You are not an active participant in this trip' }, { status: 403 }))
+      }
+
+      // Check for duplicate window (same dates by same user)
+      const existingWindow = await db.collection('date_windows').findOne({
+        tripId,
+        proposedBy: auth.user.id,
+        startDate,
+        endDate
+      })
+      if (existingWindow) {
+        return handleCORS(NextResponse.json({ error: 'You have already proposed this date range' }, { status: 400 }))
+      }
+
+      // Create window
+      const windowId = uuidv4()
+      const window = {
+        id: windowId,
+        tripId,
+        proposedBy: auth.user.id,
+        startDate,
+        endDate,
+        createdAt: new Date().toISOString()
+      }
+      await db.collection('date_windows').insertOne(window)
+
+      // Auto-support the window you created
+      await db.collection('window_supports').insertOne({
+        id: uuidv4(),
+        windowId,
+        tripId,
+        userId: auth.user.id,
+        createdAt: new Date().toISOString()
+      })
+
+      // Auto-transition from proposed to scheduling on first window
+      if (trip.status === 'proposed') {
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { status: 'scheduling' } }
+        )
+      }
+
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'window_proposed',
+        text: `📅 ${auth.user.name} proposed dates: ${formatDate(startDate)}–${formatDate(endDate)}`,
+        metadata: { windowId, startDate, endDate }
+      })
+
+      return handleCORS(NextResponse.json({ window, message: 'Date window created' }))
+    }
+
+    // Support a date window - POST /api/trips/:id/date-windows/:windowId/support
+    if (route.match(/^\/trips\/[^/]+\/date-windows\/[^/]+\/support$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const windowId = path[3]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
+
+      // Validate stage action
+      const validation = validateStageAction(trip, 'support_window', auth.user.id, circle)
+      if (!validation.ok) {
+        return handleCORS(NextResponse.json({ error: validation.message }, { status: validation.status }))
+      }
+
+      // Check window exists
+      const window = await db.collection('date_windows').findOne({ id: windowId, tripId })
+      if (!window) {
+        return handleCORS(NextResponse.json({ error: 'Window not found' }, { status: 404 }))
+      }
+
+      // Check if user is active participant
+      const isActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isActive) {
+        return handleCORS(NextResponse.json({ error: 'You are not an active participant in this trip' }, { status: 403 }))
+      }
+
+      // Check if already supporting
+      const existingSupport = await db.collection('window_supports').findOne({
+        windowId,
+        userId: auth.user.id
+      })
+      if (existingSupport) {
+        return handleCORS(NextResponse.json({ error: 'You already support this window' }, { status: 400 }))
+      }
+
+      // Add support
+      await db.collection('window_supports').insertOne({
+        id: uuidv4(),
+        windowId,
+        tripId,
+        userId: auth.user.id,
+        createdAt: new Date().toISOString()
+      })
+
+      return handleCORS(NextResponse.json({ message: 'Support added' }))
+    }
+
+    // Remove support from a date window - DELETE /api/trips/:id/date-windows/:windowId/support
+    if (route.match(/^\/trips\/[^/]+\/date-windows\/[^/]+\/support$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const windowId = path[3]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
+
+      // Validate stage action
+      const validation = validateStageAction(trip, 'support_window', auth.user.id, circle)
+      if (!validation.ok) {
+        return handleCORS(NextResponse.json({ error: validation.message }, { status: validation.status }))
+      }
+
+      // Remove support
+      const result = await db.collection('window_supports').deleteOne({
+        windowId,
+        tripId,
+        userId: auth.user.id
+      })
+
+      if (result.deletedCount === 0) {
+        return handleCORS(NextResponse.json({ error: 'Support not found' }, { status: 404 }))
+      }
+
+      return handleCORS(NextResponse.json({ message: 'Support removed' }))
+    }
+
+    // Propose dates - POST /api/trips/:id/propose-dates
+    // Leader proposes a window. Gated by proposalReady || leaderOverride
+    if (route.match(/^\/trips\/[^/]+\/propose-dates$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { windowId, leaderOverride = false } = body
+
+      if (!windowId) {
+        return handleCORS(NextResponse.json({ error: 'windowId is required' }, { status: 400 }))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
+
+      // Validate stage action (checks leader permission, blocks if already proposed or locked)
+      const validation = validateStageAction(trip, 'propose_dates', auth.user.id, circle)
+      if (!validation.ok) {
+        return handleCORS(NextResponse.json({ error: validation.message }, { status: validation.status }))
+      }
+
+      // Check window exists
+      const window = await db.collection('date_windows').findOne({ id: windowId, tripId })
+      if (!window) {
+        return handleCORS(NextResponse.json({ error: 'Window not found' }, { status: 404 }))
+      }
+
+      // Get travelers and supports for proposal readiness check
+      const { canLeaderPropose } = await import('@/lib/trips/proposalReady.js')
+
+      let travelers = []
+      if (trip.type === 'collaborative') {
+        const memberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const participants = await db.collection('trip_participants').find({ tripId }).toArray()
+        const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
+
+        travelers = memberships
+          .filter(m => {
+            const status = statusMap.get(m.userId)
+            return !status || status === 'active'
+          })
+          .map(m => ({ id: m.userId }))
+      } else {
+        const participants = await db.collection('trip_participants').find({ tripId, status: 'active' }).toArray()
+        travelers = participants.map(p => ({ id: p.userId }))
+      }
+
+      const windows = await db.collection('date_windows').find({ tripId }).toArray()
+      const supports = await db.collection('window_supports').find({ tripId }).toArray()
+
+      // Check if leader can propose (threshold met OR override)
+      const proposalCheck = canLeaderPropose(trip, travelers, windows, supports, leaderOverride)
+      if (!proposalCheck.canPropose) {
+        return handleCORS(NextResponse.json({
+          error: 'Cannot propose dates yet. Not enough travelers have indicated their availability.',
+          proposalStatus: proposalCheck
+        }, { status: 400 }))
+      }
+
+      // Set the proposed window
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $set: {
+            proposedWindowId: windowId,
+            proposedAt: new Date().toISOString(),
+            proposedByOverride: leaderOverride
+          }
+        }
+      )
+
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'dates_proposed',
+        text: `📅 ${auth.user.name} proposed ${formatDate(window.startDate)}–${formatDate(window.endDate)} for the trip`,
+        metadata: { windowId, startDate: window.startDate, endDate: window.endDate }
+      })
+
+      // Get updated trip
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+
+      return handleCORS(NextResponse.json({
+        message: 'Dates proposed',
+        trip: updatedTrip,
+        proposedWindow: window
+      }))
+    }
+
+    // Withdraw proposal - POST /api/trips/:id/withdraw-proposal
+    // Returns trip from PROPOSED back to COLLECTING
+    if (route.match(/^\/trips\/[^/]+\/withdraw-proposal$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
+
+      // Validate stage action (checks leader permission, requires active proposal)
+      const validation = validateStageAction(trip, 'withdraw_proposal', auth.user.id, circle)
+      if (!validation.ok) {
+        return handleCORS(NextResponse.json({ error: validation.message }, { status: validation.status }))
+      }
+
+      // Clear the proposed window
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $unset: {
+            proposedWindowId: '',
+            proposedAt: '',
+            proposedByOverride: ''
+          }
+        }
+      )
+
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'proposal_withdrawn',
+        text: `📅 ${auth.user.name} withdrew the date proposal. You can propose new dates.`,
+        metadata: {}
+      })
+
+      // Get updated trip
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+
+      return handleCORS(NextResponse.json({
+        message: 'Proposal withdrawn',
+        trip: updatedTrip
+      }))
+    }
+
+    // Lock dates from proposed window - POST /api/trips/:id/lock-proposed
+    // Locks the currently proposed window (new funnel flow)
+    if (route.match(/^\/trips\/[^/]+\/lock-proposed$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      const circle = await db.collection('circles').findOne({ id: trip?.circleId })
+
+      // Check leader permission
+      const isLeader = trip.createdBy === auth.user.id || circle?.ownerId === auth.user.id
+      if (!isLeader) {
+        return handleCORS(NextResponse.json({ error: 'Only the trip leader can lock dates' }, { status: 403 }))
+      }
+
+      // Check if already locked
+      if (trip.status === 'locked' || trip.lockedStartDate) {
+        return handleCORS(NextResponse.json({ error: 'Trip dates are already locked' }, { status: 400 }))
+      }
+
+      // Must have a proposed window
+      if (!trip.proposedWindowId) {
+        return handleCORS(NextResponse.json({ error: 'No dates are proposed. Propose dates first.' }, { status: 400 }))
+      }
+
+      // Get the proposed window
+      const proposedWindow = await db.collection('date_windows').findOne({ id: trip.proposedWindowId })
+      if (!proposedWindow) {
+        return handleCORS(NextResponse.json({ error: 'Proposed window not found' }, { status: 404 }))
+      }
+
+      // Lock the dates
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        {
+          $set: {
+            status: 'locked',
+            lockedStartDate: proposedWindow.startDate,
+            lockedEndDate: proposedWindow.endDate,
+            lockedAt: new Date().toISOString(),
+            lockedFromWindowId: proposedWindow.id,
+            itineraryStatus: 'collecting_ideas'
+          }
+        }
+      )
+
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      const formatDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: null,
+        subtype: 'milestone',
+        text: `Dates ${formatDate(proposedWindow.startDate)}–${formatDate(proposedWindow.endDate)} are locked. Itinerary planning is now open — start sharing ideas.`,
+        metadata: {
+          key: 'dates_locked',
+          startDate: proposedWindow.startDate,
+          endDate: proposedWindow.endDate
+        },
+        dedupeKey: `dates_locked_${tripId}`
+      })
+
+      // Get updated trip
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+
+      return handleCORS(NextResponse.json(updatedTrip))
+    }
+
     // Join hosted trip - POST /api/trips/:id/join
     if (route.match(/^\/trips\/[^/]+\/join$/) && method === 'POST') {
       const auth = await requireAuth(request)

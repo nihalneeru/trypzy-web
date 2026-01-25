@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { formatTripDateRange } from '@/lib/utils'
 import { SchedulingFunnelCard } from '@/components/trip/scheduling/SchedulingFunnelCard'
+import { DateWindowsFunnel } from '@/components/trip/scheduling/DateWindowsFunnel'
 
 // Types
 interface DatePick {
@@ -489,6 +490,22 @@ export function SchedulingOverlay({
         token={token}
         user={user}
         memberCount={memberCount}
+        onRefresh={onRefresh}
+        onClose={onClose}
+        setHasUnsavedChanges={setHasUnsavedChanges}
+      />
+    )
+  }
+
+  // Use date windows funnel for 'date_windows' mode trips
+  if (trip.schedulingMode === 'date_windows') {
+    const travelers = trip.travelers || []
+    return (
+      <DateWindowsFunnel
+        trip={trip}
+        token={token}
+        user={user}
+        travelers={travelers}
         onRefresh={onRefresh}
         onClose={onClose}
         setHasUnsavedChanges={setHasUnsavedChanges}
