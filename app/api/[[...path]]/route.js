@@ -495,7 +495,51 @@ async function handleRoute(request, { params }) {
       
       return handleCORS(NextResponse.json(circlesWithCounts.map(({ _id, ...rest }) => rest)))
     }
-    
+
+    // Get circle members - GET /api/circles/:circleId/members
+    if (route.match(/^\/circles\/[^/]+\/members$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const circleId = path[1]
+
+      // Check that requesting user is a member of the circle
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId
+      })
+
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Get all memberships for this circle
+      const memberships = await db.collection('memberships')
+        .find({ circleId })
+        .toArray()
+
+      // Get user info for all members
+      const userIds = memberships.map(m => m.userId)
+      const users = await db.collection('users')
+        .find({ id: { $in: userIds } })
+        .toArray()
+      const userMap = new Map(users.map(u => [u.id, u]))
+
+      const members = memberships.map(m => ({
+        userId: m.userId,
+        userName: userMap.get(m.userId)?.name || 'Unknown',
+        role: m.role || 'member',
+        joinedAt: m.joinedAt
+      }))
+
+      return handleCORS(NextResponse.json(members))
+    }
+
     // Join circle via invite - POST /api/circles/join
     if (route === '/circles/join' && method === 'POST') {
       const auth = await requireAuth(request)
@@ -808,10 +852,56 @@ async function handleRoute(request, { params }) {
           id: uuidv4(),
           tripId: trip.id,
           userId: auth.user.id,
+          status: 'active',
           joinedAt: new Date().toISOString()
         })
+
+        // If invitedUserIds provided, create pending invitations
+        const { invitedUserIds } = body
+        if (invitedUserIds && Array.isArray(invitedUserIds) && invitedUserIds.length > 0) {
+          // Verify all invited users are circle members
+          const circleMemberships = await db.collection('memberships')
+            .find({ circleId, userId: { $in: invitedUserIds } })
+            .toArray()
+          const validUserIds = new Set(circleMemberships.map(m => m.userId))
+
+          // Create invitations for valid users (excluding creator)
+          const invitationsToCreate = invitedUserIds
+            .filter(userId => validUserIds.has(userId) && userId !== auth.user.id)
+            .map(userId => ({
+              id: uuidv4(),
+              tripId: trip.id,
+              circleId: circleId,
+              invitedUserId: userId,
+              invitedBy: auth.user.id,
+              status: 'pending',
+              createdAt: new Date().toISOString()
+            }))
+
+          if (invitationsToCreate.length > 0) {
+            await db.collection('trip_invitations').insertMany(invitationsToCreate)
+
+            // Emit chat event for invitations sent
+            const invitedUsers = await db.collection('users')
+              .find({ id: { $in: invitationsToCreate.map(i => i.invitedUserId) } })
+              .toArray()
+            const invitedNames = invitedUsers.map(u => u.name).join(', ')
+            const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+            await emitTripChatEvent({
+              tripId: trip.id,
+              circleId: circleId,
+              actorUserId: auth.user.id,
+              subtype: 'update',
+              text: `📩 ${auth.user.name} invited ${invitedNames} to the trip`,
+              metadata: {
+                key: 'invitations_sent',
+                invitedUserIds: invitationsToCreate.map(i => i.invitedUserId)
+              }
+            })
+          }
+        }
       }
-      
+
       return handleCORS(NextResponse.json(trip))
     }
     
@@ -4421,6 +4511,257 @@ async function handleRoute(request, { params }) {
       // Return updated request
       const updatedRequest = await db.collection('trip_join_requests').findOne({ id: requestId })
       return handleCORS(NextResponse.json(updatedRequest))
+    }
+
+    // ============ TRIP INVITATIONS ============
+
+    // Get invitations for trip - GET /api/trips/:tripId/invitations
+    // Leader sees all pending invitations, regular users see only their own
+    if (route.match(/^\/trips\/[^/]+\/invitations$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      const isLeader = trip.createdBy === auth.user.id
+
+      // Get invitations based on role
+      const query = isLeader
+        ? { tripId, status: 'pending' }
+        : { tripId, invitedUserId: auth.user.id }
+
+      const invitations = await db.collection('trip_invitations')
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray()
+
+      // Get user info for invited users
+      const userIds = [...new Set(invitations.map(i => i.invitedUserId))]
+      const users = await db.collection('users')
+        .find({ id: { $in: userIds } })
+        .toArray()
+      const userMap = new Map(users.map(u => [u.id, u]))
+
+      // Get inviter info
+      const inviterIds = [...new Set(invitations.map(i => i.invitedBy))]
+      const inviters = await db.collection('users')
+        .find({ id: { $in: inviterIds } })
+        .toArray()
+      const inviterMap = new Map(inviters.map(u => [u.id, u]))
+
+      const invitationsWithUsers = invitations.map(inv => ({
+        id: inv.id,
+        tripId: inv.tripId,
+        invitedUserId: inv.invitedUserId,
+        invitedUserName: userMap.get(inv.invitedUserId)?.name || 'Unknown',
+        invitedBy: inv.invitedBy,
+        inviterName: inviterMap.get(inv.invitedBy)?.name || 'Unknown',
+        status: inv.status,
+        createdAt: inv.createdAt,
+        respondedAt: inv.respondedAt
+      }))
+
+      return handleCORS(NextResponse.json(invitationsWithUsers))
+    }
+
+    // Get current user's invitation - GET /api/trips/:tripId/invitations/me
+    if (route.match(/^\/trips\/[^/]+\/invitations\/me$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const invitation = await db.collection('trip_invitations')
+        .findOne(
+          { tripId, invitedUserId: auth.user.id },
+          { sort: { createdAt: -1 } }
+        )
+
+      if (!invitation) {
+        return handleCORS(NextResponse.json({ status: 'none' }))
+      }
+
+      // Get inviter info
+      const inviter = await db.collection('users').findOne({ id: invitation.invitedBy })
+
+      return handleCORS(NextResponse.json({
+        id: invitation.id,
+        status: invitation.status,
+        inviterName: inviter?.name || 'Unknown',
+        tripId: invitation.tripId,
+        createdAt: invitation.createdAt
+      }))
+    }
+
+    // Accept invitation - POST /api/trips/:tripId/invitations/:invitationId/accept
+    if (route.match(/^\/trips\/[^/]+\/invitations\/[^/]+\/accept$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const invitationId = path[3]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      const invitation = await db.collection('trip_invitations').findOne({
+        id: invitationId,
+        tripId
+      })
+
+      if (!invitation) {
+        return handleCORS(NextResponse.json(
+          { error: 'Invitation not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Only the invited user can accept
+      if (invitation.invitedUserId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'You can only accept your own invitations' },
+          { status: 403 }
+        ))
+      }
+
+      if (invitation.status !== 'pending') {
+        return handleCORS(NextResponse.json(
+          { error: 'This invitation has already been responded to' },
+          { status: 400 }
+        ))
+      }
+
+      const now = new Date().toISOString()
+
+      // Update invitation status
+      await db.collection('trip_invitations').updateOne(
+        { id: invitationId },
+        {
+          $set: {
+            status: 'accepted',
+            respondedAt: now
+          }
+        }
+      )
+
+      // Add as trip participant
+      await db.collection('trip_participants').updateOne(
+        { tripId, userId: auth.user.id },
+        {
+          $set: {
+            tripId,
+            userId: auth.user.id,
+            status: 'active',
+            invitedBy: invitation.invitedBy,
+            joinedAt: now
+          }
+        },
+        { upsert: true }
+      )
+
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: auth.user.id,
+        subtype: 'traveler_joined',
+        text: `✅ ${auth.user.name} accepted the invitation and joined the trip`,
+        metadata: { invitationId }
+      })
+
+      return handleCORS(NextResponse.json({ success: true, status: 'accepted' }))
+    }
+
+    // Decline invitation - POST /api/trips/:tripId/invitations/:invitationId/decline
+    if (route.match(/^\/trips\/[^/]+\/invitations\/[^/]+\/decline$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const invitationId = path[3]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      const invitation = await db.collection('trip_invitations').findOne({
+        id: invitationId,
+        tripId
+      })
+
+      if (!invitation) {
+        return handleCORS(NextResponse.json(
+          { error: 'Invitation not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Only the invited user can decline
+      if (invitation.invitedUserId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'You can only decline your own invitations' },
+          { status: 403 }
+        ))
+      }
+
+      if (invitation.status !== 'pending') {
+        return handleCORS(NextResponse.json(
+          { error: 'This invitation has already been responded to' },
+          { status: 400 }
+        ))
+      }
+
+      const now = new Date().toISOString()
+
+      // Update invitation status
+      await db.collection('trip_invitations').updateOne(
+        { id: invitationId },
+        {
+          $set: {
+            status: 'declined',
+            respondedAt: now
+          }
+        }
+      )
+
+      // Emit chat event
+      const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+      await emitTripChatEvent({
+        tripId,
+        circleId: trip.circleId,
+        actorUserId: null,
+        subtype: 'invitation_declined',
+        text: `${auth.user.name} declined the invitation`,
+        metadata: { invitationId, invitedUserId: auth.user.id }
+      })
+
+      return handleCORS(NextResponse.json({ success: true, status: 'declined' }))
     }
 
     // ============ CHAT ROUTES ============
