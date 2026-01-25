@@ -4764,6 +4764,215 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ success: true, status: 'declined' }))
     }
 
+    // ============ NUDGE ROUTES ============
+
+    // Get nudges for trip - GET /api/trips/:tripId/nudges
+    if (route.match(/^\/trips\/[^/]+\/nudges$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Import nudge modules
+      const { computeNudges } = await import('@/lib/nudges/NudgeEngine')
+      const { computeTripMetrics, buildViewerContext } = await import('@/lib/nudges/metrics')
+      const { filterSuppressedNudges, recordNudgesShown, createChatCardMessage } = await import('@/lib/nudges/store')
+      const { buildChatMessage } = await import('@/lib/nudges/copy')
+
+      // Get data needed for metrics
+      const [windows, participants] = await Promise.all([
+        db.collection('date_windows').find({ tripId }).toArray(),
+        trip.type === 'hosted'
+          ? db.collection('trip_participants').find({ tripId }).toArray()
+          : db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+      ])
+
+      // Compute metrics
+      const metrics = computeTripMetrics({
+        trip: {
+          id: trip.id,
+          name: trip.name,
+          type: trip.type,
+          status: trip.status,
+          createdBy: trip.createdBy,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          lockedStartDate: trip.lockedStartDate,
+          lockedEndDate: trip.lockedEndDate,
+          datesLocked: trip.datesLocked,
+          schedulingMode: trip.schedulingMode,
+          createdAt: trip.createdAt,
+        },
+        windows,
+        participants: participants.map(p => ({
+          odId: p.userId || p.id,
+          status: p.status,
+        })),
+        viewerId: auth.user.id,
+      })
+
+      // Build viewer context
+      const viewer = buildViewerContext(
+        auth.user.id,
+        trip.createdBy,
+        participants.map(p => ({
+          odId: p.userId || p.id,
+          status: p.status,
+        })),
+        windows
+      )
+
+      // Compute nudges
+      const result = computeNudges({
+        trip: {
+          id: trip.id,
+          name: trip.name,
+          type: trip.type,
+          status: trip.status,
+          createdBy: trip.createdBy,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          lockedStartDate: trip.lockedStartDate,
+          lockedEndDate: trip.lockedEndDate,
+          datesLocked: trip.datesLocked,
+          schedulingMode: trip.schedulingMode,
+          createdAt: trip.createdAt,
+        },
+        metrics,
+        viewer,
+      })
+
+      // Filter by dedupe/cooldown
+      const filteredNudges = await filterSuppressedNudges(
+        db,
+        tripId,
+        auth.user.id,
+        result.nudges
+      )
+
+      // Handle chat_card nudges - create chat message if not duplicate
+      for (const nudge of filteredNudges) {
+        if (nudge.channel === 'chat_card') {
+          const messageText = buildChatMessage(nudge.type, nudge.payload)
+          await createChatCardMessage(db, tripId, trip.circleId, nudge, messageText)
+        }
+      }
+
+      // Record nudges as shown
+      if (filteredNudges.length > 0) {
+        await recordNudgesShown(db, tripId, auth.user.id, filteredNudges)
+      }
+
+      return handleCORS(NextResponse.json({
+        nudges: filteredNudges,
+        actionNudge: filteredNudges.find(n =>
+          !['first_availability_submitted', 'availability_half_submitted', 'strong_overlap_detected', 'dates_locked'].includes(n.type)
+        ) || null,
+        celebratorNudge: filteredNudges.find(n =>
+          ['first_availability_submitted', 'availability_half_submitted', 'strong_overlap_detected', 'dates_locked'].includes(n.type)
+        ) || null,
+      }))
+    }
+
+    // Record nudge interaction - POST /api/trips/:tripId/nudges/:nudgeId/:action
+    if (route.match(/^\/trips\/[^/]+\/nudges\/[^/]+\/(click|dismiss)$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const nudgeId = path[3]
+      const action = path[4] // 'click' or 'dismiss'
+
+      const body = await request.json()
+      const { nudgeType, dedupeKey, channel } = body
+
+      if (!nudgeType || !dedupeKey || !channel) {
+        return handleCORS(NextResponse.json(
+          { error: 'Missing required fields: nudgeType, dedupeKey, channel' },
+          { status: 400 }
+        ))
+      }
+
+      const { recordNudgeClick, recordNudgeDismiss } = await import('@/lib/nudges/store')
+
+      if (action === 'click') {
+        await recordNudgeClick(db, tripId, auth.user.id, nudgeId, nudgeType, dedupeKey, channel)
+      } else {
+        await recordNudgeDismiss(db, tripId, auth.user.id, nudgeId, nudgeType, dedupeKey, channel)
+      }
+
+      return handleCORS(NextResponse.json({ success: true }))
+    }
+
+    // Evaluate inline hint - POST /api/trips/:tripId/nudges/evaluate
+    if (route.match(/^\/trips\/[^/]+\/nudges\/evaluate$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { action, currentWindowCount, proposedWindowCoverage, proposedWindowTotal } = body
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      const { evaluateTooManyWindows, evaluateLowCoverageProposal } = await import('@/lib/nudges/NudgeEngine')
+      const { wasNudgeSuppressed } = await import('@/lib/nudges/store')
+
+      let nudge = null
+
+      if (action === 'add_window') {
+        nudge = evaluateTooManyWindows({ action, currentWindowCount }, tripId)
+      } else if (action === 'propose_window') {
+        // Get traveler count
+        const participants = trip.type === 'hosted'
+          ? await db.collection('trip_participants').find({ tripId }).toArray()
+          : await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const travelerCount = participants.filter(p => !p.status || p.status === 'active').length
+
+        nudge = evaluateLowCoverageProposal(
+          { action, proposedWindowCoverage, proposedWindowTotal },
+          tripId,
+          travelerCount
+        )
+      }
+
+      // Check suppression
+      if (nudge) {
+        const suppressed = await wasNudgeSuppressed(db, {
+          tripId,
+          userId: auth.user.id,
+          dedupeKey: nudge.dedupeKey,
+          cooldownHours: nudge.cooldownHours,
+        })
+
+        if (suppressed) {
+          nudge = null
+        }
+      }
+
+      return handleCORS(NextResponse.json({ nudge }))
+    }
+
     // ============ CHAT ROUTES ============
     
     // Get circle messages - GET /api/circles/:id/messages
