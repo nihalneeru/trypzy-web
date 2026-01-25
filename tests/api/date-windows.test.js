@@ -821,7 +821,7 @@ describe('Date Windows API - Date Locking Funnel V2', () => {
       expect(data.similarScore).toBeUndefined()
     })
 
-    it('should still create window even with overlap (user can ignore nudge)', async () => {
+    it('should require acknowledgement before creating overlapping window', async () => {
       // Create an existing window
       await db.collection('date_windows').insertOne({
         id: 'existing-window',
@@ -836,7 +836,9 @@ describe('Date Windows API - Date Locking Funnel V2', () => {
 
       const token = createToken(memberId)
       const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
-      const request = new NextRequest(url, {
+
+      // First request without acknowledgement - should return nudge
+      const request1 = new NextRequest(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -848,15 +850,36 @@ describe('Date Windows API - Date Locking Funnel V2', () => {
         })
       })
 
-      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
-      expect(response.status).toBe(200)
+      const response1 = await POST(request1, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response1.status).toBe(200)
 
-      const data = await response.json()
-      // Window was still created
-      expect(data.window).toBeDefined()
-      expect(data.window.id).toBeDefined()
-      // But similarity was flagged
-      expect(data.similarWindowId).toBe('existing-window')
+      const data1 = await response1.json()
+      // Window NOT created yet - just a nudge
+      expect(data1.requiresAcknowledgement).toBe(true)
+      expect(data1.similarWindowId).toBe('existing-window')
+      expect(data1.window).toBeUndefined()
+
+      // Second request with acknowledgeOverlap - should create the window
+      const request2 = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-10',
+          endDate: '2025-03-15',
+          acknowledgeOverlap: true
+        })
+      })
+
+      const response2 = await POST(request2, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response2.status).toBe(200)
+
+      const data2 = await response2.json()
+      // Window was created
+      expect(data2.window).toBeDefined()
+      expect(data2.window.id).toBeDefined()
     })
   })
 

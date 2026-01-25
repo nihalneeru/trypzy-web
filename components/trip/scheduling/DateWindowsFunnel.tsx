@@ -181,8 +181,8 @@ export function DateWindowsFunnel({
   }, [fetchWindows])
 
   // Handle adding a new window with free-form text
-  const handleAddWindow = async (forceCreate = false) => {
-    const textToSubmit = forceCreate ? pendingWindowText : newDateText
+  const handleAddWindow = async (acknowledgeOverlap = false) => {
+    const textToSubmit = acknowledgeOverlap ? pendingWindowText : newDateText
 
     if (!textToSubmit.trim()) {
       toast.error('Please enter a date range')
@@ -198,7 +198,8 @@ export function DateWindowsFunnel({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          text: textToSubmit
+          text: textToSubmit,
+          acknowledgeOverlap
         })
       })
 
@@ -208,8 +209,8 @@ export function DateWindowsFunnel({
         throw new Error(data.error || 'Failed to add dates')
       }
 
-      // Check if there's a similarity warning
-      if (data.similarWindowId && !forceCreate) {
+      // Check if API is asking for overlap acknowledgement (window not yet created)
+      if (data.requiresAcknowledgement && data.similarWindowId) {
         setSimilarWindowId(data.similarWindowId)
         setSimilarScore(data.similarScore)
         setPendingWindowText(textToSubmit)

@@ -2856,7 +2856,7 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { startDate, endDate, text } = body
+      const { startDate, endDate, text, acknowledgeOverlap } = body
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -2972,6 +2972,17 @@ async function handleRoute(request, { params }) {
       // Check for similar windows (overlap detection)
       const newWindowForComparison = { startISO: normalizedStart, endISO: normalizedEnd }
       const similarMatch = getMostSimilarWindow(newWindowForComparison, existingWindows)
+
+      // If similar window found and user hasn't acknowledged, return nudge without creating
+      if (similarMatch && !acknowledgeOverlap) {
+        return handleCORS(NextResponse.json({
+          similarWindowId: similarMatch.windowId,
+          similarScore: similarMatch.score,
+          pendingWindow: { normalizedStart, normalizedEnd, sourceText, precision },
+          message: 'Similar date range exists. Support it or create anyway.',
+          requiresAcknowledgement: true
+        }))
+      }
 
       // Create window with normalized fields
       const windowId = uuidv4()
