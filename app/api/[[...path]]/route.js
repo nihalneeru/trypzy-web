@@ -3524,9 +3524,9 @@ async function handleRoute(request, { params }) {
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const tripId = path[1]
-      
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -3534,7 +3534,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       if (trip.type !== 'hosted') {
         return handleCORS(NextResponse.json(
           { error: 'Can only join hosted trips' },
@@ -3817,6 +3825,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Only current leader can initiate transfer
       if (trip.createdBy !== auth.user.id) {
         return handleCORS(NextResponse.json(
@@ -3902,6 +3918,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Check if there's a pending transfer
       if (!trip.pendingLeadershipTransfer) {
         return handleCORS(NextResponse.json(
@@ -3983,6 +4007,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Check if there's a pending transfer
       if (!trip.pendingLeadershipTransfer) {
         return handleCORS(NextResponse.json(
@@ -4043,6 +4075,14 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json(
           { error: 'Trip not found' },
           { status: 404 }
+        ))
+      }
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
         ))
       }
 
@@ -4199,11 +4239,11 @@ async function handleRoute(request, { params }) {
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const tripId = path[1]
       const body = await request.json()
       const { message } = body
-      
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -4211,7 +4251,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Check requester is a member of trip.circleId
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
@@ -8657,9 +8705,9 @@ async function handleRoute(request, { params }) {
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const tripId = path[1]
-      
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -8667,7 +8715,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
@@ -8768,9 +8824,9 @@ async function handleRoute(request, { params }) {
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const tripId = path[1]
-      
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -8778,7 +8834,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Only trip creator or circle owner can mark complete
       const circle = await db.collection('circles').findOne({ id: trip.circleId })
       if (trip.createdBy !== auth.user.id && circle?.ownerId !== auth.user.id) {
@@ -8865,7 +8929,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Guard: Must be locked (dates locked)
       if (trip.status !== 'locked') {
         return handleCORS(NextResponse.json(
@@ -9023,10 +9095,10 @@ async function handleRoute(request, { params }) {
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const tripId = path[1]
       const ideaId = path[4]
-      
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -9034,7 +9106,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
@@ -9204,7 +9284,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Guard: Must be locked with valid dates
       if (trip.status !== 'locked') {
         return handleCORS(NextResponse.json(
@@ -9212,7 +9300,7 @@ async function handleRoute(request, { params }) {
           { status: 400 }
         ))
       }
-      
+
       // Validate locked dates exist
       const lockedStartDate = trip.lockedStartDate || trip.startDate
       const lockedEndDate = trip.lockedEndDate || trip.endDate
@@ -9416,18 +9504,18 @@ async function handleRoute(request, { params }) {
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const tripId = path[1]
       const body = await request.json()
       const { itineraryVersion, message, type, target } = body
-      
+
       if (!itineraryVersion || !message || !message.trim()) {
         return handleCORS(NextResponse.json(
           { error: 'Itinerary version and message are required' },
           { status: 400 }
         ))
       }
-      
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -9435,7 +9523,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
@@ -9600,6 +9696,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
@@ -9757,6 +9861,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
@@ -9803,9 +9915,9 @@ async function handleRoute(request, { params }) {
       if (auth.error) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
-      
+
       const tripId = path[1]
-      
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -9813,7 +9925,15 @@ async function handleRoute(request, { params }) {
           { status: 404 }
         ))
       }
-      
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Guard: Must be locked with valid dates
       if (trip.status !== 'locked') {
         return handleCORS(NextResponse.json(
