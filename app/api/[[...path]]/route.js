@@ -739,9 +739,9 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Scheduling mode: collaborative trips use 'funnel' mode (window proposals → date proposal → lock)
+      // Scheduling mode: collaborative trips use 'date_windows' mode (free-form text, caps, overlap)
       // Legacy trips without schedulingMode use top3_heatmap flow
-      const schedulingMode = type === 'hosted' ? null : (body.schedulingMode || 'funnel')
+      const schedulingMode = type === 'hosted' ? null : (body.schedulingMode || 'date_windows')
 
       // For collaborative trips: dates are optional planning bounds, NOT locked
       // For hosted trips: dates are required and locked immediately
