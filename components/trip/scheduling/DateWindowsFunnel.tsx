@@ -50,7 +50,7 @@ interface DateWindow {
   sourceText?: string
   normalizedStart?: string
   normalizedEnd?: string
-  precision?: 'exact' | 'approx'
+  precision?: 'exact' | 'approx' | 'unstructured'
   createdAt: string
   supportCount: number
   supporterIds: string[]
@@ -84,6 +84,7 @@ interface DateWindowsFunnelProps {
 // Format date for display
 function formatDate(dateStr: string): string {
   try {
+    if (!dateStr) return 'Invalid Date'
     return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric'
@@ -91,6 +92,14 @@ function formatDate(dateStr: string): string {
   } catch {
     return dateStr
   }
+}
+
+// Format window for display (handles unstructured windows)
+function formatWindowDisplay(window: { startDate?: string; endDate?: string; sourceText?: string; precision?: string }): string {
+  if (window.precision === 'unstructured' && window.sourceText) {
+    return `"${window.sourceText}"`
+  }
+  return `${formatDate(window.startDate || '')} – ${formatDate(window.endDate || '')}`
 }
 
 /**
@@ -147,6 +156,12 @@ export function DateWindowsFunnel({
   const [showLockConfirm, setShowLockConfirm] = useState(false)
   const [pendingProposeWindowId, setPendingProposeWindowId] = useState<string | null>(null)
   const [useLeaderOverride, setUseLeaderOverride] = useState(false)
+
+  // Concrete dates dialog (for unstructured windows)
+  const [showConcreteDatesDialog, setShowConcreteDatesDialog] = useState(false)
+  const [concreteDatesStart, setConcreteDatesStart] = useState('')
+  const [concreteDatesEnd, setConcreteDatesEnd] = useState('')
+  const [pendingUnstructuredWindow, setPendingUnstructuredWindow] = useState<DateWindow | null>(null)
 
   // Fetch windows data
   const fetchWindows = useCallback(async () => {
@@ -395,7 +410,7 @@ export function DateWindowsFunnel({
   }
 
   // Handle proposing dates (leader only)
-  const handlePropose = async () => {
+  const handlePropose = async (concreteDatesOverride?: { startDate: string; endDate: string }) => {
     if (!pendingProposeWindowId) return
 
     try {
@@ -408,12 +423,23 @@ export function DateWindowsFunnel({
         },
         body: JSON.stringify({
           windowId: pendingProposeWindowId,
-          leaderOverride: useLeaderOverride
+          leaderOverride: useLeaderOverride,
+          ...(concreteDatesOverride && { concreteDates: concreteDatesOverride })
         })
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const data = await response.json()
+        // Check if this is an unstructured window needing concrete dates
+        if (data.code === 'REQUIRES_CONCRETE_DATES') {
+          // Find the window to show in dialog
+          const unstructuredWindow = windows.find(w => w.id === pendingProposeWindowId)
+          setPendingUnstructuredWindow(unstructuredWindow || null)
+          setShowProposeConfirm(false)
+          setShowConcreteDatesDialog(true)
+          return
+        }
         throw new Error(data.error || 'Failed to propose dates')
       }
 
@@ -428,6 +454,27 @@ export function DateWindowsFunnel({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Handle submitting concrete dates for unstructured window
+  const handleConcreteDatesSubmit = async () => {
+    if (!concreteDatesStart || !concreteDatesEnd) {
+      toast.error('Please enter both start and end dates')
+      return
+    }
+
+    if (concreteDatesStart > concreteDatesEnd) {
+      toast.error('Start date must be before end date')
+      return
+    }
+
+    await handlePropose({ startDate: concreteDatesStart, endDate: concreteDatesEnd })
+
+    // Reset concrete dates state on success
+    setShowConcreteDatesDialog(false)
+    setConcreteDatesStart('')
+    setConcreteDatesEnd('')
+    setPendingUnstructuredWindow(null)
   }
 
   // Handle withdrawing proposal (leader only)
@@ -540,7 +587,7 @@ export function DateWindowsFunnel({
             <CardContent className="pt-4">
               <div className="text-center">
                 <p className="text-xl font-bold text-brand-carbon">
-                  {formatDate(proposedWindow.startDate)} – {formatDate(proposedWindow.endDate)}
+                  {formatWindowDisplay(proposedWindow)}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {proposedWindow.supportCount} {proposedWindow.supportCount === 1 ? 'person' : 'people'} can make this
@@ -598,7 +645,7 @@ export function DateWindowsFunnel({
               <AlertDialogDescription>
                 {proposedWindow && (
                   <>
-                    <strong>{formatDate(proposedWindow.startDate)} – {formatDate(proposedWindow.endDate)}</strong>
+                    <strong>{formatWindowDisplay(proposedWindow)}</strong>
                     <br /><br />
                   </>
                 )}
@@ -891,7 +938,7 @@ export function DateWindowsFunnel({
                 }}
                 className="bg-brand-red hover:bg-brand-red/90"
               >
-                Propose {formatDate(proposalStatus.leadingWindow.startDate)} – {formatDate(proposalStatus.leadingWindow.endDate)}
+                Propose {formatWindowDisplay(proposalStatus.leadingWindow)}
               </Button>
             </div>
           </CardContent>
@@ -910,7 +957,7 @@ export function DateWindowsFunnel({
                 const proposingWindow = windows.find(w => w.id === pendingProposeWindowId)
                 return proposingWindow ? (
                   <>
-                    <strong>{formatDate(proposingWindow.startDate)} – {formatDate(proposingWindow.endDate)}</strong>
+                    <strong>{formatWindowDisplay(proposingWindow)}</strong>
                     <br /><br />
                     {proposingWindow.supportCount} {proposingWindow.supportCount === 1 ? 'person' : 'people'} can make this.
                     <br /><br />
@@ -930,11 +977,66 @@ export function DateWindowsFunnel({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handlePropose}
+              onClick={() => handlePropose()}
               disabled={submitting}
               className="bg-brand-red hover:bg-brand-red/90"
             >
               {submitting ? 'Proposing...' : 'Propose dates'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Concrete dates dialog (for unstructured windows) */}
+      <AlertDialog open={showConcreteDatesDialog} onOpenChange={(open) => {
+        setShowConcreteDatesDialog(open)
+        if (!open) {
+          setConcreteDatesStart('')
+          setConcreteDatesEnd('')
+          setPendingUnstructuredWindow(null)
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Specify exact dates</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  The suggestion <strong>"{pendingUnstructuredWindow?.sourceText}"</strong> needs specific dates before it can be proposed.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="concrete-start" className="text-sm font-medium">Start date</Label>
+                    <Input
+                      id="concrete-start"
+                      type="date"
+                      value={concreteDatesStart}
+                      onChange={(e) => setConcreteDatesStart(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="concrete-end" className="text-sm font-medium">End date</Label>
+                    <Input
+                      id="concrete-end"
+                      type="date"
+                      value={concreteDatesEnd}
+                      onChange={(e) => setConcreteDatesEnd(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConcreteDatesSubmit}
+              disabled={submitting || !concreteDatesStart || !concreteDatesEnd}
+              className="bg-brand-red hover:bg-brand-red/90"
+            >
+              {submitting ? 'Proposing...' : 'Propose with these dates'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

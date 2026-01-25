@@ -3165,7 +3165,7 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { windowId, leaderOverride = false } = body
+      const { windowId, leaderOverride = false, concreteDates } = body
 
       if (!windowId) {
         return handleCORS(NextResponse.json({ error: 'windowId is required' }, { status: 400 }))
@@ -3185,9 +3185,49 @@ async function handleRoute(request, { params }) {
       }
 
       // Check window exists
-      const window = await db.collection('date_windows').findOne({ id: windowId, tripId })
+      let window = await db.collection('date_windows').findOne({ id: windowId, tripId })
       if (!window) {
         return handleCORS(NextResponse.json({ error: 'Window not found' }, { status: 404 }))
+      }
+
+      // If window is unstructured, leader must supply concrete dates
+      if (window.precision === 'unstructured') {
+        if (!concreteDates || !concreteDates.startDate || !concreteDates.endDate) {
+          return handleCORS(NextResponse.json({
+            error: 'This date option needs concrete dates before it can be proposed.',
+            code: 'REQUIRES_CONCRETE_DATES',
+            windowId,
+            sourceText: window.sourceText
+          }, { status: 400 }))
+        }
+
+        // Validate concrete dates format
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+        if (!dateRegex.test(concreteDates.startDate) || !dateRegex.test(concreteDates.endDate)) {
+          return handleCORS(NextResponse.json({ error: 'Dates must be in YYYY-MM-DD format' }, { status: 400 }))
+        }
+        if (concreteDates.startDate > concreteDates.endDate) {
+          return handleCORS(NextResponse.json({ error: 'Start date must be before or equal to end date' }, { status: 400 }))
+        }
+
+        // Update the window with concrete dates
+        await db.collection('date_windows').updateOne(
+          { id: windowId },
+          {
+            $set: {
+              startDate: concreteDates.startDate,
+              endDate: concreteDates.endDate,
+              normalizedStart: concreteDates.startDate,
+              normalizedEnd: concreteDates.endDate,
+              precision: 'exact',
+              concretizedAt: new Date().toISOString(),
+              concretizedBy: auth.user.id
+            }
+          }
+        )
+
+        // Refresh window data
+        window = await db.collection('date_windows').findOne({ id: windowId, tripId })
       }
 
       // Get travelers and supports for proposal readiness check
