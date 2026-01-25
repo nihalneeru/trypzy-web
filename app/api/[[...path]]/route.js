@@ -2827,18 +2827,27 @@ async function handleRoute(request, { params }) {
       const userSupports = supports.filter(s => s.userId === auth.user.id)
       const userSupportedWindowIds = new Set(userSupports.map(s => s.windowId))
 
+      // Get user's window count and max
+      const { WINDOW_CONFIG } = await import('@/lib/trips/normalizeWindow.js')
+      const userWindowCount = windows.filter(w => w.proposedBy === auth.user.id).length
+
       return handleCORS(NextResponse.json({
         phase,
         windows: enrichedWindows,
         proposalStatus,
         userSupportedWindowIds: Array.from(userSupportedWindowIds),
         proposedWindowId: trip.proposedWindowId || null,
-        isLeader: trip.createdBy === auth.user.id
+        isLeader: trip.createdBy === auth.user.id,
+        userWindowCount,
+        maxWindows: WINDOW_CONFIG.MAX_WINDOWS_PER_USER,
+        canCreateWindow: phase === 'COLLECTING' && userWindowCount < WINDOW_CONFIG.MAX_WINDOWS_PER_USER
       }))
     }
 
     // Create date window - POST /api/trips/:id/date-windows
+    // Supports both structured (startDate/endDate) and free-form (text) input
     // Blocked when in PROPOSED phase
+    // Enforces per-user cap and overlap detection
     if (route.match(/^\/trips\/[^/]+\/date-windows$/) && method === 'POST') {
       const auth = await requireAuth(request)
       if (auth.error) {
@@ -2847,21 +2856,7 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { startDate, endDate } = body
-
-      if (!startDate || !endDate) {
-        return handleCORS(NextResponse.json({ error: 'startDate and endDate are required' }, { status: 400 }))
-      }
-
-      // Validate date format
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-      if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
-        return handleCORS(NextResponse.json({ error: 'Dates must be in YYYY-MM-DD format' }, { status: 400 }))
-      }
-
-      if (startDate > endDate) {
-        return handleCORS(NextResponse.json({ error: 'startDate must be before or equal to endDate' }, { status: 400 }))
-      }
+      const { startDate, endDate, text } = body
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -2891,25 +2886,107 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'You are not an active participant in this trip' }, { status: 403 }))
       }
 
-      // Check for duplicate window (same dates by same user)
-      const existingWindow = await db.collection('date_windows').findOne({
-        tripId,
-        proposedBy: auth.user.id,
-        startDate,
-        endDate
-      })
-      if (existingWindow) {
+      // Import normalization and overlap modules
+      const { normalizeWindow, validateWindowBounds, WINDOW_CONFIG } = await import('@/lib/trips/normalizeWindow.js')
+      const { getMostSimilarWindow } = await import('@/lib/trips/windowOverlap.js')
+
+      // Get existing windows for this trip
+      const existingWindows = await db.collection('date_windows').find({ tripId }).toArray()
+
+      // Enforce per-user cap
+      const userWindowCount = existingWindows.filter(w => w.proposedBy === auth.user.id).length
+      if (userWindowCount >= WINDOW_CONFIG.MAX_WINDOWS_PER_USER) {
+        return handleCORS(NextResponse.json({
+          error: `You've already suggested ${WINDOW_CONFIG.MAX_WINDOWS_PER_USER} date options. Support an existing one or wait for the leader to lock dates.`,
+          code: 'USER_WINDOW_CAP_REACHED',
+          userWindowCount,
+          maxWindows: WINDOW_CONFIG.MAX_WINDOWS_PER_USER
+        }, { status: 400 }))
+      }
+
+      // Determine normalized dates - either from explicit fields or free-form text
+      let normalizedStart, normalizedEnd, precision, sourceText
+
+      if (text && typeof text === 'string' && text.trim()) {
+        // Free-form text input - normalize it
+        sourceText = text.trim()
+        const context = {
+          startBound: trip.startBound || trip.startDate,
+          endBound: trip.endBound || trip.endDate
+        }
+        const normResult = normalizeWindow(sourceText, context)
+        if (normResult.error) {
+          return handleCORS(NextResponse.json({ error: normResult.error }, { status: 400 }))
+        }
+        normalizedStart = normResult.startISO
+        normalizedEnd = normResult.endISO
+        precision = normResult.precision
+      } else if (startDate && endDate) {
+        // Structured input - validate format
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+        if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+          return handleCORS(NextResponse.json({ error: 'Dates must be in YYYY-MM-DD format' }, { status: 400 }))
+        }
+        if (startDate > endDate) {
+          return handleCORS(NextResponse.json({ error: 'Start date must be before or equal to end date' }, { status: 400 }))
+        }
+        normalizedStart = startDate
+        normalizedEnd = endDate
+        precision = 'exact'
+        sourceText = `${startDate} to ${endDate}`
+
+        // Check max window length
+        const daysDiff = Math.round((new Date(endDate + 'T12:00:00') - new Date(startDate + 'T12:00:00')) / (1000 * 60 * 60 * 24)) + 1
+        if (daysDiff > WINDOW_CONFIG.MAX_WINDOW_DAYS) {
+          return handleCORS(NextResponse.json({
+            error: `That's ${daysDiff} days, which is longer than the ${WINDOW_CONFIG.MAX_WINDOW_DAYS}-day limit. Try a shorter range.`
+          }, { status: 400 }))
+        }
+      } else {
+        return handleCORS(NextResponse.json({
+          error: 'Please provide dates. Use "text" for free-form input (e.g., "Feb 7-9") or "startDate" and "endDate" for structured input.'
+        }, { status: 400 }))
+      }
+
+      // Validate dates are within trip bounds
+      const boundsCheck = validateWindowBounds(
+        normalizedStart,
+        normalizedEnd,
+        trip.startBound || trip.startDate,
+        trip.endBound || trip.endDate
+      )
+      if (!boundsCheck.valid) {
+        return handleCORS(NextResponse.json({ error: boundsCheck.error }, { status: 400 }))
+      }
+
+      // Check for exact duplicate (same normalized dates by same user)
+      const exactDuplicate = existingWindows.find(w =>
+        w.proposedBy === auth.user.id &&
+        (w.normalizedStart || w.startDate) === normalizedStart &&
+        (w.normalizedEnd || w.endDate) === normalizedEnd
+      )
+      if (exactDuplicate) {
         return handleCORS(NextResponse.json({ error: 'You have already proposed this date range' }, { status: 400 }))
       }
 
-      // Create window
+      // Check for similar windows (overlap detection)
+      const newWindowForComparison = { startISO: normalizedStart, endISO: normalizedEnd }
+      const similarMatch = getMostSimilarWindow(newWindowForComparison, existingWindows)
+
+      // Create window with normalized fields
       const windowId = uuidv4()
       const window = {
         id: windowId,
         tripId,
         proposedBy: auth.user.id,
-        startDate,
-        endDate,
+        // Original fields for backward compatibility
+        startDate: normalizedStart,
+        endDate: normalizedEnd,
+        // New normalized fields
+        sourceText,
+        normalizedStart,
+        normalizedEnd,
+        precision,
         createdAt: new Date().toISOString()
       }
       await db.collection('date_windows').insertOne(window)
@@ -2939,11 +3016,24 @@ async function handleRoute(request, { params }) {
         circleId: trip.circleId,
         actorUserId: auth.user.id,
         subtype: 'window_proposed',
-        text: `📅 ${auth.user.name} proposed dates: ${formatDate(startDate)}–${formatDate(endDate)}`,
-        metadata: { windowId, startDate, endDate }
+        text: `📅 ${auth.user.name} proposed dates: ${formatDate(normalizedStart)}–${formatDate(normalizedEnd)}`,
+        metadata: { windowId, startDate: normalizedStart, endDate: normalizedEnd }
       })
 
-      return handleCORS(NextResponse.json({ window, message: 'Date window created' }))
+      // Build response with similarity info if applicable
+      const response = {
+        window,
+        message: 'Date window created',
+        userWindowCount: userWindowCount + 1,
+        maxWindows: WINDOW_CONFIG.MAX_WINDOWS_PER_USER
+      }
+
+      if (similarMatch) {
+        response.similarWindowId = similarMatch.windowId
+        response.similarScore = similarMatch.score
+      }
+
+      return handleCORS(NextResponse.json(response))
     }
 
     // Support a date window - POST /api/trips/:id/date-windows/:windowId/support

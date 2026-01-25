@@ -563,6 +563,432 @@ describe('Date Windows API - Date Locking Funnel V2', () => {
     })
   })
 
+  describe('Per-user window cap enforcement', () => {
+    const tripId = 'trip-cap-1'
+    const circleId = 'circle-cap-1'
+    const leaderId = 'leader-cap-1'
+    const memberId = 'member-cap-1'
+
+    beforeEach(async () => {
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader-cap@test.com' })
+      await createTestUser({ id: memberId, name: 'Member', email: 'member-cap@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: memberId, circleId })
+      await createTestTrip({ id: tripId, circleId, createdBy: leaderId })
+    })
+
+    afterEach(async () => {
+      await cleanupTestData({ tripId, circleId, userIds: [leaderId, memberId] })
+    })
+
+    it('should return userWindowCount and maxWindows in GET response', async () => {
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const response = await GET(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.userWindowCount).toBe(0)
+      expect(data.maxWindows).toBe(2)
+      expect(data.canCreateWindow).toBe(true)
+    })
+
+    it('should allow first window creation', async () => {
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-10',
+          endDate: '2025-03-15'
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+    })
+
+    it('should allow second window creation', async () => {
+      // Create first window
+      await db.collection('date_windows').insertOne({
+        id: 'first-window',
+        tripId,
+        proposedBy: memberId,
+        startDate: '2025-03-10',
+        endDate: '2025-03-15',
+        createdAt: new Date().toISOString()
+      })
+
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-20',
+          endDate: '2025-03-25'
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+    })
+
+    it('should reject third window creation (cap of 2)', async () => {
+      // Create two existing windows
+      await db.collection('date_windows').insertMany([
+        {
+          id: 'first-window',
+          tripId,
+          proposedBy: memberId,
+          startDate: '2025-03-10',
+          endDate: '2025-03-15',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'second-window',
+          tripId,
+          proposedBy: memberId,
+          startDate: '2025-03-20',
+          endDate: '2025-03-25',
+          createdAt: new Date().toISOString()
+        }
+      ])
+
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-28',
+          endDate: '2025-03-30'
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(400)
+
+      const data = await response.json()
+      expect(data.code).toBe('USER_WINDOW_CAP_REACHED')
+      expect(data.userWindowCount).toBe(2)
+      expect(data.maxWindows).toBe(2)
+    })
+
+    it('should track caps per user (other users can still create)', async () => {
+      // Member already has 2 windows
+      await db.collection('date_windows').insertMany([
+        {
+          id: 'member-window-1',
+          tripId,
+          proposedBy: memberId,
+          startDate: '2025-03-10',
+          endDate: '2025-03-15',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'member-window-2',
+          tripId,
+          proposedBy: memberId,
+          startDate: '2025-03-20',
+          endDate: '2025-03-25',
+          createdAt: new Date().toISOString()
+        }
+      ])
+
+      // Leader should still be able to create windows
+      const token = createToken(leaderId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-05',
+          endDate: '2025-03-08'
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+    })
+  })
+
+  describe('Overlap detection and similarity nudge', () => {
+    const tripId = 'trip-overlap-1'
+    const circleId = 'circle-overlap-1'
+    const leaderId = 'leader-overlap-1'
+    const memberId = 'member-overlap-1'
+
+    beforeEach(async () => {
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader-overlap@test.com' })
+      await createTestUser({ id: memberId, name: 'Member', email: 'member-overlap@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: memberId, circleId })
+      await createTestTrip({ id: tripId, circleId, createdBy: leaderId })
+    })
+
+    afterEach(async () => {
+      await cleanupTestData({ tripId, circleId, userIds: [leaderId, memberId] })
+    })
+
+    it('should detect similar window and return similarWindowId', async () => {
+      // Create an existing window
+      await db.collection('date_windows').insertOne({
+        id: 'existing-window',
+        tripId,
+        proposedBy: leaderId,
+        startDate: '2025-03-10',
+        endDate: '2025-03-15',
+        normalizedStart: '2025-03-10',
+        normalizedEnd: '2025-03-15',
+        createdAt: new Date().toISOString()
+      })
+
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-11',
+          endDate: '2025-03-14' // Fully contained in existing window
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.similarWindowId).toBe('existing-window')
+      expect(data.similarScore).toBeGreaterThanOrEqual(0.6)
+    })
+
+    it('should not flag similarity for non-overlapping windows', async () => {
+      // Create an existing window
+      await db.collection('date_windows').insertOne({
+        id: 'existing-window',
+        tripId,
+        proposedBy: leaderId,
+        startDate: '2025-03-01',
+        endDate: '2025-03-05',
+        normalizedStart: '2025-03-01',
+        normalizedEnd: '2025-03-05',
+        createdAt: new Date().toISOString()
+      })
+
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-20',
+          endDate: '2025-03-25' // No overlap
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.similarWindowId).toBeUndefined()
+      expect(data.similarScore).toBeUndefined()
+    })
+
+    it('should still create window even with overlap (user can ignore nudge)', async () => {
+      // Create an existing window
+      await db.collection('date_windows').insertOne({
+        id: 'existing-window',
+        tripId,
+        proposedBy: leaderId,
+        startDate: '2025-03-10',
+        endDate: '2025-03-15',
+        normalizedStart: '2025-03-10',
+        normalizedEnd: '2025-03-15',
+        createdAt: new Date().toISOString()
+      })
+
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-10',
+          endDate: '2025-03-15' // Identical
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      // Window was still created
+      expect(data.window).toBeDefined()
+      expect(data.window.id).toBeDefined()
+      // But similarity was flagged
+      expect(data.similarWindowId).toBe('existing-window')
+    })
+  })
+
+  describe('Leader backtracking after threshold met', () => {
+    const tripId = 'trip-backtrack-1'
+    const circleId = 'circle-backtrack-1'
+    const leaderId = 'leader-backtrack-1'
+    const member1Id = 'member1-backtrack-1'
+    const member2Id = 'member2-backtrack-1'
+    const member3Id = 'member3-backtrack-1'
+
+    beforeEach(async () => {
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader-backtrack@test.com' })
+      await createTestUser({ id: member1Id, name: 'Member1', email: 'member1-backtrack@test.com' })
+      await createTestUser({ id: member2Id, name: 'Member2', email: 'member2-backtrack@test.com' })
+      await createTestUser({ id: member3Id, name: 'Member3', email: 'member3-backtrack@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: member1Id, circleId })
+      await addMembership({ userId: member2Id, circleId })
+      await addMembership({ userId: member3Id, circleId })
+      await createTestTrip({ id: tripId, circleId, createdBy: leaderId })
+
+      // Create a window with enough support to meet threshold (3 of 4 = majority)
+      await db.collection('date_windows').insertOne({
+        id: 'threshold-window',
+        tripId,
+        proposedBy: member1Id,
+        startDate: '2025-03-10',
+        endDate: '2025-03-15',
+        createdAt: new Date().toISOString()
+      })
+      await db.collection('window_supports').insertMany([
+        { id: 'support-1', windowId: 'threshold-window', tripId, userId: member1Id, createdAt: new Date().toISOString() },
+        { id: 'support-2', windowId: 'threshold-window', tripId, userId: member2Id, createdAt: new Date().toISOString() },
+        { id: 'support-3', windowId: 'threshold-window', tripId, userId: member3Id, createdAt: new Date().toISOString() }
+      ])
+
+      // Set up proposed state
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: { proposedWindowId: 'threshold-window' } }
+      )
+    })
+
+    afterEach(async () => {
+      await cleanupTestData({ tripId, circleId, userIds: [leaderId, member1Id, member2Id, member3Id] })
+    })
+
+    it('should allow leader to withdraw even after threshold is met', async () => {
+      const token = createToken(leaderId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/withdraw-proposal`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'withdraw-proposal'] } })
+      expect(response.status).toBe(200)
+
+      // Verify trip is back to COLLECTING phase
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      expect(trip.proposedWindowId).toBeUndefined()
+    })
+
+    it('should allow leader to change proposal to different window', async () => {
+      // Create another window
+      await db.collection('date_windows').insertOne({
+        id: 'alternative-window',
+        tripId,
+        proposedBy: leaderId,
+        startDate: '2025-03-20',
+        endDate: '2025-03-25',
+        createdAt: new Date().toISOString()
+      })
+
+      // Withdraw current proposal
+      const withdrawToken = createToken(leaderId)
+      const withdrawUrl = new URL(`http://localhost:3000/api/trips/${tripId}/withdraw-proposal`)
+      const withdrawRequest = new NextRequest(withdrawUrl, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${withdrawToken}` }
+      })
+      await POST(withdrawRequest, { params: { path: ['trips', tripId, 'withdraw-proposal'] } })
+
+      // Propose new window (with override since alternative doesn't have enough support)
+      const proposeToken = createToken(leaderId)
+      const proposeUrl = new URL(`http://localhost:3000/api/trips/${tripId}/propose-dates`)
+      const proposeRequest = new NextRequest(proposeUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${proposeToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          windowId: 'alternative-window',
+          leaderOverride: true
+        })
+      })
+
+      const response = await POST(proposeRequest, { params: { path: ['trips', tripId, 'propose-dates'] } })
+      expect(response.status).toBe(200)
+
+      // Verify new window is proposed
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      expect(trip.proposedWindowId).toBe('alternative-window')
+    })
+
+    it('should show proposalReady as true when threshold is met', async () => {
+      // First withdraw to get back to COLLECTING
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $unset: { proposedWindowId: '' } }
+      )
+
+      const token = createToken(leaderId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const response = await GET(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.proposalStatus.proposalReady).toBe(true)
+      expect(data.proposalStatus.leadingWindow.id).toBe('threshold-window')
+      expect(data.proposalStatus.stats.leaderCount).toBe(3)
+    })
+  })
+
   describe('Window support endpoints', () => {
     const tripId = 'trip-support-1'
     const circleId = 'circle-support-1'

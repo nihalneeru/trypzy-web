@@ -9,11 +9,13 @@ import {
   Users,
   AlertCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ArrowLeft,
+  Edit
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -45,6 +47,10 @@ interface DateWindow {
   proposedBy: string
   startDate: string
   endDate: string
+  sourceText?: string
+  normalizedStart?: string
+  normalizedEnd?: string
+  precision?: 'exact' | 'approx'
   createdAt: string
   supportCount: number
   supporterIds: string[]
@@ -87,18 +93,12 @@ function formatDate(dateStr: string): string {
   }
 }
 
-// Get user name from travelers list
-function getUserName(userId: string, travelers: any[]): string {
-  const traveler = travelers.find(t => t.id === userId || t.userId === userId)
-  return traveler?.name || traveler?.userName || 'Someone'
-}
-
 /**
  * DateWindowsFunnel - New date-locking funnel component
  *
  * Phases: COLLECTING -> PROPOSED -> LOCKED
- * - COLLECTING: Users propose windows and support them
- * - PROPOSED: Leader has proposed a window, awaiting lock
+ * - COLLECTING: Users propose windows and support them (with caps and overlap detection)
+ * - PROPOSED: Leader has proposed a window, awaiting lock (with backtrack options)
  * - LOCKED: Dates are finalized
  */
 export function DateWindowsFunnel({
@@ -120,11 +120,21 @@ export function DateWindowsFunnel({
   const [proposedWindowId, setProposedWindowId] = useState<string | null>(null)
   const [isLeader, setIsLeader] = useState(false)
 
+  // User window quota state
+  const [userWindowCount, setUserWindowCount] = useState(0)
+  const [maxWindows, setMaxWindows] = useState(2)
+  const [canCreateWindow, setCanCreateWindow] = useState(true)
+
   // Form state for adding new window
   const [showAddWindow, setShowAddWindow] = useState(false)
-  const [newStartDate, setNewStartDate] = useState('')
-  const [newEndDate, setNewEndDate] = useState('')
+  const [newDateText, setNewDateText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Similarity nudge state
+  const [similarWindowId, setSimilarWindowId] = useState<string | null>(null)
+  const [similarScore, setSimilarScore] = useState<number | null>(null)
+  const [showSimilarNudge, setShowSimilarNudge] = useState(false)
+  const [pendingWindowText, setPendingWindowText] = useState('')
 
   // Confirmation dialogs
   const [showProposeConfirm, setShowProposeConfirm] = useState(false)
@@ -156,6 +166,9 @@ export function DateWindowsFunnel({
       setUserSupportedWindowIds(data.userSupportedWindowIds || [])
       setProposedWindowId(data.proposedWindowId)
       setIsLeader(data.isLeader)
+      setUserWindowCount(data.userWindowCount ?? 0)
+      setMaxWindows(data.maxWindows ?? 2)
+      setCanCreateWindow(data.canCreateWindow ?? true)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -167,15 +180,12 @@ export function DateWindowsFunnel({
     fetchWindows()
   }, [fetchWindows])
 
-  // Handle adding a new window
-  const handleAddWindow = async () => {
-    if (!newStartDate || !newEndDate) {
-      toast.error('Please select both start and end dates')
-      return
-    }
+  // Handle adding a new window with free-form text
+  const handleAddWindow = async (forceCreate = false) => {
+    const textToSubmit = forceCreate ? pendingWindowText : newDateText
 
-    if (newStartDate > newEndDate) {
-      toast.error('Start date must be before end date')
+    if (!textToSubmit.trim()) {
+      toast.error('Please enter a date range')
       return
     }
 
@@ -188,20 +198,31 @@ export function DateWindowsFunnel({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          startDate: newStartDate,
-          endDate: newEndDate
+          text: textToSubmit
         })
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const data = await response.json()
         throw new Error(data.error || 'Failed to add dates')
       }
 
+      // Check if there's a similarity warning
+      if (data.similarWindowId && !forceCreate) {
+        setSimilarWindowId(data.similarWindowId)
+        setSimilarScore(data.similarScore)
+        setPendingWindowText(textToSubmit)
+        setShowSimilarNudge(true)
+        return
+      }
+
       toast.success('Dates added')
-      setNewStartDate('')
-      setNewEndDate('')
+      setNewDateText('')
+      setPendingWindowText('')
       setShowAddWindow(false)
+      setShowSimilarNudge(false)
+      setSimilarWindowId(null)
       await fetchWindows()
       onRefresh()
     } catch (err: any) {
@@ -224,6 +245,15 @@ export function DateWindowsFunnel({
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.error || 'Failed to add support')
+      }
+
+      // Close similarity nudge if supporting the similar window
+      if (windowId === similarWindowId) {
+        setShowSimilarNudge(false)
+        setSimilarWindowId(null)
+        setNewDateText('')
+        setPendingWindowText('')
+        setShowAddWindow(false)
       }
 
       await fetchWindows()
@@ -382,7 +412,7 @@ export function DateWindowsFunnel({
     )
   }
 
-  // PROPOSED phase - show proposed window with lock option
+  // PROPOSED phase - show proposed window with ALL leader backtrack options
   if (phase === 'PROPOSED' && proposedWindowId) {
     const proposedWindow = windows.find(w => w.id === proposedWindowId)
 
@@ -411,6 +441,7 @@ export function DateWindowsFunnel({
 
         {isLeader ? (
           <div className="space-y-3">
+            {/* Primary: Lock dates */}
             <Button
               onClick={() => setShowLockConfirm(true)}
               className="w-full bg-brand-red hover:bg-brand-red/90"
@@ -419,13 +450,27 @@ export function DateWindowsFunnel({
               <Lock className="h-4 w-4 mr-2" />
               Lock these dates
             </Button>
+
+            {/* Secondary: Change proposal (select different window) */}
             <Button
               variant="outline"
               onClick={handleWithdraw}
               className="w-full"
               disabled={submitting}
             >
+              <Edit className="h-4 w-4 mr-2" />
               Change proposal
+            </Button>
+
+            {/* Tertiary: Withdraw proposal (back to COLLECTING) */}
+            <Button
+              variant="ghost"
+              onClick={handleWithdraw}
+              className="w-full text-muted-foreground"
+              disabled={submitting}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Withdraw and go back
             </Button>
           </div>
         ) : (
@@ -468,6 +513,8 @@ export function DateWindowsFunnel({
   // COLLECTING phase - show windows and allow adding/supporting
   const sortedWindows = [...windows].sort((a, b) => b.supportCount - a.supportCount)
   const stats = proposalStatus?.stats
+  const remainingWindows = maxWindows - userWindowCount
+  const similarWindow = similarWindowId ? windows.find(w => w.id === similarWindowId) : null
 
   return (
     <div className="space-y-4 p-4">
@@ -484,56 +531,100 @@ export function DateWindowsFunnel({
       {/* Add new window form */}
       <Collapsible open={showAddWindow} onOpenChange={setShowAddWindow}>
         <CollapsibleTrigger asChild>
-          <Button variant="outline" className="w-full justify-between">
+          <Button
+            variant="outline"
+            className="w-full justify-between"
+            disabled={!canCreateWindow}
+          >
             <span className="flex items-center">
               <Plus className="h-4 w-4 mr-2" />
-              Propose dates that work for you
+              {canCreateWindow
+                ? `Suggest dates (${remainingWindows} left)`
+                : `Limit reached (${maxWindows}/${maxWindows})`
+              }
             </span>
-            {showAddWindow ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {canCreateWindow && (showAddWindow ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />)}
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-3">
           <Card>
             <CardContent className="pt-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="startDate" className="text-sm">Start date</Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={newStartDate}
-                    onChange={(e) => setNewStartDate(e.target.value)}
-                    className="mt-1"
-                  />
+              {/* Similarity nudge */}
+              {showSimilarNudge && similarWindow && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm font-medium text-amber-800 mb-2">
+                    This looks similar to an existing option:
+                  </p>
+                  <p className="text-sm text-amber-700 mb-3">
+                    {formatDate(similarWindow.startDate)} – {formatDate(similarWindow.endDate)}
+                    <span className="text-xs ml-1">({similarWindow.supportCount} supporters)</span>
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleSupport(similarWindow.id)}
+                      className="flex-1 bg-brand-blue hover:bg-brand-blue/90"
+                    >
+                      Support existing
+                    </Button>
+                    {remainingWindows > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddWindow(true)}
+                        disabled={submitting}
+                        className="flex-1"
+                      >
+                        Create anyway
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="endDate" className="text-sm">End date</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={newEndDate}
-                    onChange={(e) => setNewEndDate(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-              <Button
-                onClick={handleAddWindow}
-                disabled={submitting || !newStartDate || !newEndDate}
-                className="w-full bg-brand-blue hover:bg-brand-blue/90"
-              >
-                {submitting ? 'Adding...' : 'Add these dates'}
-              </Button>
+              )}
+
+              {/* Free-form text input */}
+              {!showSimilarNudge && (
+                <>
+                  <div>
+                    <Label htmlFor="dateText" className="text-sm">When could you do this trip?</Label>
+                    <Input
+                      id="dateText"
+                      type="text"
+                      value={newDateText}
+                      onChange={(e) => setNewDateText(e.target.value)}
+                      placeholder="e.g., Feb 7-9, early March, first weekend of April"
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Examples: "Feb 7-9", "mid March", "late April"
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => handleAddWindow(false)}
+                    disabled={submitting || !newDateText.trim()}
+                    className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                  >
+                    {submitting ? 'Adding...' : 'Add these dates'}
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </CollapsibleContent>
       </Collapsible>
 
+      {/* At cap message */}
+      {!canCreateWindow && (
+        <p className="text-sm text-center text-muted-foreground">
+          You've suggested {maxWindows} dates. Support an existing option below.
+        </p>
+      )}
+
       {/* Windows list */}
       {sortedWindows.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <CalendarIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>No date options yet. Be the first to propose dates!</p>
+          <p>No date options yet. Be the first to suggest dates!</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -557,6 +648,11 @@ export function DateWindowsFunnel({
                         {isLeading && (
                           <Badge variant="outline" className="text-xs bg-brand-blue/10 text-brand-blue border-brand-blue/30">
                             Leading
+                          </Badge>
+                        )}
+                        {window.precision === 'approx' && (
+                          <Badge variant="outline" className="text-xs">
+                            ~approx
                           </Badge>
                         )}
                       </div>
