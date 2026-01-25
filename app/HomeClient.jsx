@@ -2897,6 +2897,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                           type="date"
                           value={tripForm.startDate}
                           onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                          min={new Date().toISOString().split('T')[0]}
                         />
                       </div>
                       <div className="space-y-2">
@@ -2905,6 +2906,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                           type="date"
                           value={tripForm.endDate}
                           onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                          min={tripForm.startDate || new Date().toISOString().split('T')[0]}
                         />
                       </div>
                     </div>
@@ -3225,6 +3227,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                       type="date"
                       value={editingTrip.startDate}
                       onChange={(e) => setEditingTrip({ ...editingTrip, startDate: e.target.value })}
+                      min={new Date().toISOString().split('T')[0]}
                     />
                   </div>
                   <div className="space-y-2">
@@ -3233,6 +3236,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
                       type="date"
                       value={editingTrip.endDate}
                       onChange={(e) => setEditingTrip({ ...editingTrip, endDate: e.target.value })}
+                      min={editingTrip.startDate || new Date().toISOString().split('T')[0]}
                     />
                   </div>
                 </div>

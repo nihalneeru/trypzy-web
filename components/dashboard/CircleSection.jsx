@@ -35,9 +35,10 @@ import { dashboardCircleHref } from '@/lib/navigation/routes'
  * @param {Object} props
  * @param {CircleData} props.circle
  * @param {string} props.token - Auth token
+ * @param {string} [props.currentUserId] - Current user's ID
  * @param {Function} [props.onTripCreated] - Callback when trip is created
  */
-export function CircleSection({ circle, token, onTripCreated }) {
+export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
   const [showCreateTrip, setShowCreateTrip] = useState(false)
   const [showCancelled, setShowCancelled] = useState(false)
 
@@ -130,6 +131,7 @@ export function CircleSection({ circle, token, onTripCreated }) {
           onSuccess={onTripCreated}
           circleId={circle.id}
           token={token}
+          currentUserId={currentUserId}
         />
       )}
     </>

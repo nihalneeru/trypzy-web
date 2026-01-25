@@ -210,6 +210,7 @@ export function CircleOnboardingInterstitial({
                   type="date"
                   value={tripForm.startDate}
                   onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
+                  min={new Date().toISOString().split('T')[0]}
                 />
               </div>
               <div className="space-y-2">
@@ -218,6 +219,7 @@ export function CircleOnboardingInterstitial({
                   type="date"
                   value={tripForm.endDate}
                   onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
+                  min={tripForm.startDate || new Date().toISOString().split('T')[0]}
                 />
               </div>
             </div>

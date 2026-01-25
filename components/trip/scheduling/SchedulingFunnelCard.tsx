@@ -543,6 +543,7 @@ export function SchedulingFunnelCard({
                     type="date"
                     value={proposalStartDate}
                     onChange={(e) => setProposalStartDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
                   />
                 </div>
                 <div>
@@ -551,6 +552,7 @@ export function SchedulingFunnelCard({
                     type="date"
                     value={proposalEndDate}
                     onChange={(e) => setProposalEndDate(e.target.value)}
+                    min={proposalStartDate || new Date().toISOString().split('T')[0]}
                   />
                 </div>
               </div>
@@ -711,6 +713,7 @@ export function SchedulingFunnelCard({
                           type="date"
                           value={proposalStartDate}
                           onChange={(e) => setProposalStartDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
                         />
                       </div>
                       <div>
@@ -719,6 +722,7 @@ export function SchedulingFunnelCard({
                           type="date"
                           value={proposalEndDate}
                           onChange={(e) => setProposalEndDate(e.target.value)}
+                          min={proposalStartDate || new Date().toISOString().split('T')[0]}
                         />
                       </div>
                     </div>

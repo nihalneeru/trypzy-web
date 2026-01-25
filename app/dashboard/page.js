@@ -256,10 +256,11 @@ export default function DashboardPage() {
           </Card>
         ) : (
           dashboardData.circles.map((circle) => (
-            <CircleSection 
-              key={circle.id} 
+            <CircleSection
+              key={circle.id}
               circle={circle}
               token={token}
+              currentUserId={user?.id}
               onTripCreated={reloadDashboard}
             />
           ))

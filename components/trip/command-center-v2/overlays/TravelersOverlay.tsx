@@ -123,6 +123,11 @@ export function TravelersOverlay({
   const [processingRequest, setProcessingRequest] = useState<string | null>(null)
   const [selectedNewLeader, setSelectedNewLeader] = useState('')
   const [validationError, setValidationError] = useState('')
+  // Invitation state
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([])
+  const [loadingInvitations, setLoadingInvitations] = useState(false)
+  const [myInvitation, setMyInvitation] = useState<any>(null)
+  const [processingInvitation, setProcessingInvitation] = useState(false)
 
   const isTripLeader = trip?.viewer?.isTripLeader || false
   const completed = isTripCompleted(trip)
@@ -182,8 +187,16 @@ export function TravelersOverlay({
   useEffect(() => {
     if (isTripLeader && trip?.id) {
       loadJoinRequests()
+      loadPendingInvitations()
     }
   }, [isTripLeader, trip?.id])
+
+  // Load user's own invitation status (for non-leaders)
+  useEffect(() => {
+    if (!isTripLeader && trip?.id && token) {
+      loadMyInvitation()
+    }
+  }, [isTripLeader, trip?.id, token])
 
   const loadJoinRequests = async () => {
     if (!trip?.id || !token) return
@@ -207,6 +220,81 @@ export function TravelersOverlay({
       setJoinRequests([])
     } finally {
       setLoadingRequests(false)
+    }
+  }
+
+  const loadPendingInvitations = async () => {
+    if (!trip?.id || !token) return
+
+    setLoadingInvitations(true)
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/invitations`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setPendingInvitations((data || []).filter((inv: any) => inv.status === 'pending'))
+      } else {
+        setPendingInvitations([])
+      }
+    } catch (error) {
+      console.error('Failed to load invitations:', error)
+      setPendingInvitations([])
+    } finally {
+      setLoadingInvitations(false)
+    }
+  }
+
+  const loadMyInvitation = async () => {
+    if (!trip?.id || !token) return
+
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/invitations/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.status === 'pending') {
+          setMyInvitation(data)
+        } else {
+          setMyInvitation(null)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load my invitation:', error)
+    }
+  }
+
+  const handleInvitationResponse = async (invitationId: string, action: 'accept' | 'decline') => {
+    if (!trip?.id || !token) return
+
+    setProcessingInvitation(true)
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/invitations/${invitationId}/${action}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || `Failed to ${action} invitation`)
+      }
+
+      toast.success(action === 'accept' ? 'You joined the trip!' : 'Invitation declined')
+      setMyInvitation(null)
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message || `Failed to ${action} invitation`)
+    } finally {
+      setProcessingInvitation(false)
     }
   }
 
@@ -575,6 +663,74 @@ export function TravelersOverlay({
         </div>
       )}
 
+      {/* Pending Invitations Section (Trip Leader only) */}
+      {isTripLeader && pendingInvitations.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+            Pending Invitations ({pendingInvitations.length})
+          </h3>
+          <div className="space-y-2">
+            {pendingInvitations.map((invitation: any) => (
+              <Card key={invitation.id}>
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className={getAvatarColor(invitation.invitedUserName || 'U')}>
+                        {getInitials(invitation.invitedUserName || 'U')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{invitation.invitedUserName}</p>
+                      <p className="text-xs text-gray-500">Awaiting response</p>
+                    </div>
+                    <Clock className="h-4 w-4 text-amber-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Your Invitation Section (for invited users) */}
+      {!isTripLeader && myInvitation && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+            Your Invitation
+          </h3>
+          <Card className="border-brand-blue/30 bg-blue-50/50">
+            <CardContent className="py-4 px-4">
+              <div className="space-y-3">
+                <p className="text-sm text-gray-900">
+                  <strong>{myInvitation.inviterName}</strong> invited you to join this trip.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleInvitationResponse(myInvitation.id, 'decline')}
+                    disabled={processingInvitation}
+                    className="flex-1"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleInvitationResponse(myInvitation.id, 'accept')}
+                    disabled={processingInvitation}
+                    className="flex-1 bg-brand-blue hover:opacity-90"
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    Accept
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Active Travelers */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -706,15 +862,15 @@ export function TravelersOverlay({
             <Button
               variant="outline"
               className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={handleLeaderLeaveClick}
+              onClick={() => setShowCancelDialog(true)}
             >
-              <LogOut className="h-4 w-4 mr-2" />
-              {hasEligibleSuccessors ? 'Leave Trip' : 'Cancel Trip'}
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancel Trip
             </Button>
           )}
           {canLeaveLeader && hasPendingTransfer && (
             <p className="text-xs text-gray-500 text-center">
-              Resolve the pending transfer before leaving.
+              Resolve the pending transfer before canceling.
             </p>
           )}
         </div>
@@ -797,16 +953,16 @@ export function TravelersOverlay({
         </DialogContent>
       </Dialog>
 
-      {/* Cancel Trip Dialog (for trip leaders without eligible successors) */}
+      {/* Cancel Trip Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
-              You're the last traveler
+              Cancel this trip?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Since there's no one to transfer leadership to, canceling will end the trip for everyone.
+              This will cancel the trip for everyone. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

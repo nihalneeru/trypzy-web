@@ -1012,6 +1012,7 @@ export function DateWindowsFunnel({
                       type="date"
                       value={concreteDatesStart}
                       onChange={(e) => setConcreteDatesStart(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
                       className="mt-1"
                     />
                   </div>
@@ -1022,6 +1023,7 @@ export function DateWindowsFunnel({
                       type="date"
                       value={concreteDatesEnd}
                       onChange={(e) => setConcreteDatesEnd(e.target.value)}
+                      min={concreteDatesStart || new Date().toISOString().split('T')[0]}
                       className="mt-1"
                     />
                   </div>
