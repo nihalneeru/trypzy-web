@@ -11,7 +11,10 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowLeft,
-  Edit
+  Edit,
+  ThumbsUp,
+  ThumbsDown,
+  HelpCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -71,6 +74,26 @@ interface ProposalStatus {
   }
 }
 
+interface Reaction {
+  userId: string
+  userName: string
+  reactionType: 'WORKS' | 'CAVEAT' | 'CANT'
+  note?: string
+  createdAt: string
+}
+
+interface ApprovalSummary {
+  approvals: number
+  caveats: number
+  cants: number
+  totalReactions: number
+  requiredApprovals: number
+  memberCount: number
+  readyToLock: boolean
+  userReaction: 'WORKS' | 'CAVEAT' | 'CANT' | null
+  reactions: Reaction[]
+}
+
 interface DateWindowsFunnelProps {
   trip: any
   token: string
@@ -128,6 +151,7 @@ export function DateWindowsFunnel({
   const [userSupportedWindowIds, setUserSupportedWindowIds] = useState<string[]>([])
   const [proposedWindowId, setProposedWindowId] = useState<string | null>(null)
   const [isLeader, setIsLeader] = useState(false)
+  const [approvalSummary, setApprovalSummary] = useState<ApprovalSummary | null>(null)
 
   // User window quota state
   const [userWindowCount, setUserWindowCount] = useState(0)
@@ -190,6 +214,7 @@ export function DateWindowsFunnel({
       setUserWindowCount(data.userWindowCount ?? 0)
       setMaxWindows(data.maxWindows ?? 2)
       setCanCreateWindow(data.canCreateWindow ?? true)
+      setApprovalSummary(data.approvalSummary || null)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -504,18 +529,25 @@ export function DateWindowsFunnel({
   }
 
   // Handle locking dates (leader only)
-  const handleLock = async () => {
+  const handleLock = async (override = false) => {
     try {
       setSubmitting(true)
       const response = await fetch(`/api/trips/${trip.id}/lock-proposed`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ leaderOverride: override })
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const data = await response.json()
+        // Check if it's an approval threshold error
+        if (data.code === 'INSUFFICIENT_APPROVALS') {
+          throw new Error(`Need ${data.approvalSummary?.requiredApprovals} approvals to lock. Currently have ${data.approvalSummary?.approvals}.`)
+        }
         throw new Error(data.error || 'Failed to lock dates')
       }
 
@@ -523,6 +555,41 @@ export function DateWindowsFunnel({
       setShowLockConfirm(false)
       onRefresh()
       onClose()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle reacting to proposed dates
+  const handleReact = async (reactionType: 'WORKS' | 'CAVEAT' | 'CANT') => {
+    try {
+      setSubmitting(true)
+      const response = await fetch(`/api/trips/${trip.id}/proposed-window/react`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reactionType })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to submit reaction')
+      }
+
+      const data = await response.json()
+      setApprovalSummary(data.approvalSummary)
+
+      const labels: Record<string, string> = {
+        WORKS: 'Works for me',
+        CAVEAT: 'Maybe with conditions',
+        CANT: "Can't make it"
+      }
+      toast.success(labels[reactionType])
+      await fetchWindows()
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -570,15 +637,17 @@ export function DateWindowsFunnel({
     )
   }
 
-  // PROPOSED phase - show proposed window with ALL leader backtrack options
+  // PROPOSED phase - show proposed window with reactions and leader actions
   if (phase === 'PROPOSED' && proposedWindowId) {
     const proposedWindow = windows.find(w => w.id === proposedWindowId)
+    const canLock = approvalSummary?.readyToLock ?? false
+    const userReaction = approvalSummary?.userReaction
 
     return (
       <div className="space-y-4 p-4">
         <div className="text-center mb-4">
           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-            Dates Proposed
+            Dates Proposed — Vote Now
           </Badge>
         </div>
 
@@ -597,16 +666,115 @@ export function DateWindowsFunnel({
           </Card>
         )}
 
-        {isLeader ? (
-          <div className="space-y-3">
+        {/* Reaction buttons - show for everyone */}
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-center text-brand-carbon">
+            Can you make these dates?
+          </p>
+          <div className="flex gap-2 justify-center">
+            <Button
+              size="sm"
+              variant={userReaction === 'WORKS' ? 'default' : 'outline'}
+              onClick={() => handleReact('WORKS')}
+              disabled={submitting}
+              className={userReaction === 'WORKS' ? 'bg-green-600 hover:bg-green-700' : 'border-green-200 text-green-700 hover:bg-green-50'}
+            >
+              <ThumbsUp className="h-4 w-4 mr-1" />
+              Works
+            </Button>
+            <Button
+              size="sm"
+              variant={userReaction === 'CAVEAT' ? 'default' : 'outline'}
+              onClick={() => handleReact('CAVEAT')}
+              disabled={submitting}
+              className={userReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
+            >
+              <HelpCircle className="h-4 w-4 mr-1" />
+              Maybe
+            </Button>
+            <Button
+              size="sm"
+              variant={userReaction === 'CANT' ? 'default' : 'outline'}
+              onClick={() => handleReact('CANT')}
+              disabled={submitting}
+              className={userReaction === 'CANT' ? 'bg-red-600 hover:bg-red-700' : 'border-red-200 text-red-700 hover:bg-red-50'}
+            >
+              <ThumbsDown className="h-4 w-4 mr-1" />
+              Can't
+            </Button>
+          </div>
+        </div>
+
+        {/* Reaction summary */}
+        {approvalSummary && approvalSummary.totalReactions > 0 && (
+          <Card className="bg-gray-50">
+            <CardContent className="py-3">
+              <div className="flex justify-center gap-4 text-sm">
+                {approvalSummary.approvals > 0 && (
+                  <span className="flex items-center text-green-600">
+                    <ThumbsUp className="h-3 w-3 mr-1" />
+                    {approvalSummary.approvals}
+                  </span>
+                )}
+                {approvalSummary.caveats > 0 && (
+                  <span className="flex items-center text-amber-600">
+                    <HelpCircle className="h-3 w-3 mr-1" />
+                    {approvalSummary.caveats}
+                  </span>
+                )}
+                {approvalSummary.cants > 0 && (
+                  <span className="flex items-center text-red-600">
+                    <ThumbsDown className="h-3 w-3 mr-1" />
+                    {approvalSummary.cants}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-center text-muted-foreground mt-1">
+                {approvalSummary.totalReactions} of {approvalSummary.memberCount} responded
+                {!canLock && ` • Need ${approvalSummary.requiredApprovals} approvals to lock`}
+              </p>
+              {/* Show who reacted */}
+              {approvalSummary.reactions.length > 0 && (
+                <div className="mt-2 pt-2 border-t">
+                  <div className="flex flex-wrap justify-center gap-1">
+                    {approvalSummary.reactions.map((r) => (
+                      <TooltipProvider key={r.userId}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                r.reactionType === 'WORKS' ? 'bg-green-100 text-green-700' :
+                                r.reactionType === 'CAVEAT' ? 'bg-amber-100 text-amber-700' :
+                                'bg-red-100 text-red-700'
+                              }`}
+                            >
+                              {r.userName.split(' ')[0]}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {r.userName}: {r.reactionType === 'WORKS' ? 'Works for me' : r.reactionType === 'CAVEAT' ? 'Maybe' : "Can't make it"}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Leader actions */}
+        {isLeader && (
+          <div className="space-y-3 pt-2 border-t">
             {/* Primary: Lock dates */}
             <Button
               onClick={() => setShowLockConfirm(true)}
-              className="w-full bg-brand-red hover:bg-brand-red/90"
+              className={`w-full ${canLock ? 'bg-brand-red hover:bg-brand-red/90' : 'bg-gray-400 hover:bg-gray-500'}`}
               disabled={submitting}
             >
               <Lock className="h-4 w-4 mr-2" />
-              Lock these dates
+              {canLock ? 'Lock these dates' : `Lock dates (${approvalSummary?.approvals || 0}/${approvalSummary?.requiredApprovals || '?'} approvals)`}
             </Button>
 
             {/* Secondary: Change proposal (select different window) */}
@@ -631,9 +799,15 @@ export function DateWindowsFunnel({
               Withdraw and go back
             </Button>
           </div>
-        ) : (
-          <p className="text-sm text-center text-muted-foreground">
-            Waiting for the trip leader to lock these dates.
+        )}
+
+        {/* Non-leader waiting message */}
+        {!isLeader && (
+          <p className="text-sm text-center text-muted-foreground pt-2 border-t">
+            {canLock
+              ? 'Waiting for the trip leader to lock dates.'
+              : `Need ${approvalSummary?.requiredApprovals || '?'} approvals before dates can be locked.`
+            }
           </p>
         )}
 
@@ -642,25 +816,48 @@ export function DateWindowsFunnel({
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Lock these dates?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {proposedWindow && (
-                  <>
-                    <strong>{formatWindowDisplay(proposedWindow)}</strong>
-                    <br /><br />
-                  </>
-                )}
-                Once locked, the trip dates cannot be changed. Everyone can then start planning the itinerary.
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  {proposedWindow && (
+                    <p><strong>{formatWindowDisplay(proposedWindow)}</strong></p>
+                  )}
+                  {approvalSummary && (
+                    <p className="text-sm">
+                      {approvalSummary.approvals} of {approvalSummary.memberCount} travelers approved.
+                      {!canLock && (
+                        <span className="text-amber-600 block mt-1">
+                          ⚠️ Approval threshold not met ({approvalSummary.approvals}/{approvalSummary.requiredApprovals}).
+                          You can still lock if you're confident.
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Once locked, the trip dates cannot be changed. Everyone can then start planning the itinerary.
+                  </p>
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleLock}
-                disabled={submitting}
-                className="bg-brand-red hover:bg-brand-red/90"
-              >
-                {submitting ? 'Locking...' : 'Lock dates'}
-              </AlertDialogAction>
+              {!canLock && (
+                <AlertDialogAction
+                  onClick={() => handleLock(true)}
+                  disabled={submitting}
+                  className="bg-amber-500 hover:bg-amber-600"
+                >
+                  {submitting ? 'Locking...' : 'Lock anyway'}
+                </AlertDialogAction>
+              )}
+              {canLock && (
+                <AlertDialogAction
+                  onClick={() => handleLock(false)}
+                  disabled={submitting}
+                  className="bg-brand-red hover:bg-brand-red/90"
+                >
+                  {submitting ? 'Locking...' : 'Lock dates'}
+                </AlertDialogAction>
+              )}
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
