@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle } from 'lucide-react'
+import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
 
@@ -128,6 +128,9 @@ export function TravelersOverlay({
   const [loadingInvitations, setLoadingInvitations] = useState(false)
   const [myInvitation, setMyInvitation] = useState<any>(null)
   const [processingInvitation, setProcessingInvitation] = useState(false)
+  // Join request state (for non-travelers)
+  const [joinRequestStatus, setJoinRequestStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none')
+  const [submittingJoinRequest, setSubmittingJoinRequest] = useState(false)
 
   const isTripLeader = trip?.viewer?.isTripLeader || false
   const completed = isTripCompleted(trip)
@@ -197,6 +200,55 @@ export function TravelersOverlay({
       loadMyInvitation()
     }
   }, [isTripLeader, trip?.id, token])
+
+  // Load join request status for non-travelers
+  const isNonTraveler = !viewer.isActiveParticipant && !isCancelled
+  useEffect(() => {
+    if (!isNonTraveler || !trip?.id || !token) return
+    let cancelled = false
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`/api/trips/${trip.id}/join-requests/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && data?.status) {
+          setJoinRequestStatus(data.status)
+        }
+      } catch {
+        // Silently ignore
+      }
+    }
+    fetchStatus()
+    return () => { cancelled = true }
+  }, [isNonTraveler, trip?.id, token])
+
+  const handleAskToJoin = async () => {
+    if (!trip?.id || !token) return
+    setSubmittingJoinRequest(true)
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/join-requests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({})
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to send join request')
+      }
+      toast.success('Join request sent!')
+      setJoinRequestStatus('pending')
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send join request')
+    } finally {
+      setSubmittingJoinRequest(false)
+    }
+  }
 
   const loadJoinRequests = async () => {
     if (!trip?.id || !token) return
@@ -503,10 +555,14 @@ export function TravelersOverlay({
     return participant?.user?.name || 'a member'
   }, [pendingTransfer, activeParticipants])
 
+  const canAskToJoin = isNonTraveler && joinRequestStatus !== 'pending' && joinRequestStatus !== 'approved'
+
   const hasFooterCTAs = !isCancelled && (
     (canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer) ||
     canLeaveNonLeader ||
-    canLeaveLeader
+    canLeaveLeader ||
+    canAskToJoin ||
+    (isNonTraveler && joinRequestStatus === 'pending')
   )
 
   return (
@@ -848,6 +904,22 @@ export function TravelersOverlay({
     {/* Fixed Footer CTAs - always visible */}
     {hasFooterCTAs && (
       <div className="shrink-0 border-t bg-white px-4 py-3 space-y-2">
+        {canAskToJoin && (
+          <Button
+            className="w-full bg-brand-blue hover:opacity-90 text-white"
+            onClick={handleAskToJoin}
+            disabled={submittingJoinRequest}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            {submittingJoinRequest ? 'Sending...' : 'Ask to join'}
+          </Button>
+        )}
+        {isNonTraveler && joinRequestStatus === 'pending' && (
+          <div className="flex items-center justify-center gap-2 py-1">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <p className="text-sm text-amber-600">Join request pending</p>
+          </div>
+        )}
         {!isCancelled && canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer && (
           <Button
             variant="outline"
