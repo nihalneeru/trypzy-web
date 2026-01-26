@@ -1,8 +1,9 @@
 # Date Locking Funnel — Decision Memo
 
-**Status:** Locked  
-**Owner:** Trypzy Product  
-**Scope:** Collaborative trip date convergence & locking  
+**Status:** Locked — this is the DEFAULT scheduling flow for collaborative trips
+**Owner:** Trypzy Product
+**Scope:** Collaborative trip date convergence & locking
+**Scheduling Mode:** `date_windows` (set automatically on collaborative trip creation)
 **Last Updated:** 2026-01
 
 ---
@@ -192,3 +193,15 @@ This design treats **date locking as a social convergence problem**, not a calen
 It allows uncertainty early, clarity later, and commitment only when humans choose it.
 
 This is the canonical model for Trypzy.
+
+---
+
+## Legacy Scheduling Modes
+
+The codebase retains support for earlier scheduling approaches that are **not the default**:
+
+- **`top3_heatmap`**: An older mode where travelers submit ranked date picks and the system generates a heatmap of overlapping preferences. Still supported but not the default for new trips.
+- **Legacy availability system**: Broad/weekly/per-day availability submissions stored in the `availabilities` collection. Predates the date windows approach.
+- **Voting flow**: A separate voting phase (`POST /api/trips/:id/open-voting`) that is distinct from the support-signal model described above. Still available but not required in the default date windows flow.
+
+New collaborative trips default to `schedulingMode: 'date_windows'`. See [scheduling_mvp.md](./scheduling_mvp.md) for historical context on the earlier model.

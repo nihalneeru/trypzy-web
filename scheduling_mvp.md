@@ -1,6 +1,10 @@
+> **LEGACY DOCUMENT**: This document describes an earlier availability → voting MVP model. The current default scheduling flow uses date windows and is documented in [date_locking_funnel.md](./date_locking_funnel.md).
+
+---
+
 Trypzy – Scheduling MVP (Source of Truth)
 
-Status: MVP-locked
+Status: MVP-locked (superseded by date_locking_funnel.md for default flow)
 Owner: Product / Engineering
 Applies to: Collaborative Trips (default)
 Principle: Scheduling mirrors how friends actually decide dates — broad intent → narrowing → commitment.
