@@ -371,6 +371,25 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
     enabled: !!trip?.id && !!token
   })
 
+  // Nudge engine: fetch nudges on load and on status changes
+  // Fire-and-forget: chat_card nudges appear via normal chat polling
+  const nudgesFetchedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!trip?.id || !token) return
+    // Skip if nudges disabled via env var
+    if (process.env.NEXT_PUBLIC_NUDGES_ENABLED === 'false') return
+    // Dedupe key: tripId + status (re-fetch when status changes, e.g. after locking dates)
+    const fetchKey = `${trip.id}:${trip.status}`
+    if (nudgesFetchedRef.current === fetchKey) return
+    nudgesFetchedRef.current = fetchKey
+
+    fetch(`/api/trips/${trip.id}/nudges`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).catch(() => {
+      // Silently fail — nudges are non-critical
+    })
+  }, [trip?.id, trip?.status, token])
+
   // Compute derived state
   const progressSteps = useMemo(() => computeProgressSteps(trip), [trip])
   const currentStage = useMemo(() => deriveTripPrimaryStage(trip), [trip])
