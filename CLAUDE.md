@@ -137,7 +137,7 @@ The product should feel like a helpful organizer, not a manager.
 **Collections**:
 - `users`: `{ id, email, name, password (hashed), avatarUrl, privacy: { profileVisibility, tripsVisibility, allowTripJoinRequests, showTripDetailsLevel }, createdAt, updatedAt }`
 - `circles`: `{ id, name, description, ownerId, inviteCode, createdAt }`
-- `trips`: `{ id, name, description, circleId, createdBy, type: 'collaborative'|'hosted', status: 'proposed'|'scheduling'|'voting'|'locked'|'completed'|'canceled', schedulingMode: 'top3_heatmap'|legacy, startDate, endDate, lockedStartDate, lockedEndDate, destinationHint, itineraryStatus: 'collecting_ideas'|'drafting'|'selected'|'published'|'revising'|null, canceledAt, canceledBy, createdAt, updatedAt }`
+- `trips`: `{ id, name, description, circleId, createdBy, type: 'collaborative'|'hosted', status: 'proposed'|'scheduling'|'voting'|'locked'|'completed'|'canceled', schedulingMode: 'date_windows' (default for collaborative) | 'top3_heatmap' (legacy), startDate, endDate, lockedStartDate, lockedEndDate, destinationHint, itineraryStatus: 'collecting_ideas'|'drafting'|'selected'|'published'|'revising'|null, canceledAt, canceledBy, createdAt, updatedAt }`
 - `memberships`: `{ userId, circleId, role: 'owner'|'member', joinedAt }`
 - `trip_participants`: `{ tripId, userId, status: 'active'|'left'|'removed', joinedAt, createdAt, updatedAt }`
 - `trip_date_picks`: `{ tripId, userId, picks: [{ rank, startDateISO, endDateISO }], createdAt, updatedAt }` (top3_heatmap mode)
@@ -233,9 +233,16 @@ components/trip/command-center-v2/
 - `lib/server/auth.js` - JWT auth helpers
 - `lib/server/llm.js` - OpenAI integration
 
+**Nudge Engine**:
+- `lib/nudges/NudgeEngine.ts` - Pure nudge evaluation (`computeNudges()`)
+- `lib/nudges/store.ts` - Dedupe, cooldown, chat message persistence
+- `lib/nudges/metrics.ts` - Trip metrics computation for nudge evaluation
+- `lib/nudges/copy.ts` - User-facing nudge text and emoji helpers
+
 **Tests**:
 - `tests/api/` - API unit tests (stage enforcement, privacy, expenses, etc.)
 - `tests/trips/` - Trip utility tests (voting status, blocking users)
+- `tests/nudges/` - Nudge engine tests (engine, store, overlap, surfacing)
 - `e2e/` - Playwright E2E tests (navigation, discover flow)
 
 ## 5) Command Center V2 - Current Implementation
@@ -274,7 +281,7 @@ components/trip/command-center-v2/
 - **Context CTA Bar**: Bottom bar with two sections
   - Left: Travelers count, Expenses, Memories quick-action buttons
   - Right: Priority-based CTA button (red background)
-- **Focus Banner**: Shows trip name and locked dates (if any)
+- **Focus Banner**: Shows trip name, locked dates (if any), and an inline blocker indicator text (e.g. "Waiting on dates") styled with type-based colors
 
 **CTA Priority Algorithm** (in `ContextCTABar.tsx`):
 1. Lock dates (leader only, when `canLockDates` and status is `voting`)
@@ -355,6 +362,11 @@ DB_NAME=trypzy
 JWT_SECRET=your-secret-key
 CORS_ORIGINS=http://localhost:3000
 OPENAI_API_KEY=your-openai-key
+# Optional:
+# OPENAI_API_URL=https://api.openai.com/v1/chat/completions
+# OPENAI_MODEL=gpt-4o-mini
+# ITINERARY_MAX_VERSIONS=3
+# NEXT_PUBLIC_NUDGES_ENABLED=false  (set to 'false' to disable nudge system messages)
 ```
 
 **Development**:
@@ -416,6 +428,28 @@ Creates test users: alex.traveler@example.com / password123
 
 **Reference**: See `MVP_HARDENING_PLAN_V2.md` for full audit findings.
 
+## 10.5) Nudge Engine (INTERNAL)
+
+A nudge engine exists and is **active** in the current codebase.
+
+**How it works**:
+- The engine evaluates trip state (metrics, viewer context) and produces nudges via `computeNudges()` in `lib/nudges/NudgeEngine.ts`
+- Nudges are surfaced as **system messages in trip chat** (channel: `chat_card`) with distinct `bg-brand-sand` styling
+- Nudges are **informational, non-blocking, and role-aware** — they celebrate progress (e.g. "first availability submitted") and clarify next steps without pressuring
+- Dedupe is handled server-side via the `nudge_events` collection (cooldown-based) and `metadata.eventKey` on chat messages
+- The client triggers nudge evaluation via `GET /api/trips/:tripId/nudges` on trip load (fire-and-forget in `CommandCenterV2.tsx`)
+- Feature flag: `NEXT_PUBLIC_NUDGES_ENABLED` (set to `'false'` to disable)
+
+**Key files**:
+- `lib/nudges/NudgeEngine.ts` — Pure function engine, 8 nudge types
+- `lib/nudges/types.ts` — Type definitions (NudgeType, NudgeChannel, NudgeAudience)
+- `lib/nudges/copy.ts` — User-facing text templates and emoji helpers
+- `lib/nudges/metrics.ts` — `computeTripMetrics()` from trip + windows + participants
+- `lib/nudges/store.ts` — Dedupe, cooldown, chat message persistence
+- `docs/NUDGE_ENGINE_SURFACING.md` — Discovery notes and architecture
+
+**Do NOT** document exact rules, thresholds, or cooldown durations in user-facing docs. The engine is intentionally opaque to users.
+
 ## 11) Key Component APIs
 
 **CommandCenterV2 Props**:
@@ -454,12 +488,10 @@ interface ProgressChevronsProps {
 **ContextCTABar Props**:
 ```typescript
 interface ContextCTABarProps {
-  trip: Trip
-  user: User
-  onTravelersClick: () => void
-  onExpensesClick: () => void
-  onMemoriesClick: () => void
-  onCTAClick: (overlayType: OverlayType) => void
+  trip: any
+  user: any
+  travelerCount: number
+  onOpenOverlay: (overlayType: string) => void
 }
 ```
 

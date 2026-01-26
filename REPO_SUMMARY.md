@@ -8,11 +8,11 @@ Trypzy is a **private, trust-based trip planning platform** for friend groups. T
 
 **Core user flows**:
 - Circle creation and invite-based membership
-- Trip proposal with broad date windows
-- Availability collection via flexible scheduling modes (broad/weekly/per-day or top3_heatmap)
-- Voting on top date windows
+- Trip proposal with date windows (default scheduling mode: `date_windows`)
+- Date window collection and support signaling
 - Date locking and itinerary planning
-- Trip Chat as the primary interactive conversation surface
+- Trip Chat as the primary interactive surface (via **Command Center V2**)
+- Lightweight system nudges in chat to celebrate progress and clarify next steps
 - Circle Updates digest showing read-only trip activity
 - Itinerary idea submission and LLM-assisted generation
 - Accommodation selection and prep tracking
@@ -129,6 +129,7 @@ Trypzy is a **private, trust-based trip planning platform** for friend groups. T
 ├── navigation/                # Route helpers
 │   └── routes.js
 ├── chat/                      # Chat event emission
+├── nudges/                    # Nudge engine (evaluation, copy, dedupe, metrics)
 ├── itinerary/                 # Itinerary processing
 ├── accommodations/             # Accommodation helpers
 ├── prep/                      # Prep suggestions
@@ -137,6 +138,7 @@ Trypzy is a **private, trust-based trip planning platform** for friend groups. T
 /tests                        # Unit tests (Vitest)
 ├── api/                       # API endpoint tests (8 files)
 ├── itinerary/                 # Itinerary-specific tests
+├── nudges/                    # Nudge engine tests (4 files, 53 tests)
 ├── trips/                     # Trip domain tests
 └── setup.js                   # Test setup/teardown
 
@@ -304,7 +306,7 @@ UI Re-render (TripDetailView)
 - `createdBy` (references users.id) - **trip leader**
 - `type`: `'collaborative'` | `'hosted'`
 - `status`: `'proposed'` | `'scheduling'` | `'voting'` | `'locked'` | `'completed'` | `'canceled'`
-- `schedulingMode`: `'top3_heatmap'` | legacy availability system
+- `schedulingMode`: `'date_windows'` (default for collaborative) | `'top3_heatmap'` (legacy)
 - `startDate`, `endDate` (broad window)
 - `lockedStartDate`, `lockedEndDate` (finalized dates)
 - `destinationHint` (optional, editable by leader even when locked)
@@ -497,15 +499,14 @@ UI Re-render (TripDetailView)
 **Boundaries**: Computes progress from trip data, displays visual steps
 
 ### Scheduling Logic
-**Location**: `lib/trips/` + `components/trip/TripTabs/tabs/PlanningTab.tsx`
-**Responsibility**: Availability collection, voting, date locking
+**Location**: `lib/trips/` + `components/trip/command-center-v2/overlays/SchedulingOverlay.tsx`
+**Responsibility**: Date window collection, support signaling, date locking
 **Features**:
-- Top3 heatmap mode (date picks)
-- Legacy availability system (broad/weekly/per-day)
-- Voting aggregation
+- Date windows mode (default): travelers propose date ranges, signal support, leader proposes and locks
+- Legacy modes: top3 heatmap (date picks), broad/weekly/per-day availability
 - Lock confirmation with guardrails
 
-**Boundaries**: UI in PlanningTab, business logic in API routes, helpers in `lib/trips/`
+**Boundaries**: UI in SchedulingOverlay, business logic in API routes, helpers in `lib/trips/`
 
 ### Navigation Helpers
 **Location**: `lib/navigation/routes.js`
@@ -526,6 +527,17 @@ UI Re-render (TripDetailView)
 - `computeProgressFlags(trip)`: Compute progress step flags
 
 **Boundaries**: Pure functions, no API calls, used by both client and server
+
+### Nudge Engine
+**Location**: `lib/nudges/`
+**Responsibility**: Evaluate trip state and produce informational system messages in chat
+**Features**:
+- Pure function engine (`computeNudges()`) evaluating 8 nudge types
+- Nudges surfaced as system messages in trip chat with `bg-brand-sand` styling
+- Dedupe via `nudge_events` collection (cooldown-based)
+- Feature-flagged via `NEXT_PUBLIC_NUDGES_ENABLED`
+
+**Boundaries**: Engine is pure (no side effects), persistence in `store.ts`, API wiring in `route.js`
 
 ### Privacy Filtering
 **Location**: `lib/trips/canViewerSeeTrip.js` + `lib/trips/applyProfileTripPrivacy.js`
@@ -688,4 +700,4 @@ UI Re-render (TripDetailView)
 
 ---
 
-**Last Updated**: Based on codebase state as of latest changes (privacy hardening, circle join backfill, navigation guards, scroll-area fix)
+**Last Updated**: 2026-01 (post MVP hardening + nudge engine surfacing)

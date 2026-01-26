@@ -1,3 +1,5 @@
+> **HISTORICAL PLANNING DOCUMENT**: Current behavior may differ from what is described here. Refer to merged PRs and current docs (CLAUDE.md, date_locking_funnel.md) for the source of truth.
+
 # Trypzy MVP Readiness Audit & Hardening Plan
 
 > Updated 2026-01-23

@@ -1,56 +1,60 @@
-# Surface Nudge Engine to Users
+# Docs Refresh: Post-Hardening + Nudge Surfacing
 
 ## Summary
 
-The nudge engine (`lib/nudges/`) was fully built but never surfaced — no client code called the `GET /api/trips/:tripId/nudges` endpoint. This PR wires the existing backend to the UI so nudges appear as styled system messages in trip chat.
+Docs-only PR refreshing markdown documentation to accurately reflect the current product state after the MVP hardening and nudge surfacing PRs were merged. **No code, config, or JSON changes.**
 
-### What changed
+## Files Touched
 
-- **CommandCenterV2**: Fires a single `GET /api/trips/:id/nudges` fetch on mount and when `trip.status` changes. Fire-and-forget — the backend persists chat_card nudges as system messages in `trip_messages`, which appear via existing 5-second chat polling.
-- **ChatTab**: Nudge system messages (`subtype: 'nudge'`) render with `bg-brand-sand/60` styling, visually distinct from regular gray system messages.
-- **Discovery doc**: `docs/NUDGE_ENGINE_SURFACING.md` documents the engine architecture, all 8 nudge types, and root cause.
-- **Tests**: 7 integration tests covering nudge production, dedupe, and chat card creation.
+### README.md
+- Updated overview to describe Command Center V2 and chat-first coordination
+- Updated trip flow to full pipeline (Proposed through Completed)
+- Added "How Trypzy keeps trips moving" section (nudges in chat)
+- Added "Beta Notes" section (no email/push, discover empty for new users, dates are final)
+- Updated Documentation links to point to date_locking_funnel.md as primary scheduling doc
 
-### Nudge types surfaced
+### SETUP.md
+- Added missing env vars: OPENAI_API_URL, OPENAI_MODEL, ITINERARY_MAX_VERSIONS, NEXT_PUBLIC_NUDGES_ENABLED
+- Added Scripts section with all npm commands
+- Added Troubleshooting section (MongoDB, Node version, ESLint, JWT_SECRET)
 
-| Type | Channel | Audience | Trigger |
-|------|---------|----------|---------|
-| `first_availability_submitted` | chat_card | ALL | First person submits availability |
-| `availability_half_submitted` | chat_card | ALL | 50%+ travelers submitted |
-| `strong_overlap_detected` | chat_card | ALL | Best overlap >= 60% coverage |
-| `dates_locked` | chat_card | ALL | Dates are locked |
-| `leader_ready_to_propose` | cta_highlight | LEADER | Good overlap, no proposal yet |
-| `leader_can_lock_dates` | cta_highlight | LEADER | Proposed dates have support |
+### date_locking_funnel.md
+- Made explicit this is the DEFAULT scheduling flow (`schedulingMode: 'date_windows'`)
+- Added "Legacy scheduling modes" section documenting older approaches
 
-### Dedupe strategy
+### scheduling_mvp.md
+- Added LEGACY banner at top pointing to date_locking_funnel.md as current source of truth
 
-- Backend checks `nudge_events` collection for cooldown (hours-based per nudge type)
-- `createChatCardMessage()` checks `metadata.eventKey` before inserting to prevent duplicate chat messages
-- Client uses a ref (`nudgesFetchedRef`) keyed on `tripId:status` to avoid redundant API calls within a session
+### CLAUDE.md
+- Fixed `schedulingMode` default from `top3_heatmap` to `date_windows`
+- Fixed `ContextCTABar` props to match actual TypeScript interface (`onOpenOverlay` not separate callbacks)
+- Added FocusBanner blocker indicator note
+- Added missing env vars to section 8
+- Added new section 10.5: Nudge Engine (active, system messages in chat, feature-flagged)
+- Added nudge files to key file map and tests directory listing
 
-### Rollback plan
+### NAV_PARITY.md
+- Added note about Command Center V2 as current trip experience
+- Confirmed discover deep-link status (`/?view=discover`)
 
-Set `NEXT_PUBLIC_NUDGES_ENABLED=false` in environment variables. The fetch is skipped entirely and no nudges are produced. Existing chat messages remain but no new ones are created.
+### REPO_SUMMARY.md
+- Updated core flows to mention Command Center V2 and nudges
+- Fixed `schedulingMode` default to `date_windows`
+- Added `lib/nudges/` and `tests/nudges/` to directory structure
+- Added Nudge Engine to key components section
+- Updated scheduling logic description to reflect SchedulingOverlay
 
-## Test results
+### MVP_HARDENING_PLAN.md & MVP_HARDENING_PLAN_V2.md
+- Added HISTORICAL PLANNING DOCUMENT banner to both
 
-```
-Tests:     708 passed, 4 failed (pre-existing), 17 skipped
-Nudge tests: 53/53 passed (4 files)
-Build:     Passes cleanly
-```
+## Verification Checklist
 
-Pre-existing failures (not introduced by this PR):
-- `date-windows.test.js` — lock-proposed status assertion
-- `trip-date-proposal.test.js` — schedulingMode default changed
-- `getBlockingUsers.test.js` — 2 copy mismatches from prior PRs
-
-## Test plan
-
-- [ ] Load a trip in `proposed` status — no nudges fired (no availability yet)
-- [ ] Submit first availability on a trip — `FIRST_AVAILABILITY_SUBMITTED` chat card appears
-- [ ] Submit 50%+ availability — `AVAILABILITY_HALF_SUBMITTED` chat card appears
-- [ ] Lock dates — `DATES_LOCKED` chat card appears after refresh
-- [ ] Reload page — no duplicate nudge messages in chat
-- [ ] Set `NEXT_PUBLIC_NUDGES_ENABLED=false` — no nudge fetch occurs
-- [ ] Nudge messages render with sand background, distinct from gray system messages
+- [x] Nudges are surfaced as system messages in chat (confirmed: CommandCenterV2 calls GET /api/trips/:id/nudges)
+- [x] Default scheduling mode is `date_windows` (confirmed: route.js line 789)
+- [x] ContextCTABar actual props match documentation (confirmed: `onOpenOverlay`, `travelerCount`)
+- [x] NEXT_PUBLIC_NUDGES_ENABLED feature flag is implemented (confirmed: CommandCenterV2.tsx line 380)
+- [x] No email/push notification features exist (confirmed: no sendgrid/nodemailer/push in codebase)
+- [x] Discover deep-link works via `/?view=discover` (confirmed: HomeClient.jsx)
+- [x] FocusBannerV2 has inline blocker text (confirmed: lines 131-141)
+- [x] No code, config, or JSON files were modified
+- [x] No documents were deleted

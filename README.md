@@ -1,20 +1,20 @@
 # Trypzy
 
-**Plan Trips Together** - Private, trust-based trip planning for friend groups.
+**Trips made easy** - Private, trust-based trip planning for friend groups.
 
 ## Overview
 
-Trypzy helps friend groups plan trips together through a progressive scheduling model that respects everyone's availability without requiring unanimous participation. The platform supports collaborative trip planning with availability collection, voting, and itinerary management.
+Trypzy helps friend groups plan trips together through a progressive scheduling model that respects everyone's availability without requiring unanimous participation. The primary trip experience is the **Command Center V2** — a chat-centric interface where coordination happens through conversation, system messages, and slide-in overlays for actions like scheduling, itinerary planning, and accommodation.
 
 ## Key Features
 
-- 🎯 **Progressive Scheduling**: Broad intent → Availability collection → Voting → Locked dates
-- 👥 **Circle-Based Groups**: Private circles for organizing friend groups
-- 📅 **Flexible Availability**: Support for broad, weekly, and per-day availability submissions
-- 🗳️ **Consensus Building**: Voting on top promising date windows
-- 📝 **Trip Management**: Collaborative trip planning with itineraries and memories
-- 🌍 **Discover Feed**: Share and discover travel stories (global or circle-scoped)
-- 🔒 **Privacy-First**: Trust-based design with circle-scoped content
+- **Progressive Scheduling**: Propose trip → Share date windows → Build support → Lock dates
+- **Chat-First Coordination**: Trip Chat is the primary interactive surface; all decisions and nudges happen in context
+- **Circle-Based Groups**: Private circles for organizing friend groups
+- **Date Windows**: Travelers propose date ranges and signal support; leaders propose and lock when ready
+- **Collaborative Planning**: Itinerary ideas, accommodation options, and prep tracking after dates are locked
+- **Lightweight Nudges**: System messages in chat celebrate progress and clarify next steps without pressuring
+- **Privacy-First**: Trust-based design where privacy never blocks collaboration
 
 ## Tech Stack
 
@@ -102,27 +102,36 @@ npm run test:all     # Run all tests
 ## Documentation
 
 - **[SETUP.md](./SETUP.md)** - Setup and installation guide
-- **[scheduling_mvp.md](./scheduling_mvp.md)** - Scheduling MVP specification
+- **[date_locking_funnel.md](./date_locking_funnel.md)** - Date scheduling flow (current default)
+- **[scheduling_mvp.md](./scheduling_mvp.md)** - Earlier scheduling model (historical reference)
 - **[docs/](./docs/)** - Additional documentation
   - `docs/api/` - API endpoint documentation
   - `docs/features/` - Feature specifications and guides
-  - `docs/tests/` - Testing documentation and results
+  - `docs/NUDGE_ENGINE_SURFACING.md` - Nudge engine architecture notes
 
 ## Key Concepts
 
-### Progressive Scheduling Model
+### Trip Flow
 
-Trips progress through explicit states:
-1. **Proposed** - Initial state, broad date window established
-2. **Scheduling** - Collecting availability from members
-3. **Voting** - Voting on top promising date windows
-4. **Locked** - Dates finalized, planning can begin
+Trips progress through explicit stages:
+1. **Proposed** — Trip created within a circle, broad intent established
+2. **Scheduling** — Travelers share date windows and signal support
+3. **Locked** — Leader locks dates; planning begins
+4. **Itinerary** — Ideas collected, itinerary generated (LLM-assisted)
+5. **Stay** — Accommodation selected
+6. **Prep** — Transport, packing, documents organized
+7. **Ongoing** — Trip dates are active
+8. **Completed** — Trip has ended
 
 ### Availability ≠ Commitment
 
-- Marking availability is **not** a commitment
+- Sharing date windows is **not** a commitment
 - Only **locking dates** represents commitment
 - The system can progress without unanimous participation
+
+### How Trypzy Keeps Trips Moving
+
+Trypzy uses lightweight system nudges in chat to celebrate milestones and clarify next steps. For example, when the first person shares their availability or when dates are locked, a short system message appears in the trip chat. Nudges are informational and non-blocking — they never pressure or shame.
 
 ### Circles
 
@@ -130,11 +139,18 @@ Trips progress through explicit states:
 - Circle-scoped content and discover posts
 - Circle owners have management privileges
 
+## Beta Notes
+
+- **No email or push notifications**: All updates happen within the app via chat polling
+- **Discover feed**: May be empty for new users until posts are created
+- **Dates are final**: Once locked, dates cannot be unlocked (MVP constraint)
+- **Single leader**: Each trip has one leader who can transfer leadership
+
 ## Development
 
 ### Code Organization
 
-- **Frontend**: Single-page application in `app/page.js` (refactor only when necessary)
+- **Frontend**: Dashboard at `app/dashboard/page.js`; trip detail via Command Center V2 (`components/trip/command-center-v2/`)
 - **API**: Centralized in `app/api/[[...path]]/route.js` with dedicated routes for specific features
 - **Server Utilities**: Shared helpers in `lib/server/`
 
