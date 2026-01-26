@@ -725,11 +725,12 @@ async function handleRoute(request, { params }) {
       // Sort trips using shared function (same as dashboard)
       const { sortTrips } = await import('@/lib/dashboard/sortTrips.js')
       const sortedTrips = sortTrips(tripCardData)
-      
+
       return handleCORS(NextResponse.json({
         ...circle,
         members: membersWithRoles,
-        trips: sortedTrips,
+        trips: sortedTrips.active || [],
+        cancelledTrips: sortedTrips.cancelled || [],
         isOwner: circle.ownerId === auth.user.id
       }))
     }
@@ -3267,6 +3268,50 @@ async function handleRoute(request, { params }) {
       }
 
       return handleCORS(NextResponse.json({ message: 'Support removed' }))
+    }
+
+    // Delete a date window - DELETE /api/trips/:id/date-windows/:windowId
+    // Only the proposer can delete their own window, and only if it hasn't been proposed by the leader
+    if (route.match(/^\/trips\/[^/]+\/date-windows\/[^/]+$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const windowId = path[3]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Block if trip is in PROPOSED or LOCKED phase
+      if (trip.proposedWindowId || trip.status === 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Cannot delete date suggestions while dates are proposed or locked' },
+          { status: 400 }
+        ))
+      }
+
+      const window = await db.collection('date_windows').findOne({ id: windowId, tripId })
+      if (!window) {
+        return handleCORS(NextResponse.json({ error: 'Date window not found' }, { status: 404 }))
+      }
+
+      // Only the proposer can delete their own window
+      if (window.proposedBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'You can only delete your own date suggestions' },
+          { status: 403 }
+        ))
+      }
+
+      // Delete the window and all associated supports
+      await db.collection('date_windows').deleteOne({ id: windowId, tripId })
+      await db.collection('window_supports').deleteMany({ windowId, tripId })
+
+      return handleCORS(NextResponse.json({ message: 'Date suggestion deleted' }))
     }
 
     // Propose dates - POST /api/trips/:id/propose-dates
@@ -9113,10 +9158,11 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Guard: Must be locked (dates locked)
-      if (trip.status !== 'locked') {
+      // Ideas can be submitted at any stage (not just after lock)
+      // Only block if trip hasn't been created yet (status missing)
+      if (!trip.status) {
         return handleCORS(NextResponse.json(
-          { error: 'Itinerary ideas can only be added after dates are locked' },
+          { error: 'Trip is not in a valid state' },
           { status: 400 }
         ))
       }

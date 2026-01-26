@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter, usePathname } from 'next/navigation'
 import { TripCard } from '@/components/dashboard/TripCard'
-import { sortTrips } from '@/lib/dashboard/sortTrips'
+// sortTrips is now applied server-side in the API response
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Users, MapPin, LogOut } from 'lucide-react'
@@ -118,8 +118,8 @@ export default function CircleDetailPage() {
     return null
   }
   
-  // Sort trips using the same function as dashboard
-  const sortedTrips = sortTrips(circle.trips || [])
+  // Trips come pre-sorted from the API
+  const sortedTrips = Array.isArray(circle.trips) ? circle.trips : []
   
   return (
     <div className="min-h-screen bg-gray-50" data-testid="circle-page">

@@ -165,12 +165,12 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Create a Trip</DialogTitle>
           <DialogDescription>Plan a new adventure with your circle</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
           <div className="space-y-2">
             <Label>Trip Name</Label>
             <Input
@@ -212,17 +212,20 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
                 Just a starting point—your group can adjust this later.
               </p>
               <Select
-                value={tripForm.duration ? tripForm.duration.toString() : 'none'}
-                onValueChange={(v) => setTripForm({ ...tripForm, duration: v === 'none' ? '' : parseInt(v) })}
+                value={tripForm.duration || 'none'}
+                onValueChange={(v) => setTripForm({ ...tripForm, duration: v === 'none' ? '' : v })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="No preference" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No preference</SelectItem>
-                  {[2, 3, 4, 5, 6, 7].map((d) => (
-                    <SelectItem key={d} value={d.toString()}>{d} days</SelectItem>
-                  ))}
+                  <SelectItem value="weekend">Weekend (2–3 days)</SelectItem>
+                  <SelectItem value="extended-weekend">Extended weekend (3–4 days)</SelectItem>
+                  <SelectItem value="few-days">A few days (4–5 days)</SelectItem>
+                  <SelectItem value="week">A week</SelectItem>
+                  <SelectItem value="week-plus">Week+ (8+ days)</SelectItem>
+                  <SelectItem value="flexible">Flexible</SelectItem>
                 </SelectContent>
               </Select>
             </div>
