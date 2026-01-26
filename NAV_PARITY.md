@@ -1,5 +1,7 @@
 # Navigation Architecture Parity Analysis
 
+> **Note (2026-01)**: The trip detail experience is now rendered via **Command Center V2** (`components/trip/command-center-v2/`), which is chat-centric with slide-in overlays. The dashboard at `/dashboard` is the primary authenticated entry point. The analysis below of old vs. new dashboard architecture remains accurate for understanding routing and redirect behavior.
+
 ## Summary
 
 This document analyzes the differences between two navigation architectures currently coexisting in the Trypzy codebase:
@@ -229,7 +231,8 @@ User clicks trip card
 3. **Discover Feed Access**
    - **Issue**: Discover only accessible via `/?view=discover`, not a dedicated route
    - **Risk**: Cannot deep link to discover, must go through Old Dashboard
-   - **Location**: `app/HomeClient.jsx` line 2135
+   - **Location**: `app/HomeClient.jsx` (routed via query param `view=discover`)
+   - **Status**: Deep-link works via `/?view=discover`; no `/discover` route exists
 
 ---
 
