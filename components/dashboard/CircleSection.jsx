@@ -20,6 +20,7 @@ import { dashboardCircleHref } from '@/lib/navigation/routes'
  * @property {number} travelerCount
  * @property {Object|null} latestActivity
  * @property {Array} pendingActions
+ * @property {boolean} [isCurrentUserTraveler]
  */
 
 /**
@@ -40,25 +41,34 @@ import { dashboardCircleHref } from '@/lib/navigation/routes'
  */
 export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
   const [showCreateTrip, setShowCreateTrip] = useState(false)
-  const [showCancelled, setShowCancelled] = useState(false)
-  const [showCompleted, setShowCompleted] = useState(false)
+  const [showCompleted, setShowCompleted] = useState(true)
+  const [showCancelled, setShowCancelled] = useState(true)
+  const [showOther, setShowOther] = useState(false)
 
-  const allActiveTrips = circle.trips || []
+  const allTrips = circle.trips || []
   const cancelledTrips = circle.cancelledTrips || []
 
-  // Categorize active trips
+  // Deterministic, non-overlapping classification (priority order):
+  // 1. canceled (already separated by backend)
+  // 2. completed
+  // 3. isLeader (createdBy === currentUserId)
+  // 4. isTraveler (active participant, not leader)
+  // 5. other (circle member, not leader, not traveler)
   const now = new Date()
   const isCompleted = (trip) =>
     trip.status === 'completed' ||
     (trip.endDate && new Date(trip.endDate) < now)
 
-  const leaderTrips = allActiveTrips.filter(
-    (t) => t.createdBy === currentUserId && !isCompleted(t)
+  const completedTrips = allTrips.filter((t) => isCompleted(t))
+  const leaderTrips = allTrips.filter(
+    (t) => !isCompleted(t) && t.createdBy === currentUserId
   )
-  const activeTrips = allActiveTrips.filter(
-    (t) => t.createdBy !== currentUserId && !isCompleted(t)
+  const travelerTrips = allTrips.filter(
+    (t) => !isCompleted(t) && t.createdBy !== currentUserId && t.isCurrentUserTraveler
   )
-  const completedTrips = allActiveTrips.filter((t) => isCompleted(t))
+  const otherTrips = allTrips.filter(
+    (t) => !isCompleted(t) && t.createdBy !== currentUserId && !t.isCurrentUserTraveler
+  )
 
   return (
     <>
@@ -84,7 +94,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
           </div>
         </CardHeader>
         <CardContent className="min-w-0 w-full">
-          {allActiveTrips.length === 0 && cancelledTrips.length === 0 ? (
+          {allTrips.length === 0 && cancelledTrips.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <p className="text-sm mb-4">No trips yet in this circle</p>
               <Button variant="outline" size="sm" onClick={() => setShowCreateTrip(true)}>
@@ -94,12 +104,12 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Leader Trips */}
+              {/* Tier 1: Trips you are leading */}
               {leaderTrips.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Crown className="h-4 w-4 text-amber-500" aria-hidden="true" />
-                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Your trips ({leaderTrips.length})</h3>
+                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Trips you are leading ({leaderTrips.length})</h3>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch">
                     {leaderTrips.map((trip) => (
@@ -109,31 +119,22 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
                 </div>
               )}
 
-              {/* Active Trips (non-leader) */}
-              {activeTrips.length > 0 && (
+              {/* Tier 1: Trips you are a traveler on */}
+              {travelerTrips.length > 0 && (
                 <div>
-                  {leaderTrips.length > 0 && (
-                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Active trips ({activeTrips.length})</h3>
-                  )}
+                  <div className="flex items-center gap-2 mb-3">
+                    <Users className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Trips you are a traveler on ({travelerTrips.length})</h3>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch">
-                    {activeTrips.map((trip) => (
+                    {travelerTrips.map((trip) => (
                       <TripCard key={trip.id} trip={trip} circleId={circle.id} />
                     ))}
                   </div>
                 </div>
               )}
 
-              {leaderTrips.length === 0 && activeTrips.length === 0 && (completedTrips.length > 0 || cancelledTrips.length > 0) && (
-                <div className="text-center py-4 text-gray-500">
-                  <p className="text-sm mb-4">No active trips</p>
-                  <Button variant="outline" size="sm" onClick={() => setShowCreateTrip(true)}>
-                    <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-                    Create trip
-                  </Button>
-                </div>
-              )}
-
-              {/* Completed Trips Section */}
+              {/* Tier 1: Completed Trips (expanded by default) */}
               {completedTrips.length > 0 && (
                 <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
                   <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
@@ -155,7 +156,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
                 </Collapsible>
               )}
 
-              {/* Cancelled Trips Section */}
+              {/* Tier 1: Canceled Trips (expanded by default) */}
               {cancelledTrips.length > 0 && (
                 <Collapsible open={showCancelled} onOpenChange={setShowCancelled}>
                   <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
@@ -165,11 +166,32 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
                       <ChevronRight className="h-4 w-4" />
                     )}
                     <XCircle className="h-4 w-4" />
-                    <span>Cancelled ({cancelledTrips.length})</span>
+                    <span>Canceled ({cancelledTrips.length})</span>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch mt-2 opacity-60">
                       {cancelledTrips.map((trip) => (
+                        <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+
+              {/* Tier 2: Other trips in this circle (collapsed by default) */}
+              {otherTrips.length > 0 && (
+                <Collapsible open={showOther} onOpenChange={setShowOther}>
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                    {showOther ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    <span>Other trips in this circle ({otherTrips.length})</span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch mt-2">
+                      {otherTrips.map((trip) => (
                         <TripCard key={trip.id} trip={trip} circleId={circle.id} />
                       ))}
                     </div>
