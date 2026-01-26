@@ -6,7 +6,7 @@ import { TripCard } from './TripCard'
 import { Button } from '@/components/ui/button'
 import { CreateTripDialog } from './CreateTripDialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Plus, Users, ChevronDown, ChevronRight, XCircle } from 'lucide-react'
+import { Plus, Users, ChevronDown, ChevronRight, XCircle, Crown, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { dashboardCircleHref } from '@/lib/navigation/routes'
 
@@ -41,9 +41,24 @@ import { dashboardCircleHref } from '@/lib/navigation/routes'
 export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
   const [showCreateTrip, setShowCreateTrip] = useState(false)
   const [showCancelled, setShowCancelled] = useState(false)
+  const [showCompleted, setShowCompleted] = useState(false)
 
-  const activeTrips = circle.trips || []
+  const allActiveTrips = circle.trips || []
   const cancelledTrips = circle.cancelledTrips || []
+
+  // Categorize active trips
+  const now = new Date()
+  const isCompleted = (trip) =>
+    trip.status === 'completed' ||
+    (trip.endDate && new Date(trip.endDate) < now)
+
+  const leaderTrips = allActiveTrips.filter(
+    (t) => t.createdBy === currentUserId && !isCompleted(t)
+  )
+  const activeTrips = allActiveTrips.filter(
+    (t) => t.createdBy !== currentUserId && !isCompleted(t)
+  )
+  const completedTrips = allActiveTrips.filter((t) => isCompleted(t))
 
   return (
     <>
@@ -69,7 +84,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
           </div>
         </CardHeader>
         <CardContent className="min-w-0 w-full">
-          {activeTrips.length === 0 && cancelledTrips.length === 0 ? (
+          {allActiveTrips.length === 0 && cancelledTrips.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <p className="text-sm mb-4">No trips yet in this circle</p>
               <Button variant="outline" size="sm" onClick={() => setShowCreateTrip(true)}>
@@ -79,16 +94,36 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Active Trips */}
-              {activeTrips.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch">
-                  {activeTrips.map((trip) => (
-                    <TripCard key={trip.id} trip={trip} circleId={circle.id} />
-                  ))}
+              {/* Leader Trips */}
+              {leaderTrips.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Crown className="h-4 w-4 text-amber-500" aria-hidden="true" />
+                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Your trips ({leaderTrips.length})</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch">
+                    {leaderTrips.map((trip) => (
+                      <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {activeTrips.length === 0 && cancelledTrips.length > 0 && (
+              {/* Active Trips (non-leader) */}
+              {activeTrips.length > 0 && (
+                <div>
+                  {leaderTrips.length > 0 && (
+                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Active trips ({activeTrips.length})</h3>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch">
+                    {activeTrips.map((trip) => (
+                      <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {leaderTrips.length === 0 && activeTrips.length === 0 && (completedTrips.length > 0 || cancelledTrips.length > 0) && (
                 <div className="text-center py-4 text-gray-500">
                   <p className="text-sm mb-4">No active trips</p>
                   <Button variant="outline" size="sm" onClick={() => setShowCreateTrip(true)}>
@@ -96,6 +131,28 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
                     Create trip
                   </Button>
                 </div>
+              )}
+
+              {/* Completed Trips Section */}
+              {completedTrips.length > 0 && (
+                <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                    {showCompleted ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Completed ({completedTrips.length})</span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch mt-2 opacity-60">
+                      {completedTrips.map((trip) => (
+                        <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
 
               {/* Cancelled Trips Section */}

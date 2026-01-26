@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { MessageCircle, Send, X, Lock } from 'lucide-react'
 import { ActionCard } from '@/components/trip/chat/ActionCard'
+import { ChatBottomCTA } from '@/components/trip/chat/ChatBottomCTA'
 import { toast } from 'sonner'
 import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import { getBlockingUsers } from '@/lib/trips/getBlockingUsers'
@@ -1045,6 +1046,9 @@ export function ChatTab({
           </div>
         ) : null}
         
+        {/* Inline CTA for leadership transfer or hosted invite */}
+        <ChatBottomCTA trip={trip} token={token} user={user} onRefresh={onRefresh} />
+
         <div className={`flex gap-2 ${showActionCard ? 'pt-0' : 'mt-4 pt-4'} border-t`}>
           <Input
             value={newMessage}

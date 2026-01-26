@@ -20,6 +20,8 @@ interface OverlayContainerProps {
   onClose: () => void
   title: string
   children: React.ReactNode
+  /** Optional fixed footer rendered below scrollable content */
+  footer?: React.ReactNode
   /** Set to true when overlay has unsaved changes - prevents accidental close */
   hasUnsavedChanges?: boolean
   /** Right offset to not cover sidebar (e.g., "72px" for chevron bar) */
@@ -47,6 +49,7 @@ export function OverlayContainer({
   onClose,
   title,
   children,
+  footer,
   hasUnsavedChanges = false,
   rightOffset = '0px',
   topOffset = '0px',
@@ -201,9 +204,16 @@ export function OverlayContainer({
         </div>
 
         {/* Content - scrollable */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {children}
         </div>
+
+        {/* Optional fixed footer */}
+        {footer && (
+          <div className="shrink-0 border-t bg-white px-4 py-3">
+            {footer}
+          </div>
+        )}
       </div>
 
       {/* Discard Changes Confirmation Dialog - z-[60] to appear above overlay drawer (z-50) */}
