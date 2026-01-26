@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { TripCard } from '@/components/dashboard/TripCard'
-import { sortTrips } from '@/lib/dashboard/sortTrips'
+// sortTrips is applied server-side; trips come pre-sorted from the API
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags, TripPrimaryStage, TripTabKey } from '@/lib/trips/stage'
 import { getUserActionRequired } from '@/lib/trips/getUserActionRequired.js'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
@@ -2099,8 +2099,16 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
       if (process.env.NODE_ENV === 'development') {
         console.log('[NAV] Dashboard: openTrip called', { tripId, pathname, skipUrlUpdate })
       }
-      
-      const data = await api(`/trips/${tripId}`, { method: 'GET' }, token)
+
+      // Use token from state, fallback to localStorage to avoid race conditions
+      // during navigation where state may not yet reflect the stored token
+      const effectiveToken = token || (typeof window !== 'undefined' ? localStorage.getItem('trypzy_token') : null)
+      if (!effectiveToken) {
+        console.warn('[NAV] openTrip: no auth token available, skipping')
+        return
+      }
+
+      const data = await api(`/trips/${tripId}`, { method: 'GET' }, effectiveToken)
       
       // Compute stage and set initial tab based on stage
       const stage = deriveTripPrimaryStage(data)
@@ -2212,9 +2220,11 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
   const handleNavigateToTrip = async (circleId, tripId) => {
     // Navigate to the newly proposed trip
     try {
-      const circleData = await api(`/circles/${circleId}`, { method: 'GET' }, token)
+      const effectiveToken = token || (typeof window !== 'undefined' ? localStorage.getItem('trypzy_token') : null)
+      if (!effectiveToken) return
+      const circleData = await api(`/circles/${circleId}`, { method: 'GET' }, effectiveToken)
       setSelectedCircle(circleData)
-      const tripData = await api(`/trips/${tripId}`, { method: 'GET' }, token)
+      const tripData = await api(`/trips/${tripId}`, { method: 'GET' }, effectiveToken)
       setSelectedTrip(tripData)
       setView('trip')
     } catch (error) {
@@ -2936,7 +2946,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
             </Card>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {sortTrips(circle.trips || []).map((trip) => (
+              {(Array.isArray(circle.trips) ? circle.trips : []).map((trip) => (
                 <TripCard key={trip.id} trip={trip} circleId={circle.id} />
               ))}
             </div>

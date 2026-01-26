@@ -11,10 +11,10 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowLeft,
-  Edit,
   ThumbsUp,
   ThumbsDown,
-  HelpCircle
+  HelpCircle,
+  Trash2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -434,6 +434,29 @@ export function DateWindowsFunnel({
     }
   }
 
+  // Handle deleting own window
+  const handleDeleteWindow = async (windowId: string) => {
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/date-windows/${windowId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to delete suggestion')
+      }
+
+      toast.success('Date suggestion removed')
+      await fetchWindows()
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message)
+    }
+  }
+
   // Handle proposing dates (leader only)
   const handlePropose = async (concreteDatesOverride?: { startDate: string; endDate: string }) => {
     if (!pendingProposeWindowId) return
@@ -777,26 +800,15 @@ export function DateWindowsFunnel({
               {canLock ? 'Lock these dates' : `Lock dates (${approvalSummary?.approvals || 0}/${approvalSummary?.requiredApprovals || '?'} approvals)`}
             </Button>
 
-            {/* Secondary: Change proposal (select different window) */}
+            {/* Secondary: Change proposal (withdraw and go back to COLLECTING) */}
             <Button
               variant="outline"
               onClick={handleWithdraw}
               className="w-full"
               disabled={submitting}
             >
-              <Edit className="h-4 w-4 mr-2" />
-              Change proposal
-            </Button>
-
-            {/* Tertiary: Withdraw proposal (back to COLLECTING) */}
-            <Button
-              variant="ghost"
-              onClick={handleWithdraw}
-              className="w-full text-muted-foreground"
-              disabled={submitting}
-            >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Withdraw and go back
+              Change proposal
             </Button>
           </div>
         )}
@@ -980,11 +992,11 @@ export function DateWindowsFunnel({
                           type="text"
                           value={newDateText}
                           onChange={(e) => setNewDateText(e.target.value)}
-                          placeholder="e.g., Feb 7-9, early March, first weekend of April"
+                          placeholder="e.g., Feb 7-9, early March, last week of June"
                           className="mt-1"
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Examples: "Feb 7-9", "mid March", "late April"
+                          Examples: "Feb 7-9", "mid March", "last weekend of June", "April"
                         </p>
                       </div>
                       <Button
@@ -1082,6 +1094,25 @@ export function DateWindowsFunnel({
                             I can make this
                           </Button>
                         )
+                      )}
+
+                      {/* Delete button (own windows only, collecting phase) */}
+                      {phase === 'COLLECTING' && window.proposedBy === user.id && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteWindow(window.id)}
+                                className="text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Remove your suggestion</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
 
                       {/* Propose button (leader only) */}

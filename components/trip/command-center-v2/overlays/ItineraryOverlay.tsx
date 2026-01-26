@@ -187,6 +187,16 @@ const REACTION_GROUPS = [
 // Use centralized config for easy post-MVP adjustment
 const { MAX_IDEAS_PER_USER, MAX_IDEA_LENGTH, MAX_VERSIONS } = ITINERARY_CONFIG
 
+// Cycling progress messages shown during LLM generation
+const GENERATION_PROGRESS_MESSAGES = [
+  'Gathering ideas...',
+  'Building the itinerary...',
+  'Organizing days...',
+  'Adding local recommendations...',
+  'Polishing the plan...',
+  'Almost there...'
+]
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -334,6 +344,21 @@ export function ItineraryOverlay({
     needsDestinationHint: false
   })
   const [llmDisabledMessage, setLlmDisabledMessage] = useState<string | null>(null)
+  const [generatingMsgIndex, setGeneratingMsgIndex] = useState(0)
+
+  // Cycle through progress messages during generation
+  useEffect(() => {
+    if (!generating && !revising) {
+      setGeneratingMsgIndex(0)
+      return
+    }
+    const interval = setInterval(() => {
+      setGeneratingMsgIndex(prev =>
+        (prev + 1) % GENERATION_PROGRESS_MESSAGES.length
+      )
+    }, 2500)
+    return () => clearInterval(interval)
+  }, [generating, revising])
 
   // ----------------------------------------------------------------------------
   // Derived State
@@ -417,8 +442,8 @@ export function ItineraryOverlay({
         if (a.travelerId === currentUserId) return -1
         if (b.travelerId === currentUserId) return 1
       }
-      const aIncomplete = a.count < 3
-      const bIncomplete = b.count < 3
+      const aIncomplete = a.count < MAX_IDEAS_PER_USER
+      const bIncomplete = b.count < MAX_IDEAS_PER_USER
       if (aIncomplete && !bIncomplete) return -1
       if (!aIncomplete && bIncomplete) return 1
       return a.travelerName.localeCompare(b.travelerName)
@@ -882,24 +907,20 @@ export function ItineraryOverlay({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start justify-between gap-2">
+                <div
+                  className={`flex items-start justify-between gap-2${isLeader ? ' cursor-pointer hover:bg-gray-50 rounded-md -mx-1 px-1 transition-colors' : ''}`}
+                  onClick={isLeader ? () => {
+                    setDestinationHintValue(trip?.destinationHint || '')
+                    setEditingDestinationHint(true)
+                  } : undefined}
+                >
                   {trip?.destinationHint ? (
                     <p className="text-sm text-gray-700 flex-1">{trip.destinationHint}</p>
                   ) : (
                     <p className="text-sm text-gray-400 italic flex-1">No destination hint set</p>
                   )}
                   {isLeader && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setDestinationHintValue(trip?.destinationHint || '')
-                        setEditingDestinationHint(true)
-                      }}
-                      className="h-7"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
+                    <Edit2 className="h-3 w-3 text-gray-400 shrink-0 mt-0.5" />
                   )}
                 </div>
               )}
@@ -975,14 +996,14 @@ export function ItineraryOverlay({
                   {groupedIdeas.map((group) => {
                     const isCurrentUser = group.travelerId === user?.id
                     const travelerName = isCurrentUser ? 'You' : group.travelerName
-                    const hasEnoughIdeas = group.count >= 3
+                    const hasEnoughIdeas = group.count >= MAX_IDEAS_PER_USER
 
                     return (
                       <AccordionItem key={group.travelerId} value={`traveler-${group.travelerId}`}>
                         <AccordionTrigger className="hover:no-underline py-2">
                           <div className="flex items-center gap-2 flex-1 text-left">
                             <span className="font-medium text-sm">{travelerName}</span>
-                            <span className="text-xs text-gray-500">({group.count}/3)</span>
+                            <span className="text-xs text-gray-500">({group.count}/{MAX_IDEAS_PER_USER})</span>
                             {hasEnoughIdeas ? (
                               <span className="text-green-600 text-xs">Complete</span>
                             ) : (
@@ -1061,7 +1082,7 @@ export function ItineraryOverlay({
                 {generating ? (
                   <>
                     <BrandedSpinner size="sm" className="mr-2" />
-                    Generating...
+                    {GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}
                   </>
                 ) : (
                   <>
@@ -1096,7 +1117,7 @@ export function ItineraryOverlay({
                   </div>
                 )}
                 {generating && (
-                  <p className="text-xs text-gray-500 mt-2">Building a day-by-day plan...</p>
+                  <p className="text-xs text-gray-500 mt-2">{GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}</p>
                 )}
               </div>
             ) : (
@@ -1253,7 +1274,7 @@ export function ItineraryOverlay({
                     {revising ? (
                       <>
                         <BrandedSpinner size="sm" className="mr-2" />
-                        Revising...
+                        {GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}
                       </>
                     ) : (
                       <>

@@ -139,9 +139,9 @@ function deriveBlocker(trip: any, user: any, progressSnapshot: TripProgressSnaps
   if (!itineraryFinalized) {
     return {
       type: 'ITINERARY',
-      title: 'Plan the itinerary',
-      description: 'Add ideas and build a day-by-day plan together',
-      ctaLabel: 'Plan Itinerary',
+      title: 'Suggest ideas for the trip',
+      description: 'Share your activity ideas and build the itinerary together',
+      ctaLabel: 'Suggest Ideas',
       icon: ListTodo,
       overlayType: 'itinerary'
     }

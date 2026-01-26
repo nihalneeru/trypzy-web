@@ -725,11 +725,12 @@ async function handleRoute(request, { params }) {
       // Sort trips using shared function (same as dashboard)
       const { sortTrips } = await import('@/lib/dashboard/sortTrips.js')
       const sortedTrips = sortTrips(tripCardData)
-      
+
       return handleCORS(NextResponse.json({
         ...circle,
         members: membersWithRoles,
-        trips: sortedTrips,
+        trips: sortedTrips.active || [],
+        cancelledTrips: sortedTrips.cancelled || [],
         isOwner: circle.ownerId === auth.user.id
       }))
     }
@@ -3267,6 +3268,50 @@ async function handleRoute(request, { params }) {
       }
 
       return handleCORS(NextResponse.json({ message: 'Support removed' }))
+    }
+
+    // Delete a date window - DELETE /api/trips/:id/date-windows/:windowId
+    // Only the proposer can delete their own window, and only if it hasn't been proposed by the leader
+    if (route.match(/^\/trips\/[^/]+\/date-windows\/[^/]+$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const windowId = path[3]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Block if trip is in PROPOSED or LOCKED phase
+      if (trip.proposedWindowId || trip.status === 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Cannot delete date suggestions while dates are proposed or locked' },
+          { status: 400 }
+        ))
+      }
+
+      const window = await db.collection('date_windows').findOne({ id: windowId, tripId })
+      if (!window) {
+        return handleCORS(NextResponse.json({ error: 'Date window not found' }, { status: 404 }))
+      }
+
+      // Only the proposer can delete their own window
+      if (window.proposedBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'You can only delete your own date suggestions' },
+          { status: 403 }
+        ))
+      }
+
+      // Delete the window and all associated supports
+      await db.collection('date_windows').deleteOne({ id: windowId, tripId })
+      await db.collection('window_supports').deleteMany({ windowId, tripId })
+
+      return handleCORS(NextResponse.json({ message: 'Date suggestion deleted' }))
     }
 
     // Propose dates - POST /api/trips/:id/propose-dates
@@ -8083,19 +8128,8 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      if (!source || !['AIRBNB', 'BOOKING', 'VRBO', 'MANUAL', 'OTHER'].includes(source)) {
-        return handleCORS(NextResponse.json(
-          { error: 'Valid source is required (AIRBNB, BOOKING, VRBO, MANUAL, OTHER)' },
-          { status: 400 }
-        ))
-      }
-      
-      if (source !== 'MANUAL' && !url) {
-        return handleCORS(NextResponse.json(
-          { error: 'URL is required for non-manual sources' },
-          { status: 400 }
-        ))
-      }
+      const validSources = ['AIRBNB', 'BOOKING', 'VRBO', 'MANUAL', 'OTHER']
+      const effectiveSource = source && validSources.includes(source) ? source : 'OTHER'
       
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -8139,12 +8173,25 @@ async function handleRoute(request, { params }) {
           ))
         }
       }
-      
+
+      // Per-user limit: max 2 accommodation options per user per trip
+      const MAX_ACCOMMODATION_OPTIONS_PER_USER = 2
+      const userOptionCount = await db.collection('accommodation_options').countDocuments({
+        tripId,
+        addedByUserId: auth.user.id
+      })
+      if (userOptionCount >= MAX_ACCOMMODATION_OPTIONS_PER_USER) {
+        return handleCORS(NextResponse.json(
+          { error: `You can only submit ${MAX_ACCOMMODATION_OPTIONS_PER_USER} accommodation options` },
+          { status: 400 }
+        ))
+      }
+
       const option = {
         id: uuidv4(),
         tripId,
         stayRequirementId: stayRequirementId || null,
-        source,
+        source: effectiveSource,
         title: title.trim(),
         url: url?.trim() || null,
         priceRange: priceRange?.trim() || null,
@@ -8155,9 +8202,9 @@ async function handleRoute(request, { params }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
-      
+
       await db.collection('accommodation_options').insertOne(option)
-      
+
       // Emit chat event for accommodation added
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
       await emitTripChatEvent({
@@ -8169,7 +8216,7 @@ async function handleRoute(request, { params }) {
         metadata: {
           optionId: option.id,
           stayRequirementId: stayRequirementId,
-          source: source
+          source: effectiveSource
         }
       })
       
@@ -8180,6 +8227,58 @@ async function handleRoute(request, { params }) {
         ...option,
         addedBy: user ? { id: user.id, name: user.name } : null
       }))
+    }
+
+    // Delete accommodation option - DELETE /api/trips/:tripId/accommodations/:optionId
+    // Only the user who added the option can delete it, and only if not yet selected
+    if (route.match(/^\/trips\/[^/]+\/accommodations\/[^/]+$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const optionId = path[3]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Block modifications on cancelled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
+      const option = await db.collection('accommodation_options').findOne({ id: optionId, tripId })
+      if (!option) {
+        return handleCORS(NextResponse.json({ error: 'Option not found' }, { status: 404 }))
+      }
+
+      // Only the person who added it can delete
+      if (option.addedByUserId !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'You can only delete your own options' },
+          { status: 403 }
+        ))
+      }
+
+      // Cannot delete if already selected
+      if (option.status === 'selected') {
+        return handleCORS(NextResponse.json(
+          { error: 'Cannot delete a selected option' },
+          { status: 400 }
+        ))
+      }
+
+      // Delete the option and associated votes
+      await db.collection('accommodation_options').deleteOne({ id: optionId, tripId })
+      await db.collection('accommodation_votes').deleteMany({ optionId, tripId })
+
+      return handleCORS(NextResponse.json({ success: true }))
     }
 
     // Vote for accommodation option - POST /api/trips/:tripId/accommodations/:optionId/vote
@@ -9113,10 +9212,11 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Guard: Must be locked (dates locked)
-      if (trip.status !== 'locked') {
+      // Ideas can be submitted at any stage (not just after lock)
+      // Only block if trip hasn't been created yet (status missing)
+      if (!trip.status) {
         return handleCORS(NextResponse.json(
-          { error: 'Itinerary ideas can only be added after dates are locked' },
+          { error: 'Trip is not in a valid state' },
           { status: 400 }
         ))
       }

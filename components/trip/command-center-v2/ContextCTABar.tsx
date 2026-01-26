@@ -121,9 +121,9 @@ export function ContextCTABar({
 
     // 4. Add ideas (only if itinerary not finalized and user has fewer than 3 ideas)
     // P1-5: Use inviting language - "Add your ideas" instead of "Submit ideas"
-    if (!itineraryFinalized && userIdeasCount < 3 && datesLocked) {
+    if (!itineraryFinalized && userIdeasCount < 2 && datesLocked) {
       return {
-        label: 'Add your ideas',
+        label: 'Suggest an idea',
         icon: Lightbulb,
         overlayType: 'itinerary',
         priority: 4

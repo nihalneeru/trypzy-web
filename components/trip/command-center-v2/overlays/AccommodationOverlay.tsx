@@ -1,20 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,24 +16,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Home,
-  Plus,
-  ExternalLink,
   Check,
   Lock,
   ThumbsUp,
-  MapPin,
-  Calendar,
   Users,
   DollarSign,
-  AlertCircle
+  ExternalLink,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/app/HomeClient'
-import { buildAirbnbSearchUrl } from '@/lib/accommodations/buildAirbnbSearchUrl'
+
+// Constants
+const MAX_OPTIONS_PER_USER = 2
 
 interface AccommodationOverlayProps {
   trip: any
@@ -51,15 +41,6 @@ interface AccommodationOverlayProps {
   onRefresh: (updatedTrip?: any) => void
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
-}
-
-interface Stay {
-  id: string
-  locationName: string
-  startDate: string
-  endDate: string
-  nights: number
-  status: 'pending' | 'outdated' | 'covered'
 }
 
 interface AccommodationOption {
@@ -71,7 +52,7 @@ interface AccommodationOption {
   priceRange?: string
   sleepCapacity?: number
   notes?: string
-  status: 'proposed' | 'voted' | 'selected'
+  status: 'shortlisted' | 'proposed' | 'voted' | 'selected'
   voteCount?: number
   userVoted?: boolean
   voters?: Array<{ id: string; name: string }>
@@ -79,6 +60,7 @@ interface AccommodationOption {
     id: string
     name: string
   }
+  addedByUserId?: string
 }
 
 // API Helper
@@ -110,16 +92,6 @@ const api = async (endpoint: string, options: any = {}, token: string | null = n
   return await response.json()
 }
 
-// Initial form state
-const getInitialFormState = () => ({
-  source: 'AIRBNB',
-  title: '',
-  url: '',
-  priceRange: '',
-  sleepCapacity: '',
-  notes: ''
-})
-
 export function AccommodationOverlay({
   trip,
   token,
@@ -129,186 +101,154 @@ export function AccommodationOverlay({
   setHasUnsavedChanges
 }: AccommodationOverlayProps) {
   // Data state
-  const [stays, setStays] = useState<Stay[]>([])
   const [accommodations, setAccommodations] = useState<AccommodationOption[]>([])
-  const [selectedStayId, setSelectedStayId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Dialog state
-  const [showAddDialog, setShowAddDialog] = useState(false)
-  const [showSelectConfirm, setShowSelectConfirm] = useState(false)
-  const [optionToSelect, setOptionToSelect] = useState<string | null>(null)
-
-  // Form state
-  const [formData, setFormData] = useState(getInitialFormState())
-  const [formTouched, setFormTouched] = useState(false)
+  // Inline form state
+  const [formTitle, setFormTitle] = useState('')
+  const [formUrl, setFormUrl] = useState('')
+  const [formPrice, setFormPrice] = useState('')
+  const [formNotes, setFormNotes] = useState('')
 
   // Action loading states
   const [adding, setAdding] = useState(false)
   const [voting, setVoting] = useState<string | null>(null)
   const [selecting, setSelecting] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
+  // Confirm dialogs
+  const [showSelectConfirm, setShowSelectConfirm] = useState(false)
+  const [optionToSelect, setOptionToSelect] = useState<string | null>(null)
+
+  // Derived
   const isTripLeader = trip?.createdBy === user?.id || trip?.viewer?.isTripLeader
+  const viewer = trip?.viewer || {}
+  const isCancelled = trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
+  const viewerIsReadOnly =
+    !viewer.isActiveParticipant ||
+    viewer.participantStatus === 'left' ||
+    isCancelled
 
-  // Track unsaved changes
+  // Track unsaved changes for inline form
   useEffect(() => {
-    const hasChanges = formTouched && (
-      formData.title.trim() !== '' ||
-      formData.url.trim() !== '' ||
-      formData.priceRange.trim() !== '' ||
-      formData.sleepCapacity !== '' ||
-      formData.notes.trim() !== ''
-    )
+    const hasChanges = formTitle.trim().length > 0 || formUrl.trim().length > 0 || formNotes.trim().length > 0
     setHasUnsavedChanges(hasChanges)
-  }, [formData, formTouched, setHasUnsavedChanges])
+  }, [formTitle, formUrl, formNotes, setHasUnsavedChanges])
 
-  // Load stays and accommodations
+  // Count user's options
+  const userOptionCount = useMemo(() => {
+    if (!user?.id) return 0
+    return accommodations.filter(
+      a => a.addedByUserId === user.id || a.addedBy?.id === user.id
+    ).length
+  }, [accommodations, user?.id])
+
+  const canAddMore = userOptionCount < MAX_OPTIONS_PER_USER && !viewerIsReadOnly
+
+  // Load accommodations
   const loadData = useCallback(async () => {
     if (!trip?.id || trip.status !== 'locked') return
 
     setLoading(true)
+    setError(null)
     try {
-      const [staysData, accommodationsData] = await Promise.all([
-        api(`/trips/${trip.id}/stays`, { method: 'GET' }, token),
-        api(`/trips/${trip.id}/accommodations`, { method: 'GET' }, token)
-      ])
-
-      setStays(staysData || [])
-      setAccommodations(accommodationsData || [])
-
-      // Auto-select first stay if none selected
-      if (!selectedStayId && staysData && staysData.length > 0) {
-        setSelectedStayId(staysData[0].id)
-      }
-    } catch (error) {
-      console.error('Failed to load accommodation data:', error)
-      toast.error('Failed to load accommodation data')
+      const data = await api(`/trips/${trip.id}/accommodations`, { method: 'GET' }, token)
+      setAccommodations(data || [])
+    } catch (err: any) {
+      console.error('Failed to load accommodation data:', err)
+      setError(err.message || 'Failed to load accommodation data')
     } finally {
       setLoading(false)
     }
-  }, [trip?.id, trip?.status, token, selectedStayId])
+  }, [trip?.id, trip?.status, token])
 
   useEffect(() => {
     loadData()
   }, [loadData])
 
-  // Format date range for display
-  const formatDateRange = (startDate: string, endDate: string) => {
-    if (!startDate) return 'Dates TBD'
-    const start = new Date(startDate)
-    const end = endDate ? new Date(endDate) : null
-
-    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    if (!end) return startStr
-
-    const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    return `${startStr} - ${endStr}`
-  }
-
-  // Get stay status badge
-  const getStayStatusBadge = (stay: Stay, options: AccommodationOption[]) => {
-    const stayOptions = options.filter(a => a.stayRequirementId === stay.id)
-    const hasSelected = stayOptions.some(a => a.status === 'selected')
-
-    if (hasSelected) {
-      return (
-        <Badge variant="default" className="text-xs bg-green-600">
-          <Check className="h-3 w-3 mr-1" />
-          Covered
-        </Badge>
-      )
-    }
-
-    if (stay.status === 'outdated') {
-      return <Badge variant="outline" className="text-xs">Outdated</Badge>
-    }
-
-    if (stayOptions.length === 0) {
-      return <Badge variant="secondary" className="text-xs">Needs options</Badge>
-    }
-
-    return <Badge variant="secondary" className="text-xs">Not decided</Badge>
-  }
-
-  // Handle form field change
-  const handleFormChange = (field: string, value: string) => {
-    setFormTouched(true)
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
-
   // Reset form
   const resetForm = () => {
-    setFormData(getInitialFormState())
-    setFormTouched(false)
+    setFormTitle('')
+    setFormUrl('')
+    setFormPrice('')
+    setFormNotes('')
     setHasUnsavedChanges(false)
   }
 
-  // Handle add accommodation
-  const handleAddAccommodation = async () => {
-    if (!formData.title.trim()) {
-      toast.error('Title is required')
-      return
-    }
-
-    if (formData.source !== 'MANUAL' && !formData.url.trim()) {
-      toast.error('URL is required for non-manual entries')
+  // Handle add accommodation (inline form)
+  const handleAdd = async () => {
+    if (!formTitle.trim() || adding || viewerIsReadOnly) return
+    if (userOptionCount >= MAX_OPTIONS_PER_USER) {
+      toast.error(`You can only submit ${MAX_OPTIONS_PER_USER} accommodation options`)
       return
     }
 
     setAdding(true)
     try {
-      // P0-3: Get updated trip for immediate UI refresh
-      const result = await api(`/trips/${trip.id}/accommodations`, {
+      await api(`/trips/${trip.id}/accommodations`, {
         method: 'POST',
         body: JSON.stringify({
-          stayRequirementId: selectedStayId || null,
-          source: formData.source,
-          title: formData.title.trim(),
-          url: formData.url.trim() || null,
-          priceRange: formData.priceRange.trim() || null,
-          sleepCapacity: formData.sleepCapacity ? parseInt(formData.sleepCapacity) : null,
-          notes: formData.notes.trim() || null
+          title: formTitle.trim(),
+          url: formUrl.trim() || null,
+          priceRange: formPrice.trim() || null,
+          notes: formNotes.trim() || null,
+          source: 'OTHER'
         })
       }, token)
 
-      toast.success('Accommodation option added')
-      setShowAddDialog(false)
+      toast.success('Accommodation option added!')
       resetForm()
-      loadData()
-      // Pass updated trip if returned, otherwise trigger refetch
-      onRefresh?.(result?.trip || undefined)
-    } catch (error: any) {
-      console.error('Failed to add accommodation:', error)
-      toast.error(error.message || 'Failed to add accommodation')
+      await loadData()
+      onRefresh?.()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add accommodation option')
     } finally {
       setAdding(false)
     }
   }
 
+  // Handle delete
+  const handleDelete = async (optionId: string) => {
+    if (deleting) return
+
+    setDeleting(optionId)
+    try {
+      await api(`/trips/${trip.id}/accommodations/${optionId}`, {
+        method: 'DELETE'
+      }, token)
+
+      toast.success('Option removed')
+      await loadData()
+      onRefresh?.()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete option')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
   // Handle vote
   const handleVote = async (optionId: string) => {
-    if (voting) return
+    if (voting || viewerIsReadOnly) return
 
     setVoting(optionId)
     try {
-      // P0-3: Get updated trip for immediate UI refresh
-      const result = await api(`/trips/${trip.id}/accommodations/${optionId}/vote`, {
+      await api(`/trips/${trip.id}/accommodations/${optionId}/vote`, {
         method: 'POST'
       }, token)
 
       toast.success('Vote recorded')
-      loadData()
-      // Pass updated trip if returned, otherwise trigger refetch
-      onRefresh?.(result?.trip || undefined)
-    } catch (error: any) {
-      console.error('Failed to vote:', error)
-      toast.error(error.message || 'Failed to vote')
+      await loadData()
+      onRefresh?.()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to vote')
     } finally {
       setVoting(null)
     }
   }
 
-  // Handle select accommodation
+  // Handle select (leader only)
   const handleSelectClick = (optionId: string) => {
     setOptionToSelect(optionId)
     setShowSelectConfirm(true)
@@ -319,68 +259,27 @@ export function AccommodationOverlay({
 
     setSelecting(true)
     try {
-      // P0-3: Get updated trip for immediate UI refresh
       const result = await api(`/trips/${trip.id}/accommodations/${optionToSelect}/select`, {
         method: 'POST'
       }, token)
 
-      toast.success('Accommodation selected')
+      toast.success('Accommodation selected!')
       setShowSelectConfirm(false)
       setOptionToSelect(null)
-      loadData()
-      // Pass updated trip if returned, otherwise trigger refetch
+      await loadData()
       onRefresh?.(result?.trip || undefined)
-    } catch (error: any) {
-      console.error('Failed to select accommodation:', error)
-      toast.error(error.message || 'Failed to select accommodation')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to select accommodation')
     } finally {
       setSelecting(false)
     }
   }
 
-  // Handle Airbnb search
-  const handleAirbnbSearch = (stay: Stay) => {
-    const url = buildAirbnbSearchUrl({
-      locationName: stay.locationName,
-      startDate: stay.startDate,
-      endDate: stay.endDate
-    })
-    window.open(url, '_blank')
-  }
-
-  // Get options for selected stay
-  const selectedStay = useMemo(() =>
-    stays.find(s => s.id === selectedStayId),
-    [stays, selectedStayId]
+  // Check if any option is already selected
+  const selectedOption = useMemo(
+    () => accommodations.find(a => a.status === 'selected'),
+    [accommodations]
   )
-
-  const stayAccommodations = useMemo(() => {
-    if (selectedStayId) {
-      return accommodations.filter(a => a.stayRequirementId === selectedStayId)
-    }
-    return accommodations.filter(a => !a.stayRequirementId)
-  }, [accommodations, selectedStayId])
-
-  const selectedAccommodation = useMemo(() =>
-    stayAccommodations.find(a => a.status === 'selected'),
-    [stayAccommodations]
-  )
-
-  // Get source icon/color
-  const getSourceBadgeClass = (source: string) => {
-    switch (source) {
-      case 'AIRBNB':
-        return 'bg-rose-100 text-rose-700'
-      case 'BOOKING':
-        return 'bg-blue-100 text-blue-700'
-      case 'VRBO':
-        return 'bg-indigo-100 text-indigo-700'
-      case 'MANUAL':
-        return 'bg-gray-100 text-gray-700'
-      default:
-        return 'bg-gray-100 text-gray-700'
-    }
-  }
 
   // Trip not locked - show message
   if (trip.status !== 'locked') {
@@ -401,45 +300,19 @@ export function AccommodationOverlay({
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <BrandedSpinner size="md" className="mb-4" />
-        <p className="text-gray-500">Loading accommodation data...</p>
+        <p className="text-gray-500">Loading accommodation options...</p>
       </div>
     )
   }
 
-  // No stays added yet
-  if (stays.length === 0) {
-    // Build a generic Airbnb search URL based on trip dates and destination
-    const tripDestination = trip.destinationHint || trip.destination || ''
-    const tripStart = trip.lockedStartDate || trip.startDate
-    const tripEnd = trip.lockedEndDate || trip.endDate
-
-    const handleSearchAccommodation = () => {
-      if (tripStart && tripEnd) {
-        const url = buildAirbnbSearchUrl({
-          locationName: tripDestination,
-          startDate: tripStart,
-          endDate: tripEnd
-        })
-        window.open(url, '_blank')
-      } else {
-        toast.error('Lock trip dates first to search for accommodation')
-      }
-    }
-
+  // Error state
+  if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Home className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Stays Added Yet</h3>
-        <p className="text-gray-500 max-w-sm mb-6">
-          Accommodation requirements will be automatically generated based on your trip itinerary.
-          You can also search for stays manually.
-        </p>
-        <Button
-          onClick={handleSearchAccommodation}
-          className="bg-brand-red hover:bg-brand-red/90 text-white"
-        >
-          <ExternalLink className="h-4 w-4 mr-2" />
-          Search on Airbnb
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
+        <p className="text-sm text-gray-600 mb-4">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => { setError(null); loadData() }}>
+          Try again
         </Button>
       </div>
     )
@@ -447,97 +320,108 @@ export function AccommodationOverlay({
 
   return (
     <div className="space-y-6">
-      {/* Stays List */}
+      {/* Inline Add Form */}
+      {canAddMore ? (
+        <Card>
+          <CardContent className="pt-4 pb-4 space-y-3">
+            <p className="text-xs font-medium text-gray-500">
+              Suggest an accommodation option ({userOptionCount}/{MAX_OPTIONS_PER_USER} submitted)
+            </p>
+            <Input
+              value={formTitle}
+              onChange={(e) => setFormTitle(e.target.value)}
+              placeholder="Option name (e.g., Cozy apartment in city center)"
+              className="text-sm"
+              disabled={viewerIsReadOnly || adding}
+            />
+            <Input
+              value={formUrl}
+              onChange={(e) => setFormUrl(e.target.value)}
+              placeholder="Link (optional - Airbnb, Booking, etc.)"
+              className="text-sm"
+              type="url"
+              disabled={viewerIsReadOnly || adding}
+            />
+            <div className="flex gap-2">
+              <Input
+                value={formPrice}
+                onChange={(e) => setFormPrice(e.target.value)}
+                placeholder="Price range (optional)"
+                className="text-sm flex-1"
+                disabled={viewerIsReadOnly || adding}
+              />
+            </div>
+            <Textarea
+              value={formNotes}
+              onChange={(e) => setFormNotes(e.target.value)}
+              placeholder="Notes (optional - why you like this option, amenities, etc.)"
+              className="text-sm min-h-[60px] resize-none"
+              disabled={viewerIsReadOnly || adding}
+            />
+            <Button
+              onClick={handleAdd}
+              disabled={viewerIsReadOnly || adding || !formTitle.trim()}
+              className="w-full"
+              size="sm"
+            >
+              {adding ? 'Submitting...' : 'Submit Option'}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : userOptionCount >= MAX_OPTIONS_PER_USER ? (
+        <div className="text-center py-3 px-2 bg-gray-50 rounded-lg border">
+          <p className="text-sm text-gray-600">
+            You've submitted {MAX_OPTIONS_PER_USER} options
+          </p>
+        </div>
+      ) : null}
+
+      {/* Selected Accommodation Banner */}
+      {selectedOption && (
+        <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+          <div className="flex items-center gap-2 text-green-800 mb-2">
+            <Check className="h-5 w-5" />
+            <span className="font-medium">Accommodation Confirmed</span>
+          </div>
+          <h4 className="font-medium text-gray-900">{selectedOption.title}</h4>
+          {selectedOption.priceRange && (
+            <p className="text-sm text-gray-600 mt-1">{selectedOption.priceRange}</p>
+          )}
+          {selectedOption.url && (
+            <a
+              href={selectedOption.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-brand-blue hover:underline mt-2 inline-flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              View listing
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Options List */}
       <div>
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-          Stays by Location
+          All Options ({accommodations.length})
         </h3>
-        <div className="space-y-2">
-          {stays.map((stay) => {
-            const isSelected = stay.id === selectedStayId
-
-            return (
-              <Card
-                key={stay.id}
-                onClick={() => setSelectedStayId(stay.id)}
-                className={`cursor-pointer transition-all ${
-                  isSelected
-                    ? 'border-brand-blue bg-brand-sand ring-1 ring-brand-blue'
-                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <MapPin className="h-4 w-4 text-gray-500 shrink-0" />
-                        <h4 className="font-medium text-sm truncate">{stay.locationName}</h4>
-                        {getStayStatusBadge(stay, accommodations)}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {formatDateRange(stay.startDate, stay.endDate)}
-                        </span>
-                        <span>{stay.nights} night{stay.nights !== 1 ? 's' : ''}</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Selected Stay Options */}
-      {selectedStay && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-              Options for {selectedStay.locationName}
-            </h3>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <Button
-              size="sm"
-              onClick={() => setShowAddDialog(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Option
-            </Button>
-
-            {selectedStay.startDate && selectedStay.endDate && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleAirbnbSearch(selectedStay)}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Search on Airbnb
-              </Button>
-            )}
-          </div>
-
-          {/* Options list */}
-          {stayAccommodations.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Home className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500 mb-1">No options added yet</p>
-                <p className="text-xs text-gray-400">
-                  Add accommodation options for the group to vote on
-                </p>
-              </CardContent>
-            </Card>
+        <ScrollArea className="h-[350px]">
+          {accommodations.length === 0 ? (
+            <div className="text-center py-8">
+              <Home className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 mb-1 text-sm">No options submitted yet</p>
+              <p className="text-xs text-gray-400">
+                Share an accommodation option for the group to vote on
+              </p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {stayAccommodations.map((option) => {
+            <div className="space-y-3 pr-2">
+              {accommodations.map((option) => {
                 const isSelected = option.status === 'selected'
                 const hasVoted = option.userVoted
                 const voteCount = option.voteCount || 0
+                const isOwnOption = option.addedByUserId === user?.id || option.addedBy?.id === user?.id
 
                 return (
                   <Card
@@ -548,23 +432,20 @@ export function AccommodationOverlay({
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           {/* Title and badges */}
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <h4 className="font-medium">{option.title}</h4>
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <h4 className="font-medium text-sm">{option.title}</h4>
                             {isSelected && (
-                              <Badge variant="default" className="bg-green-600">
+                              <Badge variant="default" className="bg-green-600 text-xs">
                                 <Check className="h-3 w-3 mr-1" />
                                 Selected
                               </Badge>
                             )}
-                            <Badge className={getSourceBadgeClass(option.source)}>
-                              {option.source}
-                            </Badge>
                           </div>
 
                           {/* Added by */}
                           {option.addedBy && (
                             <p className="text-xs text-gray-500 mb-2">
-                              Added by {option.addedBy.name}
+                              Added by {isOwnOption ? 'you' : option.addedBy.name}
                             </p>
                           )}
 
@@ -613,7 +494,6 @@ export function AccommodationOverlay({
                                   </Badge>
                                 )}
                               </div>
-                              {/* Show who voted */}
                               {option.voters && option.voters.length > 0 && (
                                 <p className="text-xs text-gray-500 mt-1">
                                   Voted by: {option.voters.map(v => v.name).join(', ')}
@@ -625,7 +505,8 @@ export function AccommodationOverlay({
 
                         {/* Action buttons */}
                         <div className="flex flex-col gap-2 shrink-0">
-                          {!isSelected && !hasVoted && (
+                          {/* Vote button */}
+                          {!isSelected && !hasVoted && !viewerIsReadOnly && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -643,6 +524,7 @@ export function AccommodationOverlay({
                             </Button>
                           )}
 
+                          {/* Select button (leader only) */}
                           {!isSelected && isTripLeader && (
                             <Button
                               size="sm"
@@ -654,6 +536,23 @@ export function AccommodationOverlay({
                               Select
                             </Button>
                           )}
+
+                          {/* Delete button (own options only, not selected) */}
+                          {isOwnOption && !isSelected && !viewerIsReadOnly && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-gray-400 hover:text-red-600"
+                              onClick={() => handleDelete(option.id)}
+                              disabled={deleting === option.id}
+                            >
+                              {deleting === option.id ? (
+                                <BrandedSpinner size="sm" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -662,168 +561,8 @@ export function AccommodationOverlay({
               })}
             </div>
           )}
-
-          {/* Selected accommodation summary */}
-          {selectedAccommodation && (
-            <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="flex items-center gap-2 text-green-800 mb-2">
-                <Check className="h-5 w-5" />
-                <span className="font-medium">Accommodation Confirmed</span>
-              </div>
-              <h4 className="font-medium text-gray-900">{selectedAccommodation.title}</h4>
-              {selectedAccommodation.priceRange && (
-                <p className="text-sm text-gray-600 mt-1">{selectedAccommodation.priceRange}</p>
-              )}
-              {selectedAccommodation.url && (
-                <a
-                  href={selectedAccommodation.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-brand-blue hover:underline mt-2 inline-flex items-center gap-1"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  View listing
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Add Accommodation Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={(open) => {
-        if (!open && formTouched) {
-          // Let the parent handle unsaved changes
-          setShowAddDialog(false)
-        } else {
-          setShowAddDialog(open)
-          if (!open) {
-            resetForm()
-          }
-        }
-      }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Accommodation Option</DialogTitle>
-            <DialogDescription>
-              Share an accommodation option for {selectedStay?.locationName || 'this stay'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Source */}
-            <div className="space-y-2">
-              <Label htmlFor="source">Source</Label>
-              <Select
-                value={formData.source}
-                onValueChange={(value) => handleFormChange('source', value)}
-              >
-                <SelectTrigger id="source">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="AIRBNB">Airbnb</SelectItem>
-                  <SelectItem value="BOOKING">Booking.com</SelectItem>
-                  <SelectItem value="VRBO">VRBO</SelectItem>
-                  <SelectItem value="MANUAL">Manual Entry</SelectItem>
-                  <SelectItem value="OTHER">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Title */}
-            <div className="space-y-2">
-              <Label htmlFor="title">
-                Title <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => handleFormChange('title', e.target.value)}
-                placeholder="e.g., Cozy apartment in city center"
-              />
-            </div>
-
-            {/* URL (conditional) */}
-            {formData.source !== 'MANUAL' && (
-              <div className="space-y-2">
-                <Label htmlFor="url">
-                  URL <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="url"
-                  type="url"
-                  value={formData.url}
-                  onChange={(e) => handleFormChange('url', e.target.value)}
-                  placeholder="https://..."
-                />
-              </div>
-            )}
-
-            {/* Price Range */}
-            <div className="space-y-2">
-              <Label htmlFor="priceRange">Price Range (optional)</Label>
-              <Input
-                id="priceRange"
-                value={formData.priceRange}
-                onChange={(e) => handleFormChange('priceRange', e.target.value)}
-                placeholder="e.g., $100-150/night"
-              />
-            </div>
-
-            {/* Sleep Capacity */}
-            <div className="space-y-2">
-              <Label htmlFor="sleepCapacity">Sleep Capacity (optional)</Label>
-              <Input
-                id="sleepCapacity"
-                type="number"
-                min="1"
-                value={formData.sleepCapacity}
-                onChange={(e) => handleFormChange('sleepCapacity', e.target.value)}
-                placeholder="Number of guests"
-              />
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (optional)</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => handleFormChange('notes', e.target.value)}
-                placeholder="Additional details about this option..."
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowAddDialog(false)
-                resetForm()
-              }}
-              disabled={adding}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddAccommodation}
-              disabled={adding || !formData.title.trim() || (formData.source !== 'MANUAL' && !formData.url.trim())}
-            >
-              {adding ? (
-                <>
-                  <BrandedSpinner size="sm" className="mr-2" />
-                  Adding...
-                </>
-              ) : (
-                'Add Option'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ScrollArea>
+      </div>
 
       {/* Select Confirmation Dialog */}
       <AlertDialog open={showSelectConfirm} onOpenChange={setShowSelectConfirm}>
@@ -831,7 +570,7 @@ export function AccommodationOverlay({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Selection</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to select this accommodation? This will mark it as the chosen option for this stay.
+              Are you sure you want to select this accommodation? This will mark it as the chosen option for the trip.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
