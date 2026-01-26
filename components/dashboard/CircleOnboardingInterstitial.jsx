@@ -52,8 +52,12 @@ export function CircleOnboardingInterstitial({
   if (!circle) return null
 
   const handleCreateTrip = async () => {
-    if (!tripForm.name || !tripForm.startDate || !tripForm.endDate) {
-      toast.error('Please fill in all required fields')
+    if (!tripForm.name) {
+      toast.error('Please enter a trip name')
+      return
+    }
+    if (tripForm.type === 'hosted' && (!tripForm.startDate || !tripForm.endDate)) {
+      toast.error('Hosted trips require start and end dates')
       return
     }
     setCreating(true)
@@ -253,7 +257,7 @@ export function CircleOnboardingInterstitial({
             </Button>
             <Button 
               onClick={handleCreateTrip} 
-              disabled={creating || !tripForm.name || !tripForm.startDate || !tripForm.endDate}
+              disabled={creating || !tripForm.name || (tripForm.type === 'hosted' && (!tripForm.startDate || !tripForm.endDate))}
               className="flex-1"
             >
               {creating ? 'Creating...' : 'Create Trip'}
