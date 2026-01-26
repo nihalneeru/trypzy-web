@@ -1360,18 +1360,20 @@ async function handleRoute(request, { params }) {
         const startBound = trip.startBound || trip.startDate
         const endBound = trip.endBound || trip.endDate
         const tripLengthDays = trip.tripLengthDays || trip.duration || 3
-        
+
+        // Guard: skip candidate generation if date bounds are missing
+        if (startBound && endBound) {
         // Get all valid start dates (where startDate + (tripLengthDays-1) <= endBound)
         const validStartDates = []
         const startDateObj = new Date(startBound + 'T12:00:00')
         const endBoundObj = new Date(endBound + 'T12:00:00')
-        
+
         for (let d = new Date(startDateObj); d <= endBoundObj; d.setDate(d.getDate() + 1)) {
           const startDateStr = d.toISOString().split('T')[0]
           const endDateObj = new Date(d)
           endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
           const endDateStr = endDateObj.toISOString().split('T')[0]
-          
+
           if (endDateStr <= endBound) {
             validStartDates.push({
               startDateISO: startDateStr,
@@ -1381,7 +1383,7 @@ async function handleRoute(request, { params }) {
             })
           }
         }
-        
+
         // Sort by score descending, take top 5
         topCandidates = validStartDates
           .sort((a, b) => b.score - a.score)
@@ -1394,8 +1396,9 @@ async function handleRoute(request, { params }) {
             canCount: candidate.breakdown.canCount,
             mightCount: candidate.breakdown.mightCount
           }))
+        } // end if (startBound && endBound)
       }
-      
+
       // Compute progress steps for client-side chevrons and CTA decisions
       const selectedAccommodation = await db.collection('accommodation_options')
         .findOne({ tripId, status: 'selected' })
@@ -1534,8 +1537,8 @@ async function handleRoute(request, { params }) {
               { status: 400 }
             ))
           }
-          // Validate day is within trip range
-          if (a.day < trip.startDate || a.day > trip.endDate) {
+          // Validate day is within trip range (only when bounds exist)
+          if (trip.startDate && trip.endDate && (a.day < trip.startDate || a.day > trip.endDate)) {
             return handleCORS(NextResponse.json(
               { error: `Day ${a.day} is outside trip date range (${trip.startDate} to ${trip.endDate})` },
               { status: 400 }
@@ -1554,8 +1557,8 @@ async function handleRoute(request, { params }) {
               { status: 400 }
             ))
           }
-          // Validate dates are within trip range
-          if (block.startDate < trip.startDate || block.endDate > trip.endDate) {
+          // Validate dates are within trip range (only when bounds exist)
+          if (trip.startDate && trip.endDate && (block.startDate < trip.startDate || block.endDate > trip.endDate)) {
             return handleCORS(NextResponse.json(
               { error: `Weekly block dates (${block.startDate} to ${block.endDate}) must be within trip range (${trip.startDate} to ${trip.endDate})` },
               { status: 400 }
@@ -2028,6 +2031,14 @@ async function handleRoute(request, { params }) {
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
       }
 
       // Only leader can compress
@@ -3332,6 +3343,14 @@ async function handleRoute(request, { params }) {
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
       }
 
       // Block if trip is in PROPOSED or LOCKED phase

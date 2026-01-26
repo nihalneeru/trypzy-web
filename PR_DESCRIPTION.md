@@ -29,11 +29,31 @@ Minimal hardening PR that addresses UX dead-ends and adds server-side guardrails
   - Canceled trip blocks date reactions (400)
   - Canceled trip blocks lock-proposed (400)
 
+### C) Codex Follow-up Fixes
+
+Three missed guards and two edge risks identified by Codex review:
+
+- **Canceled-trip guard on `POST /trips/:id/windows/compress`**: Added same early-return pattern used on other scheduling endpoints.
+- **Canceled-trip guard on `DELETE /trips/:id/date-windows/:windowId`**: Added same early-return pattern.
+- **Null bounds crash in top3_heatmap candidate generation**: Wrapped candidate loop (`new Date(startBound)` / `toISOString()`) in `if (startBound && endBound)` so Trip GET never 500s when a trip has no date bounds.
+- **Availability bound comparisons (edge risk #5)**: Guarded per-day and weekly-block range validation (`a.day < trip.startDate`) with `if (trip.startDate && trip.endDate)` so validation is skipped when bounds are missing rather than comparing against `null`.
+
+#### Known remaining risk (documented, not fixed)
+
+- **Message posting guard robustness (edge risk #4)**: The left/removed user block relies on a `trip_participants` record existing. In legacy data, a collaborative trip member who was removed outside the app may lack a `trip_participants` record entirely, bypassing the guard (they'd still pass the circle `memberships` check). Mitigation: run a backfill script to create `trip_participants` records for all circle members in collaborative trips. This was not changed because flipping the logic to require an active record would break legitimate collaborative trip users who don't have explicit participant records.
+
 ## Test plan
 
-- [x] `npm run build` passes
-- [x] `npx vitest run` — no new test failures (4 pre-existing failures unrelated to this PR)
-- [x] New guardrail tests all pass
+- [x] `npm run build` — compiled successfully
+- [x] `npx vitest run` — 701 passed, 17 skipped, 4 failed (pre-existing, unchanged)
+- [x] New guardrail tests all pass (5/5)
 - [ ] Manual: verify canceled trip shows "Back to dashboard" link
 - [ ] Manual: verify non-leader sees "Dates in progress" CTA after submitting availability
 - [ ] Manual: verify Discover button visible on mobile dashboard
+
+### Pre-existing test failures (unchanged by this PR)
+
+1. `tests/api/date-windows.test.js` > should lock dates from proposed window
+2. `tests/api/trip-date-proposal.test.js` > allows collaborative trip creation without dates
+3. `tests/trips/getBlockingUsers.test.js` > should return leader lock message when everyone responded and user is leader
+4. `tests/trips/getBlockingUsers.test.js` > should handle missing pickProgress gracefully
