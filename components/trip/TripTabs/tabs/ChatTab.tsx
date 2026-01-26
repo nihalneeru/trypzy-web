@@ -240,12 +240,12 @@ export function ChatTab({
       )?.length || 0
 
       // 1. "Add your ideas" - when collecting ideas and user has fewer than 3 ideas
-      if (datesLocked && itineraryStatus === 'collecting_ideas' && userIdeasCount < 3) {
+      if (datesLocked && itineraryStatus === 'collecting_ideas' && userIdeasCount < 2) {
         return {
           id: 'add-ideas',
-          title: 'Add your ideas',
+          title: 'Suggest an idea',
           description: 'Share what you would love to do on this trip',
-          ctaLabel: 'Add your ideas',
+          ctaLabel: 'Suggest an idea',
           kind: 'deeplink',
           deeplinkTab: 'itinerary',
           actionRequired: userIdeasCount === 0

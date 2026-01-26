@@ -122,9 +122,9 @@ export function getNextAction({
     case TripPrimaryStage.DATES_LOCKED:
       return {
         id: 'itinerary-required',
-        title: 'Add your ideas',
+        title: 'Suggest an idea',
         description: 'Share activities and build the itinerary together',
-        ctaLabel: 'Go to Itinerary',
+        ctaLabel: 'Suggest Ideas',
         kind: 'deeplink',
         deeplinkTab: TripTabKey.ITINERARY,
         priority: 2
