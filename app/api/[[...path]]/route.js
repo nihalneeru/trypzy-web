@@ -8174,6 +8174,18 @@ async function handleRoute(request, { params }) {
         }
       }
 
+      // Block adding options if accommodation already selected
+      const existingSelected = await db.collection('accommodation_options').findOne({
+        tripId,
+        status: 'selected'
+      })
+      if (existingSelected) {
+        return handleCORS(NextResponse.json(
+          { error: 'Accommodation has already been confirmed for this trip' },
+          { status: 400 }
+        ))
+      }
+
       // Per-user limit: max 2 accommodation options per user per trip
       const MAX_ACCOMMODATION_OPTIONS_PER_USER = 2
       const userOptionCount = await db.collection('accommodation_options').countDocuments({
@@ -8258,6 +8270,18 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Option not found' }, { status: 404 }))
       }
 
+      // Block deletion if any accommodation already selected (phase complete)
+      const deleteSelectedCheck = await db.collection('accommodation_options').findOne({
+        tripId,
+        status: 'selected'
+      })
+      if (deleteSelectedCheck) {
+        return handleCORS(NextResponse.json(
+          { error: 'Accommodation has already been confirmed for this trip' },
+          { status: 400 }
+        ))
+      }
+
       // Only the person who added it can delete
       if (option.addedByUserId !== auth.user.id) {
         return handleCORS(NextResponse.json(
@@ -8314,6 +8338,18 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json(
           { error: 'You are not an active traveler for this trip' },
           { status: 403 }
+        ))
+      }
+
+      // Block voting if accommodation already selected
+      const voteSelectedCheck = await db.collection('accommodation_options').findOne({
+        tripId,
+        status: 'selected'
+      })
+      if (voteSelectedCheck) {
+        return handleCORS(NextResponse.json(
+          { error: 'Accommodation has already been confirmed for this trip' },
+          { status: 400 }
         ))
       }
 
@@ -8492,7 +8528,18 @@ async function handleRoute(request, { params }) {
         }
       })
       
-      return handleCORS(NextResponse.json({ message: 'Accommodation selected' }))
+      // Return updated trip data so client can detect phase completion
+      const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+      const updatedProgress = await db.collection('trip_progress').findOne({ tripId })
+
+      return handleCORS(NextResponse.json({
+        message: 'Accommodation selected',
+        trip: updatedTrip ? {
+          ...updatedTrip,
+          progress: updatedProgress || {}
+        } : null,
+        accommodationChosen: !!accommodationDone
+      }))
     }
 
     // ============ PREP ROUTES ============

@@ -136,6 +136,13 @@ export function AccommodationOverlay({
     setHasUnsavedChanges(hasChanges)
   }, [formTitle, formUrl, formNotes, setHasUnsavedChanges])
 
+  // Check if any option is already selected (phase complete = read-only)
+  const selectedOption = useMemo(
+    () => accommodations.find(a => a.status === 'selected'),
+    [accommodations]
+  )
+  const accommodationConfirmed = !!selectedOption
+
   // Count user's options
   const userOptionCount = useMemo(() => {
     if (!user?.id) return 0
@@ -144,7 +151,7 @@ export function AccommodationOverlay({
     ).length
   }, [accommodations, user?.id])
 
-  const canAddMore = userOptionCount < MAX_OPTIONS_PER_USER && !viewerIsReadOnly
+  const canAddMore = userOptionCount < MAX_OPTIONS_PER_USER && !viewerIsReadOnly && !accommodationConfirmed
 
   // Load accommodations
   const loadData = useCallback(async () => {
@@ -275,12 +282,6 @@ export function AccommodationOverlay({
     }
   }
 
-  // Check if any option is already selected
-  const selectedOption = useMemo(
-    () => accommodations.find(a => a.status === 'selected'),
-    [accommodations]
-  )
-
   // Trip not locked - show message
   if (trip.status !== 'locked') {
     return (
@@ -368,7 +369,7 @@ export function AccommodationOverlay({
             </Button>
           </CardContent>
         </Card>
-      ) : userOptionCount >= MAX_OPTIONS_PER_USER ? (
+      ) : !accommodationConfirmed && userOptionCount >= MAX_OPTIONS_PER_USER ? (
         <div className="text-center py-3 px-2 bg-gray-50 rounded-lg border">
           <p className="text-sm text-gray-600">
             You've submitted {MAX_OPTIONS_PER_USER} options
@@ -505,8 +506,8 @@ export function AccommodationOverlay({
 
                         {/* Action buttons */}
                         <div className="flex flex-col gap-2 shrink-0">
-                          {/* Vote button */}
-                          {!isSelected && !hasVoted && !viewerIsReadOnly && (
+                          {/* Vote button (hidden after accommodation confirmed) */}
+                          {!isSelected && !hasVoted && !viewerIsReadOnly && !accommodationConfirmed && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -524,8 +525,8 @@ export function AccommodationOverlay({
                             </Button>
                           )}
 
-                          {/* Select button (leader only) */}
-                          {!isSelected && isTripLeader && (
+                          {/* Select button (leader only, hidden after confirmed) */}
+                          {!isSelected && isTripLeader && !accommodationConfirmed && (
                             <Button
                               size="sm"
                               variant="default"
@@ -537,8 +538,8 @@ export function AccommodationOverlay({
                             </Button>
                           )}
 
-                          {/* Delete button (own options only, not selected) */}
-                          {isOwnOption && !isSelected && !viewerIsReadOnly && (
+                          {/* Delete button (own options only, hidden after confirmed) */}
+                          {isOwnOption && !isSelected && !viewerIsReadOnly && !accommodationConfirmed && (
                             <Button
                               size="sm"
                               variant="ghost"
