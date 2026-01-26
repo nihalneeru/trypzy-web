@@ -18,6 +18,12 @@ CORS_ORIGINS=http://localhost:3000
 
 # OpenAI API (for itinerary generation)
 OPENAI_API_KEY=your-openai-api-key-here
+# OPENAI_API_URL=https://api.openai.com/v1/chat/completions  # optional, defaults shown
+# OPENAI_MODEL=gpt-4o-mini                                    # optional
+# ITINERARY_MAX_VERSIONS=3                                    # optional
+
+# Feature flags
+# NEXT_PUBLIC_NUDGES_ENABLED=false  # set to 'false' to disable nudge system messages in chat
 ```
 
 ## Installation
@@ -81,6 +87,35 @@ POST /api/seed/discover
 npm run build
 npm start
 ```
+
+## Scripts
+
+```bash
+npm install          # Install dependencies
+npm run dev          # Start development server
+npm run build        # Build for production
+npm start            # Start production server
+npm run seed         # Seed sample data
+npm run test         # Run unit tests (vitest)
+npm run test:e2e     # Run E2E tests (playwright)
+npm run test:all     # Run all tests
+```
+
+## Troubleshooting
+
+**MongoDB not running**
+- Ensure `mongod` is running locally or your `MONGO_URL` points to a valid MongoDB instance
+- Check connection with `mongosh` before starting the dev server
+
+**Node version mismatch**
+- Requires Node.js 18+. Check with `node --version`
+- Use `nvm use 18` if using nvm
+
+**Build fails with ESLint error**
+- ESLint is referenced in the build but not in devDependencies — this warning can be ignored; the build still completes successfully
+
+**JWT_SECRET error on startup**
+- In production, `JWT_SECRET` must be set. For local development, a fallback is used but you should set it in `.env.local`
 
 ## Project Structure
 
