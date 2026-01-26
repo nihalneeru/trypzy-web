@@ -1392,6 +1392,24 @@ async function handleRoute(request, { params }) {
           }))
       }
       
+      // Compute progress steps for client-side chevrons and CTA decisions
+      const selectedAccommodation = await db.collection('accommodation_options')
+        .findOne({ tripId, status: 'selected' })
+      const tripProgress = await db.collection('trip_progress').findOne({ tripId })
+      const prepStatus = trip.prepStatus || 'not_started'
+      const progressSteps = {
+        tripProposed: true,
+        datesLocked: tripStatus === 'locked' || !!(trip.lockedStartDate && trip.lockedEndDate),
+        itineraryFinalized: trip.itineraryStatus === 'selected' || trip.itineraryStatus === 'published',
+        accommodationChosen: !!selectedAccommodation,
+        prepStarted: prepStatus === 'in_progress' || prepStatus === 'complete' || !!tripProgress?.prepStartedAt,
+        tripOngoing: trip.lockedStartDate && trip.lockedEndDate &&
+          new Date().toISOString().split('T')[0] >= trip.lockedStartDate &&
+          new Date().toISOString().split('T')[0] <= trip.lockedEndDate,
+        memoriesShared: !!tripProgress?.memoriesSharedAt,
+        expensesSettled: !!tripProgress?.expensesSettledAt
+      }
+
       return handleCORS(NextResponse.json({
         ...trip,
         circle: circle ? { id: circle.id, name: circle.name, ownerId: circle.ownerId } : null,
@@ -1432,6 +1450,8 @@ async function handleRoute(request, { params }) {
         pickProgress, // { respondedCount, totalCount, respondedUserIds } - only for top3_heatmap
         // Itinerary status (for locked trips)
         itineraryStatus: trip.itineraryStatus || null,
+        // Progress steps for chevrons and CTA decisions
+        progress: { steps: progressSteps },
         // Voting status (for voting stage)
         votingStatus: getVotingStatus(trip, participantsWithStatus.map(p => ({ id: p.user?.id || p.userId, name: p.user?.name || 'Unknown' })), auth.user.id)
       }))
