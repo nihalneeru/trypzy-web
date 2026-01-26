@@ -26,7 +26,7 @@ import { toast } from 'sonner'
 import { 
   Users, Plus, LogOut, MapPin, Calendar as CalendarIcon, 
   MessageCircle, Check, X, HelpCircle, Vote, Lock, UserPlus, Trash2, AlertTriangle,
-  ChevronLeft, Send, Compass, ArrowRight, Image as ImageIcon,
+  Send, Compass, ArrowRight, Image as ImageIcon,
   Camera, Globe, Eye, EyeOff, Edit, Search, Flag, Sparkles,
   ListTodo, Lightbulb, RefreshCw, ChevronUp, ChevronDown, Clock, Sun, Moon, Sunset, Info,
   Circle, CheckCircle2, Home, Luggage, DollarSign, ChevronRight
@@ -2177,35 +2177,6 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
     }
   }
 
-  const goBack = () => {
-    if (view === 'trip') {
-      // Use returnTo if provided, otherwise check initialCircleId
-      if (returnTo) {
-        // returnTo should already be in the correct format (/circles/[id] or /dashboard)
-        // Update lastHandledUrlRef to prevent popstate conflicts (will be set when navigation completes)
-        lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
-        router.push(returnTo)
-      } else if (initialCircleId) {
-        // If we came from a circle page (initialCircleId exists), go back to that circle
-        // Use /circles/[circleId] format for proper routing
-        lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
-        router.push(`/circles/${initialCircleId}`)
-      } else {
-        // If no initialCircleId, we came from dashboard, so go back to dashboard
-        lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
-        router.push('/dashboard')
-      }
-    } else if (view === 'circle') {
-      // Navigate back to dashboard when on circle view
-      lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
-      router.push('/dashboard')
-    } else if (view === 'discover') {
-      // Navigate back to dashboard when on discover view
-      lastHandledUrlRef.current = null // Reset to allow popstate handler to process new URL
-      router.push('/dashboard')
-    }
-  }
-
   const handleCreateTripFromDiscover = (destination) => {
     // Navigate to circles to create a trip
     if (circles.length > 0) {
@@ -2250,11 +2221,6 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center gap-4">
-              {view !== 'circles' && view !== 'discover' && (
-                <Button variant="ghost" size="icon" onClick={goBack}>
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-              )}
               <div className="flex items-center cursor-pointer" onClick={() => router.push('/dashboard')} data-testid="logo-home">
                 <TrypzyLogo variant="full" className="h-8 w-auto" />
               </div>

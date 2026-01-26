@@ -14,7 +14,8 @@ export default function WelcomePageWrapper() {
   // Check for legacy deep-link query params
   const tripId = searchParams.get('tripId')
   const circleId = searchParams.get('circleId')
-  const hasDeepLinkParams = !!(tripId || circleId)
+  const view = searchParams.get('view')
+  const hasDeepLinkParams = !!(tripId || circleId || view === 'discover')
 
   useEffect(() => {
     // Check if user is authenticated
