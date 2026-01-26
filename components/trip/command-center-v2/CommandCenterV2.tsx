@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
+import Link from 'next/link'
 import { Calendar, ListTodo, Home, CheckCircle2, ClipboardList } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -176,9 +177,9 @@ function deriveBlocker(trip: any, user: any, progressSnapshot: TripProgressSnaps
     type: 'READY',
     title: 'Ready to go!',
     description: 'All decisions are made. Time to enjoy the trip!',
-    ctaLabel: 'View Trip',
+    ctaLabel: 'View Itinerary',
     icon: CheckCircle2,
-    overlayType: null
+    overlayType: 'itinerary'
   }
 }
 
@@ -472,6 +473,12 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center justify-center gap-2">
           <span className="text-gray-600 text-sm font-medium">🚫 This trip has been canceled</span>
           <span className="text-gray-500 text-xs">(read-only)</span>
+          <Link
+            href="/dashboard"
+            className="ml-2 text-sm font-medium text-brand-blue hover:underline"
+          >
+            Back to dashboard
+          </Link>
         </div>
       )}
 

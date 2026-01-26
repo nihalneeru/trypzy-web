@@ -1246,24 +1246,28 @@ async function handleRoute(request, { params }) {
       }
       
       // Normalize availabilities to per-day view for consensus calculation
-      const normalizedAvailabilities = trip.status !== 'locked' && trip.type === 'collaborative'
+      // Guard: skip normalization if date bounds are null (trip has no dates yet)
+      const hasDateBounds = !!(trip.startDate && trip.endDate)
+      const normalizedAvailabilities = hasDateBounds && trip.status !== 'locked' && trip.type === 'collaborative'
         ? getAllNormalizedAvailabilities(availabilities, trip.startDate, trip.endDate)
         : []
-      
+
       // Calculate consensus options using normalized availabilities
-      const consensusOptions = trip.status !== 'locked' && trip.type === 'collaborative'
+      const consensusOptions = hasDateBounds && trip.status !== 'locked' && trip.type === 'collaborative'
         ? calculateConsensus(normalizedAvailabilities, trip.startDate, trip.endDate, trip.duration)
         : []
-      
+
       // Generate promising windows (2-3 top date windows for refinement)
       // Computed on fetch - deterministic and stable across refreshes
-      const promisingWindows = trip.status !== 'locked' && trip.type === 'collaborative'
+      const promisingWindows = hasDateBounds && trip.status !== 'locked' && trip.type === 'collaborative'
         ? generatePromisingWindows(normalizedAvailabilities, trip.startDate, trip.endDate, trip.duration)
         : []
-      
+
       // Get user's availability and normalize to per-day view for frontend
       const userRawAvailability = availabilities.filter(a => a.userId === auth.user.id)
-      const userAvailability = normalizeAvailabilityToPerDay(availabilities, trip.startDate, trip.endDate, auth.user.id)
+      const userAvailability = hasDateBounds
+        ? normalizeAvailabilityToPerDay(availabilities, trip.startDate, trip.endDate, auth.user.id)
+        : []
       
       // Get user's vote
       const userVote = votes.find(v => v.userId === auth.user.id)
@@ -1356,18 +1360,20 @@ async function handleRoute(request, { params }) {
         const startBound = trip.startBound || trip.startDate
         const endBound = trip.endBound || trip.endDate
         const tripLengthDays = trip.tripLengthDays || trip.duration || 3
-        
+
+        // Guard: skip candidate generation if date bounds are missing
+        if (startBound && endBound) {
         // Get all valid start dates (where startDate + (tripLengthDays-1) <= endBound)
         const validStartDates = []
         const startDateObj = new Date(startBound + 'T12:00:00')
         const endBoundObj = new Date(endBound + 'T12:00:00')
-        
+
         for (let d = new Date(startDateObj); d <= endBoundObj; d.setDate(d.getDate() + 1)) {
           const startDateStr = d.toISOString().split('T')[0]
           const endDateObj = new Date(d)
           endDateObj.setDate(endDateObj.getDate() + tripLengthDays - 1)
           const endDateStr = endDateObj.toISOString().split('T')[0]
-          
+
           if (endDateStr <= endBound) {
             validStartDates.push({
               startDateISO: startDateStr,
@@ -1377,7 +1383,7 @@ async function handleRoute(request, { params }) {
             })
           }
         }
-        
+
         // Sort by score descending, take top 5
         topCandidates = validStartDates
           .sort((a, b) => b.score - a.score)
@@ -1390,8 +1396,9 @@ async function handleRoute(request, { params }) {
             canCount: candidate.breakdown.canCount,
             mightCount: candidate.breakdown.mightCount
           }))
+        } // end if (startBound && endBound)
       }
-      
+
       // Compute progress steps for client-side chevrons and CTA decisions
       const selectedAccommodation = await db.collection('accommodation_options')
         .findOne({ tripId, status: 'selected' })
@@ -1530,8 +1537,8 @@ async function handleRoute(request, { params }) {
               { status: 400 }
             ))
           }
-          // Validate day is within trip range
-          if (a.day < trip.startDate || a.day > trip.endDate) {
+          // Validate day is within trip range (only when bounds exist)
+          if (trip.startDate && trip.endDate && (a.day < trip.startDate || a.day > trip.endDate)) {
             return handleCORS(NextResponse.json(
               { error: `Day ${a.day} is outside trip date range (${trip.startDate} to ${trip.endDate})` },
               { status: 400 }
@@ -1550,8 +1557,8 @@ async function handleRoute(request, { params }) {
               { status: 400 }
             ))
           }
-          // Validate dates are within trip range
-          if (block.startDate < trip.startDate || block.endDate > trip.endDate) {
+          // Validate dates are within trip range (only when bounds exist)
+          if (trip.startDate && trip.endDate && (block.startDate < trip.startDate || block.endDate > trip.endDate)) {
             return handleCORS(NextResponse.json(
               { error: `Weekly block dates (${block.startDate} to ${block.endDate}) must be within trip range (${trip.startDate} to ${trip.endDate})` },
               { status: 400 }
@@ -2026,6 +2033,14 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Only leader can compress
       if (trip.createdBy !== auth.user.id) {
         return handleCORS(NextResponse.json({ error: 'Only the trip leader can compress windows' }, { status: 403 }))
@@ -2126,6 +2141,14 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Only leader can propose dates
       if (trip.createdBy !== auth.user.id) {
         return handleCORS(NextResponse.json({ error: 'Only the trip leader can propose dates' }, { status: 403 }))
@@ -2200,6 +2223,14 @@ async function handleRoute(request, { params }) {
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
       }
 
       if (trip.type !== 'collaborative') {
@@ -2298,6 +2329,14 @@ async function handleRoute(request, { params }) {
 
       if (!trip) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
       }
 
       if (trip.createdBy !== auth.user.id) {
@@ -3306,6 +3345,14 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       // Block if trip is in PROPOSED or LOCKED phase
       if (trip.proposedWindowId || trip.status === 'locked') {
         return handleCORS(NextResponse.json(
@@ -3557,6 +3604,14 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
       }
 
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
       if (trip.type !== 'collaborative') {
         return handleCORS(NextResponse.json({ error: 'Only collaborative trips support reactions' }, { status: 400 }))
       }
@@ -3665,6 +3720,14 @@ async function handleRoute(request, { params }) {
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
       }
 
       const circle = await db.collection('circles').findOne({ id: trip?.circleId })
@@ -5727,6 +5790,18 @@ async function handleRoute(request, { params }) {
       if (!membership) {
         return handleCORS(NextResponse.json(
           { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Block messages from users who have left or been removed
+      const msgParticipant = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+      if (msgParticipant && (msgParticipant.status === 'left' || msgParticipant.status === 'removed')) {
+        return handleCORS(NextResponse.json(
+          { error: 'You have left this trip and cannot send messages' },
           { status: 403 }
         ))
       }

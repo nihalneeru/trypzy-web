@@ -14,7 +14,8 @@ import {
   Camera,
   ThumbsUp,
   Check,
-  ClipboardList
+  ClipboardList,
+  Clock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { computeTripProgressSnapshot } from '@/lib/trips/progressSnapshot'
@@ -114,6 +115,16 @@ export function ContextCTABar({
       return {
         label: 'Pick your dates',
         icon: Calendar,
+        overlayType: 'scheduling',
+        priority: 3
+      }
+    }
+
+    // 3b. Dates in progress (non-leader has submitted availability, dates not yet locked)
+    if (hasSubmittedAvailability && !datesLocked) {
+      return {
+        label: 'Dates in progress',
+        icon: Clock,
         overlayType: 'scheduling',
         priority: 3
       }
