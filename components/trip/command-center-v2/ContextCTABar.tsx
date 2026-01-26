@@ -8,6 +8,7 @@ import {
   Vote,
   Lock,
   Lightbulb,
+  UserPlus,
   Sparkles,
   Home,
   DollarSign,
@@ -66,6 +67,17 @@ export function ContextCTABar({
 
     const isLeader = progressSnapshot.isTripLeader
     const userId = user.id
+
+    // 0. Non-traveler: show "Ask to join" as primary CTA
+    const viewer = trip.viewer || {}
+    if (!viewer.isActiveParticipant && trip.status !== 'canceled') {
+      return {
+        label: 'Ask to join',
+        icon: UserPlus,
+        overlayType: 'travelers',
+        priority: 0
+      }
+    }
 
     // Use progress snapshot for core state decisions
     const datesLocked = progressSnapshot.datesLocked

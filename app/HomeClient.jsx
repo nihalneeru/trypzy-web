@@ -41,6 +41,7 @@ import { dashboardCircleHref, circlePageHref, tripHref } from '@/lib/navigation/
 import { formatTripDateRange } from '@/lib/utils'
 import { CommandCenterV2 } from '@/components/trip/command-center-v2'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
+import { LeaveCircleDialog } from '@/components/circles/LeaveCircleDialog'
 
 // Branded Spinner Component
 export function BrandedSpinner({ className = '', size = 'default' }) {
@@ -2571,6 +2572,7 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
   const [loadingUpdates, setLoadingUpdates] = useState(false)
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(false)
+  const [showLeaveCircle, setShowLeaveCircle] = useState(false)
 
   // Load circle updates (read-only digest from trip activity)
   const loadUpdates = async () => {
@@ -2703,12 +2705,23 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center">
             <Users className="h-8 w-8 text-indigo-600" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900">{circle.name}</h1>
             {circle.description && (
               <p className="text-gray-600">{circle.description}</p>
             )}
           </div>
+          {!circle.isOwner && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-gray-500 hover:text-brand-red"
+              onClick={() => setShowLeaveCircle(true)}
+            >
+              <LogOut className="h-4 w-4 mr-1" />
+              Leave
+            </Button>
+          )}
         </div>
         
         {/* Invite Code */}
@@ -3242,6 +3255,19 @@ function CircleDetailView({ circle, token, user, onOpenTrip, onRefresh }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <LeaveCircleDialog
+        open={showLeaveCircle}
+        onOpenChange={setShowLeaveCircle}
+        circleName={circle.name}
+        circleId={circle.id}
+        token={token}
+        onLeft={() => {
+          toast.success(`Left ${circle.name}`)
+          router.push('/dashboard')
+          onRefresh()
+        }}
+      />
     </div>
   )
 }

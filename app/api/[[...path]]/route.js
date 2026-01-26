@@ -82,9 +82,10 @@ async function isActiveTraveler(db, trip, userId) {
     // For collaborative trips: user must be circle member AND not have left/removed status
     const circleMembership = await db.collection('memberships').findOne({
       userId,
-      circleId: trip.circleId
+      circleId: trip.circleId,
+      status: { $ne: 'left' }
     })
-    
+
     if (!circleMembership) return false
     
     // Check if user has left/removed status
@@ -123,15 +124,15 @@ async function getSharedCircleIds(db, viewerId, ownerId) {
   if (viewerId === ownerId) {
     // User viewing their own profile - return all their circles
     const memberships = await db.collection('memberships')
-      .find({ userId: ownerId })
+      .find({ userId: ownerId, status: { $ne: 'left' } })
       .toArray()
     return memberships.map(m => m.circleId)
   }
-  
+
   // Get both users' circle memberships
   const [viewerMemberships, ownerMemberships] = await Promise.all([
-    db.collection('memberships').find({ userId: viewerId }).toArray(),
-    db.collection('memberships').find({ userId: ownerId }).toArray()
+    db.collection('memberships').find({ userId: viewerId, status: { $ne: 'left' } }).toArray(),
+    db.collection('memberships').find({ userId: ownerId, status: { $ne: 'left' } }).toArray()
   ])
   
   const viewerCircleIds = new Set(viewerMemberships.map(m => m.circleId))
@@ -470,19 +471,19 @@ async function handleRoute(request, { params }) {
       }
       
       const memberships = await db.collection('memberships')
-        .find({ userId: auth.user.id })
+        .find({ userId: auth.user.id, status: { $ne: 'left' } })
         .toArray()
-      
+
       const circleIds = memberships.map(m => m.circleId)
-      
+
       const circles = await db.collection('circles')
         .find({ id: { $in: circleIds } })
         .toArray()
-      
-      // Add member count to each circle
+
+      // Add member count to each circle (only active members)
       const circlesWithCounts = await Promise.all(circles.map(async (circle) => {
         const memberCount = await db.collection('memberships')
-          .countDocuments({ circleId: circle.id })
+          .countDocuments({ circleId: circle.id, status: { $ne: 'left' } })
         const tripCount = await db.collection('trips')
           .countDocuments({ circleId: circle.id })
         return {
@@ -508,7 +509,8 @@ async function handleRoute(request, { params }) {
       // Check that requesting user is a member of the circle
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -520,7 +522,7 @@ async function handleRoute(request, { params }) {
 
       // Get all memberships for this circle
       const memberships = await db.collection('memberships')
-        .find({ circleId })
+        .find({ circleId, status: { $ne: 'left' } })
         .toArray()
 
       // Get user info for all members
@@ -565,25 +567,36 @@ async function handleRoute(request, { params }) {
         ))
       }
       
-      // Check if already a member
+      // Check if already a member (including former members who left)
       const existingMembership = await db.collection('memberships').findOne({
         userId: auth.user.id,
         circleId: circle.id
       })
-      
+
       if (existingMembership) {
-        return handleCORS(NextResponse.json(
-          { error: 'You are already a member of this circle' },
-          { status: 400 }
-        ))
+        if (existingMembership.status === 'left') {
+          // Rejoin: reactivate the existing membership
+          await db.collection('memberships').updateOne(
+            { userId: auth.user.id, circleId: circle.id },
+            {
+              $set: { rejoinedAt: new Date().toISOString() },
+              $unset: { status: '', leftAt: '' }
+            }
+          )
+        } else {
+          return handleCORS(NextResponse.json(
+            { error: 'You are already a member of this circle' },
+            { status: 400 }
+          ))
+        }
+      } else {
+        await db.collection('memberships').insertOne({
+          userId: auth.user.id,
+          circleId: circle.id,
+          role: 'member',
+          joinedAt: new Date().toISOString()
+        })
       }
-      
-      await db.collection('memberships').insertOne({
-        userId: auth.user.id,
-        circleId: circle.id,
-        role: 'member',
-        joinedAt: new Date().toISOString()
-      })
       
       // Backfill: Add user as traveler to all existing collaborative trips in this circle
       // This ensures late joiners can see existing trips consistently
@@ -663,7 +676,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -683,7 +697,7 @@ async function handleRoute(request, { params }) {
       
       // Get members
       const memberships = await db.collection('memberships')
-        .find({ circleId })
+        .find({ circleId, status: { $ne: 'left' } })
         .toArray()
       
       const memberIds = memberships.map(m => m.userId)
@@ -735,8 +749,79 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // Leave circle - POST /api/circles/:circleId/leave
+    if (route.match(/^\/circles\/[^/]+\/leave$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const circleId = path[1]
+
+      // Find existing membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId,
+        status: { $ne: 'left' }
+      })
+
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active member of this circle' },
+          { status: 404 }
+        ))
+      }
+
+      // Block if owner
+      if (membership.role === 'owner') {
+        return handleCORS(NextResponse.json(
+          { error: 'Circle owners cannot leave. Transfer ownership first or delete the circle.' },
+          { status: 403 }
+        ))
+      }
+
+      // Detect blocking trips: active trips in this circle where user is a traveler
+      const circleTrips = await db.collection('trips')
+        .find({
+          circleId,
+          status: { $nin: ['completed', 'canceled'] }
+        })
+        .toArray()
+
+      const blockingTrips = []
+
+      for (const trip of circleTrips) {
+        const isTraveler = await isActiveTraveler(db, trip, auth.user.id)
+        if (isTraveler) {
+          blockingTrips.push({
+            id: trip.id,
+            name: trip.name,
+            status: trip.status
+          })
+        }
+      }
+
+      if (blockingTrips.length > 0) {
+        return handleCORS(NextResponse.json(
+          {
+            error: 'You have active trips in this circle',
+            blockingTrips
+          },
+          { status: 409 }
+        ))
+      }
+
+      // Soft-delete membership
+      await db.collection('memberships').updateOne(
+        { userId: auth.user.id, circleId },
+        { $set: { status: 'left', leftAt: new Date().toISOString() } }
+      )
+
+      return handleCORS(NextResponse.json({ success: true }))
+    }
+
     // ============ TRIP ROUTES ============
-    
+
     // Create trip - POST /api/trips
     if (route === '/trips' && method === 'POST') {
       const auth = await requireAuth(request)
@@ -774,7 +859,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -862,7 +948,7 @@ async function handleRoute(request, { params }) {
         if (invitedUserIds && Array.isArray(invitedUserIds) && invitedUserIds.length > 0) {
           // Verify all invited users are circle members
           const circleMemberships = await db.collection('memberships')
-            .find({ circleId, userId: { $in: invitedUserIds } })
+            .find({ circleId, userId: { $in: invitedUserIds }, status: { $ne: 'left' } })
             .toArray()
           const validUserIds = new Set(circleMemberships.map(m => m.userId))
 
@@ -927,7 +1013,8 @@ async function handleRoute(request, { params }) {
       const circle = await db.collection('circles').findOne({ id: trip.circleId })
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -946,7 +1033,7 @@ async function handleRoute(request, { params }) {
       if (trip.type === 'collaborative') {
         // For collaborative trips: count circle members minus those who left/removed
         const circleMemberships = await db.collection('memberships')
-          .find({ circleId: trip.circleId })
+          .find({ circleId: trip.circleId, status: { $ne: 'left' } })
           .toArray()
         const circleMemberUserIds = new Set(circleMemberships.map(m => m.userId))
         
@@ -1098,17 +1185,33 @@ async function handleRoute(request, { params }) {
       // Ensure status is valid
       const tripStatus = trip.status
       
-      // Check membership
-      const membership = await db.collection('memberships').findOne({
+      // Check membership (active first, then former for past-trip visibility)
+      let membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
-      
+
+      let isFormerMember = false
+
       if (!membership) {
-        return handleCORS(NextResponse.json(
-          { error: 'You are not a member of this circle' },
-          { status: 403 }
-        ))
+        // Check if user is a former member (left the circle)
+        const leftMembership = await db.collection('memberships').findOne({
+          userId: auth.user.id,
+          circleId: trip.circleId,
+          status: 'left'
+        })
+
+        if (leftMembership && (trip.status === 'completed' || trip.status === 'canceled')) {
+          // Former member can view completed/canceled trips read-only
+          membership = leftMembership
+          isFormerMember = true
+        } else {
+          return handleCORS(NextResponse.json(
+            { error: 'You are not a member of this circle' },
+            { status: 403 }
+          ))
+        }
       }
 
       // Check privacy: If any active traveler has privacy='private', non-travelers cannot access trip detail
@@ -1159,7 +1262,7 @@ async function handleRoute(request, { params }) {
       // Get circle members (for collaborative trips - base set of participants)
       const circle = await db.collection('circles').findOne({ id: trip.circleId })
       const allCircleMemberships = await db.collection('memberships')
-        .find({ circleId: trip.circleId })
+        .find({ circleId: trip.circleId, status: { $ne: 'left' } })
         .toArray()
       const circleMemberUserIds = new Set(allCircleMemberships.map(m => m.userId))
       
@@ -1439,7 +1542,8 @@ async function handleRoute(request, { params }) {
           isCircleLeader: circle ? (circle.ownerId === auth.user.id) : false,
           hasParticipantRecord: !!userParticipant,
           participantStatus: userParticipantStatus || (trip.type === 'collaborative' && circleMemberUserIds.has(auth.user.id) ? 'active' : null),
-          isActiveParticipant,
+          isActiveParticipant: isFormerMember ? false : isActiveParticipant,
+          isFormerMember,
           // Pending leadership transfer info
           pendingLeadershipTransfer: trip.pendingLeadershipTransfer || null,
           isPendingLeader: trip.pendingLeadershipTransfer?.toUserId === auth.user.id
@@ -1506,7 +1610,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -1738,7 +1843,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -1846,7 +1952,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json(
@@ -1959,7 +2066,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json(
@@ -2249,7 +2357,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
@@ -2292,7 +2401,7 @@ async function handleRoute(request, { params }) {
 
       // Compute approval status for response
       const memberCount = await (async () => {
-        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
         const participants = await db.collection('trip_participants').find({ tripId }).toArray()
         const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
         let count = 0
@@ -2438,7 +2547,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -2540,7 +2650,7 @@ async function handleRoute(request, { params }) {
       
       if (trip.type === 'collaborative') {
         const allCircleMemberships = await db.collection('memberships')
-          .find({ circleId: trip.circleId })
+          .find({ circleId: trip.circleId, status: { $ne: 'left' } })
           .toArray()
         const circleMemberUserIds = new Set(allCircleMemberships.map(m => m.userId))
         
@@ -2737,7 +2847,7 @@ async function handleRoute(request, { params }) {
       // Mode 1: Scheduling funnel with dateProposal
       if (trip.schedulingMode === 'funnel' && trip.dateProposal?.startDate && trip.dateProposal?.endDate) {
         // Check approval threshold
-        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
         const participants = await db.collection('trip_participants').find({ tripId }).toArray()
         const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
         let memberCount = 0
@@ -2826,7 +2936,7 @@ async function handleRoute(request, { params }) {
         let effectiveActiveUserIds
         
         if (trip.type === 'collaborative') {
-          const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+          const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
           const circleMemberUserIds = new Set(circleMemberships.map(m => m.userId))
           effectiveActiveUserIds = new Set()
           
@@ -2928,7 +3038,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
@@ -2943,7 +3054,7 @@ async function handleRoute(request, { params }) {
 
       let travelers = []
       if (trip.type === 'collaborative') {
-        const memberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const memberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
         const participants = await db.collection('trip_participants').find({ tripId }).toArray()
         const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
 
@@ -3048,7 +3159,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
@@ -3461,7 +3573,7 @@ async function handleRoute(request, { params }) {
 
       let travelers = []
       if (trip.type === 'collaborative') {
-        const memberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const memberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
         const participants = await db.collection('trip_participants').find({ tripId }).toArray()
         const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
 
@@ -3628,7 +3740,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
@@ -3669,7 +3782,7 @@ async function handleRoute(request, { params }) {
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
 
       // Compute approval status for response
-      const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+      const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
       const participants = await db.collection('trip_participants').find({ tripId }).toArray()
       const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
       let memberCount = 0
@@ -3756,7 +3869,7 @@ async function handleRoute(request, { params }) {
 
       // Check approval threshold (unless leader override)
       if (!leaderOverride) {
-        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+        const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
         const participants = await db.collection('trip_participants').find({ tripId }).toArray()
         const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
         let memberCount = 0
@@ -3856,7 +3969,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -3925,7 +4039,8 @@ async function handleRoute(request, { params }) {
       // Check membership (circle-first requirement)
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -3946,7 +4061,7 @@ async function handleRoute(request, { params }) {
       if (trip.type === 'collaborative') {
         // For collaborative trips: count circle members minus those who left/removed
         const circleMemberships = await db.collection('memberships')
-          .find({ circleId: trip.circleId })
+          .find({ circleId: trip.circleId, status: { $ne: 'left' } })
           .toArray()
         effectiveActiveUserIds = new Set(circleMemberships.map(m => m.userId))
         
@@ -4478,7 +4593,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -4566,7 +4682,8 @@ async function handleRoute(request, { params }) {
       // Check requester is a member of trip.circleId
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -5145,7 +5262,7 @@ async function handleRoute(request, { params }) {
         db.collection('date_windows').find({ tripId }).toArray(),
         trip.type === 'hosted'
           ? db.collection('trip_participants').find({ tripId }).toArray()
-          : db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+          : db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
       ])
 
       // Compute metrics
@@ -5297,7 +5414,7 @@ async function handleRoute(request, { params }) {
         // Get traveler count
         const participants = trip.type === 'hosted'
           ? await db.collection('trip_participants').find({ tripId }).toArray()
-          : await db.collection('memberships').find({ circleId: trip.circleId }).toArray()
+          : await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
         const travelerCount = participants.filter(p => !p.status || p.status === 'active').length
 
         nudge = evaluateLowCoverageProposal(
@@ -5338,7 +5455,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -5395,7 +5513,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -5437,7 +5556,7 @@ async function handleRoute(request, { params }) {
 
       // Update: Circle members joined (including owner for circle creation marker)
       const circleMemberships = await db.collection('memberships')
-        .find({ circleId })
+        .find({ circleId, status: { $ne: 'left' } })
         .sort({ joinedAt: -1 })
         .toArray()
 
@@ -5637,7 +5756,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -5700,7 +5820,7 @@ async function handleRoute(request, { params }) {
           let activeParticipantCount = 0
           if (trip.type === 'collaborative') {
             const memberships = await db.collection('memberships')
-              .find({ circleId: trip.circleId })
+              .find({ circleId: trip.circleId, status: { $ne: 'left' } })
               .toArray()
             activeParticipantCount = memberships.length
           } else {
@@ -5784,7 +5904,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -5843,7 +5964,8 @@ async function handleRoute(request, { params }) {
       // Check access
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json({ error: 'Access denied' }, { status: 403 }))
@@ -5962,7 +6084,8 @@ async function handleRoute(request, { params }) {
       // Check access
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json({ error: 'Access denied' }, { status: 403 }))
@@ -6024,7 +6147,8 @@ async function handleRoute(request, { params }) {
       // Check access
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       if (!membership) {
         return handleCORS(NextResponse.json({ error: 'Access denied' }, { status: 403 }))
@@ -6074,7 +6198,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -6138,7 +6263,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -6244,7 +6370,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -6615,7 +6742,8 @@ async function handleRoute(request, { params }) {
       // Verify user membership in target circle
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -6803,7 +6931,8 @@ async function handleRoute(request, { params }) {
       // Verify user membership in target circle
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId
+        circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -7122,7 +7251,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -7204,7 +7334,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -7311,7 +7442,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -7368,7 +7500,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -7431,7 +7564,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -7743,7 +7877,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -7973,7 +8108,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -8053,7 +8189,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -8143,7 +8280,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -8245,7 +8383,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -8659,7 +8798,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -8739,7 +8879,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -8852,7 +8993,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -8933,7 +9075,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -9000,7 +9143,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -9068,7 +9212,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -9143,7 +9288,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -9366,7 +9512,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -9454,7 +9601,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -9535,7 +9683,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -9594,7 +9743,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -9653,7 +9803,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -9808,7 +9959,7 @@ async function handleRoute(request, { params }) {
         
         // Get circle for group size
         const groupSize = (await db.collection('memberships')
-          .find({ circleId: trip.circleId })
+          .find({ circleId: trip.circleId, status: { $ne: 'left' } })
           .toArray()).length
         
         // Generate itinerary using LLM
@@ -9952,7 +10103,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -10043,7 +10195,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
       
       if (!membership) {
@@ -10124,7 +10277,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -10209,7 +10363,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -10289,7 +10444,8 @@ async function handleRoute(request, { params }) {
       // Check membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
-        circleId: trip.circleId
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
       })
 
       if (!membership) {
@@ -10858,7 +11014,7 @@ async function handleRoute(request, { params }) {
       const circleMembershipsMap = new Map()
       for (const circleId of sharedCircleIds) {
         const memberships = await db.collection('memberships')
-          .find({ circleId })
+          .find({ circleId, status: { $ne: 'left' } })
           .toArray()
         circleMembershipsMap.set(circleId, new Set(memberships.map(m => m.userId)))
       }
