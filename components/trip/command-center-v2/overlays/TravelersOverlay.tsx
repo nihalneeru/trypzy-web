@@ -503,7 +503,16 @@ export function TravelersOverlay({
     return participant?.user?.name || 'a member'
   }, [pendingTransfer, activeParticipants])
 
+  const hasFooterCTAs = !isCancelled && (
+    (canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer) ||
+    canLeaveNonLeader ||
+    canLeaveLeader
+  )
+
   return (
+    <div className="flex flex-col h-full">
+    {/* Scrollable content */}
+    <div className="flex-1 overflow-y-auto min-h-0">
     <div className="space-y-6">
       {/* Pending Leadership Transfer Section */}
       {hasPendingTransfer && (
@@ -831,9 +840,15 @@ export function TravelersOverlay({
         </div>
       )}
 
-      {/* Leader Actions Section - hidden for cancelled trips */}
-      {!isCancelled && canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer && (
-        <div className="pt-4 border-t border-gray-200">
+    </div>
+    {/* end space-y-6 */}
+    </div>
+    {/* end scrollable content */}
+
+    {/* Fixed Footer CTAs - always visible */}
+    {hasFooterCTAs && (
+      <div className="shrink-0 border-t bg-white px-4 py-3 space-y-2">
+        {!isCancelled && canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer && (
           <Button
             variant="outline"
             className="w-full"
@@ -842,39 +857,34 @@ export function TravelersOverlay({
             <ArrowRightLeft className="h-4 w-4 mr-2" />
             Transfer Leadership
           </Button>
-        </div>
-      )}
-
-      {/* Leave Trip Section - hidden for cancelled trips */}
-      {!isCancelled && (canLeaveNonLeader || canLeaveLeader) && (
-        <div className={(canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer) ? "pt-2" : "pt-4 border-t border-gray-200"}>
-          {canLeaveNonLeader && (
-            <Button
-              variant="outline"
-              className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={() => setShowLeaveDialog(true)}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Leave Trip
-            </Button>
-          )}
-          {canLeaveLeader && !hasPendingTransfer && (
-            <Button
-              variant="outline"
-              className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={() => setShowCancelDialog(true)}
-            >
-              <XCircle className="h-4 w-4 mr-2" />
-              Cancel Trip
-            </Button>
-          )}
-          {canLeaveLeader && hasPendingTransfer && (
-            <p className="text-xs text-gray-500 text-center">
-              Resolve the pending transfer before canceling.
-            </p>
-          )}
-        </div>
-      )}
+        )}
+        {canLeaveNonLeader && (
+          <Button
+            variant="outline"
+            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={() => setShowLeaveDialog(true)}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Leave Trip
+          </Button>
+        )}
+        {canLeaveLeader && !hasPendingTransfer && (
+          <Button
+            variant="outline"
+            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={() => setShowCancelDialog(true)}
+          >
+            <XCircle className="h-4 w-4 mr-2" />
+            Cancel Trip
+          </Button>
+        )}
+        {canLeaveLeader && hasPendingTransfer && (
+          <p className="text-xs text-gray-500 text-center">
+            Resolve the pending transfer before canceling.
+          </p>
+        )}
+      </div>
+    )}
 
       {/* Leave Trip Dialog (for non-leaders) */}
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
