@@ -746,7 +746,12 @@ export function ChatTab({
                   <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
                     <div className={`flex ${msg.isSystem ? 'justify-center' : isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
                       {msg.isSystem ? (
-                        <div 
+                        msg.subtype === 'nudge' || msg.metadata?.source === 'nudge_engine' ? (
+                          <div className="bg-brand-sand/60 border border-brand-sand rounded-lg px-4 py-2 text-sm text-brand-carbon max-w-[85%]">
+                            {msg.content}
+                          </div>
+                        ) : (
+                        <div
                           className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
                           onClick={msg.metadata?.href ? () => {
                             // Navigate to the href if it's a relative path
@@ -759,6 +764,7 @@ export function ChatTab({
                         >
                           {msg.content}
                         </div>
+                        )
                       ) : (
                         <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isFromCurrentUser ? 'bg-brand-blue/10 border border-brand-blue/20' : 'bg-gray-100'}`}>
                           {!isFromCurrentUser && (
