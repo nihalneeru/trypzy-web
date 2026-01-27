@@ -179,7 +179,7 @@ export function OverlayContainer({
                 bottom: 0,
                 left: 0,
                 width: 'min(448px, 100%)',
-                maxHeight: '75%'
+                maxHeight: '90%'
               }
             : isBottomSlide
               ? {
