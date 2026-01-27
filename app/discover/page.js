@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Users, LogOut, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { DiscoverFeed } from '@/components/discover/DiscoverFeed'
 

@@ -9,13 +9,12 @@ test.describe('Discover Feed Flow', () => {
     await page.waitForLoadState('networkidle')
   })
 
-  // TODO: Discover feature requires authentication. The /?view=discover route
-  // only works for authenticated users via LegacyDashboard. Unauthenticated users
-  // see the WelcomePage instead. These tests need auth setup to work.
+  // TODO: Discover feature requires authentication. The /discover route
+  // requires a valid token in localStorage. Unauthenticated users landing
+  // on / see the WelcomePage. These tests need auth setup to work.
   test.skip('should display discover page', async ({ page }) => {
     // Requires authentication - unauthenticated users see WelcomePage
-    // The Discover page is rendered via LegacyDashboard which needs a token
-    await page.goto('/?view=discover')
+    await page.goto('/discover')
     await page.waitForLoadState('networkidle')
 
     // Check for discover page elements (requires auth)
@@ -23,14 +22,13 @@ test.describe('Discover Feed Flow', () => {
   })
 
   // TODO: Discover feature requires authentication. The Global button only
-  // appears in the DiscoverPage component which is rendered inside LegacyDashboard
-  // for authenticated users only.
+  // appears in the DiscoverFeed component for authenticated users.
   test.skip('should show global feed by default', async ({ page }) => {
     // Navigate to discover (requires auth)
-    await page.goto('/?view=discover')
+    await page.goto('/discover')
     await page.waitForLoadState('networkidle')
 
-    // The Global button is a standard <button> element in DiscoverPage
+    // The Global button is a standard <button> element in DiscoverFeed
     // It has className with 'bg-[#FA3823]' when active (scope === 'global')
     const globalButton = page.locator('button', { hasText: /global/i }).first()
     await expect(globalButton).toBeVisible()

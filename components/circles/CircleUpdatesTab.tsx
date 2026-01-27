@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, UserPlus, Vote, Lock, CheckCircle2, Circle, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { tripHref } from '@/lib/navigation/routes'
 
 interface CircleUpdatesTabProps {
