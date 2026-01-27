@@ -151,10 +151,28 @@ The **Command Center V2** is the default trip experience. It is chat-centric wit
 
 ---
 
-## F) High-Risk Files (Touch with Caution)
+## F) Route Architecture
 
-- `app/HomeClient.jsx` (large SPA component)
-- `app/api/[[...path]]/route.js` (central API handler)
+All authenticated pages are standalone Next.js App Router routes. There is no SPA monolith.
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | `WelcomePageWrapper` | Auth gate + legacy URL redirect |
+| `/dashboard` | `app/dashboard/page.js` | Primary landing page |
+| `/trips/[tripId]` | `app/trips/[tripId]/page.js` | Trip detail (Command Center V2) |
+| `/circles/[circleId]` | `app/circles/[circleId]/page.js` | Circle detail (Members, Trips, Updates tabs) |
+| `/discover` | `app/discover/page.js` | Discover feed |
+| `/members/[userId]` | `app/members/[userId]/page.js` | Member profile |
+
+**Navigation helpers** (`lib/navigation/routes.js`): Use `tripHref(tripId)` and `circlePageHref(circleId)` for all navigation URLs.
+
+**Legacy URLs**: `WelcomePageWrapper` redirects `/?tripId=X` → `/trips/X`, `/?circleId=X` → `/circles/X`, `/?view=discover` → `/discover` for backward compatibility.
+
+**`HomeClient.jsx`**: Now a 2-line re-export shim for `BrandedSpinner`. Not a real component — do not add code here.
+
+## F.1) High-Risk Files (Touch with Caution)
+
+- `app/api/[[...path]]/route.js` (central API handler, ~7100 lines)
 
 ---
 
@@ -164,8 +182,9 @@ The **Command Center V2** is the default trip experience. It is chat-centric wit
 - `lib/trips/buildTripCardData.js`
 - `lib/trips/progressSnapshot.ts`
 - `lib/trips/nextAction.ts`
-- `lib/navigation/routes.js`
+- `lib/navigation/routes.js` — `tripHref()`, `circlePageHref()`
 - `lib/dashboard/getDashboardData.js`
+- `components/common/BrandedSpinner.jsx` — branded loading spinner
 
 ---
 
@@ -185,11 +204,13 @@ npm run test:all
 
 ## I) Quick Reference (Current Defaults)
 
-- Command Center V2 is default trip view.
+- All pages are standalone App Router routes (no SPA monolith).
+- Command Center V2 is the default trip view at `/trips/[tripId]`.
 - Chat is the primary interactive surface.
 - Circle Updates are read-only digests.
 - Privacy never blocks collaboration.
 - LLM features are assistive and leader-gated.
+- Use `tripHref()` / `circlePageHref()` for navigation URLs, never raw string concatenation.
 
 ---
 
