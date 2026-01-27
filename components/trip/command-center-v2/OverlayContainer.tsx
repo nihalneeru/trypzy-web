@@ -165,7 +165,7 @@ export function OverlayContainer({
           positionClass, 'z-50 bg-white shadow-2xl',
           'flex flex-col transition-transform duration-300 ease-out',
           isBottomSlide ? [
-            // Bottom slide: compact sheet anchored to bottom-right
+            // Bottom slide: compact sheet anchored to bottom-left (near trigger buttons)
             'rounded-t-xl overflow-hidden',
             isAnimating ? 'translate-y-0' : 'translate-y-full'
           ] : [
@@ -177,7 +177,7 @@ export function OverlayContainer({
           useAbsolutePosition && isBottomSlide
             ? {
                 bottom: 0,
-                right: 0,
+                left: 0,
                 width: 'min(448px, 100%)',
                 maxHeight: '75%'
               }
