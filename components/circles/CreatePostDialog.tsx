@@ -181,7 +181,7 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto min-h-0">
           {/* Image Upload */}
           <div className="space-y-2">
             <Label>Photos (1-5 images)</Label>
