@@ -37,7 +37,7 @@ import {
   ChevronDown,
   AlertTriangle
 } from 'lucide-react'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { toast } from 'sonner'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config'
 

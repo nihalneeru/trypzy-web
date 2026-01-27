@@ -7,7 +7,7 @@ import { TripCard } from '@/components/dashboard/TripCard'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Users, MapPin, LogOut } from 'lucide-react'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import Link from 'next/link'
 

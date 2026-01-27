@@ -29,7 +29,7 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
 // Constants
 const MAX_OPTIONS_PER_USER = 2

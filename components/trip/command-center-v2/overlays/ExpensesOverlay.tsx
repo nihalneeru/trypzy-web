@@ -29,7 +29,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, DollarSign, Trash2, Calendar, ArrowRight, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
 interface ExpensesOverlayProps {
   trip: any

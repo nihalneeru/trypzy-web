@@ -9,7 +9,7 @@ import { CircleOnboardingInterstitial } from '@/components/dashboard/CircleOnboa
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Users, UserPlus, LogOut, Sparkles } from 'lucide-react'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
