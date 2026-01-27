@@ -167,7 +167,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Globe className="h-5 w-5" />
@@ -178,7 +178,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
           {/* Scope Selector */}
           <div className="space-y-2">
             <Label>Visibility Scope</Label>

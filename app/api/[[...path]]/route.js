@@ -7285,7 +7285,10 @@ async function handleRoute(request, { params }) {
 
         // Write file to uploads directory
         const fs = await import('fs/promises')
-        const filePath = `/app/public/uploads/${filename}`
+        const path = await import('path')
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
+        await fs.mkdir(uploadsDir, { recursive: true })
+        const filePath = path.join(uploadsDir, filename)
         const buffer = Buffer.from(await file.arrayBuffer())
         await fs.writeFile(filePath, buffer)
 
