@@ -511,7 +511,8 @@ describe('Date Windows API - Date Locking Funnel V2', () => {
       const url = new URL(`http://localhost:3000/api/trips/${tripId}/lock-proposed`)
       const request = new NextRequest(url, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaderOverride: true })
       })
 
       const response = await POST(request, { params: { path: ['trips', tripId, 'lock-proposed'] } })

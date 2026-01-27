@@ -106,7 +106,7 @@ describe('Trip Date Proposal Flow', () => {
     // Current implementation uses dateProposal object (null for new trips)
     expect(body.dateProposal ?? null).toBeNull()
     expect(body.datesLocked).toBe(false)
-    expect(body.schedulingMode).toBe('funnel')
+    expect(body.schedulingMode).toBe('date_windows')
 
     await cleanup({ tripId: body.id, circleId, userIds: [ownerId] })
   })
