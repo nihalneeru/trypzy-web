@@ -12,7 +12,7 @@
 
 import { useEffect } from 'react'
 import { useParams, useRouter, usePathname } from 'next/navigation'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
 export default function TripDetailRoute() {
   const params = useParams()

@@ -8,7 +8,7 @@ import { CreateTripDialog } from './CreateTripDialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Plus, Users, ChevronDown, ChevronRight, XCircle, Crown, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
-import { dashboardCircleHref } from '@/lib/navigation/routes'
+import { circlePageHref } from '@/lib/navigation/routes'
 
 /**
  * @typedef {Object} TripData
@@ -80,7 +80,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />
               <h2 className="text-xl font-semibold">
-                <Link href={dashboardCircleHref(circle.id)} className="hover:underline">
+                <Link href={circlePageHref(circle.id)} className="hover:underline">
                   {circle.name}
                 </Link>
               </h2>

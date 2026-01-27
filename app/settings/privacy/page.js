@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
 import { ChevronLeft, Save, Shield } from 'lucide-react'
 import Link from 'next/link'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
 const api = async (endpoint, options = {}, token) => {
   const response = await fetch(`/api${endpoint}`, {
