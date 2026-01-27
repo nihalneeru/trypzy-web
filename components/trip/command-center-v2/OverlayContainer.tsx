@@ -165,8 +165,8 @@ export function OverlayContainer({
           positionClass, 'z-50 bg-white shadow-2xl',
           'flex flex-col transition-transform duration-300 ease-out',
           isBottomSlide ? [
-            // Bottom slide: positioned at bottom of container
-            'left-0',
+            // Bottom slide: compact sheet anchored to bottom-right
+            'rounded-t-xl overflow-hidden',
             isAnimating ? 'translate-y-0' : 'translate-y-full'
           ] : [
             // Right slide: constrained to chat area, never covers chevron bar or bottom bar
@@ -177,25 +177,23 @@ export function OverlayContainer({
           useAbsolutePosition && isBottomSlide
             ? {
                 bottom: 0,
-                left: 0,
                 right: 0,
-                maxHeight: '100%'
+                width: 'min(448px, 100%)',
+                maxHeight: '75%'
               }
             : isBottomSlide
               ? {
-                  bottom: bottomOffset, // Position above bottom bar
-                  right: rightOffset, // Don't extend under chevron bar
-                  width: `calc(100% - ${rightOffset})`, // Width of chat area (not viewport)
-                  maxWidth: '768px', // Cap at reasonable size
-                  maxHeight: `calc(100vh - ${topOffset} - ${bottomOffset} - 20px)` // Leave space for focus banner and bottom bar
+                  bottom: bottomOffset,
+                  right: rightOffset,
+                  width: `min(448px, calc(100% - ${rightOffset}))`,
+                  maxHeight: `calc(100vh - ${topOffset} - ${bottomOffset} - 20px)`
                 }
               : {
-                  top: topOffset, // Start below focus banner
-                  bottom: bottomOffset, // End above bottom bar
-                  right: rightOffset, // End at left edge of chevron bar
-                  // Responsive width: full width on mobile (with padding), fixed on desktop
-                  width: 'min(448px, calc(100vw - 20px))', // 448px max, but never wider than viewport minus padding
-                  maxWidth: `calc(100vw - ${rightOffset} - 10px)` // Never exceed chat area width (with small margin)
+                  top: topOffset,
+                  bottom: bottomOffset,
+                  right: rightOffset,
+                  width: 'min(448px, calc(100vw - 20px))',
+                  maxWidth: `calc(100vw - ${rightOffset} - 10px)`
                 }
         }
         role="dialog"
