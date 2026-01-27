@@ -224,7 +224,7 @@ export default function DashboardPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => router.push('/?view=discover')}
+                  onClick={() => router.push('/discover')}
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
                   Discover
