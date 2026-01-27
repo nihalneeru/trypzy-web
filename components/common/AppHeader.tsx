@@ -50,11 +50,11 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
           </div>
           <div className="flex items-center gap-4">
             {userName && (
-              <span className="text-sm text-gray-600 hidden sm:block">Hi, {userName}</span>
+              <span className="text-sm text-gray-600">Hi, {userName}</span>
             )}
             <Link
               href="/settings/privacy"
-              className="text-sm text-gray-600 hover:text-gray-900 hidden sm:block"
+              className="text-sm text-gray-600 hover:text-gray-900"
             >
               Privacy
             </Link>
