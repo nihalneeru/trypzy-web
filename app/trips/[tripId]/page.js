@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { CommandCenterV2 } from '@/components/trip/command-center-v2'
+import { AppHeader } from '@/components/common/AppHeader'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags } from '@/lib/trips/stage'
 
@@ -162,29 +162,7 @@ export default function TripDetailPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Minimal header */}
-      <header className="flex items-center gap-3 px-4 py-2 border-b border-gray-100">
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="p-2 -ml-2 rounded-lg hover:bg-gray-100 text-brand-carbon"
-          aria-label="Back to dashboard"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5" />
-            <path d="m12 19-7-7 7-7" />
-          </svg>
-        </button>
-        <a href="/" className="flex items-center">
-          <Image
-            src="/brand/trypzy-logo.png"
-            alt="Trypzy"
-            width={80}
-            height={24}
-            className="h-6 w-auto"
-            unoptimized
-          />
-        </a>
-      </header>
+      <AppHeader userName={user?.name} />
 
       {/* CommandCenterV2 fills remaining space */}
       <div className="flex-1 min-h-0">

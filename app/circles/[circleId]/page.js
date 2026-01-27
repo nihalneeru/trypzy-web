@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { TripCard } from '@/components/dashboard/TripCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Users, MapPin, Camera, MessageCircle } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { AppHeader } from '@/components/common/AppHeader'
 import { CircleHeader } from '@/components/circles/CircleHeader'
 import { MembersTab } from '@/components/circles/MembersTab'
 import { CircleUpdatesTab } from '@/components/circles/CircleUpdatesTab'
@@ -182,28 +181,7 @@ export default function CircleDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50" data-testid="circle-page">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/dashboard" className="flex items-center" data-testid="logo-home">
-              <TrypzyLogo variant="full" className="h-8 w-auto" />
-              <span className="sr-only">Trypzy</span>
-            </Link>
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">
-                ← Back to Dashboard
-              </Link>
-              <Link
-                href="/settings/privacy"
-                className="text-sm text-gray-600 hover:text-gray-900 hidden sm:block"
-              >
-                Privacy
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader userName={user?.name} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Circle Header (name, description, invite code, leave) */}

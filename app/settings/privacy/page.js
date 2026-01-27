@@ -8,9 +8,9 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
-import { ChevronLeft, Save, Shield } from 'lucide-react'
-import Link from 'next/link'
+import { Save, Shield } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { AppHeader } from '@/components/common/AppHeader'
 
 const api = async (endpoint, options = {}, token) => {
   const response = await fetch(`/api${endpoint}`, {
@@ -34,6 +34,7 @@ export default function PrivacySettingsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [userName, setUserName] = useState(null)
   const [privacy, setPrivacy] = useState({
     profileVisibility: 'circle',
     tripsVisibility: 'circle',
@@ -42,6 +43,10 @@ export default function PrivacySettingsPage() {
   })
   
   useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('trypzy_user')
+      if (storedUser) setUserName(JSON.parse(storedUser).name)
+    } catch {}
     loadPrivacy()
   }, [])
   
@@ -97,16 +102,10 @@ export default function PrivacySettingsPage() {
   
   return (
     <div className="min-h-screen bg-gray-50">
+      <AppHeader userName={userName} />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-6">
-          <Link 
-            href="/dashboard"
-            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back to Dashboard
-          </Link>
           <div className="flex items-center gap-3 mb-2">
             <Shield className="h-6 w-6 text-indigo-600" />
             <h1 className="text-3xl font-bold text-gray-900">Privacy Settings</h1>
