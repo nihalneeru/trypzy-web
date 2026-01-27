@@ -1150,6 +1150,50 @@ export function DateWindowsFunnel({
         </div>
       )}
 
+      {/* Leader insight when threshold not yet met */}
+      {isLeader && !proposalStatus?.proposalReady && phase === 'COLLECTING' && windows.length > 0 && stats && (
+        (() => {
+          const responseRate = stats.totalTravelers > 0 ? stats.responderCount / stats.totalTravelers : 0
+          const leadingWindow = proposalStatus?.leadingWindow
+          const leaderCount = stats.leaderCount || 0
+
+          if (responseRate >= 0.8) {
+            return (
+              <Card className="border-brand-blue/30 bg-blue-50/30">
+                <CardContent className="py-4">
+                  <p className="text-sm text-brand-carbon text-center">
+                    {stats.responderCount} of {stats.totalTravelers} travelers have weighed in.
+                    {leadingWindow && leaderCount > 0
+                      ? <> <strong>{formatWindowDisplay(leadingWindow)}</strong> leads with {leaderCount}.</>
+                      : null
+                    }
+                    {' '}You can propose any option when ready.
+                  </p>
+                </CardContent>
+              </Card>
+            )
+          }
+
+          if (responseRate >= 0.5) {
+            return (
+              <Card className="border-brand-blue/20 bg-blue-50/20">
+                <CardContent className="py-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Over half the group has responded ({stats.responderCount} of {stats.totalTravelers}).
+                    {leadingWindow && leaderCount > 0
+                      ? <> <strong>{formatWindowDisplay(leadingWindow)}</strong> leads with {leaderCount} supporter{leaderCount !== 1 ? 's' : ''}.</>
+                      : null
+                    }
+                  </p>
+                </CardContent>
+              </Card>
+            )
+          }
+
+          return null
+        })()
+      )}
+
       {/* Leader CTA when proposal ready */}
       {isLeader && proposalStatus?.proposalReady && proposalStatus.leadingWindow && phase === 'COLLECTING' && (
         <Card className="border-brand-red/30 bg-red-50/30">
