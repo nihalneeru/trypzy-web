@@ -172,14 +172,13 @@ export function MemoriesOverlay({
 
     try {
       const payload = {
-        circleId: trip.circleId,
         tripId: trip.id,
         mediaUrls,
         caption: caption.trim() || undefined,
         discoverable
       }
 
-      await api('/posts', {
+      await api(`/circles/${trip.circleId}/posts`, {
         method: 'POST',
         body: JSON.stringify(payload)
       }, token)
