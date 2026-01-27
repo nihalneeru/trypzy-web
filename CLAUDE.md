@@ -163,14 +163,15 @@ The product should feel like a helpful organizer, not a manager.
 
 ## 4) Key file map (high-signal only)
 
-**Routes/pages**:
+**Routes/pages** (all standalone Next.js App Router routes):
 - `app/page.js` - Root page (wraps WelcomePageWrapper)
-- `app/WelcomePageWrapper.jsx` - Auth check, routes to WelcomePage or HomeClient
-- `app/HomeClient.jsx` - Main SPA component (~4000 lines after cleanup, handles all authenticated views)
-- `app/dashboard/page.js` - Dashboard server component (fetches data via `getDashboardData()`)
-- `app/trips/[tripId]/page.js` - Trip detail page (redirects to SPA with query params)
-- `app/circles/[circleId]/page.js` - Circle detail page (redirects to SPA)
-- `app/members/[userId]/page.js` - Member profile page (server component)
+- `app/WelcomePageWrapper.jsx` - Auth gate: authenticated → `/dashboard` (or legacy `/?tripId=` / `/?circleId=` / `/?view=discover` redirect); unauthenticated → WelcomePage
+- `app/HomeClient.jsx` - Legacy re-export shim (re-exports `BrandedSpinner` from `components/common/BrandedSpinner.jsx`)
+- `app/dashboard/page.js` - Dashboard (primary authenticated landing page, fetches via `getDashboardData()`)
+- `app/trips/[tripId]/page.js` - Trip detail page (Command Center V2)
+- `app/circles/[circleId]/page.js` - Circle detail page (Members, Trips, Updates tabs)
+- `app/discover/page.js` - Discover feed page
+- `app/members/[userId]/page.js` - Member profile page
 - `app/login/page.jsx` - Login page
 - `app/signup/page.jsx` - Signup page
 - `app/settings/privacy/page.js` - Privacy settings page
@@ -197,12 +198,14 @@ components/trip/command-center-v2/
 ```
 
 **Shared Components**:
+- `components/common/BrandedSpinner.jsx` - Branded loading spinner (used across 15+ files)
 - `components/trip/TripTabs/tabs/ChatTab.tsx` - Chat surface (used by Command Center V2)
 - `components/trip/chat/ActionCard.tsx` - CTA card component for ChatTab
 - `components/trip/TransferLeadershipDialog.tsx` - Leadership transfer dialog
 - `components/trip/CancelTripDialog.tsx` - Trip cancellation dialog
 - `components/dashboard/TripCard.jsx` - Trip card component
 - `components/dashboard/TripProgressMini.jsx` - Progress indicator component
+- `components/circles/PostCard.tsx` - Discover/circle post card
 - `components/marketing/WelcomePage.tsx` - Public welcome page
 
 **Hooks**:
@@ -228,7 +231,7 @@ components/trip/command-center-v2/
 - `lib/trips/getVotingStatus.js` - Voting aggregation logic
 - `lib/trips/getBlockingUsers.js` - Blocking users computation
 - `lib/dashboard/getDashboardData.js` - Dashboard data fetcher (server-side)
-- `lib/navigation/routes.js` - Route helpers (`tripHref()`, `circlePageHref()`)
+- `lib/navigation/routes.js` - Route helpers (`tripHref()`, `circlePageHref()`) — canonical URL generators for all navigation
 - `lib/server/db.js` - MongoDB connection singleton
 - `lib/server/auth.js` - JWT auth helpers
 - `lib/server/llm.js` - OpenAI integration
@@ -389,15 +392,15 @@ Creates test users: alex.traveler@example.com / password123
 
 ## 9) "If you only read 5 things" (for Claude)
 
-1. **Command Center V2 is the only trip view**: Chat-centric with slide-in overlays. Progress chevrons on right sidebar (72px), overlays slide from right or bottom depending on type.
+1. **All pages are standalone App Router routes**: `/dashboard`, `/trips/[tripId]`, `/circles/[circleId]`, `/discover`, `/members/[userId]`. No SPA monolith. `HomeClient.jsx` is a 2-line re-export shim. Use `tripHref()` and `circlePageHref()` from `lib/navigation/routes.js` for all navigation URLs.
 
-2. **Blocker-driven UI**: The red chevron shows what's blocking the trip (dates → itinerary → accommodation). CTA bar shows the priority action based on user role and trip state.
+2. **Command Center V2 is the only trip view**: Chat-centric with slide-in overlays. Progress chevrons on right sidebar (72px), overlays slide from right or bottom depending on type.
 
-3. **Traveler determination differs by trip type**: Collaborative = circle members. Hosted = explicit participants. See `isActiveTraveler()`.
+3. **Blocker-driven UI**: The red chevron shows what's blocking the trip (dates → itinerary → accommodation). CTA bar shows the priority action based on user role and trip state.
 
-4. **Brand colors are enforced**: Use `brand-red` for CTAs/blockers, `brand-blue` for secondary actions/links, `brand-sand` for highlights. Never use generic Tailwind colors (red-600, blue-500).
+4. **Traveler determination differs by trip type**: Collaborative = circle members. Hosted = explicit participants. See `isActiveTraveler()`.
 
-5. **API routes for itinerary use `/itinerary/` namespace**: Ideas at `/trips/:id/itinerary/ideas`, generation at `/trips/:id/itinerary/generate`.
+5. **Brand colors are enforced**: Use `brand-red` for CTAs/blockers, `brand-blue` for secondary actions/links, `brand-sand` for highlights. Never use generic Tailwind colors (red-600, blue-500).
 
 ## 10) Recent MVP Hardening (2026-01-23)
 

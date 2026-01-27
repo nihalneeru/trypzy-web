@@ -23,15 +23,30 @@ This file is a compact, high-signal context snapshot for future sessions.
 - Do not add additional interactive feeds; Trip Chat is primary.
 - Always validate stage transitions server-side (`validateStageAction`).
 
+## Route Architecture
+All pages are standalone Next.js App Router routes (no SPA monolith):
+- `/dashboard` — primary landing page (`app/dashboard/page.js`)
+- `/trips/[tripId]` — trip detail with Command Center V2 (`app/trips/[tripId]/page.js`)
+- `/circles/[circleId]` — circle detail with tabs (`app/circles/[circleId]/page.js`)
+- `/discover` — discover feed (`app/discover/page.js`)
+- `/members/[userId]` — member profile (`app/members/[userId]/page.js`)
+- `/` — auth gate: redirects authenticated users to `/dashboard`; shows WelcomePage for unauthenticated
+
+**Navigation helpers**: `tripHref()`, `circlePageHref()` in `lib/navigation/routes.js`.
+
+**`HomeClient.jsx`**: 2-line re-export shim (not a real component). Do not add code here.
+
 ## Key Files
 - `app/api/[[...path]]/route.js` — centralized API (pattern matching).
 - `components/trip/command-center-v2/CommandCenterV2.tsx` — default trip view.
 - `components/trip/TripTabs/tabs/ChatTab.tsx` — shared chat UI.
+- `components/common/BrandedSpinner.jsx` — branded loading spinner.
 - `lib/trips/stage.js` — stage computation.
 - `lib/trips/progressSnapshot.ts` — unified progress flags.
 - `lib/trips/nextAction.ts` — CTA priority logic.
-- `lib/trips/getUserActionRequired.js` — “Waiting on you” logic.
+- `lib/trips/getUserActionRequired.js` — "Waiting on you" logic.
 - `lib/trips/buildTripCardData.js` — trip card data builder.
+- `lib/navigation/routes.js` — `tripHref()`, `circlePageHref()`.
 
 ## Common Workflows (Entry Points)
 - Circle join: `POST /api/circles/join` (backfills collaborative trips).
@@ -48,6 +63,6 @@ This file is a compact, high-signal context snapshot for future sessions.
 - All: `npm run test:all`
 
 ## Known Risks
-- Large SPA file (`app/HomeClient.jsx`) and centralized API file.
+- Centralized API file (`app/api/[[...path]]/route.js`, ~7100 lines).
 - Privacy filtering is context-sensitive; easy to regress.
 - Limited E2E coverage.
