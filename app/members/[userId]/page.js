@@ -18,8 +18,8 @@ import {
 import { Users, Calendar, MapPin, ArrowLeft, Shield, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { BrandedSpinner } from '@/app/HomeClient'
-import { dashboardCircleHref } from '@/lib/navigation/routes'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { circlePageHref } from '@/lib/navigation/routes'
 
 const api = async (endpoint, options = {}, token) => {
   const response = await fetch(`/api${endpoint}`, {
@@ -163,7 +163,7 @@ export default function MemberProfilePage() {
       return
     }
     
-    router.push(`/?tripId=${trip.id}&circleId=${trip.circleId}`)
+    router.push(`/trips/${trip.id}`)
   }
   
   const handleRequestJoin = (trip) => {
@@ -323,27 +323,20 @@ export default function MemberProfilePage() {
                   <div className="flex items-center gap-2 flex-wrap mb-3">
                     <Users className="h-4 w-4 text-gray-500" />
                     <span className="text-sm text-gray-600">Shared circles:</span>
-                    {profile.sharedCircles.map((circle) => {
-                      // Build returnTo URL: current page path with query params
-                      const currentPath = typeof window !== 'undefined' ? window.location.pathname : `/members/${userId}`
-                      const currentSearch = typeof window !== 'undefined' ? window.location.search : ''
-                      const returnTo = `${currentPath}${currentSearch}`
-                      
-                      return (
+                    {profile.sharedCircles.map((circle) => (
                         <Link
                           key={circle.id}
-                          href={dashboardCircleHref(circle.id, { returnTo })}
+                          href={circlePageHref(circle.id)}
                           prefetch={false}
                         >
-                          <Badge 
-                            variant="secondary" 
+                          <Badge
+                            variant="secondary"
                             className="cursor-pointer hover:bg-secondary/80 transition-colors"
                           >
                             {circle.name}
                           </Badge>
                         </Link>
-                      )
-                    })}
+                    ))}
                   </div>
                 )}
                 

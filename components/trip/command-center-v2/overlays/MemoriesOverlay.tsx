@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Plus, Camera, Trash2, X, Image as ImageIcon, Upload, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { BrandedSpinner } from '@/app/HomeClient'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
 interface MemoriesOverlayProps {
   trip: any
