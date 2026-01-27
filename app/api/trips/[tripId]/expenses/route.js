@@ -3,38 +3,45 @@ import { connectToMongo } from '@/lib/server/db.js'
 import { requireAuth } from '@/lib/server/auth.js'
 import { handleCORS } from '@/lib/server/cors.js'
 import { ObjectId } from 'mongodb'
+import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
 
 // Helper: Check if user is an active traveler for a trip
 async function isActiveTraveler(db, trip, userId) {
   if (!trip || !userId) return false
-  
+
   // Get all participants
   const allParticipants = await db.collection('trip_participants')
     .find({ tripId: trip.id })
     .toArray()
-  
+
   if (trip.type === 'collaborative') {
     // For collaborative trips: user must be circle member AND not have left/removed status
     const circleMembership = await db.collection('memberships').findOne({
       userId,
-      circleId: trip.circleId
+      circleId: trip.circleId,
+      status: { $ne: 'left' }
     })
-    
+
     if (!circleMembership) return false
-    
-    // Check if user has left/removed status
+
+    // Check explicit participant record
     const participant = allParticipants.find(p => p.userId === userId)
     if (participant) {
       const status = participant.status || 'active'
-      if (status === 'left' || status === 'removed') return false
+      if (status === 'active') return true
+      return false
     }
-    
+
+    // No participant record: check if late joiner
+    if (isLateJoinerForTrip(circleMembership, trip)) return false
+
+    // Original member
     return true
   } else {
     // Hosted trips: user must have active participant record
     const participant = allParticipants.find(p => p.userId === userId)
     if (!participant) return false
-    
+
     const status = participant.status || 'active'
     return status === 'active'
   }
@@ -168,24 +175,33 @@ export async function POST(request, { params }) {
     
     let validTravelerIds = new Set()
     if (trip.type === 'collaborative') {
-      // For collaborative trips: start with all circle members, then remove those with left/removed status
-      // This matches isActiveTraveler logic: circle members are valid unless explicitly left/removed
+      // For collaborative trips: circle members minus left/removed minus late joiners without explicit records
       const memberships = await db.collection('memberships')
-        .find({ circleId: trip.circleId })
+        .find({ circleId: trip.circleId, status: { $ne: 'left' } })
         .toArray()
       const memberIds = new Set(memberships.map(m => m.userId))
-      
-      // Start with all circle members
-      validTravelerIds = new Set(memberIds)
-      
-      // Remove anyone who has left/removed status
+      const membershipByUserId = new Map(memberships.map(m => [m.userId, m]))
+
+      const statusByUserId = new Map()
       allParticipants.forEach(p => {
-        const status = p.status || 'active'
-        if (status === 'left' || status === 'removed') {
-          validTravelerIds.delete(p.userId)
+        statusByUserId.set(p.userId, p.status || 'active')
+      })
+
+      memberIds.forEach(userId => {
+        const status = statusByUserId.get(userId)
+        if (status === 'active') {
+          validTravelerIds.add(userId)
+        } else if (status === 'left' || status === 'removed') {
+          // not valid
+        } else {
+          // No record — check late joiner
+          const membership = membershipByUserId.get(userId)
+          if (!isLateJoinerForTrip(membership, trip)) {
+            validTravelerIds.add(userId)
+          }
         }
       })
-      
+
       // DEBUG: Log collaborative trip details
       if (process.env.NODE_ENV !== 'production') {
         console.log('[DEBUG] Collaborative trip validation:', {

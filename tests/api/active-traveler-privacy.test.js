@@ -90,12 +90,13 @@ describe('Active Traveler Privacy Filters', () => {
     return trip
   }
 
-  async function addMembership({ userId, circleId, role = 'member' }) {
+  async function addMembership({ userId, circleId, role = 'member', joinedAt = null }) {
     await db.collection('memberships').insertOne({
       userId,
       circleId,
       role,
-      joinedAt: new Date().toISOString()
+      // Default to a past timestamp so memberships predate trips (matching real-world flow)
+      joinedAt: joinedAt || new Date(Date.now() - 86400000).toISOString()
     })
   }
 

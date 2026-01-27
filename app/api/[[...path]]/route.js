@@ -7,6 +7,7 @@ import { generateItinerary, summarizeFeedback, reviseItinerary } from '@/lib/ser
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config.js'
+import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET
@@ -88,13 +89,20 @@ async function isActiveTraveler(db, trip, userId) {
 
     if (!circleMembership) return false
 
-    // Check if user has left/removed status
+    // Check explicit participant record
     const participant = allParticipants.find(p => p.userId === userId)
     if (participant) {
       const status = participant.status || 'active'
-      if (status === 'left' || status === 'removed') return false
+      // Explicit 'active' record (approved join request or grandfathered backfill)
+      if (status === 'active') return true
+      // Left or removed
+      return false
     }
 
+    // No participant record: check if late joiner
+    if (isLateJoinerForTrip(circleMembership, trip)) return false
+
+    // Original member (joined circle before trip was created)
     return true
   } else {
     // Hosted trips: user must have active participant record
@@ -609,9 +617,9 @@ async function handleRoute(request, { params }) {
         })
       }
 
-      // Backfill: Add user as traveler to all existing collaborative trips in this circle
-      // This ensures late joiners can see existing trips consistently
-      // For collaborative trips, circle members are travelers, so we explicitly add them
+      // Backfill: Reactivate previously-left trip_participants for collaborative trips.
+      // Late joiners (membership.joinedAt > trip.createdAt) are NOT auto-added.
+      // They must use the join-request flow to become travelers.
       const existingTrips = await db.collection('trips')
         .find({ circleId: circle.id, type: 'collaborative' })
         .toArray()
@@ -630,35 +638,27 @@ async function handleRoute(request, { params }) {
 
         const existingByTripId = new Map(existingParticipants.map(p => [p.tripId, p]))
 
-        // Process each trip: update existing records to 'active' or insert new ones
+        // Only reactivate existing 'left' records (user previously left and is rejoining).
+        // Do NOT reactivate 'removed' records (removal was intentional).
+        // Do NOT create new records (late joiners must use join-request flow).
         for (const trip of existingTrips) {
           const existing = existingByTripId.get(trip.id)
 
-          if (existing) {
-            // User already has a record - update to 'active' if it's not already active
-            // This handles the case where user previously left (status='left') and is rejoining
-            if (existing.status !== 'active') {
-              await db.collection('trip_participants').updateOne(
-                { tripId: trip.id, userId: auth.user.id },
-                {
-                  $set: {
-                    status: 'active',
-                    joinedAt: now,
-                    updatedAt: now
-                  }
+          if (existing && existing.status === 'left') {
+            await db.collection('trip_participants').updateOne(
+              { tripId: trip.id, userId: auth.user.id },
+              {
+                $set: {
+                  status: 'active',
+                  joinedAt: now,
+                  updatedAt: now
                 }
-              )
-            }
-          } else {
-            // No existing record - insert new one
-            await db.collection('trip_participants').insertOne({
-              tripId: trip.id,
-              userId: auth.user.id,
-              status: 'active',
-              joinedAt: now,
-              createdAt: now
-            })
+              }
+            )
           }
+          // If 'removed' → skip (intentional removal)
+          // If 'active' → no-op
+          // If no record → skip (late joiner must use join-request flow)
         }
       }
 
@@ -1042,18 +1042,31 @@ async function handleRoute(request, { params }) {
 
       let activeMemberCount
       if (trip.type === 'collaborative') {
-        // For collaborative trips: count circle members minus those who left/removed
+        // For collaborative trips: count circle members minus left/removed minus late joiners without explicit records
         const circleMemberships = await db.collection('memberships')
           .find({ circleId: trip.circleId, status: { $ne: 'left' } })
           .toArray()
         const circleMemberUserIds = new Set(circleMemberships.map(m => m.userId))
+        const membershipByUserId = new Map(circleMemberships.map(m => [m.userId, m]))
 
-        // Subtract those who left/removed
-        let activeCount = circleMemberUserIds.size
+        const statusByUserId = new Map()
         allParticipants.forEach(p => {
-          const status = p.status || 'active'
-          if ((status === 'left' || status === 'removed') && circleMemberUserIds.has(p.userId)) {
-            activeCount--
+          statusByUserId.set(p.userId, p.status || 'active')
+        })
+
+        let activeCount = 0
+        circleMemberUserIds.forEach(userId => {
+          const status = statusByUserId.get(userId)
+          if (status === 'active') {
+            activeCount++
+          } else if (status === 'left' || status === 'removed') {
+            // not active
+          } else {
+            // No record — check late joiner
+            const membership = membershipByUserId.get(userId)
+            if (!isLateJoinerForTrip(membership, trip)) {
+              activeCount++
+            }
           }
         })
         activeMemberCount = activeCount
@@ -1293,32 +1306,47 @@ async function handleRoute(request, { params }) {
       let effectiveActiveUserIds
       let participantsWithStatus
 
+      // Build membership lookup for late-joiner checks
+      const membershipByUserId = new Map(allCircleMemberships.map(m => [m.userId, m]))
+
       if (trip.type === 'collaborative') {
         // Collaborative trips: Circle members are eligible, but only active participants count
-        // Start with empty set - only add users who are active
+        // Late joiners (joined circle after trip was created) are NOT auto-travelers
         effectiveActiveUserIds = new Set()
 
-        // Add circle members who are active participants
-        // A circle member is active if:
-        // 1. They have no trip_participants record (implicitly active)
-        // 2. Their trip_participants status is 'active'
         circleMemberUserIds.forEach(userId => {
           const participantStatus = statusByUserId.get(userId)
-          // If no record or status is 'active', they're active
-          if (!participantStatus || participantStatus === 'active') {
+          if (participantStatus === 'active') {
+            // Explicit active record (approved or grandfathered)
             effectiveActiveUserIds.add(userId)
+          } else if (participantStatus === 'left' || participantStatus === 'removed') {
+            // Left or removed — not active
+          } else {
+            // No participant record — check if late joiner
+            const membership = membershipByUserId.get(userId)
+            if (!isLateJoinerForTrip(membership, trip)) {
+              effectiveActiveUserIds.add(userId)
+            }
           }
-          // If status is 'left' or 'removed', they are NOT active (don't add)
         })
 
-        // Build participantsWithStatus: include ALL circle members with their status
-        const allUserIds = Array.from(circleMemberUserIds)
+        // Build participantsWithStatus: only include active travelers (exclude late joiners without records)
+        const activeUserIds = Array.from(effectiveActiveUserIds)
+        // Also include users with explicit left/removed records (for display in TravelersOverlay)
+        const leftOrRemovedUserIds = allParticipants
+          .filter(p => {
+            const s = p.status || 'active'
+            return (s === 'left' || s === 'removed') && circleMemberUserIds.has(p.userId)
+          })
+          .map(p => p.userId)
+        const allRelevantUserIds = [...new Set([...activeUserIds, ...leftOrRemovedUserIds])]
+
         const participantUsers = await db.collection('users')
-          .find({ id: { $in: allUserIds } })
+          .find({ id: { $in: allRelevantUserIds } })
           .toArray()
         const userMap = new Map(participantUsers.map(u => [u.id, u]))
 
-        participantsWithStatus = allUserIds.map(userId => {
+        participantsWithStatus = allRelevantUserIds.map(userId => {
           const participantRecord = allParticipants.find(p => p.userId === userId)
           const user = userMap.get(userId)
           const status = statusByUserId.get(userId) || 'active'
@@ -4070,17 +4098,30 @@ async function handleRoute(request, { params }) {
       let effectiveActiveUserIds
 
       if (trip.type === 'collaborative') {
-        // For collaborative trips: count circle members minus those who left/removed
+        // For collaborative trips: count circle members minus left/removed minus late joiners without explicit records
         const circleMemberships = await db.collection('memberships')
           .find({ circleId: trip.circleId, status: { $ne: 'left' } })
           .toArray()
-        effectiveActiveUserIds = new Set(circleMemberships.map(m => m.userId))
+        const circleMemberUserIds = new Set(circleMemberships.map(m => m.userId))
+        const membershipByUserId = new Map(circleMemberships.map(m => [m.userId, m]))
 
-        // Subtract those who left/removed
+        const statusByUserId = new Map()
         allParticipants.forEach(p => {
-          const status = p.status || 'active'
-          if ((status === 'left' || status === 'removed') && effectiveActiveUserIds.has(p.userId)) {
-            effectiveActiveUserIds.delete(p.userId)
+          statusByUserId.set(p.userId, p.status || 'active')
+        })
+
+        effectiveActiveUserIds = new Set()
+        circleMemberUserIds.forEach(userId => {
+          const status = statusByUserId.get(userId)
+          if (status === 'active') {
+            effectiveActiveUserIds.add(userId)
+          } else if (status === 'left' || status === 'removed') {
+            // not active
+          } else {
+            const membership = membershipByUserId.get(userId)
+            if (!isLateJoinerForTrip(membership, trip)) {
+              effectiveActiveUserIds.add(userId)
+            }
           }
         })
         activeMemberCount = effectiveActiveUserIds.size
@@ -4690,6 +4731,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Block join requests on completed trips
+      if (trip.status === 'completed') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip is completed and no longer accepting join requests' },
+          { status: 400 }
+        ))
+      }
+
       // Check requester is a member of trip.circleId
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
@@ -4712,9 +4761,18 @@ async function handleRoute(request, { params }) {
 
       let isActiveParticipant = false
       if (trip.type === 'collaborative') {
-        // For collaborative trips, circle membership means active participant unless overridden
-        if (!existingParticipant || !existingParticipant.status || existingParticipant.status === 'active') {
-          isActiveParticipant = true
+        // Collaborative trips: check explicit record first, then late-joiner status
+        if (existingParticipant) {
+          const status = existingParticipant.status || 'active'
+          if (status === 'active') {
+            isActiveParticipant = true
+          }
+          // 'left' or 'removed' → not active, allow re-request
+        } else {
+          // No participant record: original members are auto-travelers, late joiners are not
+          if (!isLateJoinerForTrip(membership, trip)) {
+            isActiveParticipant = true
+          }
         }
       } else {
         // For hosted trips, must have active participant record

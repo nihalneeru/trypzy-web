@@ -972,6 +972,48 @@ describe('Join Request Permissions', () => {
       expect(errorData.error).toContain('already an active participant')
     })
 
+    it('should allow join request for collaborative trip from late joiner', async () => {
+      // Late joiner = circle member who joined AFTER trip was created
+      const leaderId = 'test-join-leader-26'
+      const lateJoinerId = 'test-join-latejoin-26'
+      const circleId = 'circle-join-26'
+      const tripId = 'trip-join-26'
+
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+      await createTestUser({ id: lateJoinerId, name: 'Late Joiner', email: 'latejoin@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      // Create trip first
+      const trip = await createTestTrip({ id: tripId, circleId, createdBy: leaderId, type: 'collaborative' })
+      // Then add late joiner membership with a timestamp after trip.createdAt
+      const lateJoinedAt = new Date(new Date(trip.createdAt).getTime() + 86400000).toISOString() // +1 day
+      await db.collection('memberships').insertOne({
+        userId: lateJoinerId,
+        circleId,
+        role: 'member',
+        joinedAt: lateJoinedAt
+      })
+
+      // Execute: Late joiner sends join request
+      const token = createToken(lateJoinerId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/join-requests`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: 'I want to join!' })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'join-requests'] } })
+
+      // Assert: Request is allowed (late joiner is not an auto-traveler)
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.status).toBe('pending')
+    })
+
     it('should allow join request for collaborative trip when user has left', async () => {
       // User left a collaborative trip and wants to rejoin
       const leaderId = 'test-join-leader-21'

@@ -28,28 +28,26 @@ describe('Circle Join Backfill', () => {
     await db.collection('trip_participants').deleteMany({ tripId: /^trip-test-/ })
   })
 
-  // TODO: Fix MongoDB connection isolation issue. Backfill logic is tested
-  // in other passing tests and verified manually.
-  it.skip('should add user as traveler to all existing collaborative trips when joining circle', async () => {
+  it('should NOT create new trip_participants records for late joiners (they use join-request flow)', async () => {
     // Setup: User A creates circle and trip, User B joins later
     const ownerId = 'test-owner-join'
     const joinerId = 'test-joiner-join'
     const circleId = 'circle-test-join'
     const tripId1 = 'trip-test-join-1'
     const tripId2 = 'trip-test-join-2'
-    
+
     const owner = {
       id: ownerId,
       name: 'Owner',
       email: 'owner@test.com'
     }
-    
+
     const joiner = {
       id: joinerId,
       name: 'Joiner',
       email: 'joiner@test.com'
     }
-    
+
     const circle = {
       id: circleId,
       name: 'Test Circle',
@@ -57,7 +55,7 @@ describe('Circle Join Backfill', () => {
       inviteCode: 'TESTCODE',
       createdAt: new Date().toISOString()
     }
-    
+
     // Create trips before joiner joins
     const trip1 = {
       id: tripId1,
@@ -68,7 +66,7 @@ describe('Circle Join Backfill', () => {
       status: 'proposed',
       createdAt: new Date(Date.now() - 10000).toISOString()
     }
-    
+
     const trip2 = {
       id: tripId2,
       name: 'Existing Trip 2',
@@ -78,26 +76,20 @@ describe('Circle Join Backfill', () => {
       status: 'scheduling',
       createdAt: new Date(Date.now() - 5000).toISOString()
     }
-    
+
     const ownerMembership = {
       userId: ownerId,
       circleId,
       role: 'owner',
       joinedAt: new Date(Date.now() - 20000).toISOString()
     }
-    
+
     await db.collection('users').insertMany([owner, joiner])
     await db.collection('circles').insertOne(circle)
     await db.collection('trips').insertMany([trip1, trip2])
     await db.collection('memberships').insertOne(ownerMembership)
-    
-    // Verify joiner has no trip_participants records initially
-    const initialParticipants = await db.collection('trip_participants')
-      .find({ userId: joinerId })
-      .toArray()
-    expect(initialParticipants).toHaveLength(0)
-    
-    // Execute: Simulate join circle (add membership and backfill)
+
+    // Execute: Simulate new backfill logic (only reactivate 'left' records, no new records)
     const now = new Date().toISOString()
     await db.collection('memberships').insertOne({
       userId: joinerId,
@@ -105,12 +97,11 @@ describe('Circle Join Backfill', () => {
       role: 'member',
       joinedAt: now
     })
-    
-    // Backfill logic (same as in API route)
+
     const existingTrips = await db.collection('trips')
       .find({ circleId, type: 'collaborative' })
       .toArray()
-    
+
     const tripIds = existingTrips.map(t => t.id)
     const existingParticipants = await db.collection('trip_participants')
       .find({
@@ -118,54 +109,93 @@ describe('Circle Join Backfill', () => {
         userId: joinerId
       })
       .toArray()
-    
+
     const existingByTripId = new Map(existingParticipants.map(p => [p.tripId, p]))
-    
+
     for (const trip of existingTrips) {
       const existing = existingByTripId.get(trip.id)
-      
-      if (existing) {
-        if (existing.status !== 'active') {
-          await db.collection('trip_participants').updateOne(
-            { tripId: trip.id, userId: joinerId },
-            { 
-              $set: { 
-                status: 'active',
-                joinedAt: now,
-                updatedAt: now
-              }
+      // New logic: only reactivate 'left' records, do NOT create new records
+      if (existing && existing.status === 'left') {
+        await db.collection('trip_participants').updateOne(
+          { tripId: trip.id, userId: joinerId },
+          {
+            $set: {
+              status: 'active',
+              joinedAt: now,
+              updatedAt: now
             }
-          )
-        }
-      } else {
-        await db.collection('trip_participants').insertOne({
-          tripId: trip.id,
-          userId: joinerId,
-          status: 'active',
-          joinedAt: now,
-          createdAt: now
-        })
+          }
+        )
       }
     }
-    
-    // Assert: Joiner now has trip_participants records for both trips
+
+    // Assert: Joiner has NO trip_participants records (late joiner, no backfill)
     const participants = await db.collection('trip_participants')
       .find({ userId: joinerId, tripId: { $in: [tripId1, tripId2] } })
       .toArray()
-    
-    expect(participants).toHaveLength(2)
-    expect(participants.map(p => p.tripId).sort()).toEqual([tripId1, tripId2].sort())
-    participants.forEach(p => {
-      expect(p.status).toBe('active')
-      expect(p.userId).toBe(joinerId)
-    })
-    
+
+    expect(participants).toHaveLength(0)
+
     // Cleanup
     await db.collection('users').deleteMany({ id: { $in: [ownerId, joinerId] } })
     await db.collection('circles').deleteOne({ id: circleId })
     await db.collection('trips').deleteMany({ id: { $in: [tripId1, tripId2] } })
     await db.collection('memberships').deleteMany({ circleId })
     await db.collection('trip_participants').deleteMany({ userId: joinerId })
+  })
+
+  it('should NOT reactivate removed records on rejoin', async () => {
+    const userId = 'test-user-removed-rejoin'
+    const circleId = 'circle-test-removed-rejoin'
+    const tripId = 'trip-test-removed-rejoin'
+
+    const user = { id: userId, name: 'User', email: 'user@test.com' }
+    const circle = { id: circleId, name: 'Test Circle', ownerId: userId, inviteCode: 'TESTCODE_RR', createdAt: new Date().toISOString() }
+    const trip = { id: tripId, name: 'Trip', circleId, createdBy: userId, type: 'collaborative', status: 'proposed', createdAt: new Date().toISOString() }
+
+    await db.collection('users').insertOne(user)
+    await db.collection('circles').insertOne(circle)
+    await db.collection('trips').insertOne(trip)
+    await db.collection('memberships').insertOne({ userId, circleId, role: 'owner', joinedAt: new Date().toISOString() })
+    await db.collection('trip_participants').insertOne({
+      tripId,
+      userId,
+      status: 'removed',
+      joinedAt: new Date(Date.now() - 30000).toISOString(),
+      createdAt: new Date(Date.now() - 30000).toISOString()
+    })
+
+    // Simulate backfill on rejoin
+    const now = new Date().toISOString()
+    const existingTrips = await db.collection('trips')
+      .find({ circleId, type: 'collaborative' })
+      .toArray()
+    const tripIds = existingTrips.map(t => t.id)
+    const existingParticipants = await db.collection('trip_participants')
+      .find({ tripId: { $in: tripIds }, userId })
+      .toArray()
+    const existingByTripId = new Map(existingParticipants.map(p => [p.tripId, p]))
+
+    for (const t of existingTrips) {
+      const existing = existingByTripId.get(t.id)
+      if (existing && existing.status === 'left') {
+        await db.collection('trip_participants').updateOne(
+          { tripId: t.id, userId },
+          { $set: { status: 'active', joinedAt: now, updatedAt: now } }
+        )
+      }
+    }
+
+    // Assert: 'removed' record is NOT reactivated
+    const participant = await db.collection('trip_participants').findOne({ userId, tripId })
+    expect(participant.status).toBe('removed')
+
+    // Cleanup
+    await db.collection('users').deleteOne({ id: userId })
+    await db.collection('circles').deleteOne({ id: circleId })
+    await db.collection('trips').deleteOne({ id: tripId })
+    await db.collection('memberships').deleteMany({ circleId })
+    await db.collection('trip_participants').deleteMany({ userId })
   })
 
   it('should be idempotent - safe to call multiple times', async () => {
