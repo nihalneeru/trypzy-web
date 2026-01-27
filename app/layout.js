@@ -1,6 +1,7 @@
 import './globals.css'
 import { Toaster } from 'sonner'
 import { Inter } from 'next/font/google'
+import { SessionProvider } from '@/components/providers/SessionProvider'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -23,7 +24,9 @@ export default function RootLayout({ children }) {
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Georgia&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
-        {children}
+        <SessionProvider>
+          {children}
+        </SessionProvider>
         <Toaster position="top-right" />
       </body>
     </html>

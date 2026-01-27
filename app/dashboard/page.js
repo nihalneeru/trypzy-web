@@ -14,28 +14,29 @@ import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 
 // API Helper
 const api = async (endpoint, options = {}, token = null) => {
   const headers = {
     'Content-Type': 'application/json',
   }
-  
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
   }
-  
+
   const response = await fetch(`/api${endpoint}`, {
     ...options,
     headers: { ...headers, ...options.headers }
   })
-  
+
   const data = await response.json()
-  
+
   if (!response.ok) {
     throw new Error(data.error || 'Something went wrong')
   }
-  
+
   return data
 }
 
@@ -45,12 +46,13 @@ const api = async (endpoint, options = {}, token = null) => {
 export default function DashboardPage() {
   const router = useRouter()
   const pathname = usePathname()
+  const { data: session, status } = useSession()
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [token, setToken] = useState(null)
   const [user, setUser] = useState(null)
-  
+
   // Dialog states
   const [showCreateCircle, setShowCreateCircle] = useState(false)
   const [showJoinCircle, setShowJoinCircle] = useState(false)
@@ -66,20 +68,55 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        const tokenValue = localStorage.getItem('trypzy_token')
-        const userValue = localStorage.getItem('trypzy_user')
-        
+        // Check for OAuth callback tokens in URL params first
+        if (typeof window !== 'undefined') {
+          const urlParams = new URLSearchParams(window.location.search)
+          const oauthToken = urlParams.get('token')
+          const oauthUser = urlParams.get('user')
+
+          if (oauthToken && oauthUser) {
+            // Store OAuth tokens in localStorage
+            localStorage.setItem('trypzy_token', oauthToken)
+            localStorage.setItem('trypzy_user', oauthUser)
+            // Clean up URL
+            window.history.replaceState({}, '', '/dashboard')
+          }
+        }
+
+        let tokenValue = localStorage.getItem('trypzy_token')
+        let userValue = localStorage.getItem('trypzy_user')
+
+        // If no local token but valid session exists (e.g. from direct Google redirect), sync it
+        if (!tokenValue && status === 'authenticated' && session?.accessToken) {
+          tokenValue = session.accessToken
+          localStorage.setItem('trypzy_token', tokenValue)
+
+          // Construct user object from session if needed
+          if (!userValue && session.user) {
+            const userData = {
+              id: session.user.id,
+              email: session.user.email,
+              name: session.user.name
+            }
+            userValue = JSON.stringify(userData)
+            localStorage.setItem('trypzy_user', userValue)
+          }
+        }
+
         if (!tokenValue) {
-          // Auth gate: redirect to login if not authenticated
-          router.replace('/')
+          // Only redirect if truly no token and session is determined (not loading)
+          if (status !== 'loading') {
+            // Auth gate: redirect to login if not authenticated
+            router.replace('/')
+          }
           return
         }
-        
+
         setToken(tokenValue)
         if (userValue) {
           setUser(JSON.parse(userValue))
         }
-        
+
         const data = await api('/dashboard', { method: 'GET' }, tokenValue)
         setDashboardData(data)
       } catch (err) {
@@ -87,21 +124,26 @@ export default function DashboardPage() {
         setError(err.message)
         // If unauthorized, redirect to login with clean URL
         if (err.message.includes('Unauthorized')) {
+          localStorage.removeItem('trypzy_token')
+          localStorage.removeItem('trypzy_user')
           router.replace('/')
         }
       } finally {
         setLoading(false)
       }
     }
-    
-    loadDashboard()
-  }, [router])
+
+    // Only run loadDashboard when session status is settled (or we have local tokens)
+    if (status !== 'loading' || localStorage.getItem('trypzy_token')) {
+      loadDashboard()
+    }
+  }, [router, session, status])
 
   const reloadDashboard = async () => {
     try {
       const tokenValue = localStorage.getItem('trypzy_token')
       if (!tokenValue) return
-      
+
       const data = await api('/dashboard', { method: 'GET' }, tokenValue)
       setDashboardData(data)
     } catch (err) {
@@ -171,7 +213,7 @@ export default function DashboardPage() {
                 <span className="sr-only">Trypzy</span>
               </Link>
               <div className="flex items-center gap-1 ml-2 md:ml-8">
-                <Button 
+                <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => router.push('/dashboard')}
@@ -179,7 +221,7 @@ export default function DashboardPage() {
                   <Users className="h-4 w-4 mr-2" />
                   Circles
                 </Button>
-                <Button 
+                <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => router.push('/?view=discover')}
@@ -191,7 +233,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600 hidden sm:block">Hi, {user?.name}</span>
-              <Link 
+              <Link
                 href="/settings/privacy"
                 className="text-sm text-gray-600 hover:text-gray-900 hidden sm:block"
               >
@@ -207,24 +249,24 @@ export default function DashboardPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Dashboard</h1>
-        
+
         {/* Global Notifications */}
         <GlobalNotifications notifications={dashboardData.globalNotifications || []} />
-        
+
         {/* Your Circles Heading */}
         {dashboardData.circles && dashboardData.circles.length > 0 && (
           <div className="flex items-center justify-between mb-6 mt-2 flex-wrap gap-3">
             <h2 className="text-2xl font-semibold text-gray-900">Your Circles</h2>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => setShowJoinCircle(true)}
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Join Circle
               </Button>
-              <Button 
+              <Button
                 size="sm"
                 onClick={() => setShowCreateCircle(true)}
               >
@@ -234,7 +276,7 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-        
+
         {/* Circle Sections */}
         {dashboardData.circles && dashboardData.circles.length === 0 ? (
           <Card>
