@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useParams, useSearchParams } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,10 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, Calendar, MapPin, ArrowLeft, Shield, UserPlus } from 'lucide-react'
+import { Users, Calendar, MapPin, Shield, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { AppHeader } from '@/components/common/AppHeader'
 import { circlePageHref } from '@/lib/navigation/routes'
 
 const api = async (endpoint, options = {}, token) => {
@@ -63,10 +64,10 @@ function formatDateRange(startDate, endDate) {
 export default function MemberProfilePage() {
   const router = useRouter()
   const params = useParams()
-  const searchParams = useSearchParams()
   const userId = params.userId
-  
+
   const [loading, setLoading] = useState(true)
+  const [userName, setUserName] = useState(null)
   const [profile, setProfile] = useState(null)
   const [trips, setTrips] = useState([])
   const [loadingTrips, setLoadingTrips] = useState(false)
@@ -78,6 +79,13 @@ export default function MemberProfilePage() {
   const [joinMessage, setJoinMessage] = useState('')
   const [submittingRequest, setSubmittingRequest] = useState(false)
   
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('trypzy_user')
+      if (storedUser) setUserName(JSON.parse(storedUser).name)
+    } catch {}
+  }, [])
+
   useEffect(() => {
     loadProfile()
   }, [userId])
@@ -228,31 +236,6 @@ export default function MemberProfilePage() {
   const currentUserId = getCurrentUserId()
   const isViewingOwnProfile = currentUserId === userId
   
-  // Handle back navigation
-  const handleBack = () => {
-    const returnTo = searchParams.get('returnTo')
-    
-    if (returnTo) {
-      try {
-        const decodedReturnTo = decodeURIComponent(returnTo)
-        // Security: only allow relative paths starting with "/"
-        if (decodedReturnTo.startsWith('/') && !decodedReturnTo.startsWith('//')) {
-          router.push(decodedReturnTo)
-          return
-        }
-      } catch (e) {
-        // Invalid encoding, fall through to router.back()
-      }
-    }
-    
-    // Try browser back, fallback to dashboard
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back()
-    } else {
-      router.push('/dashboard')
-    }
-  }
-  
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -267,14 +250,8 @@ export default function MemberProfilePage() {
   if (profileError) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <AppHeader userName={userName} />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <button
-            onClick={handleBack}
-            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
-          </button>
           <Card>
             <CardContent className="py-12 text-center">
               <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -293,16 +270,8 @@ export default function MemberProfilePage() {
   
   return (
     <div className="min-h-screen bg-gray-50">
+      <AppHeader userName={userName} />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back link */}
-        <button
-          onClick={handleBack}
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back
-        </button>
-        
         {/* Profile Header */}
         <Card className="mb-6">
           <CardContent className="py-6">

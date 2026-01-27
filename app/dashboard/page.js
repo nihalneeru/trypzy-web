@@ -8,12 +8,11 @@ import { JoinCircleDialog } from '@/components/dashboard/JoinCircleDialog'
 import { CircleOnboardingInterstitial } from '@/components/dashboard/CircleOnboardingInterstitial'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Users, UserPlus, LogOut, Sparkles } from 'lucide-react'
+import { Plus, Users, UserPlus } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { AppHeader } from '@/components/common/AppHeader'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
-import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 
 // API Helper
@@ -167,13 +166,6 @@ export default function DashboardPage() {
     reloadDashboard()
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('trypzy_token')
-    localStorage.removeItem('trypzy_user')
-    // MVP policy: logout always goes to clean /login URL (which is / for this app)
-    router.replace('/')
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -203,49 +195,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50" data-testid="dashboard-page">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="flex items-center" data-testid="logo-home">
-                <TrypzyLogo variant="full" className="h-8 w-auto" />
-                <span className="sr-only">Trypzy</span>
-              </Link>
-              <div className="flex items-center gap-1 ml-2 md:ml-8">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => router.push('/dashboard')}
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Circles
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => router.push('/discover')}
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Discover
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600 hidden sm:block">Hi, {user?.name}</span>
-              <Link
-                href="/settings/privacy"
-                className="text-sm text-gray-600 hover:text-gray-900 hidden sm:block"
-              >
-                Privacy
-              </Link>
-              <Button variant="ghost" size="icon" onClick={handleLogout}>
-                <LogOut className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader userName={user?.name} activePage="circles" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Dashboard</h1>
