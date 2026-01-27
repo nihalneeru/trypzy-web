@@ -111,6 +111,156 @@ describe('normalizeWindow', () => {
     })
   })
 
+  describe('beginning/end synonyms', () => {
+    it('should parse "beginning of March" as early March', () => {
+      const result = normalizeWindow('beginning of March', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-03-01')
+      expect(result.endISO).toBe('2025-03-07')
+      expect(result.precision).toBe('approx')
+    })
+
+    it('should parse "end of March" as late March', () => {
+      const result = normalizeWindow('end of March', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-03-21')
+      expect(result.endISO).toBe('2025-03-31')
+      expect(result.precision).toBe('approx')
+    })
+
+    it('should parse "end of February" in non-leap year', () => {
+      const result = normalizeWindow('end of February', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-02-21')
+      expect(result.endISO).toBe('2025-02-28')
+    })
+
+    it('should parse "end of February" in leap year', () => {
+      const result = normalizeWindow('end of February', { tripYear: 2024 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.endISO).toBe('2024-02-29')
+    })
+
+    it('should parse "beginning of January"', () => {
+      const result = normalizeWindow('beginning of January', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-01-01')
+      expect(result.endISO).toBe('2025-01-07')
+    })
+  })
+
+  describe('ordinal week patterns', () => {
+    it('should parse "first week of February"', () => {
+      const result = normalizeWindow('first week of February', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-02-01')
+      expect(result.endISO).toBe('2025-02-07')
+      expect(result.precision).toBe('approx')
+    })
+
+    it('should parse "1st week of March"', () => {
+      const result = normalizeWindow('1st week of March', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-03-01')
+      expect(result.endISO).toBe('2025-03-07')
+    })
+
+    it('should parse "second week of April"', () => {
+      const result = normalizeWindow('second week of April', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-04-08')
+      expect(result.endISO).toBe('2025-04-14')
+      expect(result.precision).toBe('approx')
+    })
+
+    it('should parse "2nd week of June"', () => {
+      const result = normalizeWindow('2nd week of June', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-06-08')
+      expect(result.endISO).toBe('2025-06-14')
+    })
+
+    it('should parse "third week of July"', () => {
+      const result = normalizeWindow('third week of July', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-07-15')
+      expect(result.endISO).toBe('2025-07-21')
+    })
+
+    it('should parse "3rd week of October"', () => {
+      const result = normalizeWindow('3rd week of October', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-10-15')
+      expect(result.endISO).toBe('2025-10-21')
+    })
+
+    it('should parse "fourth week of May"', () => {
+      const result = normalizeWindow('fourth week of May', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-05-22')
+      expect(result.endISO).toBe('2025-05-28')
+    })
+
+    it('should parse "4th week of December"', () => {
+      const result = normalizeWindow('4th week of December', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-12-22')
+      expect(result.endISO).toBe('2025-12-28')
+    })
+
+    it('should handle optional "the" prefix', () => {
+      const result = normalizeWindow('the first week of March', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-03-01')
+      expect(result.endISO).toBe('2025-03-07')
+    })
+
+    it('should handle year inference from context', () => {
+      const result = normalizeWindow('first week of March', { tripYear: 2026 })
+
+      expect(result.startISO).toBe('2026-03-01')
+      expect(result.endISO).toBe('2026-03-07')
+    })
+
+    it('should parse without "of" preposition', () => {
+      const result = normalizeWindow('first week March', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-03-01')
+      expect(result.endISO).toBe('2025-03-07')
+    })
+
+    it('should handle year in input', () => {
+      const result = normalizeWindow('2nd week of April 2027')
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2027-04-08')
+      expect(result.endISO).toBe('2027-04-14')
+    })
+
+    it('should cap fourth week at day 28 for February', () => {
+      const result = normalizeWindow('fourth week of February', { tripYear: 2025 })
+
+      expect(result.error).toBeUndefined()
+      expect(result.startISO).toBe('2025-02-22')
+      expect(result.endISO).toBe('2025-02-28')
+    })
+  })
+
   describe('weekend patterns', () => {
     it('should parse "first weekend of March" (March 2025)', () => {
       // March 2025: Saturday is March 1

@@ -112,10 +112,16 @@ The product should feel like a helpful organizer, not a manager.
 **Status field** (`trip.status`): `'proposed'` → `'scheduling'` → `'voting'` → `'locked'` → `'completed'` | `'canceled'`
 
 **Stage transitions**:
-- `proposed` → `scheduling`: Auto on first availability submission
-- `scheduling` → `voting`: Manual (leader action via `POST /api/trips/:id/open-voting`)
-- `voting` → `locked`: Manual (leader action via `POST /api/trips/:id/lock`)
+- `proposed` → `scheduling`: Auto on first date window suggestion (date_windows mode) or first availability submission (legacy top3_heatmap mode)
+- `scheduling` → `locked`: Leader proposes a window → travelers react → leader locks via `POST /api/trips/:id/lock-proposed` (date_windows mode, default)
+- `scheduling` → `voting` → `locked`: Legacy path (top3_heatmap mode only) via `POST /api/trips/:id/open-voting` then `POST /api/trips/:id/lock`
 - `locked` → `completed`: Auto when `endDate < today`
+
+**Current scheduling flow (date_windows mode)**:
+Three phases managed by `DateWindowsFunnel`:
+1. **COLLECTING** — Travelers suggest date windows via free-form text (e.g. "Feb 7-9", "first week of April"). Text is parsed deterministically by `normalizeWindow()` (no LLM). Travelers can support each other's suggestions. Overlap detection nudges users toward existing similar windows.
+2. **PROPOSED** — Leader selects a window to propose. Travelers react: Works / Maybe / Can't. Approval threshold = `ceil(memberCount / 2)`.
+3. **LOCKED** — Leader locks dates (can override if threshold not met). Trip moves to itinerary planning.
 
 **Key guardrails**:
 - **Role-based permissions**: Trip leader (`trip.createdBy === userId`) can lock dates, open voting, cancel trip, transfer leadership. Enforced server-side in `app/api/[[...path]]/route.js` via `validateStageAction()` (`lib/trips/validateStageAction.js`)
@@ -140,7 +146,9 @@ The product should feel like a helpful organizer, not a manager.
 - `trips`: `{ id, name, description, circleId, createdBy, type: 'collaborative'|'hosted', status: 'proposed'|'scheduling'|'voting'|'locked'|'completed'|'canceled', schedulingMode: 'date_windows' (default for collaborative) | 'top3_heatmap' (legacy), startDate, endDate, lockedStartDate, lockedEndDate, destinationHint, itineraryStatus: 'collecting_ideas'|'drafting'|'selected'|'published'|'revising'|null, canceledAt, canceledBy, createdAt, updatedAt }`
 - `memberships`: `{ userId, circleId, role: 'owner'|'member', joinedAt }`
 - `trip_participants`: `{ tripId, userId, status: 'active'|'left'|'removed', joinedAt, createdAt, updatedAt }`
-- `trip_date_picks`: `{ tripId, userId, picks: [{ rank, startDateISO, endDateISO }], createdAt, updatedAt }` (top3_heatmap mode)
+- `date_windows`: `{ id, tripId, proposedBy, startDate, endDate, sourceText, normalizedStart, normalizedEnd, precision: 'exact'|'approx'|'unstructured', createdAt }` (date_windows mode, current default)
+- `window_supports`: `{ id, windowId, tripId, userId, createdAt }` (date_windows mode)
+- `trip_date_picks`: `{ tripId, userId, picks: [{ rank, startDateISO, endDateISO }], createdAt, updatedAt }` (legacy top3_heatmap mode)
 - `availabilities`: `{ tripId, userId, day (YYYY-MM-DD) | isBroad: true | isWeekly: true, status: 'available'|'maybe'|'unavailable', createdAt }` (legacy)
 - `votes`: `{ tripId, userId, selectedWindow: { startDate, endDate }, createdAt }`
 - `trip_messages`: `{ tripId, userId, content, createdAt }`
@@ -197,6 +205,10 @@ components/trip/command-center-v2/
     └── index.ts                 # Exports
 ```
 
+**Scheduling Components**:
+- `components/trip/scheduling/DateWindowsFunnel.tsx` - Current default scheduling UI (COLLECTING → PROPOSED → LOCKED phases)
+- `components/trip/scheduling/SchedulingFunnelCard.tsx` - Legacy funnel mode scheduling UI
+
 **Shared Components**:
 - `components/common/BrandedSpinner.jsx` - Branded loading spinner (used across 15+ files)
 - `components/trip/TripTabs/tabs/ChatTab.tsx` - Chat surface (used by Command Center V2)
@@ -228,7 +240,9 @@ components/trip/command-center-v2/
 - `lib/trips/canViewerSeeTrip.js` - Privacy filtering logic
 - `lib/trips/applyProfileTripPrivacy.js` - Profile view privacy filtering
 - `lib/trips/buildTripCardData.js` - Trip card data builder
-- `lib/trips/getVotingStatus.js` - Voting aggregation logic
+- `lib/trips/normalizeWindow.js` - Deterministic free-form date text parser (no LLM), used by date_windows mode
+- `lib/trips/windowOverlap.js` - Date window similarity/overlap detection (0.6 threshold)
+- `lib/trips/getVotingStatus.js` - Voting aggregation logic (legacy top3_heatmap mode)
 - `lib/trips/getBlockingUsers.js` - Blocking users computation
 - `lib/dashboard/getDashboardData.js` - Dashboard data fetcher (server-side)
 - `lib/navigation/routes.js` - Route helpers (`tripHref()`, `circlePageHref()`) — canonical URL generators for all navigation
@@ -288,11 +302,12 @@ components/trip/command-center-v2/
 
 **CTA Priority Algorithm** (in `ContextCTABar.tsx`):
 1. Lock dates (leader only, when `canLockDates` and status is `voting`)
-2. Vote on dates (if voting open and user hasn't voted)
-3. Pick dates (if user hasn't submitted availability)
-4. Add ideas (if collecting ideas and user has < 3 ideas)
-5. Generate itinerary (leader only, when dates locked and no itinerary)
-6. Choose stay (when dates locked and accommodation not selected)
+2. Vote on dates (if voting open and user hasn't voted) — legacy top3_heatmap mode
+3. Suggest dates (if user hasn't submitted date windows) — date_windows mode
+4. Pick dates (if user hasn't submitted availability) — legacy top3_heatmap mode
+5. Add ideas (if collecting ideas and user has < 3 ideas)
+6. Generate itinerary (leader only, when dates locked and no itinerary)
+7. Choose stay (when dates locked and accommodation not selected)
 
 **Overlay Triggers**:
 | Trigger | Opens | Slide Direction |
