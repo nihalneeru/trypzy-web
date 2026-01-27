@@ -349,7 +349,7 @@ export function MemoriesOverlay({
           setHasUnsavedChanges(false)
         }
       }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Share a Memory</DialogTitle>
             <DialogDescription>
@@ -357,7 +357,7 @@ export function MemoriesOverlay({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto min-h-0">
             {/* Image upload area */}
             <div>
               <Label>Photos *</Label>
