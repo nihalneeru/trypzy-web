@@ -14,6 +14,7 @@ import { MembersTab } from '@/components/circles/MembersTab'
 import { CircleUpdatesTab } from '@/components/circles/CircleUpdatesTab'
 import { PostCard } from '@/components/circles/PostCard'
 import { CreatePostDialog } from '@/components/circles/CreatePostDialog'
+import { EditPostDialog } from '@/components/discover/EditPostDialog'
 import { CreateTripDialog } from '@/components/dashboard/CreateTripDialog'
 import { toast } from 'sonner'
 
@@ -42,6 +43,7 @@ export default function CircleDetailPage() {
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [showCreatePost, setShowCreatePost] = useState(false)
+  const [editingPost, setEditingPost] = useState(null)
 
   // Auth check
   useEffect(() => {
@@ -306,10 +308,19 @@ export default function CircleDetailPage() {
                     post={post}
                     token={token}
                     onDelete={handleDeletePost}
+                    onEdit={setEditingPost}
                   />
                 ))}
               </div>
             )}
+
+            <EditPostDialog
+              open={!!editingPost}
+              onOpenChange={(open) => { if (!open) setEditingPost(null) }}
+              post={editingPost}
+              token={token}
+              onSaved={() => { setEditingPost(null); loadPosts() }}
+            />
 
             <CreatePostDialog
               open={showCreatePost}
