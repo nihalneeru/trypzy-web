@@ -107,11 +107,11 @@ describe('getBlockingUsers', () => {
       })
       const user = mockUser({ id: 'leader-user-id', name: 'Leader' })
       const result = getBlockingUsers(trip, user)
-      
+
       expect(result).not.toBeNull()
       expect(result.reasonCode).toBe('leader_lock')
       expect(result.blockers).toHaveLength(0)
-      expect(result.message).toBe('Waiting on Trip Leader to lock dates')
+      expect(result.message).toBe('Dates look aligned. Lock them when you are ready.')
     })
 
     it('should return null when everyone responded and user is not leader', () => {
@@ -245,7 +245,10 @@ describe('getBlockingUsers', () => {
         pickProgress: null
       })
       const result = getBlockingUsers(trip, mockUser())
-      expect(result).toBeNull()
+      // When pickProgress is null/missing, returns initial_scheduling prompt
+      expect(result).not.toBeNull()
+      expect(result.reasonCode).toBe('initial_scheduling')
+      expect(result.blockers).toHaveLength(0)
     })
 
     it('should handle empty participants array', () => {
