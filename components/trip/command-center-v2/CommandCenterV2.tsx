@@ -42,7 +42,6 @@ import { computeTripProgressSnapshot, TripProgressSnapshot } from '@/lib/trips/p
 // Chevron bar: 56px on mobile (compact for touch), 72px on desktop
 const CHEVRON_BAR_WIDTH_MOBILE = 56 // Compact width for mobile
 const CHEVRON_BAR_WIDTH_DESKTOP = 72 // Standard width for desktop
-const BOTTOM_BAR_HEIGHT = 56 // Height of the ContextCTABar in pixels
 
 // Types
 interface CommandCenterV2Props {
@@ -330,7 +329,9 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const chevronBarRef = useRef<HTMLDivElement>(null)
   const focusBannerRef = useRef<HTMLDivElement>(null)
+  const ctaBarRef = useRef<HTMLDivElement>(null)
   const [focusBannerHeight, setFocusBannerHeight] = useState(0)
+  const [ctaBarHeight, setCtaBarHeight] = useState(0)
   const [chevronBarWidth, setChevronBarWidth] = useState(CHEVRON_BAR_WIDTH_DESKTOP)
 
   // Measure focus banner height for overlay positioning
@@ -340,6 +341,17 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
       setFocusBannerHeight(height)
     }
   }, [trip]) // Re-measure when trip changes (affects banner content)
+
+  // Measure CTA bar height for overlay positioning
+  useEffect(() => {
+    const el = ctaBarRef.current
+    if (!el) return
+    const measure = () => setCtaBarHeight(el.getBoundingClientRect().height)
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    measure()
+    return () => observer.disconnect()
+  }, [])
 
   // Handle responsive chevron bar width
   useEffect(() => {
@@ -539,7 +551,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
           </div>
 
           {/* Bottom section: Context CTA Bar (inside chat area, above input) */}
-          <div className="shrink-0">
+          <div ref={ctaBarRef} className="shrink-0">
             <ContextCTABar
               trip={trip}
               user={user}
@@ -573,7 +585,7 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         hasUnsavedChanges={hasUnsavedChanges}
         rightOffset={`${chevronBarWidth}px`}
         topOffset={`${focusBannerHeight}px`}
-        bottomOffset={`${BOTTOM_BAR_HEIGHT}px`}
+        bottomOffset={`${ctaBarHeight}px`}
         slideFrom={
           activeOverlay === 'travelers' || activeOverlay === 'expenses' || activeOverlay === 'memories'
             ? 'bottom'
