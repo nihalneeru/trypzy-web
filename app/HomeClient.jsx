@@ -2239,7 +2239,7 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
                 <Button 
                   variant={view === 'discover' ? 'secondary' : 'ghost'}
                   size="sm"
-                  onClick={() => router.push('/?view=discover')}
+                  onClick={() => router.push('/discover')}
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
                   Discover
@@ -2276,7 +2276,7 @@ function Dashboard({ user, token, onLogout, initialTripId, initialCircleId, retu
             variant={view === 'discover' ? 'secondary' : 'ghost'}
             size="sm"
             className="flex-1"
-            onClick={() => router.push('/?view=discover')}
+            onClick={() => router.push('/discover')}
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Discover
