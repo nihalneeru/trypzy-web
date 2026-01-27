@@ -119,9 +119,16 @@ The product should feel like a helpful organizer, not a manager.
 
 **Current scheduling flow (date_windows mode)**:
 Three phases managed by `DateWindowsFunnel`:
-1. **COLLECTING** — Travelers suggest date windows via free-form text (e.g. "Feb 7-9", "first week of April"). Text is parsed deterministically by `normalizeWindow()` (no LLM). Travelers can support each other's suggestions. Overlap detection nudges users toward existing similar windows.
+1. **COLLECTING** — Travelers suggest date windows via free-form text (e.g. "Feb 7-9", "first week of April"). Text is parsed deterministically by `normalizeWindow()` (no LLM). Travelers can support each other's suggestions. Overlap detection nudges users toward existing similar windows. Leader sees a response-rate insight card (see below).
 2. **PROPOSED** — Leader selects a window to propose. Travelers react: Works / Maybe / Can't. Approval threshold = `ceil(memberCount / 2)`.
 3. **LOCKED** — Leader locks dates (can override if threshold not met). Trip moves to itinerary planning.
+
+**Leader response-rate insight** (COLLECTING phase, `DateWindowsFunnel.tsx`):
+When the proposal threshold isn't met, the leader sees a contextual insight card based on group response rate (`responderCount / totalTravelers`):
+- **>=80%**: Blue card — "X of Y travelers have weighed in. [leading option] leads. You can propose any option when ready."
+- **>=50%**: Lighter blue card — "Over half the group has responded. [leading option] leads with N supporters."
+- **<50%**: No card shown (still collecting, too early for guidance).
+Once threshold IS met, the existing red CTA card ("Propose [dates]") takes over. Response rate counts distinct users who have suggested or supported any window (auto-support on creation ensures suggesters are counted).
 
 **Key guardrails**:
 - **Role-based permissions**: Trip leader (`trip.createdBy === userId`) can lock dates, open voting, cancel trip, transfer leadership. Enforced server-side in `app/api/[[...path]]/route.js` via `validateStageAction()` (`lib/trips/validateStageAction.js`)
