@@ -528,9 +528,9 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
       {/* Main content area */}
       <div className="flex-1 flex min-h-0">
         {/* Chat column - contains chat, traveler strip, CTA, and input */}
-        <div className="flex-1 flex flex-col min-w-0 relative">
-          {/* Chat messages area */}
-          <div className="flex-1 min-h-0">
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Chat area - bottom overlays render here with absolute positioning */}
+          <div className="flex-1 min-h-0 relative">
             <ChatTab
               trip={trip}
               token={token}
@@ -548,9 +548,53 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
               isReadOnly={isReadOnly}
               mode="command-center"
             />
+
+            {/* Bottom-slide overlays: absolute positioned within chat area, above CTA bar */}
+            <OverlayContainer
+              isOpen={activeOverlay !== null && (activeOverlay === 'travelers' || activeOverlay === 'expenses' || activeOverlay === 'memories')}
+              onClose={closeOverlay}
+              title={getOverlayTitle(activeOverlay)}
+              hasUnsavedChanges={hasUnsavedChanges}
+              slideFrom="bottom"
+              useAbsolutePosition={true}
+            >
+              <ErrorBoundary>
+                {activeOverlay === 'travelers' && (
+                  <TravelersOverlay
+                    trip={trip}
+                    token={token}
+                    user={user}
+                    onRefresh={onRefresh}
+                    onClose={closeOverlay}
+                    setHasUnsavedChanges={setHasUnsavedChanges}
+                    onMemberClick={(memberId) => openOverlay('member', { memberId })}
+                  />
+                )}
+                {activeOverlay === 'expenses' && (
+                  <ExpensesOverlay
+                    trip={trip}
+                    token={token}
+                    user={user}
+                    onRefresh={onRefresh}
+                    onClose={closeOverlay}
+                    setHasUnsavedChanges={setHasUnsavedChanges}
+                  />
+                )}
+                {activeOverlay === 'memories' && (
+                  <MemoriesOverlay
+                    trip={trip}
+                    token={token}
+                    user={user}
+                    onRefresh={onRefresh}
+                    onClose={closeOverlay}
+                    setHasUnsavedChanges={setHasUnsavedChanges}
+                  />
+                )}
+              </ErrorBoundary>
+            </OverlayContainer>
           </div>
 
-          {/* Bottom section: Context CTA Bar (inside chat area, above input) */}
+          {/* Context CTA Bar - always visible, never covered by bottom overlays */}
           <div ref={ctaBarRef} className="shrink-0">
             <ContextCTABar
               trip={trip}
@@ -577,23 +621,18 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
         </div>
       </div>
 
-      {/* Overlay Container - slides in from right (sidebar) or bottom (bottom bar) */}
+      {/* Right-slide overlays: fixed positioning for scheduling, itinerary, etc. */}
       <OverlayContainer
-        isOpen={activeOverlay !== null}
+        isOpen={activeOverlay !== null && activeOverlay !== 'travelers' && activeOverlay !== 'expenses' && activeOverlay !== 'memories'}
         onClose={closeOverlay}
         title={getOverlayTitle(activeOverlay)}
         hasUnsavedChanges={hasUnsavedChanges}
         rightOffset={`${chevronBarWidth}px`}
         topOffset={`${focusBannerHeight}px`}
         bottomOffset={`${ctaBarHeight}px`}
-        slideFrom={
-          activeOverlay === 'travelers' || activeOverlay === 'expenses' || activeOverlay === 'memories'
-            ? 'bottom'
-            : 'right'
-        }
+        slideFrom="right"
       >
         <ErrorBoundary>
-          {/* Render appropriate overlay based on activeOverlay type */}
           {activeOverlay === 'scheduling' && (
             <SchedulingOverlay
               trip={trip}
@@ -624,39 +663,8 @@ export function CommandCenterV2({ trip, token, user, onRefresh }: CommandCenterV
               setHasUnsavedChanges={setHasUnsavedChanges}
             />
           )}
-          {activeOverlay === 'travelers' && (
-            <TravelersOverlay
-              trip={trip}
-              token={token}
-              user={user}
-              onRefresh={onRefresh}
-              onClose={closeOverlay}
-              setHasUnsavedChanges={setHasUnsavedChanges}
-              onMemberClick={(memberId) => openOverlay('member', { memberId })}
-            />
-          )}
           {activeOverlay === 'prep' && (
             <PrepOverlay
-              trip={trip}
-              token={token}
-              user={user}
-              onRefresh={onRefresh}
-              onClose={closeOverlay}
-              setHasUnsavedChanges={setHasUnsavedChanges}
-            />
-          )}
-          {activeOverlay === 'expenses' && (
-            <ExpensesOverlay
-              trip={trip}
-              token={token}
-              user={user}
-              onRefresh={onRefresh}
-              onClose={closeOverlay}
-              setHasUnsavedChanges={setHasUnsavedChanges}
-            />
-          )}
-          {activeOverlay === 'memories' && (
-            <MemoriesOverlay
               trip={trip}
               token={token}
               user={user}
