@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import Image from 'next/image'
 import { toast } from 'sonner'
@@ -46,11 +45,7 @@ const api = async (endpoint, options = {}) => {
 export default function SignupPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
   const [betaSecret, setBetaSecret] = useState('')
-  const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
 
   // Handle OAuth callback - if we have a session with accessToken, store it and redirect
@@ -73,36 +68,6 @@ export default function SignupPage() {
       router.replace('/dashboard')
     }
   }, [session, status, router])
-
-  // Redirect if already authenticated - REMOVED to allow multi-account creation
-  // useEffect(() => {
-  //   const token = localStorage.getItem('trypzy_token')
-  //   if (token) {
-  //     router.replace('/dashboard')
-  //   }
-  // }, [router])
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-
-    try {
-      const data = await api('/auth/signup', {
-        method: 'POST',
-        body: JSON.stringify({ email, password, name })
-      })
-
-      localStorage.setItem('trypzy_token', data.token)
-      localStorage.setItem('trypzy_user', JSON.stringify(data.user))
-      toast.success('Account created!')
-
-      router.replace('/dashboard')
-    } catch (error) {
-      toast.error(error.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleGoogleSignIn = async () => {
     if (!betaSecret.trim()) {
@@ -161,71 +126,6 @@ export default function SignupPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 shrink-0 animate-spin">
-                      <Image
-                        src="/brand/trypzy-icon.png"
-                        alt="Loading"
-                        width={20}
-                        height={20}
-                        className="object-contain"
-                        unoptimized
-                      />
-                    </div>
-                    <span>Loading...</span>
-                  </div>
-                ) : (
-                  'Create Account'
-                )}
-              </Button>
-            </form>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <Separator className="w-full" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-muted-foreground">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="beta-secret">Private Beta Secret Phrase</Label>
@@ -238,12 +138,11 @@ export default function SignupPage() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Required for Google sign-in during private beta
+                  Required during private beta
                 </p>
               </div>
               <Button
                 type="button"
-                variant="outline"
                 className="w-full"
                 onClick={handleGoogleSignIn}
                 disabled={googleLoading || !betaSecret.trim()}
@@ -260,7 +159,7 @@ export default function SignupPage() {
                         unoptimized
                       />
                     </div>
-                    <span>Signing in...</span>
+                    <span>Signing up...</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -282,7 +181,7 @@ export default function SignupPage() {
                         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                       />
                     </svg>
-                    <span>Sign in with Google</span>
+                    <span>Sign up with Google</span>
                   </div>
                 )}
               </Button>
