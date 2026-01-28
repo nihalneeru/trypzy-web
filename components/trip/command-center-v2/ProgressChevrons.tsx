@@ -2,18 +2,9 @@
 
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
+import type { OverlayType } from './types'
 
-export type OverlayType =
-  | 'proposed'
-  | 'scheduling'
-  | 'itinerary'
-  | 'accommodation'
-  | 'travelers'
-  | 'prep'
-  | 'expenses'
-  | 'memories'
-  | 'member'
-  | null
+export type { OverlayType }
 
 interface ProgressChevronsProps {
   /** Progress steps completion status */
