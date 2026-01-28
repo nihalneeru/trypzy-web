@@ -64,7 +64,8 @@ export function ChatTab({
   stage,
   setActiveTab,
   isReadOnly = false,
-  mode = 'legacy' as 'legacy' | 'command-center'
+  mode = 'legacy' as 'legacy' | 'command-center',
+  collapseSystemMessages = false
 }: any) {
   // In command-center mode, chat is the primary surface (no card wrapper, no header)
   const isCommandCenter = mode === 'command-center'
@@ -675,6 +676,50 @@ export function ChatTab({
     }
   }, [blockingInfo, shouldShowInitialBlocking, trip?.id, user?.id])
 
+  // System message collapsing (V3 feature)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+
+  interface MessageGroup {
+    id: string
+    type: 'user' | 'system'
+    messages: any[]
+  }
+
+  const messageGroups = useMemo((): MessageGroup[] => {
+    if (!collapseSystemMessages || !messages || messages.length === 0) return []
+
+    const groups: MessageGroup[] = []
+    let currentGroup: MessageGroup | null = null
+
+    for (const msg of messages) {
+      const isSystem = !!msg.isSystem
+      if (isSystem) {
+        if (currentGroup && currentGroup.type === 'system') {
+          currentGroup.messages.push(msg)
+        } else {
+          currentGroup = { id: `sys-${msg.id}`, type: 'system', messages: [msg] }
+          groups.push(currentGroup)
+        }
+      } else {
+        currentGroup = { id: `usr-${msg.id}`, type: 'user', messages: [msg] }
+        groups.push(currentGroup)
+      }
+    }
+    return groups
+  }, [collapseSystemMessages, messages])
+
+  const toggleGroupExpanded = useCallback((groupId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(groupId)) {
+        next.delete(groupId)
+      } else {
+        next.add(groupId)
+      }
+      return next
+    })
+  }, [])
+
   // Chat content (shared between legacy and command-center modes)
   const chatContent = (
     <>
@@ -739,6 +784,102 @@ export function ChatTab({
             
             {messages.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
+            ) : collapseSystemMessages && messageGroups.length > 0 ? (
+              messageGroups.map((group) => {
+                if (group.type === 'user') {
+                  const msg = group.messages[0]
+                  const isFromCurrentUser = msg.user?.id === user?.id || msg.userId === user?.id
+                  return (
+                    <div key={group.id} className={`flex flex-col ${isFromCurrentUser ? 'items-end' : 'items-start'}`}>
+                      <div className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isFromCurrentUser ? 'bg-brand-blue/10 border border-brand-blue/20' : 'bg-gray-100'}`}>
+                          {!isFromCurrentUser && (
+                            <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
+                          )}
+                          <p className={isFromCurrentUser ? 'text-brand-carbon' : 'text-gray-900'}>{msg.content}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                // System message group
+                if (group.messages.length === 1) {
+                  const msg = group.messages[0]
+                  return (
+                    <div key={group.id} className="flex flex-col items-center">
+                      <div className="flex justify-center">
+                        {msg.subtype === 'nudge' || msg.metadata?.source === 'nudge_engine' ? (
+                          <div className="bg-brand-sand/60 border border-brand-sand rounded-lg px-4 py-2 text-sm text-brand-carbon max-w-[85%]">
+                            {msg.content}
+                          </div>
+                        ) : (
+                          <div
+                            className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
+                            onClick={msg.metadata?.href ? () => {
+                              if (msg.metadata.href.startsWith('/')) {
+                                window.location.href = msg.metadata.href
+                              } else {
+                                window.open(msg.metadata.href, '_blank')
+                              }
+                            } : undefined}
+                          >
+                            {msg.content}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+
+                // 2+ consecutive system messages: collapsible group
+                const isExpanded = expandedGroups.has(group.id)
+                return (
+                  <div key={group.id} className="flex flex-col items-center">
+                    {isExpanded ? (
+                      <div className="space-y-1.5 w-full">
+                        {group.messages.map((msg: any) => (
+                          <div key={msg.id} className="flex justify-center">
+                            {msg.subtype === 'nudge' || msg.metadata?.source === 'nudge_engine' ? (
+                              <div className="bg-brand-sand/60 border border-brand-sand rounded-lg px-4 py-2 text-sm text-brand-carbon max-w-[85%]">
+                                {msg.content}
+                              </div>
+                            ) : (
+                              <div
+                                className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
+                                onClick={msg.metadata?.href ? () => {
+                                  if (msg.metadata.href.startsWith('/')) {
+                                    window.location.href = msg.metadata.href
+                                  } else {
+                                    window.open(msg.metadata.href, '_blank')
+                                  }
+                                } : undefined}
+                              >
+                                {msg.content}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <div className="flex justify-center">
+                          <button
+                            onClick={() => toggleGroupExpanded(group.id)}
+                            className="text-xs text-gray-400 hover:text-gray-600"
+                          >
+                            Collapse
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => toggleGroupExpanded(group.id)}
+                        className="bg-gray-100 hover:bg-gray-200 rounded-full px-4 py-1.5 text-sm text-gray-500 transition-colors"
+                      >
+                        {group.messages.length} updates · tap to expand
+                      </button>
+                    )}
+                  </div>
+                )
+              })
             ) : (
               messages.map((msg: any) => {
                 // Determine if message is from current user (used for alignment and styling)
