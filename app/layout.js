@@ -2,6 +2,7 @@ import './globals.css'
 import { Toaster } from 'sonner'
 import { Inter } from 'next/font/google'
 import { SessionProvider } from '@/components/providers/SessionProvider'
+import * as Sentry from '@sentry/nextjs'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -10,9 +11,14 @@ const inter = Inter({
   display: 'swap',
 })
 
-export const metadata = {
-  title: 'Trypzy - Trips made easy',
-  description: 'Private, trust-based trip planning for friend groups',
+export function generateMetadata() {
+  return {
+    title: 'Trypzy - Trips made easy',
+    description: 'Private, trust-based trip planning for friend groups',
+    other: {
+      ...Sentry.getTraceData()
+    }
+  }
 }
 
 export default function RootLayout({ children }) {
