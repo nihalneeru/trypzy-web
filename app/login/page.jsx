@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import Image from 'next/image'
 import { toast } from 'sonner'
@@ -34,10 +33,7 @@ const api = async (endpoint, options = {}) => {
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [betaSecret, setBetaSecret] = useState('')
-  const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
 
   // Redirect if already authenticated
@@ -47,28 +43,6 @@ export default function LoginPage() {
       router.replace('/dashboard')
     }
   }, [router])
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-
-    try {
-      const data = await api('/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      })
-
-      localStorage.setItem('trypzy_token', data.token)
-      localStorage.setItem('trypzy_user', JSON.stringify(data.user))
-      toast.success('Welcome back!')
-
-      router.replace('/dashboard')
-    } catch (error) {
-      toast.error(error.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleGoogleSignIn = async () => {
     if (!betaSecret.trim()) {
@@ -126,63 +100,6 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  data-testid="login-email"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  data-testid="login-password"
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading} data-testid="login-submit">
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 shrink-0 animate-spin">
-                      <Image
-                        src="/brand/trypzy-icon.png"
-                        alt="Loading"
-                        width={20}
-                        height={20}
-                        className="object-contain"
-                        unoptimized
-                      />
-                    </div>
-                    <span>Loading...</span>
-                  </div>
-                ) : (
-                  'Sign In'
-                )}
-              </Button>
-            </form>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <Separator className="w-full" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-muted-foreground">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="beta-secret">Private Beta Secret Phrase</Label>
@@ -195,12 +112,11 @@ export default function LoginPage() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Required for Google sign-in during private beta
+                  Required during private beta
                 </p>
               </div>
               <Button
                 type="button"
-                variant="outline"
                 className="w-full"
                 onClick={handleGoogleSignIn}
                 disabled={googleLoading || !betaSecret.trim()}
