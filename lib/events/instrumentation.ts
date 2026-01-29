@@ -266,6 +266,54 @@ export async function emitDatesLocked(
   )
 }
 
+/**
+ * Emit scheduling.window.proposed event.
+ * Leader proposes a window for group reaction.
+ */
+export function emitWindowProposed(
+  tripId: string,
+  circleId: string,
+  leaderId: string,
+  windowId: string,
+  tripCreatedAt: Date
+): void {
+  emitNonCriticalEvent(
+    tripId,
+    circleId,
+    EVENT_TYPES.WINDOW_PROPOSED,
+    leaderId,
+    'leader',
+    tripCreatedAt,
+    { windowId }
+  )
+}
+
+/**
+ * Emit scheduling.window.proposal_rejected event.
+ * Leader withdraws/pivots from a proposed window.
+ */
+export function emitWindowProposalRejected(
+  tripId: string,
+  circleId: string,
+  leaderId: string,
+  windowId: string,
+  tripCreatedAt: Date,
+  reason?: string
+): void {
+  emitNonCriticalEvent(
+    tripId,
+    circleId,
+    EVENT_TYPES.WINDOW_PROPOSAL_REJECTED,
+    leaderId,
+    'leader',
+    tripCreatedAt,
+    {
+      windowId,
+      reason: reason || null,
+    }
+  )
+}
+
 // ============ Participation Events ============
 
 /**

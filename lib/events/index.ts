@@ -50,9 +50,23 @@ export {
   emitTripCanceled,
   emitWindowSuggested,
   emitWindowSupported,
+  emitWindowProposed,
+  emitWindowProposalRejected,
   emitReactionSubmitted,
   emitDatesLocked,
   emitTravelerJoined,
   emitTravelerLeft,
   emitLeaderChanged,
 } from './instrumentation'
+
+// Aggregation jobs
+export {
+  computeTripSnapshot,
+  computeAllTripSnapshots,
+  computeCircleProfile,
+  computeAllCircleProfiles,
+  ensureAggregateIndexes,
+  runDailyAggregation,
+  type TripCoordinationSnapshot,
+  type CircleCoordinationProfile,
+} from './aggregates'
