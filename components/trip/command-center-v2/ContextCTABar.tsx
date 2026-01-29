@@ -274,8 +274,8 @@ export function ContextCTABar({
           )}
         >
           <ctaConfig.icon className="h-4 w-4 mr-1.5 shrink-0" aria-hidden="true" />
-          <span className="hidden xs:inline">{ctaConfig.label}</span>
-          <span className="xs:hidden">{ctaConfig.label.split(' ')[0]}</span>
+          <span className="hidden sm:inline">{ctaConfig.label}</span>
+          <span className="sm:hidden">{ctaConfig.label.split(' ')[0]}</span>
         </Button>
       )}
     </div>
