@@ -25,7 +25,11 @@ function TripDetailContent() {
   const tripId = params?.tripId
 
   // A/B test flag: ?cc=v3 enables Command Center V3
-  const useV3 = searchParams.get('cc') === 'v3'
+  const ccParam = searchParams.get('cc')
+  const useV3 = ccParam === 'v3'
+
+  // Debug log - remove after testing
+  console.log('[Command Center] cc param:', ccParam, '| useV3:', useV3)
 
   const [trip, setTrip] = useState(null)
   const [token, setToken] = useState(null)
