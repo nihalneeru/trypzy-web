@@ -16,6 +16,8 @@ import {
   emitTripCanceled,
   emitWindowSuggested,
   emitWindowSupported,
+  emitWindowProposed,
+  emitWindowProposalRejected,
   emitReactionSubmitted,
   emitDatesLocked,
   emitTravelerJoined,
@@ -3829,6 +3831,15 @@ async function handleRoute(request, { params }) {
         metadata: { windowId, startDate: window.startDate, endDate: window.endDate }
       })
 
+      // Emit scheduling.window.proposed event
+      emitWindowProposed(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        windowId,
+        new Date(trip.createdAt)
+      )
+
       // Get updated trip
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
 
@@ -3885,6 +3896,16 @@ async function handleRoute(request, { params }) {
         text: `📅 ${auth.user.name} withdrew the date proposal. You can propose new dates.`,
         metadata: {}
       })
+
+      // Emit scheduling.window.proposal_rejected event
+      emitWindowProposalRejected(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        trip.proposedWindowId,
+        new Date(trip.createdAt),
+        'withdrawn'
+      )
 
       // Get updated trip
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
