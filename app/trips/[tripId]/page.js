@@ -24,8 +24,8 @@ function TripDetailContent() {
   const searchParams = useSearchParams()
   const tripId = params?.tripId
 
-  // A/B test flag: ?cc=v3 enables Command Center V3
-  const useV3 = searchParams.get('cc') === 'v3'
+  // V3 is default, use ?cc=v2 to fallback to V2
+  const useV2 = searchParams.get('cc') === 'v2'
 
   const [trip, setTrip] = useState(null)
   const [token, setToken] = useState(null)
@@ -170,15 +170,15 @@ function TripDetailContent() {
 
       {/* Command Center fills remaining space */}
       <div className="flex-1 min-h-0">
-        {useV3 ? (
-          <CommandCenterV3
+        {useV2 ? (
+          <CommandCenterV2
             trip={trip}
             token={token}
             user={user}
             onRefresh={handleRefresh}
           />
         ) : (
-          <CommandCenterV2
+          <CommandCenterV3
             trip={trip}
             token={token}
             user={user}
