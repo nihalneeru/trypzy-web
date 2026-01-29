@@ -15,7 +15,7 @@ This file is a compact, high-signal context snapshot for future sessions.
 - **Trip participants**: explicit for hosted, implicit for collaborative (unless left/removed).
 
 ## Default Trip Experience
-- **Command Center V2** is the default trip view: `components/trip/command-center-v2/`.
+- **Command Center V3** is the default trip view: `components/trip/command-center-v2/`.
 - Chat feed is primary; actions open overlays (scheduling/itinerary/accommodation/prep/etc.).
 
 ## Critical Guardrails
@@ -26,7 +26,7 @@ This file is a compact, high-signal context snapshot for future sessions.
 ## Route Architecture
 All pages are standalone Next.js App Router routes (no SPA monolith):
 - `/dashboard` — primary landing page (`app/dashboard/page.js`)
-- `/trips/[tripId]` — trip detail with Command Center V2 (`app/trips/[tripId]/page.js`)
+- `/trips/[tripId]` — trip detail with Command Center V3 (`app/trips/[tripId]/page.js`)
 - `/circles/[circleId]` — circle detail with tabs (`app/circles/[circleId]/page.js`)
 - `/discover` — discover feed (`app/discover/page.js`)
 - `/members/[userId]` — member profile (`app/members/[userId]/page.js`)
@@ -38,7 +38,7 @@ All pages are standalone Next.js App Router routes (no SPA monolith):
 
 ## Key Files
 - `app/api/[[...path]]/route.js` — centralized API (pattern matching).
-- `components/trip/command-center-v2/CommandCenterV2.tsx` — default trip view.
+- `components/trip/command-center-v2/CommandCenterV3.tsx` — default trip view.
 - `components/trip/TripTabs/tabs/ChatTab.tsx` — shared chat UI.
 - `components/common/BrandedSpinner.jsx` — branded loading spinner.
 - `lib/trips/stage.js` — stage computation.

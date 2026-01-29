@@ -22,34 +22,30 @@ Trypzy is a **private, trust-based trip planning platform** for friend groups. T
 4. **Privacy-First**: Context-aware privacy controls never prevent users from seeing their own trips.
 5. **Progressive Narrowing**: Scheduling narrows intent until date locking, then everything flows from that commitment.
 
-### Trip Command Center V2 (Default Trip Detail View)
+### Trip Command Center V3 (Default Trip Detail View)
 
-The **Command Center V2** is the default trip experience. It is chat-centric with slide-in overlays for actions.
+The **Command Center V3** is the default trip experience. It is chat-centric with slide-in overlays for actions.
 
 **Layout**:
 ```
-┌─────────────────────────────────────────┬─────┐
-│  Focus Banner (Trip Name + Dates)       │  ▼  │
-├─────────────────────────────────────────┤  ▼  │
-│                                         │  ▼  │
-│           CHAT FEED                     │  ▼  │
-│         (scrollable)                    │  ▼  │
-│                                         │  ▼  │
-│                                         │  ○  │
-│                                         │  ○  │
-│                                         │─────│
-│                                         │  👥 │
-├─────────────────────────────────────────┴─────┤
-│  Traveler Strip                           │
+┌───────────────────────────────────────────────┐
+│  ProgressStrip: Trip Name + Dates             │
+│  [▶Proposed][▶Dates][▶Itinerary][▶Stay][▶Prep]│
 ├───────────────────────────────────────────────┤
-│  Context CTA Bar (priority action)           │
+│                                               │
+│              CHAT FEED                        │
+│            (scrollable)                       │
+│                                               │
+├───────────────────────────────────────────────┤
+│  [  Type a message...              ] [➤]      │
+├───────────────────────────────────────────────┤
+│  Context CTA Bar (priority action)            │
 └───────────────────────────────────────────────┘
 ```
 
-**Key V2 files**:
-- `components/trip/command-center-v2/CommandCenterV2.tsx`
-- `components/trip/command-center-v2/FocusBannerV2.tsx`
-- `components/trip/command-center-v2/ProgressChevrons.tsx`
+**Key V3 files**:
+- `components/trip/command-center-v2/CommandCenterV3.tsx`
+- `components/trip/command-center-v2/ProgressStrip.tsx`
 - `components/trip/command-center-v2/ContextCTABar.tsx`
 - `components/trip/command-center-v2/OverlayContainer.tsx`
 - `components/trip/command-center-v2/overlays/*.tsx`

@@ -191,14 +191,14 @@ Once threshold IS met, the existing red CTA card ("Propose [dates]") takes over.
 - `app/signup/page.jsx` - Signup page
 - `app/settings/privacy/page.js` - Privacy settings page
 
-**Command Center V2 Components** (current default trip view):
+**Command Center V3 Components** (current default trip view):
 ```
 components/trip/command-center-v2/
-├── CommandCenterV2.tsx           # Main orchestrator (~600 lines)
-├── FocusBannerV2.tsx            # Top banner showing trip name/dates
-├── ProgressChevrons.tsx         # Right sidebar with arrow-shaped stage indicators
+├── CommandCenterV3.tsx          # Main orchestrator (~420 lines)
+├── ProgressStrip.tsx            # Top strip: trip name/dates + horizontal chevrons
 ├── ContextCTABar.tsx            # Bottom bar: travelers/expenses/memories + priority CTA
 ├── OverlayContainer.tsx         # Slide-in drawer wrapper (right or bottom)
+├── types.ts                     # Shared types (OverlayType, OverlayParams)
 ├── index.ts                     # Exports
 └── overlays/
     ├── SchedulingOverlay.tsx    # Date picking, voting, lock (~950 lines)
@@ -218,7 +218,7 @@ components/trip/command-center-v2/
 
 **Shared Components**:
 - `components/common/BrandedSpinner.jsx` - Branded loading spinner (used across 15+ files)
-- `components/trip/TripTabs/tabs/ChatTab.tsx` - Chat surface (used by Command Center V2)
+- `components/trip/TripTabs/tabs/ChatTab.tsx` - Chat surface (used by Command Center V3)
 - `components/trip/chat/ActionCard.tsx` - CTA card component for ChatTab
 - `components/trip/TransferLeadershipDialog.tsx` - Leadership transfer dialog
 - `components/trip/CancelTripDialog.tsx` - Trip cancellation dialog
@@ -269,22 +269,19 @@ components/trip/command-center-v2/
 - `tests/nudges/` - Nudge engine tests (engine, store, overlap, surfacing)
 - `e2e/` - Playwright E2E tests (navigation, discover flow)
 
-## 5) Command Center V2 - Current Implementation
+## 5) Command Center V3 - Current Implementation
 
 **Layout Structure**:
 ```
-┌─────────────────────────────────────────┬─────┐
-│  Focus Banner (Trip Name + Dates)       │  ▼  │ ← Proposed chevron
-├─────────────────────────────────────────┤  ▼  │ ← Dates chevron
-│                                         │  ▼  │ ← Itinerary chevron
-│           CHAT FEED                     │  ▼  │ ← Accommodation chevron
-│         (scrollable)                    │  ▼  │ ← Prep chevron
-│                                         │  ▼  │ ← Ongoing chevron
-│                                         │  ○  │ ← Memories chevron
-│                                         │  ○  │ ← Expenses chevron
-│                                         │─────│
-│                                         │  👥 │ ← Travelers button
-├─────────────────────────────────────────┴─────┤
+┌───────────────────────────────────────────────┐
+│  ProgressStrip: Trip Name + Dates             │
+│  [▶Proposed][▶Dates][▶Itinerary][▶Stay][▶Prep]│ ← Horizontal chevrons
+├───────────────────────────────────────────────┤
+│                                               │
+│              CHAT FEED                        │
+│            (scrollable)                       │
+│                                               │
+├───────────────────────────────────────────────┤
 │  [  Type a message...              ] [➤]      │
 ├───────────────────────────────────────────────┤
 │  [👥 4] [💰] [📷]     [Pick your dates  📅]   │ ← Context CTA Bar
@@ -292,20 +289,20 @@ components/trip/command-center-v2/
 ```
 
 **Key Features**:
-- **Progress Chevrons**: SVG arrow shapes on right sidebar (72px wide)
-  - Green = completed, Red (`brand-red`) = current blocker, Gray = future, Blue (`brand-blue`) = active overlay
-  - Points DOWN by default, LEFT when it's the blocker (indicating what needs attention)
-  - Always visible on right side (desktop and mobile)
+- **Progress Strip**: Horizontal strip at top with trip info + chevrons
+  - Row 1: Trip name, dates, participation meter
+  - Row 2: Horizontal chevron arrows (Proposed → On Trip)
+  - Blue (`brand-blue`) = completed/active, Red (`brand-red`) = blocker, Gray = future
+  - Blocker/active chevrons point DOWN, others point RIGHT
+  - Auto-scrolls to active chevron on mobile
 - **Slide-in Overlays**: Drawer from right or bottom
   - Right overlays: scheduling, itinerary, accommodation, prep, member profile (max-width 448px)
   - Bottom overlays: travelers, expenses, memories
-  - Offset from chevron sidebar (doesn't cover it)
   - Backdrop click or Escape to close
   - Unsaved changes protection with confirmation dialog
 - **Context CTA Bar**: Bottom bar with two sections
   - Left: Travelers count, Expenses, Memories quick-action buttons
   - Right: Priority-based CTA button (red background)
-- **Focus Banner**: Shows trip name, locked dates (if any), and an inline blocker indicator text (e.g. "Waiting on dates") styled with type-based colors
 
 **CTA Priority Algorithm** (in `ContextCTABar.tsx`):
 1. Lock dates (leader only, when `canLockDates` and status is `voting`)
@@ -473,7 +470,7 @@ A nudge engine exists and is **active** in the current codebase.
 - Nudges are surfaced as **system messages in trip chat** (channel: `chat_card`) with distinct `bg-brand-sand` styling
 - Nudges are **informational, non-blocking, and role-aware** — they celebrate progress (e.g. "first availability submitted") and clarify next steps without pressuring
 - Dedupe is handled server-side via the `nudge_events` collection (cooldown-based) and `metadata.eventKey` on chat messages
-- The client triggers nudge evaluation via `GET /api/trips/:tripId/nudges` on trip load (fire-and-forget in `CommandCenterV2.tsx`)
+- The client triggers nudge evaluation via `GET /api/trips/:tripId/nudges` on trip load (fire-and-forget in `CommandCenterV3.tsx`)
 - Feature flag: `NEXT_PUBLIC_NUDGES_ENABLED` (set to `'false'` to disable)
 
 **Key files**:
@@ -488,13 +485,29 @@ A nudge engine exists and is **active** in the current codebase.
 
 ## 11) Key Component APIs
 
-**CommandCenterV2 Props**:
+**CommandCenterV3 Props**:
 ```typescript
-interface CommandCenterV2Props {
+interface CommandCenterV3Props {
   trip: Trip
   token: string
   user: User
   onRefresh: (updatedTrip?: Trip) => void
+}
+```
+
+**ProgressStrip Props**:
+```typescript
+interface ProgressStripProps {
+  tripName: string
+  startDate?: string | null
+  endDate?: string | null
+  lockedStartDate?: string | null
+  lockedEndDate?: string | null
+  progressSteps: Record<string, boolean>
+  blockerStageKey: string | null
+  activeOverlay: OverlayType
+  onStepClick: (overlayType: OverlayType) => void
+  participationMeter?: { responded: number; total: number; label: string } | null
 }
 ```
 
@@ -506,18 +519,7 @@ interface OverlayContainerProps {
   title: string
   children: React.ReactNode
   hasUnsavedChanges?: boolean
-  rightOffset?: string      // e.g., "72px" to not cover chevron sidebar
   slideFrom?: 'right' | 'bottom'  // default: 'right'
-}
-```
-
-**ProgressChevrons Props**:
-```typescript
-interface ProgressChevronsProps {
-  progressSteps: Record<string, boolean>
-  blockerStageKey: string | null  // which chevron points left (the blocker)
-  onChevronClick: (overlayType: OverlayType) => void
-  activeOverlay: OverlayType
 }
 ```
 

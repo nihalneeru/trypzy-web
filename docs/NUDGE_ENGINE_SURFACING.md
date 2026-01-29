@@ -38,7 +38,7 @@ The backend endpoint exists and works correctly. The gap was entirely on the **c
 3. Therefore `cta_highlight` nudges are never displayed
 
 ## Integration Approach (Option A — Pull-on-load)
-- Call the nudge endpoint once when `CommandCenterV2` mounts (and on trip refresh)
+- Call the nudge endpoint once when `CommandCenterV3` mounts (and on trip refresh)
 - Chat card nudges are automatically persisted as system messages by the backend
 - They appear in the chat feed via existing polling (`useTripChat`)
 - CTA highlight nudges are returned in the response and can drive action cards

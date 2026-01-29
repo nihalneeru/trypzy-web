@@ -1,4 +1,6 @@
 > **HISTORICAL PLANNING DOCUMENT**: Current behavior may differ from what is described here. Refer to merged PRs and current docs (CLAUDE.md, date_locking_funnel.md) for the source of truth.
+>
+> **Note (2026-01-29)**: CommandCenterV2, ProgressChevrons, FocusBannerV2, and TravelerStrip have been removed. The current implementation uses CommandCenterV3 with ProgressStrip. Items referencing deleted files are no longer applicable.
 
 # Trypzy MVP Hardening Plan V2
 
