@@ -34,6 +34,8 @@ interface OverlayContainerProps {
   slideFrom?: 'right' | 'bottom'
   /** Use absolute positioning within a relative parent instead of fixed viewport positioning */
   useAbsolutePosition?: boolean
+  /** Use full width instead of max 448px (for V3 full-screen overlays) */
+  fullWidth?: boolean
 }
 
 /**
@@ -57,7 +59,8 @@ export function OverlayContainer({
   topOffset = '0px',
   bottomOffset = '0px',
   slideFrom = 'right',
-  useAbsolutePosition = false
+  useAbsolutePosition = false,
+  fullWidth = false
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -178,22 +181,23 @@ export function OverlayContainer({
             ? {
                 bottom: 0,
                 left: 0,
-                width: 'min(448px, 100%)',
+                width: fullWidth ? '100%' : 'min(448px, 100%)',
                 maxHeight: '90%'
               }
             : isBottomSlide
               ? {
                   bottom: bottomOffset,
                   right: rightOffset,
-                  width: `min(448px, calc(100% - ${rightOffset}))`,
+                  width: fullWidth ? `calc(100% - ${rightOffset})` : `min(448px, calc(100% - ${rightOffset}))`,
                   maxHeight: `calc(100vh - ${topOffset} - ${bottomOffset} - 20px)`
                 }
               : {
                   top: topOffset,
                   bottom: bottomOffset,
                   right: rightOffset,
-                  width: 'min(448px, calc(100vw - 20px))',
-                  maxWidth: `calc(100vw - ${rightOffset} - 10px)`
+                  left: fullWidth ? '0px' : undefined,
+                  width: fullWidth ? `calc(100vw - ${rightOffset})` : 'min(448px, calc(100vw - 20px))',
+                  maxWidth: fullWidth ? undefined : `calc(100vw - ${rightOffset} - 10px)`
                 }
         }
         role="dialog"
