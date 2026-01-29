@@ -181,7 +181,6 @@ export function DateWindowsFunnel({
   const [pendingWindowText, setPendingWindowText] = useState('')
 
   // Confirmation dialogs
-  const [showProposeConfirm, setShowProposeConfirm] = useState(false)
   const [showLockConfirm, setShowLockConfirm] = useState(false)
   const [pendingProposeWindowId, setPendingProposeWindowId] = useState<string | null>(null)
   const [useLeaderOverride, setUseLeaderOverride] = useState(false)
@@ -505,8 +504,21 @@ export function DateWindowsFunnel({
   }
 
   // Handle proposing dates (leader only)
-  const handlePropose = async (concreteDatesOverride?: { startDate: string; endDate: string }) => {
-    if (!pendingProposeWindowId) return
+  const handlePropose = async (
+    windowId?: string,
+    overrideFlag?: boolean,
+    concreteDatesOverride?: { startDate: string; endDate: string }
+  ) => {
+    const targetWindowId = windowId || pendingProposeWindowId
+    const shouldOverride = overrideFlag ?? useLeaderOverride
+
+    if (!targetWindowId) return
+
+    // Set state for potential concrete dates dialog
+    if (windowId) {
+      setPendingProposeWindowId(windowId)
+      setUseLeaderOverride(shouldOverride)
+    }
 
     try {
       setSubmitting(true)
@@ -517,8 +529,8 @@ export function DateWindowsFunnel({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          windowId: pendingProposeWindowId,
-          leaderOverride: useLeaderOverride,
+          windowId: targetWindowId,
+          leaderOverride: shouldOverride,
           ...(concreteDatesOverride && { concreteDates: concreteDatesOverride })
         })
       })
@@ -531,7 +543,6 @@ export function DateWindowsFunnel({
           // Find the window to show in dialog
           const unstructuredWindow = windows.find(w => w.id === pendingProposeWindowId)
           setPendingUnstructuredWindow(unstructuredWindow || null)
-          setShowProposeConfirm(false)
           setShowConcreteDatesDialog(true)
           return
         }
@@ -539,7 +550,6 @@ export function DateWindowsFunnel({
       }
 
       toast.success('Dates proposed')
-      setShowProposeConfirm(false)
       setPendingProposeWindowId(null)
       setUseLeaderOverride(false)
       await fetchWindows()
@@ -563,7 +573,7 @@ export function DateWindowsFunnel({
       return
     }
 
-    await handlePropose({ startDate: concreteDatesStart, endDate: concreteDatesEnd })
+    await handlePropose(undefined, undefined, { startDate: concreteDatesStart, endDate: concreteDatesEnd })
 
     // Reset concrete dates state on success
     setShowConcreteDatesDialog(false)
@@ -1229,14 +1239,11 @@ export function DateWindowsFunnel({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => {
-                                  setPendingProposeWindowId(window.id)
-                                  setUseLeaderOverride(!proposalStatus?.proposalReady)
-                                  setShowProposeConfirm(true)
-                                }}
+                                onClick={() => handlePropose(window.id, !proposalStatus?.proposalReady)}
+                                disabled={submitting}
                                 className="text-brand-red hover:text-brand-red hover:bg-brand-red/10"
                               >
-                                Propose
+                                {submitting ? 'Proposing...' : 'Propose'}
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
@@ -1309,61 +1316,16 @@ export function DateWindowsFunnel({
                 {proposalStatus.stats.leaderCount} of {proposalStatus.stats.totalTravelers} travelers can make the leading option
               </p>
               <Button
-                onClick={() => {
-                  setPendingProposeWindowId(proposalStatus.leadingWindow!.id)
-                  setUseLeaderOverride(false)
-                  setShowProposeConfirm(true)
-                }}
+                onClick={() => handlePropose(proposalStatus.leadingWindow!.id, false)}
+                disabled={submitting}
                 className="bg-brand-red hover:bg-brand-red/90"
               >
-                Propose {formatWindowDisplay(proposalStatus.leadingWindow)}
+                {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(proposalStatus.leadingWindow)}`}
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Propose confirmation dialog */}
-      <AlertDialog open={showProposeConfirm} onOpenChange={setShowProposeConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {useLeaderOverride ? 'Propose dates now?' : 'Propose these dates?'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {(() => {
-                const proposingWindow = windows.find(w => w.id === pendingProposeWindowId)
-                return proposingWindow ? (
-                  <>
-                    <strong>{formatWindowDisplay(proposingWindow)}</strong>
-                    <br /><br />
-                    {proposingWindow.supportCount} {proposingWindow.supportCount === 1 ? 'person' : 'people'} can make this.
-                    <br /><br />
-                  </>
-                ) : null
-              })()}
-              {useLeaderOverride && (
-                <span className="text-amber-600">
-                  The usual threshold hasn't been met yet, but you can propose now if you're confident about these dates.
-                </span>
-              )}
-              {!useLeaderOverride && (
-                'Once proposed, you can still change your mind before locking.'
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => handlePropose()}
-              disabled={submitting}
-              className="bg-brand-red hover:bg-brand-red/90"
-            >
-              {submitting ? 'Proposing...' : 'Propose dates'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Concrete dates dialog (for unstructured windows) */}
       <AlertDialog open={showConcreteDatesDialog} onOpenChange={(open) => {
