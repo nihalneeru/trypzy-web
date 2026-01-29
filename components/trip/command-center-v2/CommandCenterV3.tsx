@@ -325,6 +325,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
         bottomOffset="0px"
         rightOffset="0px"
         slideFrom="right"
+        fullWidth={true}
       >
         <ErrorBoundary>
           {activeOverlay === 'scheduling' && (

@@ -6,17 +6,26 @@ import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
 import type { OverlayType } from './types'
 
-// Map progress step keys to overlay types (same as ProgressChevrons)
+// Map progress step keys to overlay types
+// NOTE: Memories and Expenses are NOT shown as chevrons - they're in the bottom CTA bar
 const STEP_TO_OVERLAY: Record<string, OverlayType> = {
   tripProposed: 'proposed',
   datesLocked: 'scheduling',
   itineraryFinalized: 'itinerary',
   accommodationChosen: 'accommodation',
   prepStarted: 'prep',
-  tripOngoing: null,
-  memoriesShared: 'memories',
-  expensesSettled: 'expenses'
+  tripOngoing: null
 }
+
+// Only show main stage chevrons (exclude Memories and Expenses - those are in CTA bar)
+const STAGE_CHEVRON_KEYS = [
+  'tripProposed',
+  'datesLocked',
+  'itineraryFinalized',
+  'accommodationChosen',
+  'prepStarted',
+  'tripOngoing'
+]
 
 // ─────────────────────────────────────────────────
 // Chevron arrow (horizontal variant)
@@ -188,58 +197,61 @@ export function ProgressStrip({
       </div>
 
       {/* Row 2: Chevron arrows - horizontal scroll with snap on mobile */}
+      {/* Only shows main stages (Proposed → On Trip). Memories/Expenses are in bottom CTA bar */}
       <div
         ref={scrollContainerRef}
         className={cn(
-          'flex items-start gap-1 md:gap-2 px-2 md:px-3 pb-1',
+          'flex items-center justify-center gap-1 md:gap-2 px-2 md:px-3 pb-2',
           'overflow-x-auto scrollbar-none',
           'snap-x snap-mandatory md:snap-none'
         )}
       >
-        {TRIP_PROGRESS_STEPS.map((step) => {
-          const isCompleted = progressSteps[step.key]
-          const isBlocker = step.key === blockerStageKey
-          const overlayType = STEP_TO_OVERLAY[step.key]
-          const isActive = overlayType !== null && activeOverlay === overlayType
-          const isClickable = overlayType !== null
+        {TRIP_PROGRESS_STEPS
+          .filter(step => STAGE_CHEVRON_KEYS.includes(step.key))
+          .map((step) => {
+            const isCompleted = progressSteps[step.key]
+            const isBlocker = step.key === blockerStageKey
+            const overlayType = STEP_TO_OVERLAY[step.key]
+            const isActive = overlayType !== null && activeOverlay === overlayType
+            const isClickable = overlayType !== null
 
-          // Blocker or active overlay points DOWN (attention); rest point RIGHT (flow)
-          const pointDirection = (isBlocker || isActive) ? 'down' : 'right'
+            // Blocker or active overlay points DOWN (attention); rest point RIGHT (flow)
+            const pointDirection = (isBlocker || isActive) ? 'down' : 'right'
 
-          return (
-            <button
-              key={step.key}
-              onClick={() => isClickable && onStepClick(overlayType)}
-              disabled={!isClickable}
-              className={cn(
-                'flex flex-col items-center gap-0.5 snap-center',
-                'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-1 rounded'
-              )}
-              aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isBlocker ? ' (needs attention)' : ''}`}
-            >
-              <StripChevron
-                isCompleted={isCompleted}
-                isBlocker={isBlocker}
-                isActiveOverlay={isActive}
-                isClickable={isClickable}
-                icon={step.icon}
-                pointDirection={pointDirection}
-              />
-              <span className={cn(
-                'text-[8px] md:text-[9px] font-medium leading-tight text-center w-11',
-                isActive
-                  ? 'text-brand-blue'
-                  : isBlocker
-                    ? 'text-brand-red'
-                    : isCompleted
-                      ? 'text-brand-blue'
-                      : 'text-brand-carbon/40'
-              )}>
-                {step.shortLabel}
-              </span>
-            </button>
-          )
-        })}
+            return (
+              <button
+                key={step.key}
+                onClick={() => isClickable && onStepClick(overlayType)}
+                disabled={!isClickable}
+                className={cn(
+                  'flex flex-col items-center gap-0.5 snap-center shrink-0',
+                  'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-1 rounded'
+                )}
+                aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isBlocker ? ' (needs attention)' : ''}`}
+              >
+                <StripChevron
+                  isCompleted={isCompleted}
+                  isBlocker={isBlocker}
+                  isActiveOverlay={isActive}
+                  isClickable={isClickable}
+                  icon={step.icon}
+                  pointDirection={pointDirection}
+                />
+                <span className={cn(
+                  'text-[9px] md:text-[10px] font-medium leading-tight text-center whitespace-nowrap',
+                  isActive
+                    ? 'text-brand-blue'
+                    : isBlocker
+                      ? 'text-brand-red'
+                      : isCompleted
+                        ? 'text-brand-blue'
+                        : 'text-brand-carbon/40'
+                )}>
+                  {step.shortLabel}
+                </span>
+              </button>
+            )
+          })}
       </div>
     </div>
   )
