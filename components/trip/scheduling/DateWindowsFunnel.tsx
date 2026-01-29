@@ -727,7 +727,7 @@ export function DateWindowsFunnel({
       <div className="space-y-4 p-4">
         <div className="text-center mb-4">
           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-            Dates Proposed — Vote Now
+            Leader's Pick — Share Your Thoughts
           </Badge>
         </div>
 
@@ -749,7 +749,7 @@ export function DateWindowsFunnel({
         {/* Reaction buttons - show for everyone */}
         <div className="space-y-3">
           <p className="text-sm font-medium text-center text-brand-carbon">
-            Can you make these dates?
+            Do these dates work?
           </p>
           <div className="flex gap-2 justify-center">
             <Button
@@ -1022,7 +1022,7 @@ export function DateWindowsFunnel({
             <span className="flex items-center">
               <Plus className="h-4 w-4 mr-2" />
               {canCreateWindow
-                ? `Suggest dates (${remainingWindows} left)`
+                ? `Add your dates (${remainingWindows} left)`
                 : `Limit reached (${maxWindows}/${maxWindows})`
               }
             </span>
@@ -1102,7 +1102,7 @@ export function DateWindowsFunnel({
                   {!normalizationError && (
                     <>
                       <div>
-                        <Label htmlFor="dateText" className="text-sm">When could you do this trip?</Label>
+                        <Label htmlFor="dateText" className="text-sm">When works for you?</Label>
                         <Input
                           id="dateText"
                           type="text"
@@ -1248,8 +1248,8 @@ export function DateWindowsFunnel({
                             </TooltipTrigger>
                             <TooltipContent>
                               {proposalStatus?.proposalReady
-                                ? 'Propose this as the final dates'
-                                : 'Propose now (threshold not met yet)'}
+                                ? 'Put this to the group for feedback'
+                                : 'Put to group (not everyone has responded yet)'}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
