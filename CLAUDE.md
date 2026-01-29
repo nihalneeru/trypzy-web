@@ -161,6 +161,10 @@ Once threshold IS met, the existing red CTA card ("Propose [dates]") takes over.
 - `trip_messages`: `{ tripId, userId, content, createdAt }`
 - `itinerary_ideas`: `{ tripId, userId, title, description, createdAt }`
 - `trip_join_requests`: `{ tripId, userId, message, status, createdAt }`
+- `trip_events`: `{ tripId, circleId, eventType, actorId, actorRole, timestamp, tripAgeMs, payload, context, schemaVersion, idempotencyKey }` (event log)
+- `nudge_events`: `{ tripId, userId, nudgeType, status, createdAt }` (TTL 7 days, correlation cache)
+- `trip_coordination_snapshots`: `{ tripId, circleId, outcome, timeToOutcomeHours, windowsSuggested, participationRate, computedAt }` (daily aggregates)
+- `circle_coordination_profiles`: `{ circleId, tripCount, completionRate, medianTimeToLockDays, leaderConcentration, updatedAt }` (daily aggregates)
 
 **Traveler determination**:
 - **Collaborative trips**: All circle members are travelers unless `trip_participants.status === 'left'/'removed'` (see `isActiveTraveler()` in `app/api/[[...path]]/route.js:67`)
@@ -267,6 +271,8 @@ components/trip/command-center-v2/
 - `tests/api/` - API unit tests (stage enforcement, privacy, expenses, etc.)
 - `tests/trips/` - Trip utility tests (voting status, blocking users)
 - `tests/nudges/` - Nudge engine tests (engine, store, overlap, surfacing)
+- `tests/events/` - Event emitter tests
+- `tests/admin/` - Admin endpoint tests (auth gating, health checks)
 - `e2e/` - Playwright E2E tests (navigation, discover flow)
 
 ## 5) Command Center V3 - Current Implementation
@@ -356,6 +362,13 @@ function deriveBlockerStageKey(trip): 'scheduling' | 'itinerary' | 'accommodatio
 - `circle_member_joined` - When members join circle
 - Updates derived from `memberships` collection with `joinedAt` timestamps
 
+**Admin/Debug endpoints** (protected by `x-admin-debug-token` header):
+- `GET /api/admin/events` - Query trip_events (requires tripId or circleId)
+- `GET /api/admin/events/trips/:tripId/health` - Trip instrumentation health check
+
+**Jobs endpoints** (protected by `CRON_SECRET` bearer token):
+- `POST /api/jobs/aggregates` - Run daily aggregation job
+
 ## 7) Progress Step Icons
 
 | Step | Icon | Color (when current) |
@@ -388,11 +401,14 @@ DB_NAME=trypzy
 JWT_SECRET=your-secret-key
 CORS_ORIGINS=http://localhost:3000
 OPENAI_API_KEY=your-openai-key
+# Admin/Debug (required in all environments):
+ADMIN_DEBUG_TOKEN=your-admin-token    # For /api/admin/* endpoints
 # Optional:
+# CRON_SECRET=your-cron-secret        # For /api/jobs/aggregates
 # OPENAI_API_URL=https://api.openai.com/v1/chat/completions
 # OPENAI_MODEL=gpt-4o-mini
 # ITINERARY_MAX_VERSIONS=3
-# NEXT_PUBLIC_NUDGES_ENABLED=false  (set to 'false' to disable nudge system messages)
+# NEXT_PUBLIC_NUDGES_ENABLED=false    # Set to 'false' to disable nudge system messages
 ```
 
 **Development**:
@@ -489,10 +505,31 @@ An event logging system for capturing group coordination behavior. This is the f
 
 **Core concept**: Log state-changing actions as immutable events. Learn how groups coordinate without adding new UX flows.
 
+**Architecture**:
+- **Critical events** (trip created, dates locked, canceled): `await` the write
+- **Non-critical events** (window suggested, reaction): fire-and-forget
+- **Idempotency**: Duplicate events are silently skipped via unique index on `idempotencyKey`
+
 **Key files**:
-- `docs/EVENTS_SPEC.md` — Full implementation spec (schema, taxonomy, patterns)
-- `lib/events/types.ts` — Event type enum (source of truth)
-- `lib/events/emit.ts` — `emitTripEvent()` helper
+```
+lib/events/
+├── index.ts              # Public API exports
+├── types.ts              # EVENT_TYPES enum (source of truth)
+├── emit.ts               # emitTripEvent(), emitCriticalEvent(), emitNonCriticalEvent()
+├── instrumentation.ts    # High-level helpers (emitTripCreated, emitWindowSuggested, etc.)
+├── firstAction.ts        # First-action tracking per traveler
+├── nudgeCorrelation.ts   # Links nudges to subsequent actions (30min window)
+├── aggregates.ts         # Daily aggregation jobs
+└── indexes.ts            # Index management
+```
+
+**Instrumented endpoints** (all emit events automatically):
+- Trip creation, status changes, cancellation
+- Date window suggested, supported, proposed, withdrawn
+- Reaction submitted (works/maybe/cant)
+- Dates locked
+- Traveler joined, left
+- Leader changed
 
 **High-value signals**:
 - `traveler.participation.first_action` — early engagement predicts completion
@@ -500,14 +537,60 @@ An event logging system for capturing group coordination behavior. This is the f
 - `nudge.system.correlated_action` — measures nudge effectiveness
 - Silence (absence of events) — the strongest negative signal
 
-**Implementation rule**: If a mutation changes trip/circle state, it must emit an event.
-
 **Collections**:
-- `trip_events` — Append-only event log
-- `trip_coordination_snapshots` — Per-trip aggregates (computed daily)
-- `circle_coordination_profiles` — Per-circle longitudinal behavior
+- `trip_events` — Append-only event log (indexes: `tripId+timestamp`, `circleId+eventType+timestamp`, `idempotencyKey`)
+- `nudge_events` — Short-lived correlation cache (TTL 7 days)
+- `trip_coordination_snapshots` — Per-trip aggregates (outcome, time-to-lock, participation rate)
+- `circle_coordination_profiles` — Per-circle longitudinal behavior (completion rate, median lock time)
+
+**Daily aggregation job**:
+```bash
+# Run manually or via cron
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  https://trypzy.com/api/jobs/aggregates
+```
 
 **Reference**: See `docs/EVENTS_SPEC.md` for full schema, taxonomy, and implementation checklist.
+
+## 10.7) Admin Debug Endpoints (INTERNAL)
+
+Internal endpoints for investigating user issues during beta. Protected by `x-admin-debug-token` header.
+
+**Authentication**: All admin endpoints return 404 (not 401) if token is missing or invalid. This prevents endpoint discovery.
+
+**Endpoint A: Event Query**
+```
+GET /api/admin/events?tripId=abc123&limit=100
+```
+- Query params: `tripId`, `circleId`, `actorId`, `eventType`, `since`, `until`, `limit`
+- Requires at least `tripId` or `circleId` (prevents full collection scan)
+- Default limit 200, max 1000
+- Sort: ASC for tripId (timeline), DESC otherwise
+
+**Endpoint B: Trip Health Check**
+```
+GET /api/admin/events/trips/:tripId/health
+```
+Returns instrumentation integrity report:
+- `totalEvents`, `lastEventAt`
+- `hasTripCreated`, `hasAnySchedulingActivity`, `hasAnyFirstAction`
+- `isTripLocked`, `hasDatesLockedEvent`
+- `warnings[]` — e.g., "Trip locked but no scheduling.dates.locked event"
+
+**Example curl commands**:
+```bash
+# Query events for a trip
+curl -H "x-admin-debug-token: $ADMIN_DEBUG_TOKEN" \
+  "https://trypzy.com/api/admin/events?tripId=abc123"
+
+# Check trip health
+curl -H "x-admin-debug-token: $ADMIN_DEBUG_TOKEN" \
+  "https://trypzy.com/api/admin/events/trips/abc123/health"
+```
+
+**Key files**:
+- `app/api/admin/events/route.ts` — Event query endpoint
+- `app/api/admin/events/trips/[tripId]/health/route.ts` — Health check endpoint
 
 ## 11) Key Component APIs
 
