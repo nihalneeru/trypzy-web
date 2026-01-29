@@ -184,21 +184,30 @@ export function OverlayContainer({
                 width: fullWidth ? '100%' : 'min(448px, 100%)',
                 maxHeight: '90%'
               }
-            : isBottomSlide
+            : useAbsolutePosition && !isBottomSlide
               ? {
-                  bottom: bottomOffset,
-                  right: rightOffset,
-                  width: fullWidth ? `calc(100% - ${rightOffset})` : `min(448px, calc(100% - ${rightOffset}))`,
-                  maxHeight: `calc(100vh - ${topOffset} - ${bottomOffset} - 20px)`
-                }
-              : {
+                  // Right slide with absolute positioning (constrained to parent container)
                   top: topOffset,
                   bottom: bottomOffset,
                   right: rightOffset,
                   left: fullWidth ? '0px' : undefined,
-                  width: fullWidth ? `calc(100vw - ${rightOffset})` : 'min(448px, calc(100vw - 20px))',
-                  maxWidth: fullWidth ? undefined : `calc(100vw - ${rightOffset} - 10px)`
+                  width: fullWidth ? '100%' : 'min(448px, 100%)',
                 }
+              : isBottomSlide
+                ? {
+                    bottom: bottomOffset,
+                    right: rightOffset,
+                    width: fullWidth ? `calc(100% - ${rightOffset})` : `min(448px, calc(100% - ${rightOffset}))`,
+                    maxHeight: `calc(100vh - ${topOffset} - ${bottomOffset} - 20px)`
+                  }
+                : {
+                    top: topOffset,
+                    bottom: bottomOffset,
+                    right: rightOffset,
+                    left: fullWidth ? '0px' : undefined,
+                    width: fullWidth ? `calc(100vw - ${rightOffset})` : 'min(448px, calc(100vw - 20px))',
+                    maxWidth: fullWidth ? undefined : `calc(100vw - ${rightOffset} - 10px)`
+                  }
         }
         role="dialog"
         aria-modal="true"

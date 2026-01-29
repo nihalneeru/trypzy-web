@@ -121,6 +121,8 @@ interface ProgressStripProps {
   activeOverlay: OverlayType
   onStepClick: (overlayType: OverlayType) => void
   participationMeter?: { responded: number; total: number; label: string } | null
+  /** Whether the current user is the trip leader */
+  isLeader?: boolean
 }
 
 export function ProgressStrip({
@@ -133,7 +135,8 @@ export function ProgressStrip({
   blockerStageKey,
   activeOverlay,
   onStepClick,
-  participationMeter
+  participationMeter,
+  isLeader = false
 }: ProgressStripProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const effectiveStart = lockedStartDate || startDate
@@ -180,6 +183,11 @@ export function ProgressStrip({
           <h1 className="text-sm md:text-base font-semibold text-brand-carbon truncate">
             {tripName}
           </h1>
+          {isLeader && (
+            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-blue/10 text-brand-blue">
+              Leader
+            </span>
+          )}
           {dateDisplay && (
             <>
               <span className="text-gray-400 hidden sm:inline" aria-hidden="true">·</span>

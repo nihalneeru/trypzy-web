@@ -238,47 +238,44 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   const hasActiveOverlay = activeOverlay !== null
 
   return (
-    <div className="flex flex-col h-full bg-white relative">
-      {/* Top section: Cancelled banner + ProgressStrip (measured for overlay offset) */}
-      <div ref={stripRef} className="shrink-0 z-10">
-        {isCancelled && (
-          <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center justify-center gap-2">
-            <span className="text-gray-600 text-sm font-medium">This trip has been canceled</span>
-            <span className="text-gray-500 text-xs">(read-only)</span>
-            <Link
-              href="/dashboard"
-              className="ml-2 text-sm font-medium text-brand-blue hover:underline"
-            >
-              Back to dashboard
-            </Link>
-          </div>
-        )}
+    <div className="flex flex-col h-full bg-gray-100">
+      {/* Centered column container - constrains all content to max-w-3xl */}
+      <div className="flex-1 flex flex-col h-full max-w-5xl mx-auto bg-white relative shadow-sm">
+        {/* Top section: Cancelled banner + ProgressStrip (measured for overlay offset) */}
+        <div ref={stripRef} className="shrink-0 z-10">
+          {isCancelled && (
+            <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center justify-center gap-2">
+              <span className="text-gray-600 text-sm font-medium">This trip has been canceled</span>
+              <span className="text-gray-500 text-xs">(read-only)</span>
+              <Link
+                href="/dashboard"
+                className="ml-2 text-sm font-medium text-brand-blue hover:underline"
+              >
+                Back to dashboard
+              </Link>
+            </div>
+          )}
 
-        <ProgressStrip
-          tripName={trip?.name || 'Untitled Trip'}
-          startDate={startDate}
-          endDate={endDate}
-          lockedStartDate={trip?.lockedStartDate}
-          lockedEndDate={trip?.lockedEndDate}
-          progressSteps={progressSteps}
-          blockerStageKey={blocker.stageKey}
-          activeOverlay={activeOverlay}
-          onStepClick={handleStepClick}
-          participationMeter={participationMeter}
-        />
-      </div>
+          <ProgressStrip
+            tripName={trip?.name || 'Untitled Trip'}
+            startDate={startDate}
+            endDate={endDate}
+            lockedStartDate={trip?.lockedStartDate}
+            lockedEndDate={trip?.lockedEndDate}
+            progressSteps={progressSteps}
+            blockerStageKey={blocker.stageKey}
+            activeOverlay={activeOverlay}
+            onStepClick={handleStepClick}
+            participationMeter={participationMeter}
+            isLeader={trip?.createdBy === user?.id}
+          />
+        </div>
 
-      {/* Main content area - chat + input + CTA bar */}
-      {/* Uses min-h-0 for proper flex child scrolling, dvh for mobile keyboard handling */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* Chat area with centered content and side whitespace */}
-        <div className="flex-1 min-h-0 flex justify-center">
-          <div className={cn(
-            'w-full flex flex-col min-h-0',
-            // Centered with max-width and responsive padding
-            'max-w-3xl',
-            'px-0 sm:px-4 md:px-8 lg:px-12'
-          )}>
+        {/* Main content area - chat + input + CTA bar */}
+        {/* Uses min-h-0 for proper flex child scrolling, dvh for mobile keyboard handling */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Chat area - now constrained by outer max-w-3xl container */}
+          <div className="flex-1 min-h-0 flex flex-col px-0 sm:px-4">
             <ChatTab
               trip={trip}
               token={token}
@@ -298,46 +295,46 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               collapseSystemMessages={true}
             />
           </div>
-        </div>
 
-        {/* Bottom bar: CTA bar - sticky to viewport bottom for mobile keyboard handling */}
-        {/* Uses pb-safe for iOS safe area */}
-        <div className={cn(
-          'shrink-0 sticky bottom-0 z-10',
-          'pb-[env(safe-area-inset-bottom)]'
-        )}>
-          <ContextCTABar
-            trip={trip}
-            user={user}
-            travelerCount={travelers.length}
-            onOpenOverlay={openOverlay}
-          />
-        </div>
-      </div>
-
-      {/* Full-screen overlay (covers chat, input, and CTA bar - only Progress Strip visible) */}
-      <OverlayContainer
-        isOpen={hasActiveOverlay}
-        onClose={closeOverlay}
-        title={getOverlayTitle(activeOverlay)}
-        hasUnsavedChanges={hasUnsavedChanges}
-        topOffset={`${stripHeight}px`}
-        bottomOffset="0px"
-        rightOffset="0px"
-        slideFrom="right"
-        fullWidth={true}
-      >
-        <ErrorBoundary>
-          {activeOverlay === 'scheduling' && (
-            <SchedulingOverlay
+          {/* Bottom bar: CTA bar - sticky to viewport bottom for mobile keyboard handling */}
+          {/* Uses pb-safe for iOS safe area */}
+          <div className={cn(
+            'shrink-0 sticky bottom-0 z-10',
+            'pb-[env(safe-area-inset-bottom)]'
+          )}>
+            <ContextCTABar
               trip={trip}
-              token={token}
               user={user}
-              onRefresh={onRefresh}
-              onClose={closeOverlay}
-              setHasUnsavedChanges={setHasUnsavedChanges}
+              travelerCount={travelers.length}
+              onOpenOverlay={openOverlay}
             />
-          )}
+          </div>
+        </div>
+
+        {/* Overlay (covers chat and CTA bar, constrained within centered container) */}
+        <OverlayContainer
+          isOpen={hasActiveOverlay}
+          onClose={closeOverlay}
+          title={getOverlayTitle(activeOverlay)}
+          hasUnsavedChanges={hasUnsavedChanges}
+          topOffset={`${stripHeight}px`}
+          bottomOffset="0px"
+          rightOffset="0px"
+          slideFrom="right"
+          fullWidth={true}
+          useAbsolutePosition={true}
+        >
+          <ErrorBoundary>
+            {activeOverlay === 'scheduling' && (
+              <SchedulingOverlay
+                trip={trip}
+                token={token}
+                user={user}
+                onRefresh={onRefresh}
+                onClose={closeOverlay}
+                setHasUnsavedChanges={setHasUnsavedChanges}
+              />
+            )}
           {activeOverlay === 'itinerary' && (
             <ItineraryOverlay
               trip={trip}
@@ -412,8 +409,9 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               Trip proposal details - view trip info and basic settings
             </div>
           )}
-        </ErrorBoundary>
-      </OverlayContainer>
+          </ErrorBoundary>
+        </OverlayContainer>
+      </div>
     </div>
   )
 }

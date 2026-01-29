@@ -233,16 +233,26 @@ export default function DashboardPage() {
             <CardContent className="py-12 text-center">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h2 className="text-lg font-medium text-gray-900 mb-2">No circles yet</h2>
-              <p className="text-gray-500 mb-4">Join or create a circle to start planning trips</p>
-              <div className="flex gap-3 justify-center">
-                <Button onClick={() => setShowCreateCircle(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create circle
-                </Button>
-                <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Join circle
-                </Button>
+              <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                Circles are your travel groups — friends, family, or any crew you plan trips with.
+                Everyone in a circle can propose and join trips together.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                <div className="text-center">
+                  <Button onClick={() => setShowCreateCircle(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create circle
+                  </Button>
+                  <p className="text-xs text-gray-400 mt-1">Start a new group</p>
+                </div>
+                <span className="text-gray-300 hidden sm:inline">or</span>
+                <div className="text-center">
+                  <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Join circle
+                  </Button>
+                  <p className="text-xs text-gray-400 mt-1">Got an invite code?</p>
+                </div>
               </div>
             </CardContent>
           </Card>

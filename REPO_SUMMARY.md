@@ -1,5 +1,13 @@
 # Trypzy Repository Summary
 
+> **Note (2026-01-29)**: Some sections below reference older architecture. Key recent changes:
+> - **Command Center V3** (`components/trip/command-center-v2/CommandCenterV3.tsx`) is now the default trip view
+> - Trip view is centered (`max-w-5xl`) with gray gutters on wide screens
+> - **ProgressStrip** shows "Leader" badge for role clarity
+> - **ContextCTABar** distinguishes blocking (urgent) vs informational CTAs visually
+> - `HomeClient.jsx` is now a 2-line re-export shim (not a 5500-line SPA)
+> - See `CLAUDE.md` section 10 for full changelog
+
 ## 1. Project Overview
 
 Trypzy is a **private, trust-based trip planning platform** for friend groups. The core value proposition is solving group decision paralysis through progressive scheduling: friends propose trips, share availability, vote on promising date windows, and lock dates—all without requiring unanimous participation. The platform is organized around **Circles** (private friend groups) and **Trips** (collaborative or hosted travel plans).
@@ -51,10 +59,10 @@ Trypzy is a **private, trust-based trip planning platform** for friend groups. T
 - No refresh token mechanism (MVP)
 
 **State management**:
-- React hooks (useState, useEffect, useRef)
-- Client-side state in `HomeClient.jsx` (~5500 lines SPA component)
+- React hooks (useState, useEffect, useRef, useMemo, useCallback)
+- Client-side state managed in page components and Command Center V3
 - Server state fetched via API calls (no global state management library)
-- URL query params for navigation state (`?tripId=X&tab=Y`)
+- Standalone App Router pages (no SPA monolith)
 
 **Tooling**:
 - **Testing**: Vitest 4.0.16 (unit), Playwright 1.57.0 (E2E)
