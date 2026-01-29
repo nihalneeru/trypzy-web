@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { CommandCenterV2 } from '@/components/trip/command-center-v2'
+import { Suspense, useEffect, useState, useRef, useCallback } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { CommandCenterV2, CommandCenterV3 } from '@/components/trip/command-center-v2'
 import { AppHeader } from '@/components/common/AppHeader'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags } from '@/lib/trips/stage'
@@ -18,10 +18,14 @@ function enrichTrip(trip) {
   return trip
 }
 
-export default function TripDetailPage() {
+function TripDetailContent() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const tripId = params?.tripId
+
+  // A/B test flag: ?cc=v3 enables Command Center V3
+  const useV3 = searchParams.get('cc') === 'v3'
 
   const [trip, setTrip] = useState(null)
   const [token, setToken] = useState(null)
@@ -164,15 +168,39 @@ export default function TripDetailPage() {
     <div className="min-h-screen bg-white flex flex-col">
       <AppHeader userName={user?.name} />
 
-      {/* CommandCenterV2 fills remaining space */}
+      {/* Command Center fills remaining space */}
       <div className="flex-1 min-h-0">
-        <CommandCenterV2
-          trip={trip}
-          token={token}
-          user={user}
-          onRefresh={handleRefresh}
-        />
+        {useV3 ? (
+          <CommandCenterV3
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={handleRefresh}
+          />
+        ) : (
+          <CommandCenterV2
+            trip={trip}
+            token={token}
+            user={user}
+            onRefresh={handleRefresh}
+          />
+        )}
       </div>
     </div>
+  )
+}
+
+export default function TripDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <BrandedSpinner size="lg" className="mx-auto mb-4" />
+          <p className="text-brand-carbon/60">Loading trip...</p>
+        </div>
+      </div>
+    }>
+      <TripDetailContent />
+    </Suspense>
   )
 }
