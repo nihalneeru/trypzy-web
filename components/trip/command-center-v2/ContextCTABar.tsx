@@ -26,6 +26,8 @@ interface CTAConfig {
   icon: React.ElementType
   overlayType: string
   priority: number
+  /** Whether this CTA requires user action (blocking) vs just informational */
+  isBlocking?: boolean
 }
 
 interface ContextCTABarProps {
@@ -107,7 +109,8 @@ export function ContextCTABar({
         label: 'Lock dates',
         icon: Lock,
         overlayType: 'scheduling',
-        priority: 1
+        priority: 1,
+        isBlocking: true
       }
     }
 
@@ -118,7 +121,8 @@ export function ContextCTABar({
         label: 'Share your vote',
         icon: Vote,
         overlayType: 'scheduling',
-        priority: 2
+        priority: 2,
+        isBlocking: true
       }
     }
 
@@ -128,7 +132,8 @@ export function ContextCTABar({
         label: 'Pick your dates',
         icon: Calendar,
         overlayType: 'scheduling',
-        priority: 3
+        priority: 3,
+        isBlocking: true
       }
     }
 
@@ -138,7 +143,8 @@ export function ContextCTABar({
         label: 'Dates in progress',
         icon: Clock,
         overlayType: 'scheduling',
-        priority: 3
+        priority: 3,
+        isBlocking: false  // Informational - user has already acted
       }
     }
 
@@ -149,7 +155,8 @@ export function ContextCTABar({
         label: 'Suggest an idea',
         icon: Lightbulb,
         overlayType: 'itinerary',
-        priority: 4
+        priority: 4,
+        isBlocking: false  // Optional - encouraged but not required
       }
     }
 
@@ -159,7 +166,8 @@ export function ContextCTABar({
         label: 'Generate itinerary',
         icon: Sparkles,
         overlayType: 'itinerary',
-        priority: 5
+        priority: 5,
+        isBlocking: false  // Leader action but not urgent
       }
     }
 
@@ -171,7 +179,8 @@ export function ContextCTABar({
           label: 'Select stay',
           icon: Check,
           overlayType: 'accommodation',
-          priority: 6
+          priority: 6,
+          isBlocking: false  // Leader action
         }
       }
       // Traveler: Vote on accommodation (if hasn't voted yet)
@@ -181,7 +190,8 @@ export function ContextCTABar({
           label: 'Share your pick',
           icon: ThumbsUp,
           overlayType: 'accommodation',
-          priority: 6
+          priority: 6,
+          isBlocking: true  // User needs to vote
         }
       }
       // Traveler who has voted: View accommodation
@@ -189,7 +199,8 @@ export function ContextCTABar({
         label: 'View stays',
         icon: Home,
         overlayType: 'accommodation',
-        priority: 6
+        priority: 6,
+        isBlocking: false  // Informational
       }
     }
 
@@ -199,7 +210,8 @@ export function ContextCTABar({
         label: 'Start prep',
         icon: ClipboardList,
         overlayType: 'prep',
-        priority: 7
+        priority: 7,
+        isBlocking: false  // Optional
       }
     }
 
@@ -267,10 +279,13 @@ export function ContextCTABar({
         <Button
           onClick={() => onOpenOverlay(ctaConfig.overlayType)}
           className={cn(
-            'bg-white text-brand-red hover:bg-white/90',
             'font-semibold shadow-md',
             // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
-            'h-11 md:h-9 px-3 md:px-4 min-w-[44px]'
+            'h-11 md:h-9 px-3 md:px-4 min-w-[44px]',
+            // Color based on whether action is blocking (requires user action)
+            ctaConfig.isBlocking
+              ? 'bg-white text-brand-red hover:bg-white/90'  // Urgent - white on red bar
+              : 'bg-white/80 text-brand-blue hover:bg-white/70 border border-white/30'  // Informational - subtle
           )}
         >
           <ctaConfig.icon className="h-4 w-4 mr-1.5 shrink-0" aria-hidden="true" />
