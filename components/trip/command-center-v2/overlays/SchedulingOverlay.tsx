@@ -710,6 +710,7 @@ export function SchedulingOverlay({
           </CardTitle>
           <CardDescription>
             Pick your top 3 date options. Hover to preview, then click to select.
+            You can adjust your picks anytime until the leader locks dates.
           </CardDescription>
         </CardHeader>
         <CardContent>

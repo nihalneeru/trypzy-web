@@ -1114,6 +1114,9 @@ export function DateWindowsFunnel({
                         <p className="text-xs text-muted-foreground mt-1">
                           Examples: "Feb 7-9", "mid March", "last weekend of June", "April"
                         </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          You can change your dates anytime until they're locked.
+                        </p>
                       </div>
                       <Button
                         onClick={() => handleAddWindow(false)}
