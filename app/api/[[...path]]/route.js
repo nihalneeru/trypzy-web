@@ -32,7 +32,13 @@ async function connectToMongo() {
 
 // Helper function to handle CORS
 function handleCORS(response) {
-  response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGINS || '*')
+  const origins = process.env.CORS_ORIGINS
+  if (!origins && process.env.NODE_ENV === 'production') {
+    console.error('CORS_ORIGINS environment variable must be set in production')
+    // In production, don't set permissive CORS - let browser enforce same-origin
+  } else {
+    response.headers.set('Access-Control-Allow-Origin', origins || 'http://localhost:3000')
+  }
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   response.headers.set('Access-Control-Allow-Credentials', 'true')
@@ -3530,6 +3536,107 @@ async function handleRoute(request, { params }) {
       await db.collection('window_supports').deleteMany({ windowId, tripId })
 
       return handleCORS(NextResponse.json({ message: 'Date suggestion deleted' }))
+    }
+
+    // Set duration preference - POST /api/trips/:id/duration-preference
+    // Traveler sets their preferred trip duration (optional, during COLLECTING phase)
+    if (route.match(/^\/trips\/[^/]+\/duration-preference$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const body = await request.json()
+      const { preference } = body // 'weekend' | 'extended' | 'week' | 'week_plus' | 'flexible' | null
+
+      const validPreferences = ['weekend', 'extended', 'week', 'week_plus', 'flexible', null]
+      if (!validPreferences.includes(preference)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Invalid preference. Must be one of: weekend, extended, week, week_plus, flexible' },
+          { status: 400 }
+        ))
+      }
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check if trip is in COLLECTING phase (not proposed or locked)
+      if (trip.proposedWindowId || trip.status === 'locked') {
+        return handleCORS(NextResponse.json(
+          { error: 'Cannot set duration preference after dates are proposed or locked' },
+          { status: 400 }
+        ))
+      }
+
+      // Store preference in duration_preferences collection
+      await db.collection('duration_preferences').updateOne(
+        { tripId, userId: auth.user.id },
+        {
+          $set: {
+            preference,
+            updatedAt: new Date().toISOString()
+          },
+          $setOnInsert: {
+            createdAt: new Date().toISOString()
+          }
+        },
+        { upsert: true }
+      )
+
+      return handleCORS(NextResponse.json({ message: 'Duration preference saved', preference }))
+    }
+
+    // Get duration preferences - GET /api/trips/:id/duration-preferences
+    // Returns aggregate of all travelers' duration preferences
+    if (route.match(/^\/trips\/[^/]+\/duration-preferences$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Get all preferences for this trip
+      const preferences = await db.collection('duration_preferences').find({ tripId }).toArray()
+
+      // Get user names
+      const userIds = preferences.map(p => p.userId)
+      const users = await db.collection('users').find({ id: { $in: userIds } }).toArray()
+      const userMap = new Map(users.map(u => [u.id, u.name || 'Unknown']))
+
+      // Aggregate by preference type
+      const aggregate = {
+        weekend: [],
+        extended: [],
+        week: [],
+        week_plus: [],
+        flexible: []
+      }
+
+      preferences.forEach(p => {
+        if (p.preference && aggregate[p.preference]) {
+          aggregate[p.preference].push({
+            userId: p.userId,
+            userName: userMap.get(p.userId) || 'Unknown'
+          })
+        }
+      })
+
+      // Get current user's preference
+      const userPreference = preferences.find(p => p.userId === auth.user.id)?.preference || null
+
+      return handleCORS(NextResponse.json({
+        aggregate,
+        userPreference,
+        totalResponses: preferences.filter(p => p.preference).length
+      }))
     }
 
     // Propose dates - POST /api/trips/:id/propose-dates

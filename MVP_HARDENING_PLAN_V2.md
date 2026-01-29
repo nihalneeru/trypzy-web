@@ -2,8 +2,8 @@
 
 # Trypzy MVP Hardening Plan V2
 
-> Updated 2026-01-23 (Round 2 Audit)
-> Previous work completed P0-1 through P2-5 in feat/mvp-hardening branch
+> Updated 2026-01-29 (Round 3 - feat/enhancements-round3 branch)
+> Previous work: Round 1 (feat/mvp-hardening), Round 2 (2026-01-23)
 
 ---
 
@@ -43,21 +43,15 @@ Round 2 audit reveals **critical security gaps** and **remaining polish items** 
 
 ---
 
-### P0-S2: Fix CORS Configuration (CRITICAL)
+### P0-S2: Fix CORS Configuration (CRITICAL) ✅ COMPLETED (Round 3)
 **Risk**: CSRF attacks, data leakage from any origin
-**Current**: Defaults to `'*'` if `CORS_ORIGINS` env var not set
+**Status**: Fixed in feat/enhancements-round3 branch (2026-01-29)
 
-**Files**:
-- `app/api/[[...path]]/route.js:28` - Remove `|| '*'` fallback
-- `lib/server/cors.js:5` - Same fix
+**Fix applied**: Removed `|| '*'` fallback. Now logs error in production if CORS_ORIGINS not set and falls back to localhost for development only.
 
-**Fix**:
-```javascript
-// Before: const origins = process.env.CORS_ORIGINS || '*'
-// After:
-const origins = process.env.CORS_ORIGINS
-if (!origins) throw new Error('CORS_ORIGINS must be set')
-```
+**Files updated**:
+- `app/api/[[...path]]/route.js` - Fixed
+- `lib/server/cors.js` - Fixed
 
 ---
 
@@ -138,19 +132,22 @@ await db.collection('trips').updateOne(
 
 ---
 
-### P1-E5: Sanitize Regex in Search
+### P1-E5: Sanitize Regex in Search ✅ COMPLETED (Round 3)
 **Issue**: User input goes directly into MongoDB regex (ReDoS risk)
+**Status**: Fixed in feat/enhancements-round3 branch (2026-01-29)
 
-**File**: `app/api/discover/posts/route.js:78-81`
+**Fix applied**: Added `escapeRegex()` function to escape special regex characters before using in MongoDB query.
 
-**Fix**: Escape special characters or use text search index
+**File updated**: `app/api/discover/posts/route.js`
 
 ---
 
 ## HIGH: Remaining Brand/UI Polish (P1-U)
 
-### P1-U1: Generic Colors Still in Use (30+ files)
-Previous hardening missed many files. Full list:
+### P1-U1: Generic Colors Still in Use (30+ files) 🔄 PARTIALLY COMPLETED (Round 3)
+Previous hardening missed many files. **Round 3 fixed**: `PostCard.tsx` (replaced `text-red-600` with `brand-red`).
+
+Remaining files (deferred - low priority for private beta):
 
 **Red colors** (replace with `brand-red` or `destructive`):
 - `MemoriesOverlay.tsx:372,383` - `bg-red-500`
@@ -219,18 +216,17 @@ Previous hardening missed many files. Full list:
 
 ## MEDIUM: Accessibility Gaps (P2-A)
 
-### P2-A1: Color Contrast Fixes (WCAG 1.4.3)
+### P2-A1: Color Contrast Fixes (WCAG 1.4.3) 🔄 PARTIALLY COMPLETED (Round 3)
 **Issue**: `text-gray-400` and `text-gray-500` fail contrast on light backgrounds
 
-**Files**:
-- `ChatTab.tsx:641` - `bg-gray-300 text-gray-500`
-- `ChatTab.tsx:832` - `text-gray-400`
-- `ExpensesOverlay.tsx:412,447` - `text-gray-400`
-- `PrepOverlay.tsx:341,417` - `text-gray-400`
-- `MemberProfileOverlay.tsx:308,407,412,417` - `text-gray-400`
-- `WelcomePage.tsx:82` - `text-gray-400`
+**Round 3 fixed**:
+- `ChatTab.tsx` - Improved contrast for rank number (gray-400 → gray-500)
+- `PrepOverlay.tsx` - Improved contrast for helper text (gray-400 → gray-500)
 
-**Fix**: Replace with `text-gray-600` or darker
+**Remaining files** (deferred - icons with gray-400 are acceptable):
+- `ExpensesOverlay.tsx` - Icons
+- `MemberProfileOverlay.tsx` - Icons
+- `WelcomePage.tsx` - Icons
 
 ---
 

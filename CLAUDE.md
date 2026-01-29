@@ -350,6 +350,10 @@ function deriveBlockerStageKey(trip): 'scheduling' | 'itinerary' | 'accommodatio
 - `POST /api/trips/:tripId/itinerary/ideas/:ideaId/like` - Like idea
 - `POST /api/trips/:tripId/itinerary/generate` - Generate itinerary (leader only)
 
+**Duration preference endpoints** (added Round 3):
+- `POST /api/trips/:tripId/duration-preference` - Set user's duration preference (weekend/extended/week/week_plus/flexible)
+- `GET /api/trips/:tripId/duration-preferences` - Get aggregated preferences for all travelers
+
 **Circle updates** (activity feed):
 - `circle_created` - When circle owner creates circle
 - `circle_member_joined` - When members join circle
@@ -424,7 +428,7 @@ Creates test users: alex.traveler@example.com / password123
 
 5. **Brand colors are enforced**: Use `brand-red` for CTAs/blockers, `brand-blue` for secondary actions/links, `brand-sand` for highlights. Never use generic Tailwind colors (red-600, blue-500).
 
-## 10) Recent MVP Hardening (2026-01-23)
+## 10) Recent MVP Hardening (2026-01-29)
 
 **Round 1 (feat/mvp-hardening branch)**:
 - Chat-first ActionCards for post-lock stages
@@ -444,12 +448,19 @@ Creates test users: alex.traveler@example.com / password123
 - `useTripChat` hook: exposes `error` state, stops polling after 3 failures
 - Join request actor fix: shows "Leader approved X's request" instead of "X joined"
 
+**Round 3 (feat/enhancements-round3 branch, 2026-01-29)**:
+- AppHeader responsiveness: tighter gaps, truncated usernames, smaller text on mobile
+- CORS wildcard fix: removed `|| '*'` fallback, logs error if CORS_ORIGINS not set in production
+- Regex sanitization: added `escapeRegex()` for discover search to prevent ReDoS
+- Generic Tailwind colors: fixed `PostCard.tsx` (red-600 → brand-red)
+- Color contrast fixes: improved contrast in `ChatTab.tsx`, `PrepOverlay.tsx`
+- **Duration preference collection**: new feature - travelers can indicate preferred trip length during COLLECTING phase, aggregated for leader
+
 **Deferred until public launch**:
-- Rate limiting
-- CORS wildcard fix
-- Remaining generic Tailwind colors (30+ files)
+- Rate limiting (needs Redis/Upstash infrastructure)
+- Remaining generic Tailwind colors (20+ files - low priority)
 - Skeleton loaders
-- Accessibility polish (aria-hidden, color contrast)
+- Accessibility polish (aria-hidden, aria-live)
 
 **Reference**: See `MVP_HARDENING_PLAN_V2.md` for full audit findings.
 

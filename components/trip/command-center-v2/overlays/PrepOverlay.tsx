@@ -438,7 +438,7 @@ export function PrepOverlay({
             <CardContent className="py-6 text-center">
               <Plane className="h-8 w-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm text-gray-500">No transport items yet</p>
-              <p className="text-xs text-gray-400 mt-1">Add transport or generate suggestions</p>
+              <p className="text-xs text-gray-500 mt-1">Add transport or generate suggestions</p>
             </CardContent>
           </Card>
         ) : (
@@ -533,7 +533,7 @@ export function PrepOverlay({
             <CardContent className="py-6 text-center">
               <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm text-gray-500">No packing items yet</p>
-              <p className="text-xs text-gray-400 mt-1">Add items to your packing list</p>
+              <p className="text-xs text-gray-500 mt-1">Add items to your packing list</p>
             </CardContent>
           </Card>
         ) : (

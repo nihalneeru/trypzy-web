@@ -153,6 +153,11 @@ export function DateWindowsFunnel({
   const [isLeader, setIsLeader] = useState(false)
   const [approvalSummary, setApprovalSummary] = useState<ApprovalSummary | null>(null)
 
+  // Duration preference state
+  const [userDurationPref, setUserDurationPref] = useState<string | null>(null)
+  const [durationAggregate, setDurationAggregate] = useState<Record<string, Array<{ userId: string; userName: string }>>>({})
+  const [durationTotalResponses, setDurationTotalResponses] = useState(0)
+
   // User window quota state
   const [userWindowCount, setUserWindowCount] = useState(0)
   const [maxWindows, setMaxWindows] = useState(2)
@@ -225,6 +230,48 @@ export function DateWindowsFunnel({
   useEffect(() => {
     fetchWindows()
   }, [fetchWindows])
+
+  // Fetch duration preferences
+  const fetchDurationPreferences = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/duration-preferences`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setUserDurationPref(data.userPreference)
+        setDurationAggregate(data.aggregate || {})
+        setDurationTotalResponses(data.totalResponses || 0)
+      }
+    } catch {
+      // Silent fail - preferences are optional
+    }
+  }, [trip.id, token])
+
+  useEffect(() => {
+    fetchDurationPreferences()
+  }, [fetchDurationPreferences])
+
+  // Handle setting duration preference
+  const handleSetDurationPref = async (pref: string | null) => {
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/duration-preference`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ preference: pref })
+      })
+      if (response.ok) {
+        setUserDurationPref(pref)
+        await fetchDurationPreferences()
+        toast.success('Preference saved')
+      }
+    } catch {
+      toast.error('Failed to save preference')
+    }
+  }
 
   // Handle adding a new window with free-form text
   const handleAddWindow = async (acknowledgeOverlap = false) => {
@@ -894,6 +941,65 @@ export function DateWindowsFunnel({
           </p>
         )}
       </div>
+
+      {/* Duration preference selector */}
+      <Card className="bg-gray-50/50">
+        <CardContent className="py-3">
+          {/* Show creator's initial duration hint if set */}
+          {trip.duration && (
+            <p className="text-xs text-muted-foreground mb-2">
+              Trip creator suggested: <span className="font-medium">
+                {trip.duration === 'weekend' ? 'Weekend (2-3 days)' :
+                 trip.duration === 'extended-weekend' ? 'Extended weekend (3-4 days)' :
+                 trip.duration === 'few-days' ? 'A few days (4-5 days)' :
+                 trip.duration === 'week' ? 'A week' :
+                 trip.duration === 'week-plus' ? 'Week+ (8+ days)' :
+                 trip.duration === 'flexible' ? 'Flexible' : trip.duration}
+              </span>
+            </p>
+          )}
+          <p className="text-sm font-medium text-brand-carbon mb-2">How long would you like this trip to be?</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: 'weekend', label: 'Weekend', desc: '2-3 days' },
+              { value: 'extended', label: 'Extended', desc: '3-4 days' },
+              { value: 'week', label: 'A week', desc: '5-7 days' },
+              { value: 'week_plus', label: 'Week+', desc: '8+ days' },
+              { value: 'flexible', label: 'Flexible', desc: 'Any length' },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleSetDurationPref(userDurationPref === opt.value ? null : opt.value)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                  userDurationPref === opt.value
+                    ? 'bg-brand-blue text-white border-brand-blue'
+                    : 'bg-white text-gray-700 border-gray-200 hover:border-brand-blue/50'
+                }`}
+              >
+                {opt.label}
+                <span className="text-[10px] opacity-70 ml-1">({opt.desc})</span>
+              </button>
+            ))}
+          </div>
+          {isLeader && durationTotalResponses > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <p className="text-xs text-muted-foreground mb-1">Group preferences ({durationTotalResponses} responded):</p>
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(durationAggregate).map(([pref, users]) =>
+                  users.length > 0 && (
+                    <span key={pref} className="text-xs bg-white px-2 py-0.5 rounded border">
+                      {pref === 'weekend' ? 'Weekend' :
+                       pref === 'extended' ? 'Extended' :
+                       pref === 'week' ? 'A week' :
+                       pref === 'week_plus' ? 'Week+' : 'Flexible'}: {users.length}
+                    </span>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Add new window form */}
       <Collapsible open={showAddWindow} onOpenChange={setShowAddWindow}>

@@ -264,7 +264,7 @@ export function PostCard({
                     <Edit className="h-4 w-4 mr-1" />
                     Edit
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => onDelete?.(post.id)}>
+                  <Button variant="ghost" size="sm" className="text-brand-red hover:text-brand-red/80" onClick={() => onDelete?.(post.id)}>
                     <Trash2 className="h-4 w-4 mr-1" />
                     Delete
                   </Button>
@@ -282,7 +282,7 @@ export function PostCard({
                 <Edit className="h-4 w-4 mr-1" />
                 Edit
               </Button>
-              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => onDelete?.(post.id)}>
+              <Button variant="ghost" size="sm" className="text-brand-red hover:text-brand-red/80" onClick={() => onDelete?.(post.id)}>
                 <Trash2 className="h-4 w-4 mr-1" />
                 Delete
               </Button>

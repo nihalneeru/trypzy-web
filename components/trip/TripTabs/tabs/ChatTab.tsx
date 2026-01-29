@@ -920,7 +920,7 @@ export function ChatTab({
                                 <div className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-3">
-                                      <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
+                                      <span className="text-lg font-bold text-gray-500">#{idx + 1}</span>
                                       <div>
                                         <p className="font-medium">{windowStartDate} to {windowEndDate}</p>
                                         {windowScore && (

@@ -6,6 +6,11 @@ import { v4 as uuidv4 } from 'uuid'
 import { writeFile, mkdir, access } from 'fs/promises'
 import { join } from 'path'
 
+// Escape special regex characters to prevent ReDoS attacks
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // OPTIONS handler for CORS preflight
 export { handleOPTIONS as OPTIONS }
 
@@ -73,11 +78,12 @@ export async function GET(request) {
       ))
     }
     
-    // Optional search by destination or caption
+    // Optional search by destination or caption (escape regex to prevent ReDoS)
     if (search) {
+      const escapedSearch = escapeRegex(search)
       query.$or = [
-        { destinationText: { $regex: search, $options: 'i' } },
-        { caption: { $regex: search, $options: 'i' } }
+        { destinationText: { $regex: escapedSearch, $options: 'i' } },
+        { caption: { $regex: escapedSearch, $options: 'i' } }
       ]
     }
     
