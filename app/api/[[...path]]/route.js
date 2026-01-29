@@ -9,6 +9,20 @@ import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config.js'
 import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
 
+// Event instrumentation (data moat)
+import {
+  emitTripCreated,
+  emitTripStatusChanged,
+  emitTripCanceled,
+  emitWindowSuggested,
+  emitWindowSupported,
+  emitReactionSubmitted,
+  emitDatesLocked,
+  emitTravelerJoined,
+  emitTravelerLeft,
+  emitLeaderChanged,
+} from '@/lib/events/instrumentation'
+
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
@@ -949,6 +963,16 @@ async function handleRoute(request, { params }) {
           key: 'trip_created'
         }
       })
+
+      // Emit trip.lifecycle.created event (critical - awaits)
+      await emitTripCreated(
+        trip.id,
+        circleId,
+        auth.user.id,
+        type,
+        schedulingMode,
+        new Date(trip.createdAt)
+      )
 
       // For hosted trips, creator is automatically a participant
       if (type === 'hosted') {
@@ -3355,10 +3379,21 @@ async function handleRoute(request, { params }) {
       })
 
       // Auto-transition from proposed to scheduling on first window
-      if (trip.status === 'proposed') {
+      const wasProposed = trip.status === 'proposed'
+      if (wasProposed) {
         await db.collection('trips').updateOne(
           { id: tripId },
           { $set: { status: 'scheduling' } }
+        )
+        // Emit status change event
+        emitTripStatusChanged(
+          tripId,
+          trip.circleId,
+          auth.user.id,
+          trip.createdBy === auth.user.id ? 'leader' : 'traveler',
+          'proposed',
+          'scheduling',
+          new Date(trip.createdAt)
         )
       }
 
@@ -3376,6 +3411,19 @@ async function handleRoute(request, { params }) {
         text: chatText,
         metadata: { windowId, startDate: normalizedStart, endDate: normalizedEnd, sourceText }
       })
+
+      // Emit scheduling.window.suggested event (includes first-action tracking + nudge correlation)
+      emitWindowSuggested(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        trip.createdBy === auth.user.id ? 'leader' : 'traveler',
+        windowId,
+        precision,
+        normalizedStart,
+        normalizedEnd,
+        new Date(trip.createdAt)
+      ).catch(err => console.error('[events] emitWindowSuggested failed:', err))
 
       // Build response with similarity info if applicable
       const response = {
@@ -3445,6 +3493,16 @@ async function handleRoute(request, { params }) {
         userId: auth.user.id,
         createdAt: new Date().toISOString()
       })
+
+      // Emit scheduling.window.supported event (includes first-action tracking + nudge correlation)
+      emitWindowSupported(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        trip.createdBy === auth.user.id ? 'leader' : 'traveler',
+        windowId,
+        new Date(trip.createdAt)
+      ).catch(err => console.error('[events] emitWindowSupported failed:', err))
 
       return handleCORS(NextResponse.json({ message: 'Support added' }))
     }
@@ -3927,6 +3985,19 @@ async function handleRoute(request, { params }) {
 
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
 
+      // Emit scheduling.reaction.submitted event
+      // Map reactionType to spec format: WORKS -> 'works', CAVEAT -> 'maybe', CANT -> 'cant'
+      const reactionMap = { WORKS: 'works', CAVEAT: 'maybe', CANT: 'cant' }
+      emitReactionSubmitted(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        trip.createdBy === auth.user.id ? 'leader' : 'traveler',
+        trip.proposedWindowId,
+        reactionMap[reactionType] || reactionType.toLowerCase(),
+        new Date(trip.createdAt)
+      ).catch(err => console.error('[events] emitReactionSubmitted failed:', err))
+
       // Compute approval status for response
       const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
       const participants = await db.collection('trip_participants').find({ tripId }).toArray()
@@ -4074,6 +4145,31 @@ async function handleRoute(request, { params }) {
         dedupeKey: `dates_locked_${tripId}`
       })
 
+      // Emit scheduling.dates.locked event (critical - awaits)
+      const lockReactions = trip.proposedWindowReactions || []
+      const lockApprovals = lockReactions.filter(r => r.reactionType === 'WORKS').length
+      await emitDatesLocked(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        proposedWindow.id,
+        leaderOverride,
+        lockApprovals,
+        lockReactions.length,
+        new Date(trip.createdAt)
+      )
+
+      // Emit status change event
+      emitTripStatusChanged(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        'leader',
+        trip.status,
+        'locked',
+        new Date(trip.createdAt)
+      )
+
       // Get updated trip
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
 
@@ -4158,6 +4254,15 @@ async function handleRoute(request, { params }) {
           userId: auth.user.id
         }
       })
+
+      // Emit traveler.participation.joined event
+      emitTravelerJoined(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        'invite', // Hosted trips require invitation
+        new Date(trip.createdAt)
+      )
 
       return handleCORS(NextResponse.json({ message: 'Joined trip successfully' }))
     }
@@ -4364,6 +4469,26 @@ async function handleRoute(request, { params }) {
           userId: auth.user.id
         }
       })
+
+      // Emit traveler.participation.left event
+      emitTravelerLeft(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        'voluntary',
+        new Date(trip.createdAt)
+      )
+
+      // Emit leader changed event if leadership was transferred
+      if (isTripLeader && transferToUserId) {
+        emitLeaderChanged(
+          tripId,
+          trip.circleId,
+          auth.user.id,
+          transferToUserId,
+          new Date(trip.createdAt)
+        )
+      }
 
       // Return success with transfer info if applicable
       const response = { message: 'Left trip successfully' }
@@ -4802,6 +4927,14 @@ async function handleRoute(request, { params }) {
           key: 'trip_canceled'
         }
       })
+
+      // Emit trip.lifecycle.canceled event (critical - awaits)
+      await emitTripCanceled(
+        tripId,
+        trip.circleId,
+        auth.user.id,
+        new Date(trip.createdAt)
+      )
 
       return handleCORS(NextResponse.json({
         message: 'Trip canceled successfully',

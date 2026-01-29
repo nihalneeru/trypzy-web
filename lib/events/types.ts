@@ -3,9 +3,82 @@
  *
  * Structured events for analytics, ML training, and audit trails.
  * These events capture "what happened" in a trip's lifecycle.
+ *
+ * This file contains:
+ * 1. NEW canonical event types per EVENTS_SPEC.md (EVENT_TYPES, TripEventDocument)
+ * 2. LEGACY event types for backward compatibility with nudge store (TripEventTypes, TripEvent)
  */
 
-// ============ Event Type Taxonomy ============
+import { ObjectId } from 'mongodb'
+
+// ============ NEW Canonical Event Types (per EVENTS_SPEC.md) ============
+
+/**
+ * Canonical event types per EVENTS_SPEC.md
+ * Namespaced: <domain>.<entity>.<action>
+ */
+export const EVENT_TYPES = {
+  // Trip lifecycle
+  TRIP_CREATED: 'trip.lifecycle.created',
+  TRIP_STATUS_CHANGED: 'trip.lifecycle.status_changed',
+  TRIP_CANCELED: 'trip.lifecycle.canceled',
+  TRIP_COMPLETED: 'trip.lifecycle.completed',
+
+  // Scheduling (date_windows mode)
+  WINDOW_SUGGESTED: 'scheduling.window.suggested',
+  WINDOW_SUPPORTED: 'scheduling.window.supported',
+  WINDOW_PROPOSED: 'scheduling.window.proposed',
+  WINDOW_PROPOSAL_REJECTED: 'scheduling.window.proposal_rejected',
+  REACTION_SUBMITTED: 'scheduling.reaction.submitted',
+  DATES_LOCKED: 'scheduling.dates.locked',
+
+  // Participation
+  TRAVELER_JOINED: 'traveler.participation.joined',
+  TRAVELER_LEFT: 'traveler.participation.left',
+  TRAVELER_FIRST_ACTION: 'traveler.participation.first_action',
+  LEADER_CHANGED: 'traveler.role.leader_changed',
+
+  // Nudges
+  NUDGE_DISPLAYED: 'nudge.system.displayed',
+  NUDGE_CORRELATED_ACTION: 'nudge.system.correlated_action',
+
+  // Itinerary (optional MVP)
+  ITINERARY_GENERATED: 'itinerary.version.generated',
+  ITINERARY_SELECTED: 'itinerary.version.selected',
+  IDEA_ADDED: 'itinerary.idea.added',
+  IDEA_LIKED: 'itinerary.idea.liked',
+} as const
+
+export type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES]
+
+/**
+ * Actor role for events
+ */
+export type ActorRole = 'leader' | 'traveler' | 'system'
+
+/**
+ * Canonical TripEvent document per EVENTS_SPEC.md
+ */
+export interface TripEventDocument {
+  _id?: ObjectId
+  schemaVersion: 1
+  tripId: ObjectId
+  circleId: ObjectId
+  eventType: string
+  actorId: ObjectId | null
+  actorRole: ActorRole
+  timestamp: Date
+  tripAgeMs: number
+  idempotencyKey?: string
+  payload: Record<string, unknown>
+  context?: {
+    precedingEventId?: ObjectId
+    latencyFromPrecedingMs?: number
+    sessionId?: string
+  }
+}
+
+// ============ LEGACY Event Types (for backward compatibility with nudge store) ============
 
 export const TripEventTypes = {
   // Availability events

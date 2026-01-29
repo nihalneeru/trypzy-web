@@ -99,7 +99,8 @@ export async function recordNudgeEvent(
 ): Promise<NudgeEventRecord> {
   const { tripId, userId, nudge, status } = input
 
-  const record: NudgeEventRecord = {
+  const now = new Date()
+  const record: NudgeEventRecord & { displayedAt?: Date } = {
     id: uuidv4(),
     tripId,
     userId,
@@ -108,7 +109,9 @@ export async function recordNudgeEvent(
     dedupeKey: nudge.dedupeKey,
     status,
     channel: nudge.channel,
-    createdAt: new Date().toISOString(),
+    createdAt: now.toISOString(),
+    // Add displayedAt as Date type for TTL index (per EVENTS_SPEC.md)
+    displayedAt: status === 'shown' ? now : undefined,
   }
 
   // Upsert to handle potential duplicates
@@ -344,6 +347,20 @@ export async function ensureNudgeIndexes(db: any): Promise<void> {
     { tripId: 1, createdAt: -1 },
     { background: true }
   )
+
+  // Nudge events: TTL index for auto-expiry after 7 days (per EVENTS_SPEC.md)
+  // Note: This requires a Date-typed field. If createdAt is string, add displayedAt as Date.
+  try {
+    await db.collection('nudge_events').createIndex(
+      { displayedAt: 1 },
+      { expireAfterSeconds: 604800, background: true, sparse: true }
+    )
+  } catch (err: unknown) {
+    // Index might already exist with different options
+    if (err && typeof err === 'object' && 'code' in err && err.code !== 85) {
+      console.error('[nudges] Failed to create TTL index:', err)
+    }
+  }
 
   // Trip events: type queries
   await db.collection('trip_events').createIndex(

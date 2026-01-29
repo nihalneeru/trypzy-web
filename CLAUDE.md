@@ -483,6 +483,32 @@ A nudge engine exists and is **active** in the current codebase.
 
 **Do NOT** document exact rules, thresholds, or cooldown durations in user-facing docs. The engine is intentionally opaque to users.
 
+## 10.6) Event System (Data Moat)
+
+An event logging system for capturing group coordination behavior. This is the foundation of Trypzy's data moat — unique behavioral data that compounds over time.
+
+**Core concept**: Log state-changing actions as immutable events. Learn how groups coordinate without adding new UX flows.
+
+**Key files**:
+- `docs/EVENTS_SPEC.md` — Full implementation spec (schema, taxonomy, patterns)
+- `lib/events/types.ts` — Event type enum (source of truth)
+- `lib/events/emit.ts` — `emitTripEvent()` helper
+
+**High-value signals**:
+- `traveler.participation.first_action` — early engagement predicts completion
+- `scheduling.reaction.submitted` with `reaction: 'cant'` — conflict signal
+- `nudge.system.correlated_action` — measures nudge effectiveness
+- Silence (absence of events) — the strongest negative signal
+
+**Implementation rule**: If a mutation changes trip/circle state, it must emit an event.
+
+**Collections**:
+- `trip_events` — Append-only event log
+- `trip_coordination_snapshots` — Per-trip aggregates (computed daily)
+- `circle_coordination_profiles` — Per-circle longitudinal behavior
+
+**Reference**: See `docs/EVENTS_SPEC.md` for full schema, taxonomy, and implementation checklist.
+
 ## 11) Key Component APIs
 
 **CommandCenterV3 Props**:
