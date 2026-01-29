@@ -597,47 +597,56 @@ async function maybeEmitFirstAction(
 
 ## 10. Implementation Checklist
 
-### Week 0-1: Infrastructure
+### Week 0-1: Infrastructure ✅ COMPLETE (PR1)
 
-- [ ] Create `trip_events` collection with indexes
-- [ ] Create `lib/events/types.ts` (event type enum)
-- [ ] Create `lib/events/emit.ts` (emitter function)
-- [ ] Add reference to this spec in `CLAUDE.md`
+- [x] Create `trip_events` collection with indexes
+- [x] Create `lib/events/types.ts` (event type enum)
+- [x] Create `lib/events/emit.ts` (emitter function)
+- [x] Add reference to this spec in `CLAUDE.md`
 
-### Week 1-2: Tier 1 Events
+### Week 1-2: Tier 1 Events ✅ COMPLETE (PR1)
 
-- [ ] `trip.lifecycle.created` — in POST /api/trips
-- [ ] `trip.lifecycle.status_changed` — in all status transitions
-- [ ] `trip.lifecycle.canceled` — in POST /api/trips/:id/cancel
-- [ ] `scheduling.window.suggested` — in POST /api/trips/:id/date-windows
-- [ ] `scheduling.window.supported` — in POST /api/trips/:id/date-windows/:id/support
-- [ ] `scheduling.reaction.submitted` — in POST /api/trips/:id/date-windows/:id/react
-- [ ] `scheduling.dates.locked` — in POST /api/trips/:id/lock-proposed
-- [ ] `traveler.participation.joined` — in join logic
-- [ ] `traveler.participation.left` — in POST /api/trips/:id/leave
+- [x] `trip.lifecycle.created` — in POST /api/trips
+- [x] `trip.lifecycle.status_changed` — in all status transitions
+- [x] `trip.lifecycle.canceled` — in POST /api/trips/:id/cancel
+- [x] `scheduling.window.suggested` — in POST /api/trips/:id/date-windows
+- [x] `scheduling.window.supported` — in POST /api/trips/:id/date-windows/:id/support
+- [x] `scheduling.reaction.submitted` — in POST /api/trips/:id/date-windows/:id/react
+- [x] `scheduling.dates.locked` — in POST /api/trips/:id/lock-proposed
+- [x] `traveler.participation.joined` — in join logic
+- [x] `traveler.participation.left` — in POST /api/trips/:id/leave
 
-### Week 2: High-Value Signals
+### Week 2: High-Value Signals ✅ COMPLETE (PR1 + PR2)
 
-- [ ] `traveler.participation.first_action` — call `maybeEmitFirstAction()` on relevant actions
-- [ ] `traveler.role.leader_changed` — in POST /api/trips/:id/transfer-leadership
+- [x] `traveler.participation.first_action` — call `maybeEmitFirstAction()` on relevant actions
+- [x] `traveler.role.leader_changed` — in POST /api/trips/:id/transfer-leadership
+- [x] `scheduling.window.proposed` — in POST /api/trips/:id/propose-dates (PR2)
+- [x] `scheduling.window.proposal_rejected` — in POST /api/trips/:id/withdraw-proposal (PR2)
 
-### Week 2-3: Nudge Correlation
+### Week 2-3: Nudge Correlation ✅ COMPLETE (PR1)
 
-- [ ] Ensure `nudge_events` collection logs nudge displays
-- [ ] Add `checkNudgeCorrelation()` calls to relevant action handlers
-- [ ] Emit `nudge.system.correlated_action` when correlation found
+- [x] Ensure `nudge_events` collection logs nudge displays
+- [x] Add `checkNudgeCorrelation()` calls to relevant action handlers
+- [x] Emit `nudge.system.correlated_action` when correlation found
 
-### Week 3: Aggregation
+### Week 3: Aggregation ✅ COMPLETE (PR2)
 
-- [ ] Create `trip_coordination_snapshots` collection
-- [ ] Create `circle_coordination_profiles` collection
-- [ ] Build daily aggregation job (can be simple cron or scheduled API route)
+- [x] Create `trip_coordination_snapshots` collection with indexes
+- [x] Create `circle_coordination_profiles` collection with indexes
+- [x] Build daily aggregation job (`/api/jobs/aggregates`)
+
+### Week 4: Admin Debug Endpoints ✅ COMPLETE (PR3)
+
+- [x] Create `GET /api/admin/events` for event queries
+- [x] Create `GET /api/admin/events/trips/:tripId/health` for trip health checks
+- [x] Add auth gating with `x-admin-debug-token` header
 
 ### Ongoing
 
 - [ ] PR review checklist: "Does this mutation emit an event?"
 - [ ] Monitor event volume and error rates
 - [ ] Review aggregates monthly for usefulness
+- [ ] Set up cron for daily aggregation job
 
 ---
 
