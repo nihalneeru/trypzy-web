@@ -469,6 +469,14 @@ Creates test users: alex.traveler@example.com / password123
 - Color contrast fixes: improved contrast in `ChatTab.tsx`, `PrepOverlay.tsx`
 - **Duration preference collection**: new feature - travelers can indicate preferred trip length during COLLECTING phase, aggregated for leader
 
+**Round 4 (fix/usability-audit-round1 branch, 2026-01-29)**:
+- **DateWindowsFunnel**: Removed propose confirmation dialog — action now immediate on button click
+- **ContextCTABar**: Fixed `xs:` → `sm:` breakpoint bug (labels were always truncated)
+- **ContextCTABar**: Added `isBlocking` field to distinguish urgent vs informational CTAs visually (white/red vs muted/blue)
+- **CommandCenterV3**: Constrained trip view to centered `max-w-5xl` column with gray gutters
+- **ProgressStrip**: Added "Leader" badge next to trip name for role clarity
+- **Dashboard**: Improved empty state with explanatory text about circles (what they are, when to create vs join)
+
 **Deferred until public launch**:
 - Rate limiting (needs Redis/Upstash infrastructure)
 - Remaining generic Tailwind colors (20+ files - low priority)
@@ -617,6 +625,8 @@ interface ProgressStripProps {
   activeOverlay: OverlayType
   onStepClick: (overlayType: OverlayType) => void
   participationMeter?: { responded: number; total: number; label: string } | null
+  /** Whether the current user is the trip leader (shows "Leader" badge) */
+  isLeader?: boolean
 }
 ```
 

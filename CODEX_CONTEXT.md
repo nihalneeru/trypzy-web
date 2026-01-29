@@ -17,6 +17,9 @@ This file is a compact, high-signal context snapshot for future sessions.
 ## Default Trip Experience
 - **Command Center V3** is the default trip view: `components/trip/command-center-v2/`.
 - Chat feed is primary; actions open overlays (scheduling/itinerary/accommodation/prep/etc.).
+- Trip view is centered (`max-w-5xl`) with gray gutters on wide screens.
+- **ProgressStrip** shows "Leader" badge when `isLeader` prop is true.
+- **ContextCTABar** distinguishes blocking (white/red, urgent) vs informational (muted/blue) CTAs via `isBlocking` flag.
 
 ## Critical Guardrails
 - Privacy settings only affect **profile views**, never dashboard/circle/trip views.
