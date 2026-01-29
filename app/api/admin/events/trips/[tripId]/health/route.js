@@ -7,12 +7,12 @@
  * Protected by x-admin-debug-token header.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { ObjectId } from 'mongodb'
 import { connectToMongo } from '@/lib/server/db'
 
 // Auth helper - returns true if authorized, false otherwise
-function isAuthorized(request: NextRequest): boolean {
+function isAuthorized(request) {
   const token = request.headers.get('x-admin-debug-token')
   const expected = process.env.ADMIN_DEBUG_TOKEN
   if (!token || !expected || token !== expected) {
@@ -21,22 +21,7 @@ function isAuthorized(request: NextRequest): boolean {
   return true
 }
 
-interface HealthReport {
-  tripId: string
-  totalEvents: number
-  lastEventAt: string | null
-  hasTripCreated: boolean
-  hasAnySchedulingActivity: boolean
-  hasAnyFirstAction: boolean
-  isTripLocked: boolean
-  hasDatesLockedEvent: boolean
-  warnings: string[]
-}
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { tripId: string } }
-) {
+export async function GET(request, { params }) {
   // Auth check - return 404 to avoid leaking endpoint existence
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -52,7 +37,7 @@ export async function GET(
     const db = await connectToMongo()
 
     // Build tripId filter (handle both ObjectId and string)
-    let tripIdFilter: ObjectId | string
+    let tripIdFilter
     try {
       tripIdFilter = new ObjectId(tripId)
     } catch {
@@ -117,7 +102,7 @@ export async function GET(
       (await db.collection('date_windows').countDocuments({ tripId })) > 0
 
     // Build warnings
-    const warnings: string[] = []
+    const warnings = []
 
     if (!hasTripCreated && totalEvents > 0) {
       warnings.push('No trip.lifecycle.created event found')
@@ -141,7 +126,7 @@ export async function GET(
       warnings.push('Trip document not found in trips collection')
     }
 
-    const report: HealthReport = {
+    const report = {
       tripId,
       totalEvents,
       lastEventAt,

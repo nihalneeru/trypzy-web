@@ -7,12 +7,12 @@
  * Protected by x-admin-debug-token header.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { ObjectId } from 'mongodb'
 import { connectToMongo } from '@/lib/server/db'
 
 // Auth helper - returns true if authorized, false otherwise
-function isAuthorized(request: NextRequest): boolean {
+function isAuthorized(request) {
   const token = request.headers.get('x-admin-debug-token')
   const expected = process.env.ADMIN_DEBUG_TOKEN
   if (!token || !expected || token !== expected) {
@@ -21,7 +21,7 @@ function isAuthorized(request: NextRequest): boolean {
   return true
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request) {
   // Auth check - return 404 to avoid leaking endpoint existence
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     const db = await connectToMongo()
 
     // Build query filter
-    const filter: Record<string, unknown> = {}
+    const filter = {}
 
     if (tripId) {
       // Handle both ObjectId and string tripId formats
@@ -94,10 +94,10 @@ export async function GET(request: NextRequest) {
     if (since || until) {
       filter.timestamp = {}
       if (since) {
-        (filter.timestamp as Record<string, Date>).$gte = new Date(since)
+        filter.timestamp.$gte = new Date(since)
       }
       if (until) {
-        (filter.timestamp as Record<string, Date>).$lte = new Date(until)
+        filter.timestamp.$lte = new Date(until)
       }
     }
 

@@ -10,10 +10,10 @@
  * Security: In production, protect with a secret token or IP allowlist.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { runDailyAggregation, ensureAggregateIndexes } from '@/lib/events/aggregates'
+import { NextResponse } from 'next/server'
+import { runDailyAggregation } from '@/lib/events/aggregates'
 
-export async function POST(request: NextRequest) {
+export async function POST(request) {
   try {
     // Optional: Verify cron secret in production
     const authHeader = request.headers.get('authorization')
