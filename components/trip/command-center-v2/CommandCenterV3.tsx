@@ -267,6 +267,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
             activeOverlay={activeOverlay}
             onStepClick={handleStepClick}
             participationMeter={participationMeter}
+            isLeader={trip?.createdBy === user?.id}
           />
         </div>
 
