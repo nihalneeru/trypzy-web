@@ -242,9 +242,9 @@ export function OverlayContainer({
         )}
       </div>
 
-      {/* Discard Changes Confirmation Dialog - z-[60] to appear above overlay drawer (z-50) */}
+      {/* Discard Changes Confirmation Dialog - z-[55] overlay + z-[60] content to appear above drawer (z-50) */}
       <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
-        <AlertDialogContent className="z-[60]">
+        <AlertDialogContent className="z-[60]" overlayClassName="z-[55]">
           <AlertDialogHeader>
             <AlertDialogTitle>Discard changes?</AlertDialogTitle>
             <AlertDialogDescription>
