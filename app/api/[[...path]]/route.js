@@ -3225,6 +3225,15 @@ async function handleRoute(request, { params }) {
       const body = await request.json()
       const { startDate, endDate, text, acknowledgeOverlap, forceAccept } = body
 
+      // Limit text length to prevent abuse
+      const MAX_WINDOW_TEXT_LENGTH = 100
+      if (text && text.length > MAX_WINDOW_TEXT_LENGTH) {
+        return handleCORS(NextResponse.json(
+          { error: `Date text too long (max ${MAX_WINDOW_TEXT_LENGTH} characters)` },
+          { status: 400 }
+        ))
+      }
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
@@ -4974,6 +4983,15 @@ async function handleRoute(request, { params }) {
       const body = await request.json()
       const { message } = body
 
+      // Limit message length to prevent abuse
+      const MAX_JOIN_MESSAGE_LENGTH = 500
+      if (message && message.length > MAX_JOIN_MESSAGE_LENGTH) {
+        return handleCORS(NextResponse.json(
+          { error: `Message too long (max ${MAX_JOIN_MESSAGE_LENGTH} characters)` },
+          { status: 400 }
+        ))
+      }
+
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
         return handleCORS(NextResponse.json(
@@ -6219,6 +6237,15 @@ async function handleRoute(request, { params }) {
       if (!content || !content.trim()) {
         return handleCORS(NextResponse.json(
           { error: 'Message content is required' },
+          { status: 400 }
+        ))
+      }
+
+      // Limit message length to prevent abuse
+      const MAX_MESSAGE_LENGTH = 2000
+      if (content.length > MAX_MESSAGE_LENGTH) {
+        return handleCORS(NextResponse.json(
+          { error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)` },
           { status: 400 }
         ))
       }

@@ -476,8 +476,7 @@ describe('Participant Status Enforcement', () => {
     })
 
     describe('cannot submit availability', () => {
-      // TODO: API does not currently enforce participant status on availability endpoint
-      it.skip('should reject left participant from submitting availability', async () => {
+      it('should reject left participant from submitting availability', async () => {
         const leaderId = 'test-leader-left-avail-1'
         const leftUserId = 'test-left-avail-1'
         const circleId = 'circle-test-left-avail-1'
@@ -507,7 +506,7 @@ describe('Participant Status Enforcement', () => {
 
         expect(response.status).toBe(403)
         const data = await response.json()
-        expect(data.error).toMatch(/not an active traveler|left|cannot/i)
+        expect(data.error).toContain('not an active participant')
       })
     })
 

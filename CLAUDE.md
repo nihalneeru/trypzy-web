@@ -493,7 +493,9 @@ Creates test users: alex.traveler@example.com / password123
 - **Removed traveler read-only access**: Added `viewer.isRemovedTraveler` flag to GET `/api/trips/:id` response; UI shows amber "You left this trip (view only)" banner in CommandCenterV3
 - **Join request privacy enforcement**: `POST /api/trips/:id/join-requests` now enforces trip leader's `privacy.allowTripJoinRequests` setting server-side (returns 403 if disabled)
 - **Standardized participant checks**: Replaced inline participant check in `POST /api/trips/:id/proposed-window/react` with `isActiveTraveler()` helper for consistency
-- **Test maintenance**: Enabled skipped `/join-requests/me` tests, updated expectations for `allowTripJoinRequests` enforcement
+- **Input length validation**: Added max length limits to prevent abuse — chat messages (2000 chars), join request messages (500 chars), date window text (100 chars)
+- **Sentry monitoring**: Critical event emission failures now reported to Sentry with context tags
+- **Test maintenance**: Enabled skipped `/join-requests/me` and availability participant enforcement tests, updated expectations
 - **Bug fix**: Renamed shadowed variable in `/join-requests/me` endpoint (`request` → `joinRequest`)
 
 **Deferred until public launch**:
