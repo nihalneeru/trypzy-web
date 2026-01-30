@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -90,13 +90,25 @@ export function TripInfoOverlay({
       description: trip?.description || ''
     })
     setIsEditing(true)
-    setHasUnsavedChanges(true)
+    // Note: hasUnsavedChanges is tracked by useEffect based on actual form changes
   }
 
   const handleCancelEdit = () => {
     setIsEditing(false)
     setHasUnsavedChanges(false)
   }
+
+  // Track actual form changes (matches pattern from other overlays)
+  useEffect(() => {
+    if (!isEditing) return
+
+    const hasChanges =
+      editForm.name.trim() !== (trip?.name || '').trim() ||
+      editForm.destinationHint.trim() !== (trip?.destinationHint || '').trim() ||
+      editForm.description.trim() !== (trip?.description || '').trim()
+
+    setHasUnsavedChanges(hasChanges)
+  }, [isEditing, editForm, trip?.name, trip?.destinationHint, trip?.description, setHasUnsavedChanges])
 
   const handleSave = async () => {
     if (!editForm.name.trim()) {
