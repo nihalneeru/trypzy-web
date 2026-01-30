@@ -119,7 +119,7 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
             variant="outline"
             onClick={() => handleInviteAction('decline')}
             disabled={processing}
-            className="h-8 px-3 text-xs"
+            className="h-10 md:h-8 px-3 text-xs"
           >
             Decline
           </Button>
@@ -127,7 +127,7 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
             size="sm"
             onClick={() => handleInviteAction('accept')}
             disabled={processing}
-            className="h-8 px-3 text-xs bg-brand-blue hover:opacity-90"
+            className="h-10 md:h-8 px-3 text-xs bg-brand-blue hover:opacity-90"
           >
             Accept
           </Button>
@@ -150,7 +150,7 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
             variant="outline"
             onClick={() => handleTransferAction('decline')}
             disabled={processing}
-            className="h-8 px-3 text-xs"
+            className="h-10 md:h-8 px-3 text-xs"
           >
             Decline
           </Button>
@@ -158,7 +158,7 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
             size="sm"
             onClick={() => handleTransferAction('accept')}
             disabled={processing}
-            className="h-8 px-3 text-xs bg-brand-blue hover:opacity-90"
+            className="h-10 md:h-8 px-3 text-xs bg-brand-blue hover:opacity-90"
           >
             Accept
           </Button>
