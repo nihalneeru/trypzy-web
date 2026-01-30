@@ -134,6 +134,11 @@ export default function SignupPage() {
                   type="text"
                   value={betaSecret}
                   onChange={(e) => setBetaSecret(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && betaSecret.trim() && !googleLoading) {
+                      handleGoogleSignIn()
+                    }
+                  }}
                   placeholder="Enter private beta secret"
                   required
                 />

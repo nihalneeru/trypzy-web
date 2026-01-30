@@ -530,7 +530,7 @@ export function AccommodationOverlay({
                             <Button
                               size="sm"
                               variant="default"
-                              className="bg-green-600 hover:bg-green-700"
+                              className="bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => handleSelectClick(option.id)}
                             >
                               <Check className="h-4 w-4 mr-1" />
@@ -580,7 +580,7 @@ export function AccommodationOverlay({
             <AlertDialogAction
               onClick={handleConfirmSelect}
               disabled={selecting}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
               {selecting ? 'Selecting...' : 'Confirm Selection'}
             </AlertDialogAction>

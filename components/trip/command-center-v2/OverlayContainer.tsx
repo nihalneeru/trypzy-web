@@ -215,7 +215,7 @@ export function OverlayContainer({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 shrink-0">
-          <h2 id="overlay-title" className="text-lg font-semibold text-gray-900">
+          <h2 id="overlay-title" className="text-lg font-semibold text-brand-carbon">
             {title}
           </h2>
           <Button
@@ -242,9 +242,9 @@ export function OverlayContainer({
         )}
       </div>
 
-      {/* Discard Changes Confirmation Dialog - z-[60] to appear above overlay drawer (z-50) */}
+      {/* Discard Changes Confirmation Dialog - high z-index via inline styles to ensure visibility */}
       <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
-        <AlertDialogContent className="z-[60]">
+        <AlertDialogContent style={{ zIndex: 9999 }} overlayStyle={{ zIndex: 9998 }}>
           <AlertDialogHeader>
             <AlertDialogTitle>Discard changes?</AlertDialogTitle>
             <AlertDialogDescription>

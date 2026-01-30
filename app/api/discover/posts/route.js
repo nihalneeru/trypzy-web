@@ -359,6 +359,29 @@ export async function POST(request) {
     }))
   } catch (error) {
     console.error('Error creating discover post:', error)
+
+    // Handle read-only file system error (Vercel serverless)
+    if (error.code === 'EROFS' || error.message?.includes('read-only file system')) {
+      return handleCORS(NextResponse.json(
+        {
+          error: 'Image uploads are temporarily unavailable',
+          details: 'Cloud storage not configured. Please contact support.'
+        },
+        { status: 503 }
+      ))
+    }
+
+    // Handle disk full or permission errors
+    if (error.code === 'ENOSPC' || error.code === 'EACCES') {
+      return handleCORS(NextResponse.json(
+        {
+          error: 'Storage error',
+          details: 'Unable to save images. Please try again later.'
+        },
+        { status: 503 }
+      ))
+    }
+
     return handleCORS(NextResponse.json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }

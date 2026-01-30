@@ -210,7 +210,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
           {tripForm.type === 'collaborative' && (
             <div className="space-y-2">
               <Label>
-                Roughly how long are you imagining this trip?
+                How long would you like this trip to be?
                 <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
               </Label>
               <p className="text-xs text-gray-500">

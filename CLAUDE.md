@@ -209,10 +209,11 @@ components/trip/command-center-v2/
     ├── ItineraryOverlay.tsx     # Ideas, generation, feedback (~1250 lines)
     ├── AccommodationOverlay.tsx # Stays, options, Airbnb search (~800 lines)
     ├── TravelersOverlay.tsx     # Join requests, leave, transfer (~600 lines)
-    ├── PrepOverlay.tsx          # Transport, packing, documents (~650 lines)
+    ├── PrepOverlay.tsx          # Transport, packing, inline forms (~830 lines)
     ├── ExpensesOverlay.tsx      # Add expense, balances (~700 lines)
     ├── MemoriesOverlay.tsx      # Gallery, add memory (~480 lines)
     ├── MemberProfileOverlay.tsx # Profile card, shared circles, trips (~540 lines)
+    ├── TripInfoOverlay.tsx      # Trip name, destination, type, invite code (~360 lines)
     └── index.ts                 # Exports
 ```
 
@@ -497,6 +498,18 @@ Creates test users: alex.traveler@example.com / password123
 - **Sentry monitoring**: Critical event emission failures now reported to Sentry with context tags
 - **Test maintenance**: Enabled skipped `/join-requests/me` and availability participant enforcement tests, updated expectations
 - **Bug fix**: Renamed shadowed variable in `/join-requests/me` endpoint (`request` → `joinRequest`)
+
+**Round 7 (feat/misc-enhancements branch, 2026-01-30)**:
+- **TripInfoOverlay**: New overlay for "Proposed" chevron — displays trip name, destination, type badge, circle link, participant count, invite code. Leader can edit name/description/destination.
+- **Duration label**: Changed from "Roughly how long are you imagining..." to "How long would you like this trip to be?"
+- **Overlay title font**: Changed from `text-gray-900` to `text-brand-carbon` for brand consistency
+- **Enter key login**: Added `onKeyDown` handler to beta secret input on login/signup pages
+- **Case-insensitive beta secret**: Beta phrase validation now case-insensitive (handles mobile auto-capitalize)
+- **Select button visibility**: Added `text-white` to accommodation Select button for contrast on green background
+- **Auto-vote for submitter**: Accommodation options and itinerary ideas now auto-vote/like for the submitter (matches date windows auto-support pattern)
+- **PrepOverlay refactor**: Converted from Dialog modals to inline forms — existing items remain visible while adding new ones
+- **Discover upload error**: Added specific error handling for Vercel's read-only filesystem (returns 503 with user-friendly message). **Note**: Full fix requires cloud storage integration (S3/Cloudinary/Vercel Blob).
+- **AlertDialog z-index fix**: Added `overlayStyle` prop to AlertDialogContent; OverlayContainer now uses inline styles (z-index 9998/9999) to ensure discard confirmation dialog appears above drawer
 
 **Deferred until public launch**:
 - Rate limiting (needs Redis/Upstash infrastructure)

@@ -1,20 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -30,7 +22,10 @@ import {
   Package,
   ExternalLink,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  X,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
@@ -84,8 +79,9 @@ export function PrepOverlay({
   const [prepData, setPrepData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showTransportDialog, setShowTransportDialog] = useState(false)
-  const [showPackingDialog, setShowPackingDialog] = useState(false)
+  const [showTransportForm, setShowTransportForm] = useState(false)
+  const [showPackingForm, setShowPackingForm] = useState(false)
+  const [showAdvancedTransport, setShowAdvancedTransport] = useState(false)
   const [adding, setAdding] = useState(false)
   const [generatingSuggestions, setGeneratingSuggestions] = useState(false)
   const [markingComplete, setMarkingComplete] = useState(false)
@@ -137,6 +133,21 @@ export function PrepOverlay({
     }
   }
 
+  const resetTransportForm = () => {
+    setNewTransport({
+      mode: 'other',
+      fromLocation: '',
+      toLocation: '',
+      departAt: '',
+      arriveAt: '',
+      bookingRef: '',
+      provider: '',
+      link: '',
+      notes: ''
+    })
+    setShowAdvancedTransport(false)
+  }
+
   const handleAddTransport = async () => {
     if (isReadOnly) return
     if (!newTransport.fromLocation.trim() || !newTransport.toLocation.trim()) {
@@ -156,20 +167,9 @@ export function PrepOverlay({
       }, token)
 
       toast.success('Transport added')
-      setShowTransportDialog(false)
-      setNewTransport({
-        mode: 'other',
-        fromLocation: '',
-        toLocation: '',
-        departAt: '',
-        arriveAt: '',
-        bookingRef: '',
-        provider: '',
-        link: '',
-        notes: ''
-      })
+      setShowTransportForm(false)
+      resetTransportForm()
       loadPrepData()
-      // P0-3: Trigger trip refresh
       onRefresh()
     } catch (error: any) {
       toast.error(error.message || 'Could not add transport — please try again')
@@ -197,7 +197,7 @@ export function PrepOverlay({
       }, token)
 
       toast.success('Item added to packing list')
-      setShowPackingDialog(false)
+      setShowPackingForm(false)
       setNewPackingItem({
         title: '',
         quantity: '',
@@ -381,7 +381,7 @@ export function PrepOverlay({
   const prepStatus = prepData?.prepStatus || 'not_started'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       {/* Header with Mark Complete */}
       {isTripLeader && prepStatus !== 'complete' && (
         <div className="flex justify-end">
@@ -421,19 +421,180 @@ export function PrepOverlay({
               <Sparkles className="h-3 w-3 mr-1" />
               {generatingSuggestions ? 'Generating...' : 'AI Suggest'}
             </Button>
-            <Button
-              size="sm"
-              onClick={() => setShowTransportDialog(true)}
-              disabled={isReadOnly}
-              className="h-8"
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              Add
-            </Button>
+            {!showTransportForm && (
+              <Button
+                size="sm"
+                onClick={() => setShowTransportForm(true)}
+                disabled={isReadOnly}
+                className="h-8"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add
+              </Button>
+            )}
           </div>
         </div>
 
-        {transportItems.length === 0 ? (
+        {/* Inline Transport Form */}
+        {showTransportForm && (
+          <Card className="mb-4 border-brand-blue">
+            <CardContent className="pt-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-brand-carbon">Add Transport</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowTransportForm(false)
+                    resetTransportForm()
+                  }}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Mode</Label>
+                <Select
+                  value={newTransport.mode}
+                  onValueChange={(value) => setNewTransport({ ...newTransport, mode: value })}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="flight">Flight</SelectItem>
+                    <SelectItem value="train">Train</SelectItem>
+                    <SelectItem value="bus">Bus</SelectItem>
+                    <SelectItem value="car">Car Rental</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">From *</Label>
+                  <Input
+                    value={newTransport.fromLocation}
+                    onChange={(e) => setNewTransport({ ...newTransport, fromLocation: e.target.value })}
+                    placeholder="e.g., NYC"
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">To *</Label>
+                  <Input
+                    value={newTransport.toLocation}
+                    onChange={(e) => setNewTransport({ ...newTransport, toLocation: e.target.value })}
+                    placeholder="e.g., Paris"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+
+              {/* Advanced fields toggle */}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedTransport(!showAdvancedTransport)}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+              >
+                {showAdvancedTransport ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                {showAdvancedTransport ? 'Less details' : 'More details (optional)'}
+              </button>
+
+              {showAdvancedTransport && (
+                <div className="space-y-3 pt-2 border-t">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Departure</Label>
+                      <Input
+                        type="datetime-local"
+                        value={newTransport.departAt}
+                        onChange={(e) => setNewTransport({ ...newTransport, departAt: e.target.value })}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Arrival</Label>
+                      <Input
+                        type="datetime-local"
+                        value={newTransport.arriveAt}
+                        onChange={(e) => setNewTransport({ ...newTransport, arriveAt: e.target.value })}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Provider/Carrier</Label>
+                    <Input
+                      value={newTransport.provider}
+                      onChange={(e) => setNewTransport({ ...newTransport, provider: e.target.value })}
+                      placeholder="e.g., United Airlines"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Booking Reference</Label>
+                      <Input
+                        value={newTransport.bookingRef}
+                        onChange={(e) => setNewTransport({ ...newTransport, bookingRef: e.target.value })}
+                        placeholder="Confirmation code"
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Booking Link</Label>
+                      <Input
+                        value={newTransport.link}
+                        onChange={(e) => setNewTransport({ ...newTransport, link: e.target.value })}
+                        placeholder="https://..."
+                        type="url"
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Notes</Label>
+                    <Textarea
+                      value={newTransport.notes}
+                      onChange={(e) => setNewTransport({ ...newTransport, notes: e.target.value })}
+                      placeholder="Additional details..."
+                      rows={2}
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowTransportForm(false)
+                    resetTransportForm()
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddTransport}
+                  disabled={adding || !newTransport.fromLocation.trim() || !newTransport.toLocation.trim()}
+                  className="flex-1"
+                >
+                  {adding ? 'Adding...' : 'Add Transport'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {transportItems.length === 0 && !showTransportForm ? (
           <Card>
             <CardContent className="py-6 text-center">
               <Plane className="h-8 w-8 text-gray-400 mx-auto mb-2" />
@@ -459,7 +620,7 @@ export function PrepOverlay({
                           {item.mode}
                         </Badge>
                         {item.status === 'booked' && (
-                          <Badge className="bg-green-600 text-xs">
+                          <Badge className="bg-green-600 text-xs text-white">
                             <Check className="h-3 w-3 mr-1" />
                             Booked
                           </Badge>
@@ -518,18 +679,102 @@ export function PrepOverlay({
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
             Packing List
           </h3>
-          <Button
-            size="sm"
-            onClick={() => setShowPackingDialog(true)}
-            disabled={isReadOnly}
-            className="h-8"
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            Add Item
-          </Button>
+          {!showPackingForm && (
+            <Button
+              size="sm"
+              onClick={() => setShowPackingForm(true)}
+              disabled={isReadOnly}
+              className="h-8"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add Item
+            </Button>
+          )}
         </div>
 
-        {packingItems.length === 0 ? (
+        {/* Inline Packing Form */}
+        {showPackingForm && (
+          <Card className="mb-4 border-brand-blue">
+            <CardContent className="pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-brand-carbon">Add Packing Item</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowPackingForm(false)
+                    setNewPackingItem({ title: '', quantity: '', notes: '' })
+                  }}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Item Name *</Label>
+                <Input
+                  value={newPackingItem.title}
+                  onChange={(e) => setNewPackingItem({ ...newPackingItem, title: e.target.value })}
+                  placeholder="e.g., Passport, Charger, Sunscreen"
+                  className="h-9"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newPackingItem.title.trim() && !adding) {
+                      handleAddPackingItem()
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Quantity</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={newPackingItem.quantity}
+                    onChange={(e) => setNewPackingItem({ ...newPackingItem, quantity: e.target.value })}
+                    placeholder="Number"
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Notes</Label>
+                  <Input
+                    value={newPackingItem.notes}
+                    onChange={(e) => setNewPackingItem({ ...newPackingItem, notes: e.target.value })}
+                    placeholder="Optional"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowPackingForm(false)
+                    setNewPackingItem({ title: '', quantity: '', notes: '' })
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddPackingItem}
+                  disabled={adding || !newPackingItem.title.trim()}
+                  className="flex-1"
+                >
+                  {adding ? 'Adding...' : 'Add Item'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {packingItems.length === 0 && !showPackingForm ? (
           <Card>
             <CardContent className="py-6 text-center">
               <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
@@ -581,171 +826,6 @@ export function PrepOverlay({
           </div>
         )}
       </div>
-
-      {/* Add Transport Dialog */}
-      <Dialog open={showTransportDialog} onOpenChange={setShowTransportDialog}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Transport</DialogTitle>
-            <DialogDescription>
-              Add a flight, train, bus, or other transportation leg
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Mode</Label>
-              <Select
-                value={newTransport.mode}
-                onValueChange={(value) => setNewTransport({ ...newTransport, mode: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="flight">Flight</SelectItem>
-                  <SelectItem value="train">Train</SelectItem>
-                  <SelectItem value="bus">Bus</SelectItem>
-                  <SelectItem value="car">Car Rental</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>From *</Label>
-                <Input
-                  value={newTransport.fromLocation}
-                  onChange={(e) => setNewTransport({ ...newTransport, fromLocation: e.target.value })}
-                  placeholder="Departure city (e.g., NYC)"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>To *</Label>
-                <Input
-                  value={newTransport.toLocation}
-                  onChange={(e) => setNewTransport({ ...newTransport, toLocation: e.target.value })}
-                  placeholder="Arrival city (e.g., Paris)"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Departure</Label>
-                <Input
-                  type="datetime-local"
-                  value={newTransport.departAt}
-                  onChange={(e) => setNewTransport({ ...newTransport, departAt: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Arrival</Label>
-                <Input
-                  type="datetime-local"
-                  value={newTransport.arriveAt}
-                  onChange={(e) => setNewTransport({ ...newTransport, arriveAt: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Provider/Carrier</Label>
-              <Input
-                value={newTransport.provider}
-                onChange={(e) => setNewTransport({ ...newTransport, provider: e.target.value })}
-                placeholder="e.g., United Airlines, Amtrak"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Booking Reference</Label>
-              <Input
-                value={newTransport.bookingRef}
-                onChange={(e) => setNewTransport({ ...newTransport, bookingRef: e.target.value })}
-                placeholder="Confirmation code"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Booking Link</Label>
-              <Input
-                value={newTransport.link}
-                onChange={(e) => setNewTransport({ ...newTransport, link: e.target.value })}
-                placeholder="https://..."
-                type="url"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={newTransport.notes}
-                onChange={(e) => setNewTransport({ ...newTransport, notes: e.target.value })}
-                placeholder="Additional details..."
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTransportDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddTransport}
-              disabled={adding || !newTransport.fromLocation.trim() || !newTransport.toLocation.trim()}
-            >
-              {adding ? 'Adding...' : 'Add Transport'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Packing Item Dialog */}
-      <Dialog open={showPackingDialog} onOpenChange={setShowPackingDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Packing Item</DialogTitle>
-            <DialogDescription>
-              Add an item to your packing list
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Item Name *</Label>
-              <Input
-                value={newPackingItem.title}
-                onChange={(e) => setNewPackingItem({ ...newPackingItem, title: e.target.value })}
-                placeholder="e.g., Passport, Charger, Sunscreen"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Quantity</Label>
-              <Input
-                type="number"
-                min="1"
-                value={newPackingItem.quantity}
-                onChange={(e) => setNewPackingItem({ ...newPackingItem, quantity: e.target.value })}
-                placeholder="Number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={newPackingItem.notes}
-                onChange={(e) => setNewPackingItem({ ...newPackingItem, notes: e.target.value })}
-                placeholder="Additional details..."
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPackingDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddPackingItem}
-              disabled={adding || !newPackingItem.title.trim()}
-            >
-              {adding ? 'Adding...' : 'Add Item'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
