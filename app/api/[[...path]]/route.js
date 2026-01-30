@@ -437,7 +437,7 @@ async function handleRoute(request, { params }) {
       const PRIVATE_BETA_SECRET = process.env.PRIVATE_BETA_SECRET || 'trypzy-beta-2024'
 
       return handleCORS(NextResponse.json({
-        valid: secret === PRIVATE_BETA_SECRET
+        valid: secret?.toLowerCase() === PRIVATE_BETA_SECRET?.toLowerCase()
       }))
     }
 
@@ -8819,6 +8819,15 @@ async function handleRoute(request, { params }) {
 
       await db.collection('accommodation_options').insertOne(option)
 
+      // Auto-vote for submitter (like date windows auto-support)
+      await db.collection('accommodation_votes').insertOne({
+        id: uuidv4(),
+        optionId: option.id,
+        tripId,
+        userId: auth.user.id,
+        createdAt: new Date().toISOString()
+      })
+
       // Emit chat event for accommodation added
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
       await emitTripChatEvent({
@@ -9925,7 +9934,7 @@ async function handleRoute(request, { params }) {
         tripId,
         authorUserId: auth.user.id,
         text: text.trim(),
-        likes: [], // Array of userIds who liked this idea
+        likes: [auth.user.id], // Auto-like for submitter (matches date windows auto-support pattern)
         createdAt: new Date().toISOString()
       }
 

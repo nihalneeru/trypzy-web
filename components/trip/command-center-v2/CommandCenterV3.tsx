@@ -20,7 +20,8 @@ import {
   PrepOverlay,
   ExpensesOverlay,
   MemoriesOverlay,
-  MemberProfileOverlay
+  MemberProfileOverlay,
+  TripInfoOverlay
 } from './overlays'
 
 // Chat component
@@ -418,9 +419,14 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
             />
           )}
           {activeOverlay === 'proposed' && (
-            <div className="p-4 text-center text-gray-500">
-              Trip proposal details - view trip info and basic settings
-            </div>
+            <TripInfoOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
+            />
           )}
           </ErrorBoundary>
         </OverlayContainer>

@@ -215,7 +215,7 @@ export function OverlayContainer({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 shrink-0">
-          <h2 id="overlay-title" className="text-lg font-semibold text-gray-900">
+          <h2 id="overlay-title" className="text-lg font-semibold text-brand-carbon">
             {title}
           </h2>
           <Button
