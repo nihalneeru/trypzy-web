@@ -58,7 +58,7 @@ export function CreateCircleDialog({ open, onOpenChange, onSuccess, token }) {
       }
     } catch (error) {
       console.error('Create circle error:', error)
-      toast.error(error.message || 'Failed to create circle')
+      toast.error(error.message || 'Could not create circle — please try again')
     } finally {
       setCreating(false)
     }
