@@ -1615,6 +1615,8 @@ async function handleRoute(request, { params }) {
           participantStatus: userParticipantStatus || (trip.type === 'collaborative' && circleMemberUserIds.has(auth.user.id) ? 'active' : null),
           isActiveParticipant: isFormerMember ? false : isActiveParticipant,
           isFormerMember,
+          // Removed/left traveler: still circle member but no longer active in trip (read-only access)
+          isRemovedTraveler: !isFormerMember && !isActiveParticipant && (userParticipantStatus === 'left' || userParticipantStatus === 'removed'),
           // Pending leadership transfer info
           pendingLeadershipTransfer: trip.pendingLeadershipTransfer || null,
           isPendingLeader: trip.pendingLeadershipTransfer?.toUserId === auth.user.id
@@ -1688,6 +1690,15 @@ async function handleRoute(request, { params }) {
       if (!membership) {
         return handleCORS(NextResponse.json(
           { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Check if user is active participant (prevents left/removed travelers from submitting)
+      const isActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isActive) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active participant in this trip' },
           { status: 403 }
         ))
       }
@@ -3962,23 +3973,10 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Dates are already locked' }, { status: 400 }))
       }
 
-      // Check membership
-      const membership = await db.collection('memberships').findOne({
-        userId: auth.user.id,
-        circleId: trip.circleId,
-        status: { $ne: 'left' }
-      })
-      if (!membership) {
-        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
-      }
-
-      // Check active participant
-      const userParticipant = await db.collection('trip_participants').findOne({
-        tripId,
-        userId: auth.user.id
-      })
-      if (userParticipant && (userParticipant.status === 'left' || userParticipant.status === 'removed')) {
-        return handleCORS(NextResponse.json({ error: 'You have left this trip' }, { status: 403 }))
+      // Check if user is active participant (uses standardized helper for consistency)
+      const isActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isActive) {
+        return handleCORS(NextResponse.json({ error: 'You are not an active participant in this trip' }, { status: 403 }))
       }
 
       const now = new Date().toISOString()
@@ -5000,6 +4998,16 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Check trip leader's privacy setting for join requests
+      const tripLeader = await db.collection('users').findOne({ id: trip.createdBy })
+      const leaderPrivacy = getUserPrivacyWithDefaults(tripLeader)
+      if (!leaderPrivacy?.allowTripJoinRequests) {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip is not accepting join requests' },
+          { status: 403 }
+        ))
+      }
+
       // Check requester is a member of trip.circleId
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
@@ -5162,19 +5170,19 @@ async function handleRoute(request, { params }) {
       }
 
       // Get user's most recent request
-      const request = await db.collection('trip_join_requests')
+      const joinRequest = await db.collection('trip_join_requests')
         .findOne(
           { tripId, requesterId: auth.user.id },
           { sort: { createdAt: -1 } }
         )
 
-      if (!request) {
+      if (!joinRequest) {
         return handleCORS(NextResponse.json({ status: 'none' }))
       }
 
       return handleCORS(NextResponse.json({
-        status: request.status,
-        requestId: request.id
+        status: joinRequest.status,
+        requestId: joinRequest.id
       }))
     }
 

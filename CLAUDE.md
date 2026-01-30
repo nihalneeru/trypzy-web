@@ -171,8 +171,8 @@ Once threshold IS met, the existing red CTA card ("Propose [dates]") takes over.
 - **Hosted trips**: Only explicit `trip_participants` with `status='active'` are travelers
 
 **Where state is enforced**:
-- **Server-side (API routes)**: All authenticated endpoints check `requireAuth()` (`app/api/[[...path]]/route.js:53`). Trip actions check `trip.createdBy === userId` for leader-only operations. Stage transitions validated via `validateStageAction()` (`lib/trips/validateStageAction.js`). Privacy filtering applied via `canViewerSeeTrip()` (`lib/trips/canViewerSeeTrip.js`)
-- **Client-side (UI)**: Buttons disabled/hidden based on role (leader vs traveler). CTAs shown/hidden based on `getUserActionRequired()` (`lib/trips/getUserActionRequired.js`). Privacy settings affect UI visibility (but server is source of truth)
+- **Server-side (API routes)**: All authenticated endpoints check `requireAuth()` (`app/api/[[...path]]/route.js:53`). Trip actions check `trip.createdBy === userId` for leader-only operations. Stage transitions validated via `validateStageAction()` (`lib/trips/validateStageAction.js`). Privacy filtering applied via `canViewerSeeTrip()` (`lib/trips/canViewerSeeTrip.js`). **Write endpoints** (availability, date-windows, reactions, prep) enforce `isActiveTraveler()` to block left/removed participants. **Join requests** enforce leader's `privacy.allowTripJoinRequests` server-side.
+- **Client-side (UI)**: Buttons disabled/hidden based on role (leader vs traveler). CTAs shown/hidden based on `getUserActionRequired()` (`lib/trips/getUserActionRequired.js`). Privacy settings affect UI visibility (but server is source of truth). Removed travelers see "You left this trip (view only)" banner via `viewer.isRemovedTraveler` flag.
 
 **Source of truth**:
 - **Trip stage**: Computed client-side via `deriveTripPrimaryStage()` (`lib/trips/stage.js:129`) but validated server-side via `validateStageAction()`
@@ -487,6 +487,14 @@ Creates test users: alex.traveler@example.com / password123
 - **Aria-labels**: Delete buttons in Memories, Prep, Expenses, Accommodation overlays
 - **Loading spinners**: Context text ("Loading scheduling/ideas/itinerary/feedback...")
 - **Toast messages**: Friendlier error messages ("Could not X — please try again" instead of "Failed to X")
+
+**Round 6 (fix/codex-security-gaps branch, 2026-01-30)**:
+- **Availability endpoint security**: Added `isActiveTraveler()` check to `POST /api/trips/:id/availability` — left/removed travelers can no longer submit availability even if still circle members
+- **Removed traveler read-only access**: Added `viewer.isRemovedTraveler` flag to GET `/api/trips/:id` response; UI shows amber "You left this trip (view only)" banner in CommandCenterV3
+- **Join request privacy enforcement**: `POST /api/trips/:id/join-requests` now enforces trip leader's `privacy.allowTripJoinRequests` setting server-side (returns 403 if disabled)
+- **Standardized participant checks**: Replaced inline participant check in `POST /api/trips/:id/proposed-window/react` with `isActiveTraveler()` helper for consistency
+- **Test maintenance**: Enabled skipped `/join-requests/me` tests, updated expectations for `allowTripJoinRequests` enforcement
+- **Bug fix**: Renamed shadowed variable in `/join-requests/me` endpoint (`request` → `joinRequest`)
 
 **Deferred until public launch**:
 - Rate limiting (needs Redis/Upstash infrastructure)
