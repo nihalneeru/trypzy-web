@@ -206,6 +206,11 @@ export function CircleOnboardingInterstitial({
                   <SelectItem value="hosted">Hosted (fixed dates, join if available)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-500 mt-1">
+                {tripForm.type === 'collaborative'
+                  ? "Your group suggests and votes on dates together. Best for flexible planning."
+                  : "You set the dates, others join if they can. Best when dates are already decided."}
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
