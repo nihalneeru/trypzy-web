@@ -994,8 +994,9 @@ describe('Participant Status Enforcement', () => {
     })
 
     describe('from active to removed', () => {
-      // TODO: API returns 200 for GET trip - removed status doesn't block viewing, only circle membership matters
-      it.skip('should block all access after participant is removed', async () => {
+      // Removed travelers who are still circle members get READ-ONLY access (not blocked)
+      // This is intentional per Round 6 hardening - they see viewer.isRemovedTraveler = true
+      it('should allow read-only access after participant is removed (with isRemovedTraveler flag)', async () => {
         const leaderId = 'test-leader-transition-removed-1'
         const userId = 'test-user-transition-removed-1'
         const circleId = 'circle-test-transition-removed-1'
@@ -1029,7 +1030,11 @@ describe('Participant Status Enforcement', () => {
 
         const response = await GET(request, { params: { path: ['trips', tripId] } })
 
-        expect(response.status).toBe(403)
+        // Removed travelers get read-only access (not blocked)
+        expect(response.status).toBe(200)
+        const data = await response.json()
+        expect(data.viewer.isRemovedTraveler).toBe(true)
+        expect(data.viewer.isActiveParticipant).toBe(false)
       })
     })
   })
