@@ -222,7 +222,7 @@ export function OverlayContainer({
             variant="ghost"
             size="icon"
             onClick={handleCloseAttempt}
-            className="h-8 w-8"
+            className="h-10 w-10 md:h-8 md:w-8"
             aria-label="Close overlay"
           >
             <X className="h-5 w-5" />

@@ -268,7 +268,7 @@ export function DateWindowsFunnel({
         toast.success('Preference saved')
       }
     } catch {
-      toast.error('Failed to save preference')
+      toast.error('Could not save preference — please try again')
     }
   }
 
@@ -335,7 +335,7 @@ export function DateWindowsFunnel({
     }
 
     if (manualStartDate > manualEndDate) {
-      toast.error('Start date must be before end date')
+      toast.error('Looks like the end date is before the start date')
       return
     }
 
@@ -569,7 +569,7 @@ export function DateWindowsFunnel({
     }
 
     if (concreteDatesStart > concreteDatesEnd) {
-      toast.error('Start date must be before end date')
+      toast.error('Looks like the end date is before the start date')
       return
     }
 
@@ -680,8 +680,9 @@ export function DateWindowsFunnel({
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-red" />
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-red mb-3" />
+        <p className="text-sm text-gray-500">Loading scheduling...</p>
       </div>
     )
   }
@@ -727,7 +728,7 @@ export function DateWindowsFunnel({
       <div className="space-y-4 p-4">
         <div className="text-center mb-4">
           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-            Dates Proposed — Vote Now
+            Leader's Pick — Share Your Thoughts
           </Badge>
         </div>
 
@@ -749,39 +750,60 @@ export function DateWindowsFunnel({
         {/* Reaction buttons - show for everyone */}
         <div className="space-y-3">
           <p className="text-sm font-medium text-center text-brand-carbon">
-            Can you make these dates?
+            Do these dates work?
           </p>
           <div className="flex gap-2 justify-center">
-            <Button
-              size="sm"
-              variant={userReaction === 'WORKS' ? 'default' : 'outline'}
-              onClick={() => handleReact('WORKS')}
-              disabled={submitting}
-              className={userReaction === 'WORKS' ? 'bg-green-600 hover:bg-green-700' : 'border-green-200 text-green-700 hover:bg-green-50'}
-            >
-              <ThumbsUp className="h-4 w-4 mr-1" />
-              Works
-            </Button>
-            <Button
-              size="sm"
-              variant={userReaction === 'CAVEAT' ? 'default' : 'outline'}
-              onClick={() => handleReact('CAVEAT')}
-              disabled={submitting}
-              className={userReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
-            >
-              <HelpCircle className="h-4 w-4 mr-1" />
-              Maybe
-            </Button>
-            <Button
-              size="sm"
-              variant={userReaction === 'CANT' ? 'default' : 'outline'}
-              onClick={() => handleReact('CANT')}
-              disabled={submitting}
-              className={userReaction === 'CANT' ? 'bg-red-600 hover:bg-red-700' : 'border-red-200 text-red-700 hover:bg-red-50'}
-            >
-              <ThumbsDown className="h-4 w-4 mr-1" />
-              Can't
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={userReaction === 'WORKS' ? 'default' : 'outline'}
+                    onClick={() => handleReact('WORKS')}
+                    disabled={submitting}
+                    className={userReaction === 'WORKS' ? 'bg-green-600 hover:bg-green-700' : 'border-green-200 text-green-700 hover:bg-green-50'}
+                  >
+                    <ThumbsUp className="h-4 w-4 mr-1" />
+                    Works
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>These dates work for me</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={userReaction === 'CAVEAT' ? 'default' : 'outline'}
+                    onClick={() => handleReact('CAVEAT')}
+                    disabled={submitting}
+                    className={userReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
+                  >
+                    <HelpCircle className="h-4 w-4 mr-1" />
+                    Maybe
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>I might be able to make this work</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={userReaction === 'CANT' ? 'default' : 'outline'}
+                    onClick={() => handleReact('CANT')}
+                    disabled={submitting}
+                    className={userReaction === 'CANT' ? 'bg-red-600 hover:bg-red-700' : 'border-red-200 text-red-700 hover:bg-red-50'}
+                  >
+                    <ThumbsDown className="h-4 w-4 mr-1" />
+                    Can't
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>I can't make these dates</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
 
@@ -1022,7 +1044,7 @@ export function DateWindowsFunnel({
             <span className="flex items-center">
               <Plus className="h-4 w-4 mr-2" />
               {canCreateWindow
-                ? `Suggest dates (${remainingWindows} left)`
+                ? `Add your dates (${remainingWindows} left)`
                 : `Limit reached (${maxWindows}/${maxWindows})`
               }
             </span>
@@ -1102,7 +1124,7 @@ export function DateWindowsFunnel({
                   {!normalizationError && (
                     <>
                       <div>
-                        <Label htmlFor="dateText" className="text-sm">When could you do this trip?</Label>
+                        <Label htmlFor="dateText" className="text-sm">When works for you?</Label>
                         <Input
                           id="dateText"
                           type="text"
@@ -1113,6 +1135,9 @@ export function DateWindowsFunnel({
                         />
                         <p className="text-xs text-muted-foreground mt-1">
                           Examples: "Feb 7-9", "mid March", "last weekend of June", "April"
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          You can change your dates anytime until they're locked.
                         </p>
                       </div>
                       <Button
@@ -1142,7 +1167,7 @@ export function DateWindowsFunnel({
       {sortedWindows.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <CalendarIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>No date options yet. Be the first to suggest dates!</p>
+          <p>No suggestions yet. Share dates like "Feb 7-9" or "first week of April"</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -1248,8 +1273,8 @@ export function DateWindowsFunnel({
                             </TooltipTrigger>
                             <TooltipContent>
                               {proposalStatus?.proposalReady
-                                ? 'Propose this as the final dates'
-                                : 'Propose now (threshold not met yet)'}
+                                ? 'Put this to the group for feedback'
+                                : 'Put to group (not everyone has responded yet)'}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>

@@ -153,7 +153,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
       }
     } catch (error) {
       console.error('Create trip error:', error)
-      toast.error(error.message || 'Failed to create trip')
+      toast.error(error.message || 'Could not create trip — please try again')
     } finally {
       setCreating(false)
     }
@@ -201,6 +201,11 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
                 <SelectItem value="hosted">Hosted (fixed dates, join if available)</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              {tripForm.type === 'collaborative'
+                ? "Your group suggests and votes on dates together. Best for flexible planning."
+                : "You set the dates, others join if they can. Best when dates are already decided."}
+            </p>
           </div>
           {tripForm.type === 'collaborative' && (
             <div className="space-y-2">

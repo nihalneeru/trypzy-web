@@ -379,7 +379,7 @@ export function ChatTab({
     
     // Check if user is leader
     if (!isTripLeader) {
-      toast.error('Only the trip organizer can lock dates.')
+      toast.error('Locking dates is available to the trip leader')
       return
     }
     
@@ -415,9 +415,9 @@ export function ChatTab({
       logAnalytics('action_completed', nextAction?.id || 'lock-dates')
     } catch (error: any) {
       if (error.message?.includes('403') || error.message?.includes('Only')) {
-        toast.error('Only the trip organizer can lock dates.')
+        toast.error('Locking dates is available to the trip leader')
       } else {
-        toast.error(error.message || 'Failed to lock dates')
+        toast.error(error.message || 'Could not lock dates — please try again')
       }
     } finally {
       setLocking(false)
@@ -430,7 +430,7 @@ export function ChatTab({
     
     // Check if user is leader
     if (!isTripLeader) {
-      toast.error('Only the trip organizer can lock dates.')
+      toast.error('Locking dates is available to the trip leader')
       return
     }
     
@@ -454,9 +454,9 @@ export function ChatTab({
         logAnalytics('action_completed', 'lock-dates-direct')
       } catch (error: any) {
         if (error.message?.includes('403') || error.message?.includes('Only')) {
-          toast.error('Only the trip organizer can lock dates.')
+          toast.error('Locking dates is available to the trip leader')
         } else {
-          toast.error(error.message || 'Failed to lock dates')
+          toast.error(error.message || 'Could not lock dates — please try again')
         }
       } finally {
         setLocking(false)
@@ -535,7 +535,7 @@ export function ChatTab({
       
       toast.success('Join request approved')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to approve request')
+      toast.error(error.message || 'Could not approve request — please try again')
     } finally {
       setProcessingRequest(null)
     }
@@ -562,7 +562,7 @@ export function ChatTab({
       
       toast.success('Join request declined')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to decline request')
+      toast.error(error.message || 'Could not decline request — please try again')
     } finally {
       setProcessingRequest(null)
     }
@@ -738,7 +738,7 @@ export function ChatTab({
             )}
             
             {messages.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
+              <p className="text-center text-gray-500 py-8">No messages yet. Share ideas, ask questions, or coordinate plans here.</p>
             ) : (
               messages.map((msg: any) => {
                 // Determine if message is from current user (used for alignment and styling)
@@ -973,7 +973,7 @@ export function ChatTab({
                   <Button 
                     onClick={() => {
                       if (!isTripLeader) {
-                        toast.error('Only the trip organizer can lock dates.')
+                        toast.error('Locking dates is available to the trip leader')
                         return
                       }
                       if (!selectedLockWindow) return

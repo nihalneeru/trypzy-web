@@ -626,7 +626,7 @@ export function ItineraryOverlay({
       toast.success('Idea submitted!')
       await loadIdeas()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to add idea')
+      toast.error(error.message || 'Could not add idea — please try again')
     } finally {
       setAddingIdea(false)
     }
@@ -639,7 +639,7 @@ export function ItineraryOverlay({
       await api(`/trips/${trip.id}/itinerary/ideas/${ideaId}/like`, { method: 'POST' }, token)
       await loadIdeas()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to like idea')
+      toast.error(error.message || 'Could not like idea — please try again')
     }
   }
 
@@ -767,7 +767,7 @@ export function ItineraryOverlay({
       setShowFeedbackForm(false)
       await loadFeedback()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to submit feedback')
+      toast.error(error.message || 'Could not submit feedback — please try again')
     } finally {
       setSubmittingFeedback(false)
     }
@@ -848,7 +848,7 @@ export function ItineraryOverlay({
     } catch (error: any) {
       setReactingChip(null)
       setReactingAction(null)
-      toast.error(error.message || 'Failed to update reaction')
+      toast.error(error.message || 'Could not save reaction — please try again')
     }
   }
 
@@ -969,8 +969,9 @@ export function ItineraryOverlay({
             <p className="text-xs font-medium text-gray-500 mb-2">All Ideas</p>
             <ScrollArea className="h-[250px]">
               {loadingIdeas ? (
-                <div className="flex justify-center py-8">
-                  <BrandedSpinner size="md" />
+                <div className="flex flex-col items-center justify-center py-8">
+                  <BrandedSpinner size="md" className="mb-2" />
+                  <p className="text-sm text-gray-500">Loading ideas...</p>
                 </div>
               ) : ideasError ? (
                 <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -1097,17 +1098,22 @@ export function ItineraryOverlay({
         <CardContent>
           <ScrollArea className="h-[350px]">
             {loadingVersions ? (
-              <div className="flex justify-center py-8">
-                <BrandedSpinner size="md" />
+              <div className="flex flex-col items-center justify-center py-8">
+                <BrandedSpinner size="md" className="mb-2" />
+                <p className="text-sm text-gray-500">Loading itinerary...</p>
               </div>
             ) : !latestVersion ? (
               <div className="text-center py-8">
                 <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-3" />
                 <p className="text-gray-500 mb-2 text-sm">No itinerary generated yet</p>
-                {isLeader && (
+                {isLeader ? (
                   <p className="text-xs text-gray-400">
                     {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from{' '}
                     {groupedIdeas.length} {groupedIdeas.length === 1 ? 'traveler' : 'travelers'}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400">
+                    The organizer will generate an itinerary once ideas are collected.
                   </p>
                 )}
                 {llmDisabledMessage && (
@@ -1369,8 +1375,9 @@ export function ItineraryOverlay({
               <p className="text-xs font-medium text-gray-500 mb-2">Feedback History</p>
               <ScrollArea className="h-[200px]">
                 {loadingFeedback ? (
-                  <div className="flex justify-center py-6">
-                    <BrandedSpinner size="md" />
+                  <div className="flex flex-col items-center justify-center py-6">
+                    <BrandedSpinner size="md" className="mb-2" />
+                    <p className="text-sm text-gray-500">Loading feedback...</p>
                   </div>
                 ) : feedback.length === 0 ? (
                   <p className="text-center text-gray-500 py-6 text-sm">

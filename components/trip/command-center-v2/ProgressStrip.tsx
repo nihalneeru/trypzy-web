@@ -4,6 +4,12 @@ import { useMemo, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import type { OverlayType } from './types'
 
 // Map progress step keys to overlay types
@@ -184,9 +190,18 @@ export function ProgressStrip({
             {tripName}
           </h1>
           {isLeader && (
-            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-blue/10 text-brand-blue">
-              Leader
-            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-blue/10 text-brand-blue cursor-help">
+                    Leader
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">You're organizing this trip. You can lock dates and make final decisions.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           {dateDisplay && (
             <>

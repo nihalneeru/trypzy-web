@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   Sparkles, Globe, Search, Plus, Users, Compass, UserPlus
 } from 'lucide-react'
@@ -282,8 +283,9 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               Select a Circle
             </h3>
-            <p className="text-gray-500 mb-4">
-              Choose a circle from the dropdown above to see posts from that circle.
+            <p className="text-gray-500 mb-4 max-w-sm mx-auto">
+              Choose a circle from the dropdown above to see travel stories from your friends,
+              or browse all public stories.
             </p>
           </CardContent>
         </Card>
@@ -294,15 +296,24 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               {search ? 'No stories found' : 'No stories yet'}
             </h3>
-            <p className="text-gray-500 mb-4">
-              {search ? 'Try a different search term' : 'Be the first to share your travel story!'}
+            <p className="text-gray-500 mb-4 max-w-sm mx-auto">
+              {search
+                ? 'Try a different search term or browse all stories.'
+                : 'Discover is where travel stories from your circles appear. Share your adventures or start planning a trip!'}
             </p>
-            {!search && (
-              <Button onClick={() => setShowShareModal(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Share Your Story
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {!search && (
+                <Button onClick={() => setShowShareModal(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Share Your Story
+                </Button>
+              )}
+              <Button variant="outline" asChild>
+                <Link href="/dashboard">
+                  Go to Dashboard
+                </Link>
               </Button>
-            )}
+            </div>
           </CardContent>
         </Card>
       ) : (

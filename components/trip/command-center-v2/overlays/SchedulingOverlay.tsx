@@ -373,7 +373,7 @@ export function SchedulingOverlay({
       setHasUnsavedChanges(false)
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save picks')
+      toast.error(error.message || 'Could not save picks — please try again')
     } finally {
       setSavingPicks(false)
     }
@@ -404,7 +404,7 @@ export function SchedulingOverlay({
       toast.success(trip.userVote ? 'Vote updated!' : 'Vote submitted!')
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to submit vote')
+      toast.error(error.message || 'Could not submit vote — please try again')
     } finally {
       setSubmittingVote(false)
     }
@@ -448,9 +448,9 @@ export function SchedulingOverlay({
       onRefresh(updatedTrip)
     } catch (error: any) {
       if (error.message?.includes('403') || error.message?.includes('Only')) {
-        toast.error('Only the trip organizer can lock dates.')
+        toast.error('Locking dates is available to the trip leader')
       } else {
-        toast.error(error.message || 'Failed to lock dates')
+        toast.error(error.message || 'Could not lock dates — please try again')
       }
       setShowLockConfirmation(false)
       setPendingLockDate(null)
@@ -710,6 +710,7 @@ export function SchedulingOverlay({
           </CardTitle>
           <CardDescription>
             Pick your top 3 date options. Hover to preview, then click to select.
+            You can adjust your picks anytime until the leader locks dates.
           </CardDescription>
         </CardHeader>
         <CardContent>
