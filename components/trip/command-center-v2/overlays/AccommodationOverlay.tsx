@@ -209,7 +209,7 @@ export function AccommodationOverlay({
       await loadData()
       onRefresh?.()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to add accommodation option')
+      toast.error(err.message || 'Could not add option — please try again')
     } finally {
       setAdding(false)
     }
@@ -229,7 +229,7 @@ export function AccommodationOverlay({
       await loadData()
       onRefresh?.()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete option')
+      toast.error(err.message || 'Could not delete option — please try again')
     } finally {
       setDeleting(null)
     }
@@ -249,7 +249,7 @@ export function AccommodationOverlay({
       await loadData()
       onRefresh?.()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to vote')
+      toast.error(err.message || 'Could not save vote — please try again')
     } finally {
       setVoting(null)
     }
@@ -276,7 +276,7 @@ export function AccommodationOverlay({
       await loadData()
       onRefresh?.(result?.trip || undefined)
     } catch (err: any) {
-      toast.error(err.message || 'Failed to select accommodation')
+      toast.error(err.message || 'Could not select accommodation — please try again')
     } finally {
       setSelecting(false)
     }
@@ -546,6 +546,7 @@ export function AccommodationOverlay({
                               className="text-gray-400 hover:text-red-600"
                               onClick={() => handleDelete(option.id)}
                               disabled={deleting === option.id}
+                              aria-label="Delete accommodation option"
                             >
                               {deleting === option.id ? (
                                 <BrandedSpinner size="sm" />

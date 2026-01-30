@@ -151,7 +151,7 @@ export function MemoriesOverlay({
       toast.success(`${newUrls.length} image(s) uploaded`)
       setHasUnsavedChanges(true)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to upload images')
+      toast.error(error.message || 'Could not upload images — please try again')
     } finally {
       setUploading(false)
     }
@@ -190,7 +190,7 @@ export function MemoriesOverlay({
       await loadMemories()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create memory')
+      toast.error(error.message || 'Could not save memory — please try again')
     } finally {
       setCreating(false)
     }
@@ -208,7 +208,7 @@ export function MemoriesOverlay({
       await loadMemories()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete memory')
+      toast.error(error.message || 'Could not delete memory — please try again')
     } finally {
       setDeleting(false)
     }
@@ -310,6 +310,7 @@ export function MemoriesOverlay({
                     <button
                       onClick={() => setDeletingMemoryId(memory.id)}
                       className="absolute top-2 left-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Delete memory"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -390,6 +391,7 @@ export function MemoriesOverlay({
                           <button
                             onClick={() => removeImage(idx)}
                             className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow"
+                            aria-label="Remove image"
                           >
                             <X className="h-3 w-3" />
                           </button>

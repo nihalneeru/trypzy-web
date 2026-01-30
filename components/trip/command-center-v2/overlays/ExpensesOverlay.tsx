@@ -221,7 +221,7 @@ export function ExpensesOverlay({
       await loadExpenses()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to add expense')
+      toast.error(error.message || 'Could not add expense — please try again')
     } finally {
       setAdding(false)
     }
@@ -241,7 +241,7 @@ export function ExpensesOverlay({
       await loadExpenses()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete expense')
+      toast.error(error.message || 'Could not delete expense — please try again')
     } finally {
       setDeleting(false)
     }
@@ -538,6 +538,7 @@ export function ExpensesOverlay({
                           size="icon"
                           className="h-8 w-8 ml-2"
                           onClick={() => setDeletingExpenseId(expense._id || expense.id)}
+                          aria-label="Delete expense"
                         >
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>

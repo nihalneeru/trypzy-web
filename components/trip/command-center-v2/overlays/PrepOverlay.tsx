@@ -172,7 +172,7 @@ export function PrepOverlay({
       // P0-3: Trigger trip refresh
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to add transport')
+      toast.error(error.message || 'Could not add transport — please try again')
     } finally {
       setAdding(false)
     }
@@ -206,7 +206,7 @@ export function PrepOverlay({
       loadPrepData()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to add packing item')
+      toast.error(error.message || 'Could not add item — please try again')
     } finally {
       setAdding(false)
     }
@@ -226,7 +226,7 @@ export function PrepOverlay({
       loadPrepData()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update item')
+      toast.error(error.message || 'Could not update item — please try again')
     }
   }
 
@@ -281,7 +281,7 @@ export function PrepOverlay({
       loadPrepData()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete transport')
+      toast.error(error.message || 'Could not delete transport — please try again')
     } finally {
       setDeletingTransport(null)
     }
@@ -300,7 +300,7 @@ export function PrepOverlay({
       loadPrepData()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete item')
+      toast.error(error.message || 'Could not delete item — please try again')
     } finally {
       setDeletingChecklist(null)
     }
@@ -499,6 +499,7 @@ export function PrepOverlay({
                         className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
                         onClick={() => handleDeleteTransport(item.id)}
                         disabled={deletingTransport === item.id}
+                        aria-label="Delete transport"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -570,6 +571,7 @@ export function PrepOverlay({
                     className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
                     onClick={() => handleDeleteChecklist(item.id)}
                     disabled={deletingChecklist === item.id}
+                    aria-label="Delete checklist item"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
