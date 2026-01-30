@@ -477,6 +477,17 @@ Creates test users: alex.traveler@example.com / password123
 - **ProgressStrip**: Added "Leader" badge next to trip name for role clarity
 - **Dashboard**: Improved empty state with explanatory text about circles (what they are, when to create vs join)
 
+**Round 5 (fix/usability-audit-round2 branch, 2026-01-30)**:
+- **Terminology**: Friendlier language in date window flow ("Add your dates" instead of "Suggest dates", "Leader's Pick" badge)
+- **Reassurance copy**: Added "you can change until locked" messaging to reduce commitment anxiety
+- **Empty states**: Improved Discover feed, Chat, Accommodation, Itinerary, Expenses, Prep, Memories overlays
+- **Touch targets**: 44px minimum on mobile (WCAG) for OverlayContainer, ChatBottomCTA, TripCard
+- **Tooltips**: Leader badge explains role; reaction buttons (Works/Maybe/Can't) have descriptive tooltips
+- **Trip type help text**: Dynamic explanation below select ("Your group suggests and votes..." vs "You set the dates...")
+- **Aria-labels**: Delete buttons in Memories, Prep, Expenses, Accommodation overlays
+- **Loading spinners**: Context text ("Loading scheduling/ideas/itinerary/feedback...")
+- **Toast messages**: Friendlier error messages ("Could not X — please try again" instead of "Failed to X")
+
 **Deferred until public launch**:
 - Rate limiting (needs Redis/Upstash infrastructure)
 - Remaining generic Tailwind colors (20+ files - low priority)
