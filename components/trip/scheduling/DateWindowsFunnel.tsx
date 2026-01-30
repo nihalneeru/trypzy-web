@@ -268,7 +268,7 @@ export function DateWindowsFunnel({
         toast.success('Preference saved')
       }
     } catch {
-      toast.error('Failed to save preference')
+      toast.error('Could not save preference — please try again')
     }
   }
 
@@ -335,7 +335,7 @@ export function DateWindowsFunnel({
     }
 
     if (manualStartDate > manualEndDate) {
-      toast.error('Start date must be before end date')
+      toast.error('Looks like the end date is before the start date')
       return
     }
 
@@ -569,7 +569,7 @@ export function DateWindowsFunnel({
     }
 
     if (concreteDatesStart > concreteDatesEnd) {
-      toast.error('Start date must be before end date')
+      toast.error('Looks like the end date is before the start date')
       return
     }
 
@@ -680,8 +680,9 @@ export function DateWindowsFunnel({
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-red" />
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-red mb-3" />
+        <p className="text-sm text-gray-500">Loading scheduling...</p>
       </div>
     )
   }
@@ -752,36 +753,57 @@ export function DateWindowsFunnel({
             Do these dates work?
           </p>
           <div className="flex gap-2 justify-center">
-            <Button
-              size="sm"
-              variant={userReaction === 'WORKS' ? 'default' : 'outline'}
-              onClick={() => handleReact('WORKS')}
-              disabled={submitting}
-              className={userReaction === 'WORKS' ? 'bg-green-600 hover:bg-green-700' : 'border-green-200 text-green-700 hover:bg-green-50'}
-            >
-              <ThumbsUp className="h-4 w-4 mr-1" />
-              Works
-            </Button>
-            <Button
-              size="sm"
-              variant={userReaction === 'CAVEAT' ? 'default' : 'outline'}
-              onClick={() => handleReact('CAVEAT')}
-              disabled={submitting}
-              className={userReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
-            >
-              <HelpCircle className="h-4 w-4 mr-1" />
-              Maybe
-            </Button>
-            <Button
-              size="sm"
-              variant={userReaction === 'CANT' ? 'default' : 'outline'}
-              onClick={() => handleReact('CANT')}
-              disabled={submitting}
-              className={userReaction === 'CANT' ? 'bg-red-600 hover:bg-red-700' : 'border-red-200 text-red-700 hover:bg-red-50'}
-            >
-              <ThumbsDown className="h-4 w-4 mr-1" />
-              Can't
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={userReaction === 'WORKS' ? 'default' : 'outline'}
+                    onClick={() => handleReact('WORKS')}
+                    disabled={submitting}
+                    className={userReaction === 'WORKS' ? 'bg-green-600 hover:bg-green-700' : 'border-green-200 text-green-700 hover:bg-green-50'}
+                  >
+                    <ThumbsUp className="h-4 w-4 mr-1" />
+                    Works
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>These dates work for me</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={userReaction === 'CAVEAT' ? 'default' : 'outline'}
+                    onClick={() => handleReact('CAVEAT')}
+                    disabled={submitting}
+                    className={userReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
+                  >
+                    <HelpCircle className="h-4 w-4 mr-1" />
+                    Maybe
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>I might be able to make this work</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={userReaction === 'CANT' ? 'default' : 'outline'}
+                    onClick={() => handleReact('CANT')}
+                    disabled={submitting}
+                    className={userReaction === 'CANT' ? 'bg-red-600 hover:bg-red-700' : 'border-red-200 text-red-700 hover:bg-red-50'}
+                  >
+                    <ThumbsDown className="h-4 w-4 mr-1" />
+                    Can't
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>I can't make these dates</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
 
