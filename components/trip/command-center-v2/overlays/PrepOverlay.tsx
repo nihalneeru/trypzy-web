@@ -614,7 +614,7 @@ export function PrepOverlay({
                 <Input
                   value={newTransport.fromLocation}
                   onChange={(e) => setNewTransport({ ...newTransport, fromLocation: e.target.value })}
-                  placeholder="City or location"
+                  placeholder="Departure city (e.g., NYC)"
                 />
               </div>
               <div className="space-y-2">
@@ -622,7 +622,7 @@ export function PrepOverlay({
                 <Input
                   value={newTransport.toLocation}
                   onChange={(e) => setNewTransport({ ...newTransport, toLocation: e.target.value })}
-                  placeholder="City or location"
+                  placeholder="Arrival city (e.g., Paris)"
                 />
               </div>
             </div>

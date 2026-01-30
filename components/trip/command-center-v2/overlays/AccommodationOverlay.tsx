@@ -411,9 +411,9 @@ export function AccommodationOverlay({
           {accommodations.length === 0 ? (
             <div className="text-center py-8">
               <Home className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 mb-1 text-sm">No options submitted yet</p>
+              <p className="text-gray-500 mb-1 text-sm">No options yet</p>
               <p className="text-xs text-gray-400">
-                Share an accommodation option for the group to vote on
+                Share a link, name, and price to help the group decide where to stay
               </p>
             </div>
           ) : (

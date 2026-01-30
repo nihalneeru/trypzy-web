@@ -738,7 +738,7 @@ export function ChatTab({
             )}
             
             {messages.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No messages yet. Start the conversation!</p>
+              <p className="text-center text-gray-500 py-8">No messages yet. Share ideas, ask questions, or coordinate plans here.</p>
             ) : (
               messages.map((msg: any) => {
                 // Determine if message is from current user (used for alignment and styling)

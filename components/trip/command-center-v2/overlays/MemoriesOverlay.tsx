@@ -432,7 +432,7 @@ export function MemoriesOverlay({
                   setCaption(e.target.value)
                   setHasUnsavedChanges(true)
                 }}
-                placeholder="Share your experience..."
+                placeholder="Best sunset, that amazing cafe, hiking highlights..."
                 rows={3}
               />
             </div>

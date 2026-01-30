@@ -1104,10 +1104,14 @@ export function ItineraryOverlay({
               <div className="text-center py-8">
                 <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-3" />
                 <p className="text-gray-500 mb-2 text-sm">No itinerary generated yet</p>
-                {isLeader && (
+                {isLeader ? (
                   <p className="text-xs text-gray-400">
                     {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from{' '}
                     {groupedIdeas.length} {groupedIdeas.length === 1 ? 'traveler' : 'travelers'}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400">
+                    The organizer will generate an itinerary once ideas are collected.
                   </p>
                 )}
                 {llmDisabledMessage && (

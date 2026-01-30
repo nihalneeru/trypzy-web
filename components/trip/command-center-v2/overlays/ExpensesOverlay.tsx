@@ -591,7 +591,7 @@ export function ExpensesOverlay({
                   setFormData(prev => ({ ...prev, amount: e.target.value }))
                   setFormErrors(prev => ({ ...prev, amount: '' }))
                 }}
-                placeholder="0.00"
+                placeholder="e.g., 50.00"
               />
               {formErrors.amount && <p className="text-sm text-red-500 mt-1">{formErrors.amount}</p>}
             </div>
