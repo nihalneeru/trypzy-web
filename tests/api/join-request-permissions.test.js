@@ -379,9 +379,8 @@ describe('Join Request Permissions', () => {
       expect(showJoinButton).toBe(false)
     })
 
-    it('should still allow API join request when privacy is false (backend validation TODO)', async () => {
-      // NOTE: Current API does not check allowTripJoinRequests on the trip creator's privacy
-      // This test documents current behavior. Future implementation should reject.
+    it('should reject API join request when allowTripJoinRequests is false', async () => {
+      // Backend now enforces allowTripJoinRequests privacy setting
 
       const leaderId = 'test-join-leader-6'
       const requesterId = 'test-join-requester-6'
@@ -415,15 +414,10 @@ describe('Join Request Permissions', () => {
 
       const response = await POST(request, { params: { path: ['trips', tripId, 'join-requests'] } })
 
-      // Current behavior: API allows the request (no backend check for allowTripJoinRequests)
-      // TODO: Future implementation should check creator's privacy and return 403
-      // For now, we document this as allowing the request
-      expect(response.status).toBe(200)
-
-      // Note: If implementing backend validation, update this test to expect:
-      // expect(response.status).toBe(403)
-      // const errorData = await response.json()
-      // expect(errorData.error).toContain('not accepting join requests')
+      // Backend now enforces allowTripJoinRequests and rejects the request
+      expect(response.status).toBe(403)
+      const errorData = await response.json()
+      expect(errorData.error).toContain('not accepting join requests')
     })
   })
 
@@ -819,8 +813,7 @@ describe('Join Request Permissions', () => {
       expect(response.status).toBe(404)
     })
 
-    // TODO: /join-requests/me endpoint returns 404 - not implemented yet
-    it.skip('should get current user join request status', async () => {
+    it('should get current user join request status', async () => {
       // Setup: User has a pending join request
       const leaderId = 'test-join-leader-17'
       const requesterId = 'test-join-requester-17'
@@ -856,8 +849,7 @@ describe('Join Request Permissions', () => {
       expect(data.requestId).toBe(requestId)
     })
 
-    // TODO: /join-requests/me endpoint returns 404 - not implemented yet
-    it.skip('should return none when user has no join request', async () => {
+    it('should return none when user has no join request', async () => {
       // Setup: User has no join request
       const leaderId = 'test-join-leader-18'
       const requesterId = 'test-join-requester-18'
