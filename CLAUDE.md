@@ -404,6 +404,8 @@ CORS_ORIGINS=http://localhost:3000
 OPENAI_API_KEY=your-openai-key
 # Admin/Debug (required in all environments):
 ADMIN_DEBUG_TOKEN=your-admin-token    # For /api/admin/* endpoints
+# Storage (required for production image uploads):
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxx  # Vercel Blob storage token
 # Optional:
 # CRON_SECRET=your-cron-secret        # For /api/jobs/aggregates
 # OPENAI_API_URL=https://api.openai.com/v1/chat/completions
@@ -429,6 +431,12 @@ npm run build         # Production build
 npm run seed
 ```
 Creates test users: alex.traveler@example.com / password123
+
+**GOLDEN RULE: Never work directly on main branch.**
+- Always create a feature branch (e.g., `feat/feature-name`, `fix/bug-name`)
+- Work on the feature branch
+- Create PR to merge into main
+- This is a hard rule with no exceptions
 
 ## 9) "If you only read 5 things" (for Claude)
 

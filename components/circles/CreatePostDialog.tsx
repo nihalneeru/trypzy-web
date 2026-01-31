@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Camera, Plus, X, Globe, EyeOff, ListTodo, Check
 } from 'lucide-react'
+import { useBlobUpload } from '@/hooks/use-blob-upload'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter
@@ -34,7 +35,6 @@ interface CreatePostDialogProps {
 }
 
 export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, onCreated }: CreatePostDialogProps) {
-  const [uploading, setUploading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [mediaUrls, setMediaUrls] = useState<string[]>([])
   const [caption, setCaption] = useState('')
@@ -46,6 +46,9 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
   const [itineraryMode, setItineraryMode] = useState('highlights')
   const [loadingItinerary, setLoadingItinerary] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Use blob upload hook for client-direct uploads
+  const { uploadFiles, uploading } = useBlobUpload()
 
   // Fetch selected itinerary when trip changes
   useEffect(() => {
@@ -85,33 +88,15 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
       return
     }
 
-    setUploading(true)
-    try {
-      const uploadPromises = files.map(async (file) => {
-        const formData = new FormData()
-        formData.append('file', file)
-
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        })
-
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error)
-        return data.url
-      })
-
-      const newUrls = await Promise.all(uploadPromises)
+    const newUrls = await uploadFiles(files)
+    if (newUrls.length > 0) {
       setMediaUrls([...mediaUrls, ...newUrls])
       toast.success(`${newUrls.length} image(s) uploaded`)
-    } catch (error: any) {
-      toast.error(error.message)
-    } finally {
-      setUploading(false)
-      // Reset file input so re-selecting the same file works
-      if (fileInputRef.current) fileInputRef.current.value = ''
+    } else {
+      toast.error('Could not upload images — please try again')
     }
+    // Reset file input so re-selecting the same file works
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const removeImage = (idx: number) => {
