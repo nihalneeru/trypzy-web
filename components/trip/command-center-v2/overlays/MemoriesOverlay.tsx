@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { useBlobUpload } from '@/hooks/use-blob-upload'
 import {
   Dialog,
   DialogContent,
@@ -83,12 +84,14 @@ export function MemoriesOverlay({
   const [deleting, setDeleting] = useState(false)
 
   // Create form state
-  const [uploading, setUploading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [mediaUrls, setMediaUrls] = useState<string[]>([])
   const [caption, setCaption] = useState('')
   const [discoverable, setDiscoverable] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Use blob upload hook for client-direct uploads
+  const { uploadFiles, uploading } = useBlobUpload()
 
   const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
 
@@ -128,32 +131,13 @@ export function MemoriesOverlay({
       return
     }
 
-    setUploading(true)
-
-    try {
-      const uploadPromises = files.map(async (file) => {
-        const formData = new FormData()
-        formData.append('file', file)
-
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData
-        })
-
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error)
-        return data.url
-      })
-
-      const newUrls = await Promise.all(uploadPromises)
+    const newUrls = await uploadFiles(files)
+    if (newUrls.length > 0) {
       setMediaUrls([...mediaUrls, ...newUrls])
       toast.success(`${newUrls.length} image(s) uploaded`)
       setHasUnsavedChanges(true)
-    } catch (error: any) {
-      toast.error(error.message || 'Could not upload images — please try again')
-    } finally {
-      setUploading(false)
+    } else {
+      toast.error('Could not upload images — please try again')
     }
   }
 

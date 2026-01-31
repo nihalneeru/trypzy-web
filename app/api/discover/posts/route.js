@@ -209,7 +209,10 @@ export async function GET(request) {
   }
 }
 
-// POST /api/discover/posts - Create discover post (authenticated, multipart/form-data)
+// POST /api/discover/posts - Create discover post (authenticated)
+// Accepts either:
+// - JSON with { scope, circleId?, tripId?, caption?, mediaUrls } (client-direct uploads)
+// - FormData with scope, circleId?, tripId?, caption?, images[] (legacy server uploads)
 export async function POST(request) {
   try {
     // Authentication check
@@ -217,15 +220,82 @@ export async function POST(request) {
     if (auth.error) {
       return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
     }
-    
-    // Parse multipart/form-data
-    const formData = await request.formData()
-    const scope = formData.get('scope')
-    const circleId = formData.get('circleId')
-    const tripId = formData.get('tripId')
-    const caption = formData.get('caption')
-    const images = formData.getAll('images') // Multiple files
-    
+
+    const contentType = request.headers.get('content-type') || ''
+    let scope, circleId, tripId, caption, mediaUrls
+
+    // Handle JSON body (new client-direct upload flow)
+    if (contentType.includes('application/json')) {
+      const body = await request.json()
+      scope = body.scope
+      circleId = body.circleId
+      tripId = body.tripId
+      caption = body.caption
+      mediaUrls = body.mediaUrls
+
+      // Validate mediaUrls
+      if (!mediaUrls || !Array.isArray(mediaUrls) || mediaUrls.length === 0 || mediaUrls.length > 5) {
+        return handleCORS(NextResponse.json(
+          { error: 'Posts require 1-5 images' },
+          { status: 400 }
+        ))
+      }
+    }
+    // Handle FormData (legacy server upload flow)
+    else {
+      const formData = await request.formData()
+      scope = formData.get('scope')
+      circleId = formData.get('circleId')
+      tripId = formData.get('tripId')
+      caption = formData.get('caption')
+      const images = formData.getAll('images')
+
+      // Validate images
+      if (!images || images.length === 0 || images.length > 5) {
+        return handleCORS(NextResponse.json(
+          { error: 'Posts require 1-5 images' },
+          { status: 400 }
+        ))
+      }
+
+      // Validate file types and sizes
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+      const maxSize = 5 * 1024 * 1024
+
+      for (const file of images) {
+        if (!allowedTypes.includes(file.type)) {
+          return handleCORS(NextResponse.json(
+            { error: `Invalid file type: ${file.type}. Allowed: JPEG, PNG, WebP` },
+            { status: 400 }
+          ))
+        }
+        if (file.size > maxSize) {
+          return handleCORS(NextResponse.json(
+            { error: `File ${file.name} is too large. Maximum size is 5MB` },
+            { status: 400 }
+          ))
+        }
+      }
+
+      // Save files to local storage (legacy - will fail on Vercel with EROFS)
+      const uploadsDir = join(process.cwd(), 'public', 'uploads')
+      try {
+        await access(uploadsDir)
+      } catch {
+        await mkdir(uploadsDir, { recursive: true })
+      }
+
+      mediaUrls = []
+      for (const file of images) {
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+        const filename = `${uuidv4()}.${ext}`
+        const filePath = join(uploadsDir, filename)
+        const buffer = Buffer.from(await file.arrayBuffer())
+        await writeFile(filePath, buffer)
+        mediaUrls.push(`/uploads/${filename}`)
+      }
+    }
+
     // Validate scope
     if (!scope || (scope !== 'global' && scope !== 'circle')) {
       return handleCORS(NextResponse.json(
@@ -233,7 +303,7 @@ export async function POST(request) {
         { status: 400 }
       ))
     }
-    
+
     // Validate scope rules
     if (scope === 'global') {
       // Global scope: circleId must be null
@@ -258,22 +328,22 @@ export async function POST(request) {
           { status: 400 }
         ))
       }
-      
+
       const db = await connectToMongo()
-      
+
       // Verify membership
       const membership = await db.collection('memberships').findOne({
         userId: auth.user.id,
         circleId
       })
-      
+
       if (!membership) {
         return handleCORS(NextResponse.json(
           { error: 'You must be a member of this circle to create a discover post' },
           { status: 403 }
         ))
       }
-      
+
       // If tripId provided, verify it belongs to this circle
       if (tripId) {
         const trip = await db.collection('trips').findOne({ id: tripId, circleId })
@@ -285,55 +355,10 @@ export async function POST(request) {
         }
       }
     }
-    
-    // Validate images
-    if (!images || images.length === 0 || images.length > 5) {
-      return handleCORS(NextResponse.json(
-        { error: 'Posts require 1-5 images' },
-        { status: 400 }
-      ))
-    }
-    
-    // Validate file types and sizes
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    const maxSize = 5 * 1024 * 1024 // 5MB
-    
-    for (const file of images) {
-      if (!allowedTypes.includes(file.type)) {
-        return handleCORS(NextResponse.json(
-          { error: `Invalid file type: ${file.type}. Allowed: JPEG, PNG, WebP` },
-          { status: 400 }
-        ))
-      }
-      if (file.size > maxSize) {
-        return handleCORS(NextResponse.json(
-          { error: `File ${file.name} is too large. Maximum size is 5MB` },
-          { status: 400 }
-        ))
-      }
-    }
-    
-    // Ensure uploads directory exists
-    const uploadsDir = join(process.cwd(), 'public', 'uploads')
-    try {
-      await access(uploadsDir)
-    } catch {
-      await mkdir(uploadsDir, { recursive: true })
-    }
-    
-    // Save files and collect URLs
-    const mediaUrls = []
-    for (const file of images) {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-      const filename = `${uuidv4()}.${ext}`
-      const filePath = join(uploadsDir, filename)
-      const buffer = Buffer.from(await file.arrayBuffer())
-      await writeFile(filePath, buffer)
-      mediaUrls.push(`/uploads/${filename}`)
-    }
-    
-    const db = await connectToMongo()
-    
+
+    // Get db connection for post creation
+    const dbForPost = await connectToMongo()
+
     // Create post with discoverable=true and discoverScope
     const post = {
       id: uuidv4(),
@@ -350,7 +375,7 @@ export async function POST(request) {
       createdAt: new Date().toISOString()
     }
     
-    await db.collection('posts').insertOne(post)
+    await dbForPost.collection('posts').insertOne(post)
     
     return handleCORS(NextResponse.json({
       ...post,
