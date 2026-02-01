@@ -43,17 +43,31 @@ function LoginPageContent() {
   // Handle error query params from auth callbacks
   useEffect(() => {
     const error = searchParams.get('error')
+    if (!error) return
+
+    // Log actual error in development for debugging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Auth] Error from callback:', error)
+    }
+
     if (error === 'AccountNotFound') {
       toast.error('No account found with that email. Redirecting to sign up...')
       setTimeout(() => router.replace('/signup'), 1500)
+      return // Don't clean URL, we're redirecting
     } else if (error === 'AccountExists') {
       toast.error('An account already exists with that email. Please log in.')
-      // Clean up URL
-      window.history.replaceState({}, '', '/login')
-    } else if (error) {
-      toast.error('Authentication failed. Please try again.')
-      window.history.replaceState({}, '', '/login')
+    } else if (error === 'CallbackError') {
+      toast.error('Something went wrong during sign in. Please try again.')
+    } else {
+      // Show actual error in development, generic message in production
+      const message = process.env.NODE_ENV === 'development'
+        ? `Auth error: ${error}`
+        : 'Authentication failed. Please try again.'
+      toast.error(message)
     }
+
+    // Clean up URL
+    window.history.replaceState({}, '', '/login')
   }, [searchParams, router])
 
   // Handle OAuth callback and already-authenticated users
