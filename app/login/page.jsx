@@ -69,7 +69,8 @@ export default function LoginPage() {
       sessionStorage.setItem('login_beta_secret', betaSecret)
 
       // Set auth mode cookie for server-side validation
-      document.cookie = 'trypzy_auth_mode=login; parse=true; path=/'
+      // Use SameSite=Lax to ensure cookie survives OAuth redirect
+      document.cookie = 'trypzy_auth_mode=login; path=/; SameSite=Lax'
 
       // Initiate Google OAuth sign-in
       await signIn('google', {
