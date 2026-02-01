@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import Image from 'next/image'
 import { toast } from 'sonner'
 
@@ -42,7 +43,7 @@ const api = async (endpoint, options = {}) => {
   return data
 }
 
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
@@ -256,5 +257,18 @@ export default function SignupPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+// Wrap in Suspense for useSearchParams (required by Next.js 14)
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <BrandedSpinner size="lg" />
+      </div>
+    }>
+      <SignupPageContent />
+    </Suspense>
   )
 }
