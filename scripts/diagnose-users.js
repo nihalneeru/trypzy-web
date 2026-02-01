@@ -35,11 +35,23 @@ async function diagnose() {
     })
     console.log(`Users with custom id field: ${usersWithId}`)
 
-    // Users without custom id field (created by adapter only)
+    // Users without custom id field
     const usersWithoutId = await db.collection('users').countDocuments({
       id: { $exists: false }
     })
     console.log(`Users WITHOUT custom id field: ${usersWithoutId}`)
+
+    // Users with googleId (OAuth linked)
+    const usersWithGoogleId = await db.collection('users').countDocuments({
+      googleId: { $exists: true }
+    })
+    console.log(`Users with googleId (OAuth linked): ${usersWithGoogleId}`)
+
+    // Users without googleId (need to re-auth to link)
+    const usersWithoutGoogleId = await db.collection('users').countDocuments({
+      googleId: { $exists: false }
+    })
+    console.log(`Users WITHOUT googleId: ${usersWithoutGoogleId}`)
 
     if (usersWithoutId > 0) {
       console.log('\n⚠️  These users need migration (will happen automatically on next login):')
