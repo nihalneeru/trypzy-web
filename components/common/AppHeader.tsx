@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
 import { Users, Sparkles, LogOut } from 'lucide-react'
@@ -14,9 +15,14 @@ interface AppHeaderProps {
 export function AppHeader({ userName, activePage }: AppHeaderProps) {
   const router = useRouter()
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear localStorage
     localStorage.removeItem('trypzy_token')
     localStorage.removeItem('trypzy_user')
+    // Clear auth mode cookie
+    document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    // Clear NextAuth session (this clears the session cookie)
+    await signOut({ redirect: false })
     router.replace('/')
   }
 
