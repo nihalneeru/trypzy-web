@@ -93,6 +93,10 @@ export default function SignupPage() {
       // Store secret in sessionStorage to verify in callback
       sessionStorage.setItem('signup_beta_secret', betaSecret)
 
+      // Set auth mode cookie for server-side validation
+      // Use SameSite=Lax to ensure cookie survives OAuth redirect
+      document.cookie = 'trypzy_auth_mode=signup; path=/; SameSite=Lax'
+
       // Initiate Google OAuth sign-in
       // NextAuth will handle the redirect and callback
       // When redirect: true, signIn doesn't return a value, so the page will redirect
