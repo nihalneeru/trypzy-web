@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { generateItinerary, summarizeFeedback, reviseItinerary } from '@/lib/server/llm.js'
+import { generateItinerary, summarizeFeedback, reviseItinerary, LLM_MODEL } from '@/lib/server/llm.js'
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config.js'
@@ -10340,7 +10340,7 @@ async function handleRoute(request, { params }) {
           .toArray()).length
 
         // Generate itinerary using LLM
-        const itineraryContent = await generateItinerary({
+        const itineraryResult = await generateItinerary({
           destination: destinationHint || trip.description || trip.name,
           startDate: lockedStartDate,
           endDate: lockedEndDate,
@@ -10357,7 +10357,10 @@ async function handleRoute(request, { params }) {
           constraints: [...new Set(allConstraints)]
         })
 
-        // Create version 1
+        // Extract _meta for observability, remove from content
+        const { _meta, ...itineraryContent } = itineraryResult
+
+        // Create version 1 with llmMeta for observability
         const version = {
           id: uuidv4(),
           tripId,
@@ -10366,7 +10369,17 @@ async function handleRoute(request, { params }) {
           createdAt: new Date().toISOString(),
           sourceIdeaIds: ideas.map(i => i.id),
           content: itineraryContent,
-          changeLog: ''
+          changeLog: '',
+          // Observability metadata - no PII, no raw prompts
+          llmMeta: {
+            model: LLM_MODEL,
+            generatedAt: new Date().toISOString(),
+            promptTokenEstimate: _meta?.promptTokenEstimate || 0,
+            ideaCount: _meta?.ideasUsedCount || ideas.length,
+            feedbackCount: 0,
+            reactionCount: 0,
+            chatMessageCount: 0
+          }
         }
 
         await db.collection('itinerary_versions').insertOne(version)
@@ -11007,7 +11020,7 @@ async function handleRoute(request, { params }) {
         const feedbackSummary = await summarizeFeedback(feedbackMessages, reactions, recentChatMessages)
 
         // Revise itinerary using LLM
-        const { itinerary: revisedContent, changeLog } = await reviseItinerary({
+        const { itinerary: revisedContent, changeLog, _meta } = await reviseItinerary({
           currentItinerary: latestVersion.content,
           feedbackSummary,
           newIdeas: newIdeas.map(idea => ({
@@ -11017,6 +11030,7 @@ async function handleRoute(request, { params }) {
             category: idea.category,
             location: idea.location
           })),
+          chatMessages: recentChatMessages, // Pass for truncation tracking
           destination: trip.description || trip.name,
           startDate: lockedStartDate,
           endDate: lockedEndDate,
@@ -11038,7 +11052,17 @@ async function handleRoute(request, { params }) {
           createdAt: new Date().toISOString(),
           sourceIdeaIds: [...new Set(sourceIdeaIds)],
           content: revisedContent,
-          changeLog: changeLog.trim()
+          changeLog: changeLog.trim(),
+          // Observability metadata - no PII, no raw prompts
+          llmMeta: {
+            model: LLM_MODEL,
+            generatedAt: new Date().toISOString(),
+            promptTokenEstimate: _meta?.promptTokenEstimate || 0,
+            ideaCount: _meta?.newIdeasUsedCount || newIdeas.length,
+            feedbackCount: feedbackMessages.length,
+            reactionCount: reactions.length,
+            chatMessageCount: _meta?.chatMessagesCount || recentChatMessages.length
+          }
         }
 
         await db.collection('itinerary_versions').insertOne(newVersion)
