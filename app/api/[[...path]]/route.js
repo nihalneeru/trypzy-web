@@ -11082,6 +11082,13 @@ async function handleRoute(request, { params }) {
         .limit(5)
         .toArray()
 
+      // =====================================================================
+      // CHAT MESSAGE BUCKETING (feature-flagged)
+      // When enabled, separates messages into "relevant" and "other" buckets
+      // =====================================================================
+      const chatBucketingEnabled = process.env.ITINERARY_CHAT_BUCKETING === '1'
+      const chatFetchLimit = chatBucketingEnabled ? 50 : 30
+
       // Get recent chat messages since last version (for context in revision)
       // Only include non-system messages that might contain itinerary feedback
       const recentChatMessages = await db.collection('trip_messages')
@@ -11091,8 +11098,42 @@ async function handleRoute(request, { params }) {
           isSystem: { $ne: true }
         })
         .sort({ createdAt: 1 })
-        .limit(30)
+        .limit(chatFetchLimit)
         .toArray()
+
+      // Chat bucketing: separate relevant vs other messages
+      let chatBuckets = null
+      if (chatBucketingEnabled && recentChatMessages.length > 0) {
+        // Relevance keywords for itinerary feedback
+        const relevanceKeywords = /\b(itinerary|schedule|day|add|remove|change|swap|hotel|restaurant|food|eat|time|morning|evening|afternoon|pace|budget|activity|activities|visit|skip|avoid|prefer|want|need|must|maybe|instead|earlier|later)\b/i
+
+        const relevantChat = []
+        const otherChat = []
+
+        for (const msg of recentChatMessages) {
+          const content = (msg.content || '').trim()
+          if (!content) continue
+
+          // Relevant if: matches keywords OR message is substantial (> 20 chars)
+          const isRelevant = relevanceKeywords.test(content) || content.length > 20
+
+          if (isRelevant && relevantChat.length < 20) {
+            relevantChat.push(msg)
+          } else if (otherChat.length < 10) {
+            otherChat.push(msg)
+          }
+          // Messages beyond limits are dropped (but we fetched extras to allow selection)
+        }
+
+        chatBuckets = {
+          relevant: relevantChat,
+          other: otherChat
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[reviseItinerary] Chat bucketing: ${relevantChat.length} relevant, ${otherChat.length} other (from ${recentChatMessages.length} total)`)
+        }
+      }
 
       // Update status to revising
       await db.collection('trips').updateOne(
@@ -11102,7 +11143,17 @@ async function handleRoute(request, { params }) {
 
       try {
         // Summarize feedback WITH reactions (reactions as hard constraints) AND chat messages
-        const feedbackSummary = await summarizeFeedback(feedbackMessages, reactions, recentChatMessages)
+        // Pass chatBuckets when bucketing is enabled, otherwise pass flat array for backwards compatibility
+        const feedbackSummary = await summarizeFeedback(
+          feedbackMessages,
+          reactions,
+          chatBuckets || recentChatMessages // Bucketed format or flat array
+        )
+
+        // Calculate total chat messages included for observability
+        const totalChatMessagesIncluded = chatBuckets
+          ? (chatBuckets.relevant.length + chatBuckets.other.length)
+          : recentChatMessages.length
 
         // Revise itinerary using LLM
         const { itinerary: revisedContent, changeLog, _meta } = await reviseItinerary({
@@ -11115,7 +11166,9 @@ async function handleRoute(request, { params }) {
             category: idea.category,
             location: idea.location
           })),
-          chatMessages: recentChatMessages, // Pass for truncation tracking
+          chatMessages: chatBuckets
+            ? [...chatBuckets.relevant, ...chatBuckets.other]
+            : recentChatMessages, // Pass for truncation tracking
           destination: trip.description || trip.name,
           startDate: lockedStartDate,
           endDate: lockedEndDate,
@@ -11146,7 +11199,10 @@ async function handleRoute(request, { params }) {
             ideaCount: _meta?.newIdeasUsedCount || newIdeas.length,
             feedbackCount: feedbackMessages.length,
             reactionCount: reactions.length,
-            chatMessageCount: _meta?.chatMessagesCount || recentChatMessages.length
+            chatMessageCount: totalChatMessagesIncluded,
+            chatBucketingEnabled: chatBucketingEnabled,
+            chatRelevantCount: chatBuckets?.relevant.length || 0,
+            chatOtherCount: chatBuckets?.other.length || 0
           }
         }
 
