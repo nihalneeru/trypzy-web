@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { generateItinerary, summarizeFeedback, reviseItinerary, LLM_MODEL } from '@/lib/server/llm.js'
+import { generateItinerary, summarizeFeedback, reviseItinerary, summarizePlanningChat, LLM_MODEL } from '@/lib/server/llm.js'
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config.js'
@@ -10339,6 +10339,85 @@ async function handleRoute(request, { params }) {
           .find({ circleId: trip.circleId, status: { $ne: 'left' } })
           .toArray()).length
 
+        // =====================================================================
+        // CHAT BRIEF FEATURE (feature-flagged)
+        // Summarize planning chat into structured brief for initial generation
+        // =====================================================================
+        const chatBriefEnabled = process.env.ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE === '1'
+        let chatBrief = null
+        let chatBriefMessageCount = 0
+        let chatBriefCharCount = 0
+        let chatBriefSucceeded = false
+
+        if (chatBriefEnabled) {
+          try {
+            // Config from env vars with defaults
+            const lookbackDays = parseInt(process.env.ITINERARY_CHAT_BRIEF_LOOKBACK_DAYS || '14', 10)
+            const maxMessages = parseInt(process.env.ITINERARY_CHAT_BRIEF_MAX_MESSAGES || '200', 10)
+            const maxChars = parseInt(process.env.ITINERARY_CHAT_BRIEF_MAX_CHARS || '6000', 10)
+
+            // Calculate lookback date
+            const lookbackDate = new Date()
+            lookbackDate.setDate(lookbackDate.getDate() - lookbackDays)
+
+            // Fetch chat messages (non-system, within lookback, sorted desc for recency)
+            const rawMessages = await db.collection('trip_messages')
+              .find({
+                tripId,
+                isSystem: { $ne: true },
+                createdAt: { $gte: lookbackDate.toISOString() }
+              })
+              .sort({ createdAt: -1 })
+              .limit(maxMessages)
+              .toArray()
+
+            // Pre-filter noise: drop empty messages and short messages without itinerary-relevant keywords
+            const relevantKeywords = /itinerary|plan|activity|restaurant|hotel|stay|visit|tour|morning|evening|lunch|dinner|budget|cheap|expensive|avoid|must|want|prefer|schedule|day|night/i
+            const filteredMessages = rawMessages.filter(msg => {
+              const content = (msg.content || '').trim()
+              if (!content) return false
+              if (content.length < 6 && !relevantKeywords.test(content)) return false
+              return true
+            })
+
+            if (filteredMessages.length > 0) {
+              // Reverse to chronological order (oldest first) for context
+              const chronologicalMessages = filteredMessages.reverse()
+
+              // Format messages with date prefix and truncate
+              let totalChars = 0
+              const formattedMessages = []
+              for (const msg of chronologicalMessages) {
+                const dateStr = msg.createdAt ? msg.createdAt.split('T')[0] : 'unknown'
+                const content = (msg.content || '').substring(0, 240)
+                const formatted = `[${dateStr}] ${content}`
+
+                if (totalChars + formatted.length > maxChars) break
+                formattedMessages.push(formatted)
+                totalChars += formatted.length
+              }
+
+              chatBriefMessageCount = formattedMessages.length
+              chatBriefCharCount = totalChars
+
+              if (formattedMessages.length > 0) {
+                // Call summarizePlanningChat
+                chatBrief = await summarizePlanningChat(trip, formattedMessages)
+                chatBriefSucceeded = true
+
+                if (process.env.NODE_ENV !== 'production') {
+                  console.log(`[generateItinerary] Chat brief generated from ${chatBriefMessageCount} messages (${chatBriefCharCount} chars)`)
+                }
+              }
+            }
+          } catch (chatBriefError) {
+            // Log warning but continue without chat brief
+            console.warn('[generateItinerary] Chat brief summarization failed, continuing without:', chatBriefError.message)
+            chatBrief = null
+            chatBriefSucceeded = false
+          }
+        }
+
         // Generate itinerary using LLM
         const itineraryResult = await generateItinerary({
           destination: destinationHint || trip.description || trip.name,
@@ -10354,7 +10433,8 @@ async function handleRoute(request, { params }) {
             constraints: idea.constraints || [],
             location: idea.location
           })),
-          constraints: [...new Set(allConstraints)]
+          constraints: [...new Set(allConstraints)],
+          chatBrief // Pass chat brief (null if disabled or failed)
         })
 
         // Extract _meta for observability, remove from content
@@ -10378,7 +10458,12 @@ async function handleRoute(request, { params }) {
             ideaCount: _meta?.ideasUsedCount || ideas.length,
             feedbackCount: 0,
             reactionCount: 0,
-            chatMessageCount: 0
+            chatMessageCount: 0,
+            // Chat brief observability (v1 only, feature-flagged)
+            chatBriefEnabled,
+            chatBriefMessageCount,
+            chatBriefCharCount,
+            chatBriefSucceeded
           }
         }
 
