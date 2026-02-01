@@ -494,10 +494,11 @@ export function ItineraryOverlay({
   const reviseButtonEnabled = useMemo(() => {
     // Server says we've hit version limit
     if (!canRevise) return false
-    // Must have a version, be leader, have feedback, and not be revising
-    if (!latestVersion || !isLeader) return false
-    return newFeedbackCount > 0 && !revising
-  }, [canRevise, latestVersion, isLeader, newFeedbackCount, revising])
+    // Must have a version, be leader, and not currently revising
+    if (!latestVersion || !isLeader || revising) return false
+    // Enable if there's new feedback OR reactions for the current version
+    return newFeedbackCount > 0 || reactions.length > 0
+  }, [canRevise, latestVersion, isLeader, newFeedbackCount, reactions.length, revising])
 
   // ----------------------------------------------------------------------------
   // Data Loading
@@ -1255,13 +1256,15 @@ export function ItineraryOverlay({
                     <p className="text-xs text-gray-500">
                       Maximum {maxVersions} versions reached
                     </p>
-                  ) : newFeedbackCount > 0 ? (
+                  ) : newFeedbackCount > 0 || reactions.length > 0 ? (
                     <p className="text-xs text-gray-500">
-                      {newFeedbackCount} new {newFeedbackCount === 1 ? 'item' : 'items'} since v
-                      {latestVersion.version}
+                      {newFeedbackCount > 0 && `${newFeedbackCount} feedback`}
+                      {newFeedbackCount > 0 && reactions.length > 0 && ', '}
+                      {reactions.length > 0 && `${reactions.length} reaction${reactions.length !== 1 ? 's' : ''}`}
+                      {' '}since v{latestVersion.version}
                     </p>
                   ) : (
-                    <p className="text-xs text-gray-400">Waiting for feedback</p>
+                    <p className="text-xs text-gray-400">Waiting for feedback or reactions</p>
                   )}
                   {canRevise && versionCount < maxVersions && (
                     <p className="text-xs text-gray-400">

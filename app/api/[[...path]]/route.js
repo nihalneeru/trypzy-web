@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { generateItinerary, summarizeFeedback, reviseItinerary } from '@/lib/server/llm.js'
+import { generateItinerary, summarizeFeedback, reviseItinerary, summarizePlanningChat, LLM_MODEL } from '@/lib/server/llm.js'
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config.js'
@@ -10339,8 +10339,87 @@ async function handleRoute(request, { params }) {
           .find({ circleId: trip.circleId, status: { $ne: 'left' } })
           .toArray()).length
 
+        // =====================================================================
+        // CHAT BRIEF FEATURE (feature-flagged)
+        // Summarize planning chat into structured brief for initial generation
+        // =====================================================================
+        const chatBriefEnabled = process.env.ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE === '1'
+        let chatBrief = null
+        let chatBriefMessageCount = 0
+        let chatBriefCharCount = 0
+        let chatBriefSucceeded = false
+
+        if (chatBriefEnabled) {
+          try {
+            // Config from env vars with defaults
+            const lookbackDays = parseInt(process.env.ITINERARY_CHAT_BRIEF_LOOKBACK_DAYS || '14', 10)
+            const maxMessages = parseInt(process.env.ITINERARY_CHAT_BRIEF_MAX_MESSAGES || '200', 10)
+            const maxChars = parseInt(process.env.ITINERARY_CHAT_BRIEF_MAX_CHARS || '6000', 10)
+
+            // Calculate lookback date
+            const lookbackDate = new Date()
+            lookbackDate.setDate(lookbackDate.getDate() - lookbackDays)
+
+            // Fetch chat messages (non-system, within lookback, sorted desc for recency)
+            const rawMessages = await db.collection('trip_messages')
+              .find({
+                tripId,
+                isSystem: { $ne: true },
+                createdAt: { $gte: lookbackDate.toISOString() }
+              })
+              .sort({ createdAt: -1 })
+              .limit(maxMessages)
+              .toArray()
+
+            // Pre-filter noise: drop empty messages and short messages without itinerary-relevant keywords
+            const relevantKeywords = /itinerary|plan|activity|restaurant|hotel|stay|visit|tour|morning|evening|lunch|dinner|budget|cheap|expensive|avoid|must|want|prefer|schedule|day|night/i
+            const filteredMessages = rawMessages.filter(msg => {
+              const content = (msg.content || '').trim()
+              if (!content) return false
+              if (content.length < 6 && !relevantKeywords.test(content)) return false
+              return true
+            })
+
+            if (filteredMessages.length > 0) {
+              // Reverse to chronological order (oldest first) for context
+              const chronologicalMessages = filteredMessages.reverse()
+
+              // Format messages with date prefix and truncate
+              let totalChars = 0
+              const formattedMessages = []
+              for (const msg of chronologicalMessages) {
+                const dateStr = msg.createdAt ? msg.createdAt.split('T')[0] : 'unknown'
+                const content = (msg.content || '').substring(0, 240)
+                const formatted = `[${dateStr}] ${content}`
+
+                if (totalChars + formatted.length > maxChars) break
+                formattedMessages.push(formatted)
+                totalChars += formatted.length
+              }
+
+              chatBriefMessageCount = formattedMessages.length
+              chatBriefCharCount = totalChars
+
+              if (formattedMessages.length > 0) {
+                // Call summarizePlanningChat
+                chatBrief = await summarizePlanningChat(trip, formattedMessages)
+                chatBriefSucceeded = true
+
+                if (process.env.NODE_ENV !== 'production') {
+                  console.log(`[generateItinerary] Chat brief generated from ${chatBriefMessageCount} messages (${chatBriefCharCount} chars)`)
+                }
+              }
+            }
+          } catch (chatBriefError) {
+            // Log warning but continue without chat brief
+            console.warn('[generateItinerary] Chat brief summarization failed, continuing without:', chatBriefError.message)
+            chatBrief = null
+            chatBriefSucceeded = false
+          }
+        }
+
         // Generate itinerary using LLM
-        const itineraryContent = await generateItinerary({
+        const itineraryResult = await generateItinerary({
           destination: destinationHint || trip.description || trip.name,
           startDate: lockedStartDate,
           endDate: lockedEndDate,
@@ -10354,10 +10433,14 @@ async function handleRoute(request, { params }) {
             constraints: idea.constraints || [],
             location: idea.location
           })),
-          constraints: [...new Set(allConstraints)]
+          constraints: [...new Set(allConstraints)],
+          chatBrief // Pass chat brief (null if disabled or failed)
         })
 
-        // Create version 1
+        // Extract _meta for observability, remove from content
+        const { _meta, ...itineraryContent } = itineraryResult
+
+        // Create version 1 with llmMeta for observability
         const version = {
           id: uuidv4(),
           tripId,
@@ -10366,7 +10449,22 @@ async function handleRoute(request, { params }) {
           createdAt: new Date().toISOString(),
           sourceIdeaIds: ideas.map(i => i.id),
           content: itineraryContent,
-          changeLog: ''
+          changeLog: '',
+          // Observability metadata - no PII, no raw prompts
+          llmMeta: {
+            model: LLM_MODEL,
+            generatedAt: new Date().toISOString(),
+            promptTokenEstimate: _meta?.promptTokenEstimate || 0,
+            ideaCount: _meta?.ideasUsedCount || ideas.length,
+            feedbackCount: 0,
+            reactionCount: 0,
+            chatMessageCount: 0,
+            // Chat brief observability (v1 only, feature-flagged)
+            chatBriefEnabled,
+            chatBriefMessageCount,
+            chatBriefCharCount,
+            chatBriefSucceeded
+          }
         }
 
         await db.collection('itinerary_versions').insertOne(version)
@@ -10984,6 +11082,13 @@ async function handleRoute(request, { params }) {
         .limit(5)
         .toArray()
 
+      // =====================================================================
+      // CHAT MESSAGE BUCKETING (feature-flagged)
+      // When enabled, separates messages into "relevant" and "other" buckets
+      // =====================================================================
+      const chatBucketingEnabled = process.env.ITINERARY_CHAT_BUCKETING === '1'
+      const chatFetchLimit = chatBucketingEnabled ? 50 : 30
+
       // Get recent chat messages since last version (for context in revision)
       // Only include non-system messages that might contain itinerary feedback
       const recentChatMessages = await db.collection('trip_messages')
@@ -10993,8 +11098,42 @@ async function handleRoute(request, { params }) {
           isSystem: { $ne: true }
         })
         .sort({ createdAt: 1 })
-        .limit(30)
+        .limit(chatFetchLimit)
         .toArray()
+
+      // Chat bucketing: separate relevant vs other messages
+      let chatBuckets = null
+      if (chatBucketingEnabled && recentChatMessages.length > 0) {
+        // Relevance keywords for itinerary feedback
+        const relevanceKeywords = /\b(itinerary|schedule|day|add|remove|change|swap|hotel|restaurant|food|eat|time|morning|evening|afternoon|pace|budget|activity|activities|visit|skip|avoid|prefer|want|need|must|maybe|instead|earlier|later)\b/i
+
+        const relevantChat = []
+        const otherChat = []
+
+        for (const msg of recentChatMessages) {
+          const content = (msg.content || '').trim()
+          if (!content) continue
+
+          // Relevant if: matches keywords OR message is substantial (> 20 chars)
+          const isRelevant = relevanceKeywords.test(content) || content.length > 20
+
+          if (isRelevant && relevantChat.length < 20) {
+            relevantChat.push(msg)
+          } else if (otherChat.length < 10) {
+            otherChat.push(msg)
+          }
+          // Messages beyond limits are dropped (but we fetched extras to allow selection)
+        }
+
+        chatBuckets = {
+          relevant: relevantChat,
+          other: otherChat
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[reviseItinerary] Chat bucketing: ${relevantChat.length} relevant, ${otherChat.length} other (from ${recentChatMessages.length} total)`)
+        }
+      }
 
       // Update status to revising
       await db.collection('trips').updateOne(
@@ -11004,10 +11143,20 @@ async function handleRoute(request, { params }) {
 
       try {
         // Summarize feedback WITH reactions (reactions as hard constraints) AND chat messages
-        const feedbackSummary = await summarizeFeedback(feedbackMessages, reactions, recentChatMessages)
+        // Pass chatBuckets when bucketing is enabled, otherwise pass flat array for backwards compatibility
+        const feedbackSummary = await summarizeFeedback(
+          feedbackMessages,
+          reactions,
+          chatBuckets || recentChatMessages // Bucketed format or flat array
+        )
+
+        // Calculate total chat messages included for observability
+        const totalChatMessagesIncluded = chatBuckets
+          ? (chatBuckets.relevant.length + chatBuckets.other.length)
+          : recentChatMessages.length
 
         // Revise itinerary using LLM
-        const { itinerary: revisedContent, changeLog } = await reviseItinerary({
+        const { itinerary: revisedContent, changeLog, _meta } = await reviseItinerary({
           currentItinerary: latestVersion.content,
           feedbackSummary,
           newIdeas: newIdeas.map(idea => ({
@@ -11017,6 +11166,9 @@ async function handleRoute(request, { params }) {
             category: idea.category,
             location: idea.location
           })),
+          chatMessages: chatBuckets
+            ? [...chatBuckets.relevant, ...chatBuckets.other]
+            : recentChatMessages, // Pass for truncation tracking
           destination: trip.description || trip.name,
           startDate: lockedStartDate,
           endDate: lockedEndDate,
@@ -11038,7 +11190,20 @@ async function handleRoute(request, { params }) {
           createdAt: new Date().toISOString(),
           sourceIdeaIds: [...new Set(sourceIdeaIds)],
           content: revisedContent,
-          changeLog: changeLog.trim()
+          changeLog: changeLog.trim(),
+          // Observability metadata - no PII, no raw prompts
+          llmMeta: {
+            model: LLM_MODEL,
+            generatedAt: new Date().toISOString(),
+            promptTokenEstimate: _meta?.promptTokenEstimate || 0,
+            ideaCount: _meta?.newIdeasUsedCount || newIdeas.length,
+            feedbackCount: feedbackMessages.length,
+            reactionCount: reactions.length,
+            chatMessageCount: totalChatMessagesIncluded,
+            chatBucketingEnabled: chatBucketingEnabled,
+            chatRelevantCount: chatBuckets?.relevant.length || 0,
+            chatOtherCount: chatBuckets?.other.length || 0
+          }
         }
 
         await db.collection('itinerary_versions').insertOne(newVersion)

@@ -642,6 +642,102 @@ curl -H "x-admin-debug-token: $ADMIN_DEBUG_TOKEN" \
 - `app/api/admin/events/route.ts` — Event query endpoint
 - `app/api/admin/events/trips/[tripId]/health/route.ts` — Health check endpoint
 
+## 10.8) Itinerary LLM Pipeline
+
+The itinerary system uses LLM calls for generation and revision. Key infrastructure in `lib/server/llm.js`.
+
+**Key files**:
+- `lib/server/llm.js` — LLM functions (generateItinerary, reviseItinerary, summarizeFeedback, summarizePlanningChat)
+- `lib/server/fetchWithRetry.js` — Retry wrapper with exponential backoff for LLM API calls
+- `lib/server/tokenEstimate.js` — Token estimation and prompt size guards
+- `docs/ITINERARY_LLM_PIPELINE.md` — Full pipeline documentation
+
+**Core functions**:
+| Function | Purpose |
+|----------|---------|
+| `generateItinerary()` | Create v1 from ideas + trip metadata |
+| `reviseItinerary()` | Apply feedback/reactions to create v2+ |
+| `summarizeFeedback()` | Structure feedback + reactions + chat for revision |
+| `summarizePlanningChat()` | Derive structured brief from planning chat (v1 only, flagged) |
+
+**Retry logic** (`fetchWithRetry`):
+- Exponential backoff: 500ms base, 2 retries max
+- Retries on: HTTP 429, 5xx, network errors (ECONNRESET, ETIMEDOUT)
+- All LLM functions use this wrapper
+
+**Token guards** (`tokenEstimate.js`):
+- Estimation: `ceil(text.length / 4)` (conservative for English)
+- Default max: 12000 tokens (configurable via `ITINERARY_MAX_PROMPT_TOKENS`)
+- Truncation strategy for generation: ideas 10 → 5 → 3
+- Truncation strategy for revision: newIdeas → feedback arrays
+
+**Reaction aggregation** (in `summarizeFeedback`):
+- Vote counting per category with tie detection
+- Exclusive categories (pace, budget): majority wins or "SPLIT" on tie
+- Non-exclusive categories (focus, logistics): aggregated with counts
+- Reactions are HARD CONSTRAINTS in revision prompts
+
+**Observability** (`llmMeta` on `itinerary_versions`):
+```javascript
+{
+  model: 'gpt-4o-mini',
+  generatedAt: '2026-02-01T...',
+  promptTokenEstimate: 8500,
+  ideaCount: 7,
+  feedbackCount: 3,      // v2+ only
+  reactionCount: 5,      // v2+ only
+  chatMessageCount: 12,  // v2+ only
+  // Chat brief fields (v1 with flag ON):
+  chatBriefEnabled: true,
+  chatBriefMessageCount: 45,
+  chatBriefCharCount: 4200,
+  chatBriefSucceeded: true,
+  // Chat bucketing fields (v2+ with flag ON):
+  chatBucketingEnabled: true,
+  chatRelevantCount: 15,
+  chatOtherCount: 8
+}
+```
+
+**Feature flags**:
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE` | OFF | Enable chat brief for v1 generation |
+| `ITINERARY_CHAT_BRIEF_LOOKBACK_DAYS` | 14 | Chat lookback window for brief |
+| `ITINERARY_CHAT_BRIEF_MAX_MESSAGES` | 200 | Max messages to fetch for brief |
+| `ITINERARY_CHAT_BRIEF_MAX_CHARS` | 6000 | Max chars after formatting for brief |
+| `ITINERARY_CHAT_BRIEF_MODEL` | (uses OPENAI_MODEL) | Optional model override for summarization |
+| `ITINERARY_CHAT_BUCKETING` | OFF | Enable relevance bucketing for revision chat |
+| `ITINERARY_MAX_PROMPT_TOKENS` | 12000 | Max estimated prompt tokens before truncation |
+
+**Chat brief for v1** (when `ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE=1`):
+- Pre-generation step summarizes planning chat into structured brief
+- Extracts: mustDos, avoid, preferences (pace/budget/focus/logistics), constraints, openQuestions
+- Brief injected into prompt under "PLANNING CHAT BRIEF" section
+- Fallback: on failure, continues without brief (no blocking)
+
+**Chat bucketing for revision** (when `ITINERARY_CHAT_BUCKETING=1`):
+- Separates chat into "Relevant chat feedback" and "Other recent chat context"
+- Relevance heuristic: keyword matching OR message length > 20 chars
+- Limits: 20 relevant + 10 other messages
+- Fetches 50 messages (vs 30 when off) for better selection
+
+**Revise button enablement**:
+- Enabled when: feedback form entries exist OR reactions exist for latest version
+- Server `canRevise` checks version limit only; UI combines with feedback/reaction check
+- UI shows: "X feedback, Y reactions since vN" or "Waiting for feedback or reactions"
+
+**Version rules**:
+- Max 3 versions per trip (configurable via `ITINERARY_CONFIG.MAX_VERSIONS`)
+- Latest version (highest number) is always active
+- Previous versions retained but not editable
+
+**What is NOT stored in llmMeta**:
+- Raw prompts sent to LLM
+- Raw chat message content
+- LLM chain-of-thought or reasoning
+- User PII beyond counts
+
 ## 11) Key Component APIs
 
 **CommandCenterV3 Props**:
