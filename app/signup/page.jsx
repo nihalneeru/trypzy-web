@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,30 +44,69 @@ const api = async (endpoint, options = {}) => {
 
 export default function SignupPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const [betaSecret, setBetaSecret] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
+  const loadingTimeoutRef = useRef(null)
+
+  // Handle error query params from auth callbacks
+  useEffect(() => {
+    const error = searchParams.get('error')
+    if (error === 'AccountNotFound') {
+      toast.error('No account found with that email. Please sign up first.')
+      // Clean up URL
+      window.history.replaceState({}, '', '/signup')
+    } else if (error === 'AccountExists') {
+      toast.error('An account already exists with that email. Redirecting to login...')
+      setTimeout(() => router.replace('/login'), 1500)
+    } else if (error) {
+      toast.error('Authentication failed. Please try again.')
+      window.history.replaceState({}, '', '/signup')
+    }
+  }, [searchParams, router])
 
   // Handle OAuth callback - if we have a session with accessToken, store it and redirect
   useEffect(() => {
-    // Only process redirect if we initiated the flow (indicated by beta_secret)
-    // This prevents authenticated users from being auto-redirected when just visiting the page
+    // Check for auth errors in session
+    if (status === 'authenticated' && session?.error) {
+      toast.error(session.error)
+      return
+    }
+
+    // Redirect already authenticated users (who didn't just complete signup flow)
     const storedSecret = sessionStorage.getItem('signup_beta_secret')
 
-    if (status === 'authenticated' && session?.accessToken && storedSecret) {
-      // Store token and user in localStorage for API compatibility
-      localStorage.setItem('trypzy_token', session.accessToken)
-      localStorage.setItem('trypzy_user', JSON.stringify({
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.name
-      }))
-      // Clear beta secret from sessionStorage
-      sessionStorage.removeItem('signup_beta_secret')
-      // Redirect to dashboard
-      router.replace('/dashboard')
+    if (status === 'authenticated' && session?.accessToken) {
+      if (storedSecret) {
+        // Just completed signup flow - store credentials and redirect
+        localStorage.setItem('trypzy_token', session.accessToken)
+        localStorage.setItem('trypzy_user', JSON.stringify({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name
+        }))
+        // Clear beta secret from sessionStorage
+        sessionStorage.removeItem('signup_beta_secret')
+        // Clear auth mode cookie
+        document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        // Redirect to dashboard
+        router.replace('/dashboard')
+      } else {
+        // User is already logged in and just visiting signup page - redirect to dashboard
+        router.replace('/dashboard')
+      }
     }
   }, [session, status, router])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleGoogleSignIn = async () => {
     if (!betaSecret.trim()) {
@@ -76,6 +115,12 @@ export default function SignupPage() {
     }
 
     setGoogleLoading(true)
+
+    // Set a timeout to reset loading state if OAuth flow is interrupted (e.g., popup blocked)
+    loadingTimeoutRef.current = setTimeout(() => {
+      setGoogleLoading(false)
+      toast.error('Sign in was interrupted. Please try again.')
+    }, 60000) // 60 second timeout
 
     try {
       // Validate secret phrase first
@@ -86,6 +131,7 @@ export default function SignupPage() {
 
       if (!response.valid) {
         toast.error('Invalid private beta secret phrase')
+        clearTimeout(loadingTimeoutRef.current)
         setGoogleLoading(false)
         return
       }
@@ -99,7 +145,6 @@ export default function SignupPage() {
 
       // Initiate Google OAuth sign-in
       // NextAuth will handle the redirect and callback
-      // When redirect: true, signIn doesn't return a value, so the page will redirect
       await signIn('google', {
         callbackUrl: '/signup',
         redirect: true,
@@ -107,6 +152,9 @@ export default function SignupPage() {
 
       // Note: When redirect is true, the page will redirect, so code below won't execute
     } catch (error) {
+      // Clear sessionStorage on error
+      sessionStorage.removeItem('signup_beta_secret')
+      clearTimeout(loadingTimeoutRef.current)
       toast.error(error.message || 'Failed to sign in with Google')
       setGoogleLoading(false)
     }

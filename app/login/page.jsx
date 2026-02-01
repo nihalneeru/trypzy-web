@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
+import { useEffect, useState, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { signIn, useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,16 +33,68 @@ const api = async (endpoint, options = {}) => {
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const [betaSecret, setBetaSecret] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
+  const loadingTimeoutRef = useRef(null)
 
-  // Redirect if already authenticated
+  // Handle error query params from auth callbacks
   useEffect(() => {
-    const token = localStorage.getItem('trypzy_token')
-    if (token) {
-      router.replace('/dashboard')
+    const error = searchParams.get('error')
+    if (error === 'AccountNotFound') {
+      toast.error('No account found with that email. Redirecting to sign up...')
+      setTimeout(() => router.replace('/signup'), 1500)
+    } else if (error === 'AccountExists') {
+      toast.error('An account already exists with that email. Please log in.')
+      // Clean up URL
+      window.history.replaceState({}, '', '/login')
+    } else if (error) {
+      toast.error('Authentication failed. Please try again.')
+      window.history.replaceState({}, '', '/login')
     }
-  }, [router])
+  }, [searchParams, router])
+
+  // Handle OAuth callback and already-authenticated users
+  useEffect(() => {
+    // Check for auth errors in session
+    if (status === 'authenticated' && session?.error) {
+      toast.error(session.error)
+      return
+    }
+
+    const storedSecret = sessionStorage.getItem('login_beta_secret')
+
+    if (status === 'authenticated' && session?.accessToken) {
+      if (storedSecret) {
+        // Just completed login flow - store credentials and redirect
+        localStorage.setItem('trypzy_token', session.accessToken)
+        localStorage.setItem('trypzy_user', JSON.stringify({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name
+        }))
+        // Clear beta secret from sessionStorage
+        sessionStorage.removeItem('login_beta_secret')
+        // Clear auth mode cookie
+        document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        // Redirect to dashboard
+        router.replace('/dashboard')
+      } else {
+        // User is already logged in and just visiting login page - redirect to dashboard
+        router.replace('/dashboard')
+      }
+    }
+  }, [session, status, router])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleGoogleSignIn = async () => {
     if (!betaSecret.trim()) {
@@ -51,6 +103,12 @@ export default function LoginPage() {
     }
 
     setGoogleLoading(true)
+
+    // Set a timeout to reset loading state if OAuth flow is interrupted
+    loadingTimeoutRef.current = setTimeout(() => {
+      setGoogleLoading(false)
+      toast.error('Sign in was interrupted. Please try again.')
+    }, 60000) // 60 second timeout
 
     try {
       // Validate secret phrase first
@@ -61,6 +119,7 @@ export default function LoginPage() {
 
       if (!response.valid) {
         toast.error('Invalid private beta secret phrase')
+        clearTimeout(loadingTimeoutRef.current)
         setGoogleLoading(false)
         return
       }
@@ -73,11 +132,15 @@ export default function LoginPage() {
       document.cookie = 'trypzy_auth_mode=login; path=/; SameSite=Lax'
 
       // Initiate Google OAuth sign-in
+      // Use /login as callback so we can handle the session sync here
       await signIn('google', {
-        callbackUrl: '/dashboard', // Direct to dashboard for login
+        callbackUrl: '/login',
         redirect: true,
       })
     } catch (error) {
+      // Clear sessionStorage on error
+      sessionStorage.removeItem('login_beta_secret')
+      clearTimeout(loadingTimeoutRef.current)
       toast.error(error.message || 'Failed to sign in with Google')
       setGoogleLoading(false)
     }

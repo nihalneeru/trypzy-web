@@ -87,6 +87,13 @@ export default function DashboardPage() {
 
         // If no local token but valid session exists (e.g. from direct Google redirect), sync it
         if (!tokenValue && status === 'authenticated' && session?.accessToken) {
+          // Check for auth errors
+          if (session.error) {
+            toast.error(session.error)
+            router.replace('/')
+            return
+          }
+
           tokenValue = session.accessToken
           localStorage.setItem('trypzy_token', tokenValue)
 
@@ -100,6 +107,9 @@ export default function DashboardPage() {
             userValue = JSON.stringify(userData)
             localStorage.setItem('trypzy_user', userValue)
           }
+
+          // Clear auth mode cookie after successful sync
+          document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
         }
 
         if (!tokenValue) {
