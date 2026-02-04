@@ -86,10 +86,13 @@ function buildAirbnbSearchUrl({ locationName, startDate, endDate }: {
     return 'https://www.airbnb.com'
   }
 
-  const baseUrl = 'https://www.airbnb.com/s'
-  const params = new URLSearchParams()
+  // Clean location name - remove words like "hotel", "hostel", "resort" for better search
+  const cleanLocation = locationName
+    .replace(/\b(hotel|hostel|resort|airbnb|inn|lodge|motel|bnb|accommodation)\b/gi, '')
+    .trim()
 
-  params.append('query', locationName)
+  const params = new URLSearchParams()
+  params.append('query', cleanLocation || locationName)
 
   if (startDate) {
     params.append('checkin', startDate)
@@ -98,7 +101,27 @@ function buildAirbnbSearchUrl({ locationName, startDate, endDate }: {
     params.append('checkout', endDate)
   }
 
-  return `${baseUrl}/${encodeURIComponent(locationName)}?${params.toString()}`
+  return `https://www.airbnb.com/s/homes?${params.toString()}`
+}
+
+// Check if a location name looks like actual accommodation vs activity/restaurant
+function isLikelyAccommodation(locationName: string): boolean {
+  const lowerName = locationName.toLowerCase()
+
+  // Positive indicators - looks like accommodation
+  const accommodationKeywords = ['hotel', 'hostel', 'resort', 'airbnb', 'inn', 'lodge', 'motel', 'bnb', 'villa', 'apartment', 'stay', 'guesthouse']
+  if (accommodationKeywords.some(k => lowerName.includes(k))) {
+    return true
+  }
+
+  // Negative indicators - looks like activity/restaurant
+  const activityKeywords = ['restaurant', 'grill', 'cafe', 'bar', 'museum', 'park', 'beach', 'market', 'tour', 'temple', 'church', 'hole', 'falls', 'ruins', 'zoo', 'aquarium']
+  if (activityKeywords.some(k => lowerName.includes(k))) {
+    return false
+  }
+
+  // Default: assume it could be a location/city name (accommodation)
+  return true
 }
 
 // API Helper
@@ -373,7 +396,28 @@ export function AccommodationOverlay({
   return (
     <div className="space-y-6">
       {/* Stay Requirements Guidance (from itinerary) */}
-      {stayRequirements.length > 0 && !accommodationConfirmed && (
+      {stayRequirements.length > 0 && !accommodationConfirmed && (() => {
+        // Filter to only show likely accommodation locations (not restaurants/activities)
+        const accommodationStays = stayRequirements.filter(s => isLikelyAccommodation(s.locationName))
+
+        // If no valid stays found, show trip destination as fallback
+        const staysToShow = accommodationStays.length > 0
+          ? accommodationStays
+          : trip.destinationHint
+            ? [{
+                id: 'fallback',
+                tripId: trip.id,
+                locationName: trip.destinationHint,
+                startDate: trip.lockedStartDate || trip.startDate,
+                endDate: trip.lockedEndDate || trip.endDate,
+                nights: Math.max(1, Math.ceil((new Date(trip.lockedEndDate || trip.endDate).getTime() - new Date(trip.lockedStartDate || trip.startDate).getTime()) / (1000 * 60 * 60 * 24))),
+                status: 'pending' as const
+              }]
+            : []
+
+        if (staysToShow.length === 0) return null
+
+        return (
         <Card className="bg-brand-sand/30 border-brand-sand">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 mb-3">
@@ -381,7 +425,7 @@ export function AccommodationOverlay({
               <span className="text-sm font-medium text-brand-carbon">Based on your itinerary</span>
             </div>
             <div className="space-y-3">
-              {stayRequirements.map((stay) => {
+              {staysToShow.map((stay) => {
                 const startFormatted = formatShortDate(stay.startDate)
                 const endFormatted = formatShortDate(stay.endDate)
                 const dateRange = startFormatted && endFormatted
@@ -429,7 +473,8 @@ export function AccommodationOverlay({
             </p>
           </CardContent>
         </Card>
-      )}
+        )
+      })()}
 
       {/* Inline Add Form */}
       {canAddMore ? (
