@@ -11240,16 +11240,24 @@ async function handleRoute(request, { params }) {
         const isFinalVersion = newVersion.version >= ITINERARY_CONFIG.MAX_VERSIONS
 
         if (isFinalVersion) {
+          // Include accommodation guidance in final version message
+          const accommodationHint = stays.length > 0
+            ? `\n🏨 Next up: Browse accommodation options for ${staySummary}.`
+            : ''
           await emitTripChatEvent({
             tripId,
             circleId: trip.circleId,
             actorUserId: auth.user.id,
             subtype: 'milestone',
-            text: `📋 Final itinerary version created (v${newVersion.version}). The plan is now set!`,
+            text: `📋 Final itinerary version created (v${newVersion.version}). The plan is now set!${accommodationHint}`,
             metadata: {
               key: 'itinerary_finalized',
               version: newVersion.version,
-              maxVersions: ITINERARY_CONFIG.MAX_VERSIONS
+              maxVersions: ITINERARY_CONFIG.MAX_VERSIONS,
+              staySegments: stays.map(s => ({
+                locationName: s.locationName,
+                nights: s.nights
+              }))
             }
           })
         } else {
@@ -11266,8 +11274,8 @@ async function handleRoute(request, { params }) {
           })
         }
 
-        // Emit chat event for stay requirements synced if changed
-        if (syncResult.created > 0 || syncResult.updated > 0) {
+        // Emit chat event for stay requirements synced if changed (skip for final version - already included above)
+        if (!isFinalVersion && (syncResult.created > 0 || syncResult.updated > 0)) {
           await emitTripChatEvent({
             tripId,
             circleId: trip.circleId,
