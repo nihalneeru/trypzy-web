@@ -26,7 +26,10 @@ import {
   DollarSign,
   ExternalLink,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  MapPin,
+  Calendar,
+  Search
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
@@ -61,6 +64,64 @@ interface AccommodationOption {
     name: string
   }
   addedByUserId?: string
+}
+
+interface StayRequirement {
+  id: string
+  tripId: string
+  locationName: string
+  startDate: string | null
+  endDate: string | null
+  nights: number
+  status: 'pending' | 'covered' | 'inactive' | 'outdated'
+}
+
+// Build Airbnb search URL from stay requirements
+function buildAirbnbSearchUrl({ locationName, startDate, endDate }: {
+  locationName: string
+  startDate?: string | null
+  endDate?: string | null
+}): string {
+  if (!locationName) {
+    return 'https://www.airbnb.com'
+  }
+
+  // Clean location name - remove words like "hotel", "hostel", "resort" for better search
+  const cleanLocation = locationName
+    .replace(/\b(hotel|hostel|resort|airbnb|inn|lodge|motel|bnb|accommodation)\b/gi, '')
+    .trim()
+
+  const params = new URLSearchParams()
+  params.append('query', cleanLocation || locationName)
+
+  if (startDate) {
+    params.append('checkin', startDate)
+  }
+  if (endDate) {
+    params.append('checkout', endDate)
+  }
+
+  return `https://www.airbnb.com/s/homes?${params.toString()}`
+}
+
+// Check if a location name looks like actual accommodation vs activity/restaurant
+function isLikelyAccommodation(locationName: string): boolean {
+  const lowerName = locationName.toLowerCase()
+
+  // Positive indicators - looks like accommodation
+  const accommodationKeywords = ['hotel', 'hostel', 'resort', 'airbnb', 'inn', 'lodge', 'motel', 'bnb', 'villa', 'apartment', 'stay', 'guesthouse']
+  if (accommodationKeywords.some(k => lowerName.includes(k))) {
+    return true
+  }
+
+  // Negative indicators - looks like activity/restaurant
+  const activityKeywords = ['restaurant', 'grill', 'cafe', 'bar', 'museum', 'park', 'beach', 'market', 'tour', 'temple', 'church', 'hole', 'falls', 'ruins', 'zoo', 'aquarium']
+  if (activityKeywords.some(k => lowerName.includes(k))) {
+    return false
+  }
+
+  // Default: assume it could be a location/city name (accommodation)
+  return true
 }
 
 // API Helper
@@ -102,6 +163,7 @@ export function AccommodationOverlay({
 }: AccommodationOverlayProps) {
   // Data state
   const [accommodations, setAccommodations] = useState<AccommodationOption[]>([])
+  const [stayRequirements, setStayRequirements] = useState<StayRequirement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -153,15 +215,20 @@ export function AccommodationOverlay({
 
   const canAddMore = userOptionCount < MAX_OPTIONS_PER_USER && !viewerIsReadOnly && !accommodationConfirmed
 
-  // Load accommodations
+  // Load accommodations and stay requirements
   const loadData = useCallback(async () => {
     if (!trip?.id || trip.status !== 'locked') return
 
     setLoading(true)
     setError(null)
     try {
-      const data = await api(`/trips/${trip.id}/accommodations`, { method: 'GET' }, token)
-      setAccommodations(data || [])
+      // Fetch both in parallel
+      const [accommodationsData, staysData] = await Promise.all([
+        api(`/trips/${trip.id}/accommodations`, { method: 'GET' }, token),
+        api(`/trips/${trip.id}/stays`, { method: 'GET' }, token).catch(() => [])
+      ])
+      setAccommodations(accommodationsData || [])
+      setStayRequirements(staysData || [])
     } catch (err: any) {
       console.error('Failed to load accommodation data:', err)
       setError(err.message || 'Failed to load accommodation data')
@@ -319,8 +386,96 @@ export function AccommodationOverlay({
     )
   }
 
+  // Format date for display (e.g., "Mar 13")
+  const formatShortDate = (dateStr: string | null) => {
+    if (!dateStr) return null
+    const date = new Date(dateStr + 'T00:00:00')
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
   return (
     <div className="space-y-6">
+      {/* Stay Requirements Guidance (from itinerary) */}
+      {stayRequirements.length > 0 && !accommodationConfirmed && (() => {
+        // Filter to only show likely accommodation locations (not restaurants/activities)
+        const accommodationStays = stayRequirements.filter(s => isLikelyAccommodation(s.locationName))
+
+        // If no valid stays found, show trip destination as fallback
+        const staysToShow = accommodationStays.length > 0
+          ? accommodationStays
+          : trip.destinationHint
+            ? [{
+                id: 'fallback',
+                tripId: trip.id,
+                locationName: trip.destinationHint,
+                startDate: trip.lockedStartDate || trip.startDate,
+                endDate: trip.lockedEndDate || trip.endDate,
+                nights: Math.max(1, Math.ceil((new Date(trip.lockedEndDate || trip.endDate).getTime() - new Date(trip.lockedStartDate || trip.startDate).getTime()) / (1000 * 60 * 60 * 24))),
+                status: 'pending' as const
+              }]
+            : []
+
+        if (staysToShow.length === 0) return null
+
+        return (
+        <Card className="bg-brand-sand/30 border-brand-sand">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="h-4 w-4 text-brand-blue" />
+              <span className="text-sm font-medium text-brand-carbon">Based on your itinerary</span>
+            </div>
+            <div className="space-y-3">
+              {staysToShow.map((stay) => {
+                const startFormatted = formatShortDate(stay.startDate)
+                const endFormatted = formatShortDate(stay.endDate)
+                const dateRange = startFormatted && endFormatted
+                  ? `${startFormatted} – ${endFormatted}`
+                  : startFormatted || 'Dates TBD'
+
+                const airbnbUrl = buildAirbnbSearchUrl({
+                  locationName: stay.locationName,
+                  startDate: stay.startDate,
+                  endDate: stay.endDate
+                })
+
+                return (
+                  <div
+                    key={stay.id}
+                    className="flex items-center justify-between gap-3 p-2 bg-white rounded-md border"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 capitalize truncate">
+                        {stay.locationName}
+                      </p>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {dateRange}
+                        </span>
+                        <span>{stay.nights} night{stay.nights !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                    <a
+                      href={airbnbUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-brand-blue hover:underline shrink-0"
+                    >
+                      <Search className="h-3 w-3" />
+                      Search Airbnb
+                    </a>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-xs text-gray-500 mt-3">
+              Add accommodation options below for the group to vote on.
+            </p>
+          </CardContent>
+        </Card>
+        )
+      })()}
+
       {/* Inline Add Form */}
       {canAddMore ? (
         <Card>
