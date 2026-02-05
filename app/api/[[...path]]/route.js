@@ -583,6 +583,52 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(members))
     }
 
+    // Validate invite code - GET /api/circles/validate-invite?code=ABCD12
+    if (route === '/circles/validate-invite' && method === 'GET') {
+      const url = new URL(request.url)
+      const code = url.searchParams.get('code')?.trim().toUpperCase()
+
+      if (!code) {
+        return handleCORS(NextResponse.json({ valid: false, error: 'No invite code provided' }))
+      }
+
+      // Check auth - if not logged in, return generic response (no validity leak)
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ requiresAuth: true }))
+      }
+
+      // Validate invite code
+      const circle = await db.collection('circles').findOne({ inviteCode: code })
+      if (!circle) {
+        return handleCORS(NextResponse.json({
+          valid: false,
+          error: 'This invite link is invalid or expired'
+        }))
+      }
+
+      // Check if already a member
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: circle.id,
+        status: { $ne: 'left' }
+      })
+
+      // Get member count
+      const memberCount = await db.collection('memberships').countDocuments({
+        circleId: circle.id,
+        status: { $ne: 'left' }
+      })
+
+      return handleCORS(NextResponse.json({
+        valid: true,
+        circleId: circle.id,
+        circleName: circle.name,
+        memberCount,
+        alreadyMember: !!membership
+      }))
+    }
+
     // Join circle via invite - POST /api/circles/join
     if (route === '/circles/join' && method === 'POST') {
       const auth = await requireAuth(request)
@@ -591,7 +637,7 @@ async function handleRoute(request, { params }) {
       }
 
       const body = await request.json()
-      const { inviteCode } = body
+      let { inviteCode } = body
 
       if (!inviteCode) {
         return handleCORS(NextResponse.json(
@@ -600,10 +646,13 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      const circle = await db.collection('circles').findOne({ inviteCode: inviteCode.toUpperCase() })
+      // Normalize invite code
+      inviteCode = inviteCode.trim().toUpperCase()
+
+      const circle = await db.collection('circles').findOne({ inviteCode })
       if (!circle) {
         return handleCORS(NextResponse.json(
-          { error: 'Invalid invite code' },
+          { error: 'This invite link is invalid or expired' },
           { status: 404 }
         ))
       }
@@ -625,10 +674,11 @@ async function handleRoute(request, { params }) {
             }
           )
         } else {
-          return handleCORS(NextResponse.json(
-            { error: 'You are already a member of this circle' },
-            { status: 400 }
-          ))
+          // Already a member - return success (idempotent)
+          return handleCORS(NextResponse.json({
+            circleId: circle.id,
+            alreadyMember: true
+          }))
         }
       } else {
         await db.collection('memberships').insertOne({
@@ -694,7 +744,10 @@ async function handleRoute(request, { params }) {
         createdAt: new Date().toISOString()
       })
 
-      return handleCORS(NextResponse.json({ message: 'Joined circle successfully', circle }))
+      return handleCORS(NextResponse.json({
+        circleId: circle.id,
+        alreadyMember: false
+      }))
     }
 
     // Get circle by ID - GET /api/circles/:id

@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { CheckCircle2, Users, Calendar, Copy } from 'lucide-react'
+import { CheckCircle2, Users, Calendar, Copy, Share2 } from 'lucide-react'
 import { tripHref, circlePageHref } from '@/lib/navigation/routes'
 
 /**
@@ -96,12 +96,71 @@ export function CircleOnboardingInterstitial({
     }
   }
 
-  const handleCopyInviteCode = () => {
+  // Clipboard copy with try/catch fallback
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch (err) {
+      // Fallback for browsers without clipboard API
+      try {
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        return true
+      } catch (fallbackErr) {
+        console.error('Clipboard fallback failed:', fallbackErr)
+        return false
+      }
+    }
+  }
+
+  const handleCopyInviteCode = async () => {
     if (circle.inviteCode) {
-      navigator.clipboard.writeText(circle.inviteCode)
-      setInviteCopied(true)
-      toast.success('Invite code copied!')
-      setTimeout(() => setInviteCopied(false), 2000)
+      const success = await copyToClipboard(circle.inviteCode)
+      if (success) {
+        setInviteCopied(true)
+        toast.success('Code copied!')
+        setTimeout(() => setInviteCopied(false), 2000)
+      } else {
+        toast.error('Could not copy — please copy manually')
+      }
+    }
+  }
+
+  // Smart share: Web Share API or clipboard fallback
+  async function handleShare() {
+    const shareUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/join/${circle.inviteCode}`
+      : `/join/${circle.inviteCode}`
+    const shareText = `Join "${circle.name}" on Trypzy to plan trips together!`
+
+    // Try Web Share API first (mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Trypzy Invite',
+          text: shareText,
+          url: shareUrl
+        })
+        return
+      } catch (err) {
+        if (err?.name === 'AbortError') return
+      }
+    }
+
+    // Fallback: copy formatted message
+    const fullMessage = `${shareText}\n${shareUrl}`
+    const success = await copyToClipboard(fullMessage)
+    if (success) {
+      toast.success('Invite link copied!')
+    } else {
+      toast.error('Could not copy — please copy manually')
     }
   }
 
@@ -275,22 +334,43 @@ export function CircleOnboardingInterstitial({
 
   // Invite members view
   if (mode === 'invite') {
+    const shareUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/join/${circle.inviteCode}`
+      : `/join/${circle.inviteCode}`
+
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Invite Members</DialogTitle>
             <DialogDescription>
-              Share this invite code with friends to join <span className="font-semibold">{circle.name}</span>
+              Share this link with friends to join <span className="font-semibold">{circle.name}</span>
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
+            {/* Share Link */}
             <div className="space-y-2">
-              <Label>Invite Code</Label>
+              <Label>Invite Link</Label>
+              <div className="p-3 bg-brand-sand border border-brand-carbon/20 rounded-lg">
+                <p className="text-sm font-mono text-brand-carbon break-all">
+                  {shareUrl}
+                </p>
+              </div>
+            </div>
+
+            {/* Share Button */}
+            <Button onClick={handleShare} className="w-full" size="lg">
+              <Share2 className="h-4 w-4 mr-2" />
+              Share Invite Link
+            </Button>
+
+            {/* Invite Code (secondary) */}
+            <div className="pt-2 border-t">
+              <p className="text-xs text-gray-500 mb-2">Or share the code directly:</p>
               <div className="flex items-center gap-2">
-                <div className="flex-1 p-3 bg-brand-sand border border-brand-carbon/20 rounded-lg">
-                  <p className="text-2xl font-mono font-bold text-brand-carbon text-center">
+                <div className="flex-1 p-2 bg-gray-100 border rounded">
+                  <p className="text-lg font-mono font-bold text-brand-carbon text-center">
                     {circle.inviteCode || 'N/A'}
                   </p>
                 </div>
@@ -303,25 +383,18 @@ export function CircleOnboardingInterstitial({
                   <Copy className={`h-4 w-4 ${inviteCopied ? 'text-brand-blue' : ''}`} />
                 </Button>
               </div>
-              {inviteCopied && (
-                <p className="text-sm text-brand-blue">Copied to clipboard!</p>
-              )}
             </div>
-            
-            <p className="text-sm text-gray-500">
-              Members can join by entering this code in the "Join Circle" dialog.
-            </p>
           </div>
-          
+
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setMode('interstitial')}
               className="flex-1"
             >
               Back
             </Button>
-            <Button 
+            <Button
               onClick={handleSkip}
               className="flex-1"
             >
