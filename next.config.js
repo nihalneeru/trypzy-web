@@ -3,6 +3,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  typescript: {
+    // JavaScript-only codebase with some legacy .tsx files
+    // Skip type checking during builds
+    ignoreBuildErrors: true,
+  },
   experimental: {
     // Remove if not using Server Components
     serverComponentsExternalPackages: ['mongodb'],

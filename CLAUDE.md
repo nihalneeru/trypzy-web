@@ -80,6 +80,9 @@ The product should feel like a helpful organizer, not a manager.
 - No AI-first experiences that replace user intent
 - No multi-product surface area (Trips first, everything else later)
 
+**Important: This repo is JavaScript-only.**
+Use `.jsx` (not `.tsx`) and do not include TypeScript syntax or types. The codebase is stable at MVP and we avoid TypeScript migration to prevent drift.
+
 ## 1) Trypzy Brand Colors
 
 **CSS Variables** (defined in `app/globals.css`):
