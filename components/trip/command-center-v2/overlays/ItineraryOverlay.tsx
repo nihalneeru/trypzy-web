@@ -1444,7 +1444,7 @@ export function ItineraryOverlay({
                     <Input
                       value={newFeedback.target}
                       onChange={(e) => setNewFeedback({ ...newFeedback, target: e.target.value })}
-                      placeholder="Target (optional)"
+                      placeholder="Which part? e.g. Day 2, hotels (optional)"
                       className="text-sm h-9"
                       disabled={viewerIsReadOnly}
                     />
