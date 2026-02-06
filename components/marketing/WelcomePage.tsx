@@ -21,12 +21,12 @@ import {
 export function WelcomePage() {
   // Trip progress milestones in order
   const milestones = [
-    { icon: Lightbulb, label: 'Proposed' },
+    { icon: Lightbulb, label: 'Trip Idea' },
     { icon: CalendarIcon, label: 'Dates' },
     { icon: ListTodo, label: 'Itinerary' },
     { icon: Home, label: 'Stay' },
     { icon: Luggage, label: 'Prep' },
-    { icon: Rocket, label: 'On Trip' },
+    { icon: Rocket, label: 'Travel' },
     { icon: Camera, label: 'Memories' },
     { icon: DollarSign, label: 'Expenses' }
   ]
@@ -59,7 +59,7 @@ export function WelcomePage() {
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12 lg:py-20">
           <div className="text-center">
             <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6 sm:mb-10">
-              Plan trips together — without the chaos.
+              Plan trips together — without coordination chaos.
             </h1>
 
             {/* Visual Flow Graphic - All 8 milestones */}
@@ -93,9 +93,9 @@ export function WelcomePage() {
                   <CardContent className="py-3 px-3 sm:py-4 sm:px-5">
                     <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-2">Great for</h3>
                     <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-gray-600 text-left">
-                      <li>• Small groups</li>
+                      <li>• Friend groups</li>
                       <li>• Up to ~15 people</li>
-                      <li>• 1–2 organizers</li>
+                      <li>• Low-pressure planning</li>
                     </ul>
                   </CardContent>
                 </Card>
@@ -104,9 +104,9 @@ export function WelcomePage() {
                   <CardContent className="py-3 px-3 sm:py-4 sm:px-5">
                     <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-2">Not for (yet)</h3>
                     <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-gray-600 text-left">
-                      <li>• Booking sites</li>
+                      <li>• Booking travel</li>
                       <li>• Rigid checklists</li>
-                      <li>• Solo planning</li>
+                      <li>• Planning alone</li>
                     </ul>
                   </CardContent>
                 </Card>
@@ -120,11 +120,11 @@ export function WelcomePage() {
       <section className="bg-primary/5 py-4 sm:py-6 shrink-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">
-            Ready to plan your next trip?
+            Ready to try it with your group?
           </h2>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-center">
             <Button size="default" asChild className="text-sm sm:text-base px-6 sm:px-10">
-              <Link href="/signup">Create an account</Link>
+              <Link href="/signup">Get started</Link>
             </Button>
             <Button size="default" variant="outline" asChild className="text-sm sm:text-base px-6 sm:px-10">
               <Link href="/login">Log in</Link>
