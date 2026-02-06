@@ -1,0 +1,23 @@
+{
+  "name": "trypzy-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Trypzy native shell — Capacitor wrapper for iOS + Android",
+  "scripts": {
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android",
+    "cap:build:ios": "npx cap sync ios && npx cap open ios",
+    "cap:build:android": "npx cap sync android && npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.0",
+    "@capacitor/preferences": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@codetrix-studio/capacitor-google-auth": "^3.4.0"
+  }
+}

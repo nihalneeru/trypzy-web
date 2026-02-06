@@ -1,0 +1,24 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.trypzy.app",
+        "paths": [
+          "/trips/*",
+          "/circles/*",
+          "/join/*",
+          "/dashboard",
+          "/discover",
+          "/native-bridge",
+          "/native-login"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "TEAMID.com.trypzy.app"
+    ]
+  }
+}
