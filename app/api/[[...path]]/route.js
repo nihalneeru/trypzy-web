@@ -25,6 +25,36 @@ import {
   emitLeaderChanged,
 } from '@/lib/events/instrumentation'
 
+// In-memory rate limiter for sensitive endpoints
+const rateLimitStore = new Map()
+const RATE_LIMIT_WINDOW_MS = 60 * 1000 // 1 minute
+const RATE_LIMIT_MAX_ATTEMPTS = 5 // max attempts per window
+
+function checkRateLimit(key) {
+  const now = Date.now()
+  const entry = rateLimitStore.get(key)
+
+  // Clean up expired entries periodically (every 100 checks)
+  if (Math.random() < 0.01) {
+    for (const [k, v] of rateLimitStore) {
+      if (now - v.windowStart > RATE_LIMIT_WINDOW_MS) rateLimitStore.delete(k)
+    }
+  }
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitStore.set(key, { windowStart: now, count: 1 })
+    return { allowed: true }
+  }
+
+  entry.count++
+  if (entry.count > RATE_LIMIT_MAX_ATTEMPTS) {
+    const retryAfter = Math.ceil((entry.windowStart + RATE_LIMIT_WINDOW_MS - now) / 1000)
+    return { allowed: false, retryAfter }
+  }
+
+  return { allowed: true }
+}
+
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
@@ -432,6 +462,16 @@ async function handleRoute(request, { params }) {
 
     // Validate private beta secret - POST /api/auth/validate-beta-secret
     if (route === '/auth/validate-beta-secret' && method === 'POST') {
+      // Rate limit by IP
+      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+      const rl = checkRateLimit(`beta-secret:${ip}`)
+      if (!rl.allowed) {
+        return handleCORS(NextResponse.json(
+          { error: 'Too many attempts. Please try again shortly.' },
+          { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } }
+        ))
+      }
+
       const body = await request.json()
       const { secret } = body
       const PRIVATE_BETA_SECRET = process.env.PRIVATE_BETA_SECRET || 'trypzy-beta-2024'

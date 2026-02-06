@@ -181,7 +181,7 @@ function LoginPageContent() {
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="beta-secret">Private Beta Secret Phrase</Label>
+                <Label htmlFor="beta-secret">Beta access code</Label>
                 <Input
                   id="beta-secret"
                   type="text"
@@ -192,11 +192,11 @@ function LoginPageContent() {
                       handleGoogleSignIn()
                     }
                   }}
-                  placeholder="Enter private beta secret"
+                  placeholder="Enter your beta access code"
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Required during private beta
+                  Ask a friend or check your invite for the code
                 </p>
               </div>
               <Button
