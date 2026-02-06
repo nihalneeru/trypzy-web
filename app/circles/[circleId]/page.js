@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Users, MapPin, Camera, MessageCircle } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { CircleDetailSkeleton } from '@/components/circles/CircleDetailSkeleton'
 import { AppHeader } from '@/components/common/AppHeader'
 import { CircleHeader } from '@/components/circles/CircleHeader'
 import { MembersTab } from '@/components/circles/MembersTab'
@@ -153,14 +154,7 @@ export default function CircleDetailPage() {
 
   // Loading state
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <BrandedSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-brand-carbon/60">Loading circle...</p>
-        </div>
-      </div>
-    )
+    return <CircleDetailSkeleton />
   }
 
   // Error state

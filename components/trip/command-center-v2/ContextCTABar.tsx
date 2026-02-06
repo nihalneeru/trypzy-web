@@ -16,7 +16,8 @@ import {
   ThumbsUp,
   Check,
   ClipboardList,
-  Clock
+  Clock,
+  MessageCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { computeTripProgressSnapshot } from '@/lib/trips/progressSnapshot'
@@ -111,6 +112,29 @@ export function ContextCTABar({
         overlayType: 'scheduling',
         priority: 1,
         isBlocking: true
+      }
+    }
+
+    // 1b. PROPOSED phase: non-leader reactions (date_windows mode)
+    if (!isLeader && trip.proposedWindowId && !datesLocked) {
+      const userReacted = (trip.proposedWindowReactions || []).some(
+        (r: any) => r.userId === userId
+      )
+      if (!userReacted) {
+        return {
+          label: 'Share your thoughts',
+          icon: MessageCircle,
+          overlayType: 'scheduling',
+          priority: 1,
+          isBlocking: true
+        }
+      }
+      return {
+        label: 'Awaiting lock',
+        icon: Clock,
+        overlayType: 'scheduling',
+        priority: 1,
+        isBlocking: false
       }
     }
 
