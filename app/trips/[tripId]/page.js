@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { CommandCenterV3 } from '@/components/trip/command-center-v2'
 import { AppHeader } from '@/components/common/AppHeader'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { TripDetailSkeleton } from '@/components/trip/TripDetailSkeleton'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags } from '@/lib/trips/stage'
 
 /**
@@ -123,14 +124,7 @@ export default function TripDetailPage() {
 
   // Loading state
   if (loading || !trip) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <BrandedSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-brand-carbon/60">Loading trip...</p>
-        </div>
-      </div>
-    )
+    return <TripDetailSkeleton />
   }
 
   // Error state

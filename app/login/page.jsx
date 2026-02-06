@@ -161,6 +161,21 @@ function LoginPageContent() {
     }
   }
 
+  // Show spinner while session is resolving (prevents beta code form flash on OAuth return)
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="flex items-center justify-center mb-4">
+            <TrypzyLogo variant="full" className="h-10 w-auto" />
+          </div>
+          <BrandedSpinner size="lg" className="mx-auto mb-3" />
+          <p className="text-[#6B7280] text-sm">Signing you in...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">

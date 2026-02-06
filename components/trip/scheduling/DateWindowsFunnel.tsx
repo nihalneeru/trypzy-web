@@ -1256,8 +1256,8 @@ export function DateWindowsFunnel({
                         </TooltipProvider>
                       )}
 
-                      {/* Propose button (leader only) */}
-                      {isLeader && phase === 'COLLECTING' && (
+                      {/* Propose button (leader only, hidden when primary CTA card is visible) */}
+                      {isLeader && phase === 'COLLECTING' && !proposalStatus?.proposalReady && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>

@@ -51,15 +51,20 @@ interface Message {
   metadata?: Record<string, any>
 }
 
+// Backoff constants
+const BASE_INTERVAL = 5000    // 5s
+const MAX_INTERVAL = 20000    // 20s
+const BACKOFF_MULTIPLIER = 1.5
+
 /**
  * Hook for managing trip chat messages
- * Handles loading, polling, and sending messages
+ * Handles loading, polling (with exponential backoff), and sending messages
  */
 export function useTripChat({
   tripId,
   token,
   enabled = true,
-  pollInterval = 5000
+  pollInterval = BASE_INTERVAL
 }: UseTripChatOptions) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
@@ -67,10 +72,18 @@ export function useTripChat({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [failureCount, setFailureCount] = useState(0)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const currentIntervalRef = useRef(pollInterval)
+  const prevMessageCountRef = useRef(0)
+  const stoppedRef = useRef(false)
 
   // Clear error helper
   const clearError = useCallback(() => setError(null), [])
+
+  // Reset polling interval to base
+  const resetInterval = useCallback(() => {
+    currentIntervalRef.current = pollInterval
+  }, [pollInterval])
 
   // Load messages
   const loadMessages = useCallback(async () => {
@@ -78,7 +91,22 @@ export function useTripChat({
 
     try {
       const data = await api(`/trips/${tripId}/messages`, { method: 'GET' }, token)
-      setMessages(data || [])
+      const msgList: Message[] = data || []
+      const prevCount = prevMessageCountRef.current
+      prevMessageCountRef.current = msgList.length
+
+      // If new messages arrived, reset backoff to base interval
+      if (msgList.length > prevCount && prevCount > 0) {
+        currentIntervalRef.current = pollInterval
+      } else if (prevCount > 0) {
+        // No new messages — increase interval with backoff
+        currentIntervalRef.current = Math.min(
+          currentIntervalRef.current * BACKOFF_MULTIPLIER,
+          MAX_INTERVAL
+        )
+      }
+
+      setMessages(msgList)
       setError(null) // Clear error on success
       setFailureCount(0) // Reset failure count on success
     } catch (err: any) {
@@ -87,43 +115,57 @@ export function useTripChat({
       setFailureCount(prev => {
         const newCount = prev + 1
         // Stop polling after 3 consecutive failures
-        if (newCount >= 3 && intervalRef.current) {
-          clearInterval(intervalRef.current)
-          intervalRef.current = null
+        if (newCount >= 3) {
+          stoppedRef.current = true
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+            timeoutRef.current = null
+          }
         }
         return newCount
       })
     }
-  }, [tripId, token])
+  }, [tripId, token, pollInterval])
 
   // Initial load
   useEffect(() => {
     if (enabled && tripId && token) {
       setLoading(true)
+      prevMessageCountRef.current = 0
       loadMessages().finally(() => setLoading(false))
     }
   }, [enabled, tripId, token, loadMessages])
 
-  // Polling
+  // Polling with setTimeout chain (supports backoff)
   useEffect(() => {
     if (!enabled || !tripId || !token) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
       }
       return
     }
 
-    // Start polling
-    intervalRef.current = setInterval(loadMessages, pollInterval)
+    stoppedRef.current = false
+
+    const scheduleNext = () => {
+      if (stoppedRef.current) return
+      timeoutRef.current = setTimeout(async () => {
+        await loadMessages()
+        scheduleNext()
+      }, currentIntervalRef.current)
+    }
+
+    scheduleNext()
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+      stoppedRef.current = true
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
       }
     }
-  }, [enabled, tripId, token, pollInterval, loadMessages])
+  }, [enabled, tripId, token, loadMessages])
 
   // Send message
   const sendMessage = useCallback(async () => {
@@ -139,12 +181,16 @@ export function useTripChat({
 
       setMessages(prev => [...prev, msg])
       setNewMessage('')
+      prevMessageCountRef.current += 1
+
+      // Reset backoff on user activity
+      currentIntervalRef.current = pollInterval
     } catch (error: any) {
       toast.error(error.message || 'Failed to send message')
     } finally {
       setSendingMessage(false)
     }
-  }, [newMessage, tripId, token])
+  }, [newMessage, tripId, token, pollInterval])
 
   return {
     messages,

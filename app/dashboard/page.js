@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Users, UserPlus } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton'
 import { AppHeader } from '@/components/common/AppHeader'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
@@ -177,14 +178,7 @@ export default function DashboardPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <BrandedSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
 
   if (error) {

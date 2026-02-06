@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
 
 import type { OverlayType, OverlayParams } from './types'
@@ -11,18 +12,47 @@ import { OverlayContainer } from './OverlayContainer'
 import { ProgressStrip } from './ProgressStrip'
 import { ContextCTABar } from './ContextCTABar'
 
-// Overlay components
-import {
-  SchedulingOverlay,
-  ItineraryOverlay,
-  AccommodationOverlay,
-  TravelersOverlay,
-  PrepOverlay,
-  ExpensesOverlay,
-  MemoriesOverlay,
-  MemberProfileOverlay,
-  TripInfoOverlay
-} from './overlays'
+// Lazy-loaded overlay components (code-split per overlay)
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+
+const overlayLoadingFallback = <div className="flex items-center justify-center py-12"><BrandedSpinner size="lg" /></div>
+
+const SchedulingOverlay = dynamic(
+  () => import('./overlays/SchedulingOverlay').then(m => ({ default: m.SchedulingOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
+const ItineraryOverlay = dynamic(
+  () => import('./overlays/ItineraryOverlay').then(m => ({ default: m.ItineraryOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
+const AccommodationOverlay = dynamic(
+  () => import('./overlays/AccommodationOverlay').then(m => ({ default: m.AccommodationOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
+const TravelersOverlay = dynamic(
+  () => import('./overlays/TravelersOverlay').then(m => ({ default: m.TravelersOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
+const PrepOverlay = dynamic(
+  () => import('./overlays/PrepOverlay').then(m => ({ default: m.PrepOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
+const ExpensesOverlay = dynamic(
+  () => import('./overlays/ExpensesOverlay').then(m => ({ default: m.ExpensesOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
+const MemoriesOverlay = dynamic(
+  () => import('./overlays/MemoriesOverlay').then(m => ({ default: m.MemoriesOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
+const MemberProfileOverlay = dynamic(
+  () => import('./overlays/MemberProfileOverlay').then(m => ({ default: m.MemberProfileOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
+const TripInfoOverlay = dynamic(
+  () => import('./overlays/TripInfoOverlay').then(m => ({ default: m.TripInfoOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
 
 // Chat component
 import { ChatTab } from '@/components/trip/TripTabs/tabs/ChatTab'
