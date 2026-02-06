@@ -833,7 +833,7 @@ export function DateWindowsFunnel({
               </div>
               <p className="text-xs text-center text-muted-foreground mt-1">
                 {approvalSummary.totalReactions} of {approvalSummary.memberCount} responded
-                {!canLock && ` • Need ${approvalSummary.requiredApprovals} approvals to lock`}
+                {!canLock && ` • ${approvalSummary.requiredApprovals} approvals needed`}
               </p>
               {/* Show who reacted */}
               {approvalSummary.reactions.length > 0 && (
@@ -876,7 +876,7 @@ export function DateWindowsFunnel({
               disabled={submitting}
             >
               <Lock className="h-4 w-4 mr-2" />
-              {canLock ? 'Lock these dates' : `Lock dates (${approvalSummary?.approvals || 0}/${approvalSummary?.requiredApprovals || '?'} approvals)`}
+              {canLock ? 'Lock these dates' : `Lock dates (${approvalSummary?.approvals || 0} of ${approvalSummary?.requiredApprovals || '?'} approvals so far)`}
             </Button>
 
             {/* Secondary: Change proposal (withdraw and go back to COLLECTING) */}
@@ -897,7 +897,7 @@ export function DateWindowsFunnel({
           <p className="text-sm text-center text-muted-foreground pt-2 border-t">
             {canLock
               ? 'Waiting for the trip leader to lock dates.'
-              : `Need ${approvalSummary?.requiredApprovals || '?'} approvals before dates can be locked.`
+              : `The leader can lock dates once ${approvalSummary?.requiredApprovals || '?'} travelers approve.`
             }
           </p>
         )}
@@ -916,9 +916,9 @@ export function DateWindowsFunnel({
                     <p className="text-sm">
                       {approvalSummary.approvals} of {approvalSummary.memberCount} travelers approved.
                       {!canLock && (
-                        <span className="text-amber-600 block mt-1">
-                          ⚠️ Approval threshold not met ({approvalSummary.approvals}/{approvalSummary.requiredApprovals}).
-                          You can still lock if you're confident.
+                        <span className="text-muted-foreground block mt-1">
+                          {approvalSummary.approvals} of {approvalSummary.requiredApprovals} approvals so far.
+                          You can move forward when you're ready.
                         </span>
                       )}
                     </p>
@@ -935,9 +935,9 @@ export function DateWindowsFunnel({
                 <AlertDialogAction
                   onClick={() => handleLock(true)}
                   disabled={submitting}
-                  className="bg-amber-500 hover:bg-amber-600"
+                  className="bg-brand-red hover:bg-brand-red/90"
                 >
-                  {submitting ? 'Locking...' : 'Lock anyway'}
+                  {submitting ? 'Locking...' : 'Move forward'}
                 </AlertDialogAction>
               )}
               {canLock && (
@@ -1202,8 +1202,8 @@ export function DateWindowsFunnel({
                           </Badge>
                         )}
                         {window.precision === 'unstructured' && (
-                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                            flexible
+                          <Badge variant="outline" className="text-xs">
+                            approximate
                           </Badge>
                         )}
                       </div>
@@ -1274,7 +1274,7 @@ export function DateWindowsFunnel({
                             <TooltipContent>
                               {proposalStatus?.proposalReady
                                 ? 'Put this to the group for feedback'
-                                : 'Put to group (not everyone has responded yet)'}
+                                : 'Put to group — some travelers haven\'t weighed in yet'}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
