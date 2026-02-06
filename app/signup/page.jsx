@@ -49,7 +49,15 @@ function SignupPageContent() {
   const { data: session, status } = useSession()
   const [betaSecret, setBetaSecret] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+  const [isOAuthReturn, setIsOAuthReturn] = useState(false)
   const loadingTimeoutRef = useRef(null)
+
+  // Detect OAuth return vs fresh visit (client-only, avoids hydration mismatch)
+  useEffect(() => {
+    setIsOAuthReturn(!!sessionStorage.getItem('signup_beta_secret'))
+    setInitialized(true)
+  }, [])
 
   // Handle error query params from auth callbacks
   useEffect(() => {
@@ -175,8 +183,9 @@ function SignupPageContent() {
     }
   }
 
-  // Show spinner while session is resolving (prevents beta code form flash on OAuth return)
-  if (status === 'loading') {
+  // Before useEffect runs, show spinner (matches server render = no hydration error).
+  // After useEffect: OAuth return → keep spinner until redirect; fresh visit → show form.
+  if (!initialized || (isOAuthReturn && status !== 'unauthenticated')) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="text-center">
@@ -184,7 +193,7 @@ function SignupPageContent() {
             <TrypzyLogo variant="full" className="h-10 w-auto" />
           </div>
           <BrandedSpinner size="lg" className="mx-auto mb-3" />
-          <p className="text-[#6B7280] text-sm">Signing you in...</p>
+          <p className="text-[#6B7280] text-sm">{isOAuthReturn ? 'Signing you in...' : ''}</p>
         </div>
       </div>
     )
