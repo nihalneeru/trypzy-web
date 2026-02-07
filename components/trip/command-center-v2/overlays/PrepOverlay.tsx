@@ -175,7 +175,6 @@ export function PrepOverlay({
       setShowTransportForm(false)
       resetTransportForm()
       loadPrepData()
-      onRefresh()
     } catch (error: any) {
       toast.error(error.message || 'Could not add transport — please try again')
     } finally {
@@ -210,7 +209,6 @@ export function PrepOverlay({
         notes: ''
       })
       loadPrepData()
-      onRefresh()
     } catch (error: any) {
       toast.error(error.message || 'Could not add item — please try again')
     } finally {
@@ -230,7 +228,6 @@ export function PrepOverlay({
       }, token)
 
       loadPrepData()
-      onRefresh()
     } catch (error: any) {
       toast.error(error.message || 'Could not update item — please try again')
     }
@@ -314,7 +311,6 @@ export function PrepOverlay({
 
       toast.success('Transport deleted')
       loadPrepData()
-      onRefresh()
     } catch (error: any) {
       toast.error(error.message || 'Could not delete transport — please try again')
     } finally {
@@ -333,7 +329,6 @@ export function PrepOverlay({
 
       toast.success('Item deleted')
       loadPrepData()
-      onRefresh()
     } catch (error: any) {
       toast.error(error.message || 'Could not delete item — please try again')
     } finally {
