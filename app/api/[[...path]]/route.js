@@ -9428,7 +9428,7 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { category, title, quantity, notes } = body
+      const { category, title, quantity, notes, scope } = body
 
       if (!title || !title.trim()) {
         return handleCORS(NextResponse.json(
@@ -9443,6 +9443,9 @@ async function handleRoute(request, { params }) {
           { status: 400 }
         ))
       }
+
+      // Validate scope if provided (packing items only)
+      const itemScope = (category === 'packing' && scope === 'personal') ? 'personal' : 'group'
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -9487,6 +9490,7 @@ async function handleRoute(request, { params }) {
         id: uuidv4(),
         tripId,
         category,
+        scope: itemScope,
         title: title.trim(),
         quantity: quantity ? parseInt(quantity) : null,
         notes: notes?.trim() || null,
@@ -9848,6 +9852,180 @@ async function handleRoute(request, { params }) {
       }
 
       return handleCORS(NextResponse.json({ created, skipped }))
+    }
+
+    // Generate packing suggestions - POST /api/trips/:tripId/prep/packing-suggestions
+    if (route.match(/^\/trips\/[^/]+\/prep\/packing-suggestions$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
+      })
+
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Check if user is an active traveler
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active traveler for this trip', code: 'USER_NOT_TRAVELER' },
+          { status: 403 }
+        ))
+      }
+
+      // Get latest itinerary version
+      const latestVersion = await db.collection('itinerary_versions')
+        .findOne({ tripId }, { sort: { version: -1 } })
+
+      if (!latestVersion || !latestVersion.content) {
+        return handleCORS(NextResponse.json(
+          { error: 'No itinerary found. Generate an itinerary first.' },
+          { status: 400 }
+        ))
+      }
+
+      const isLeader = trip.createdBy === auth.user.id
+      let suggestions = []
+      let source = 'rule'
+
+      // Check cache first
+      const cached = await db.collection('prep_suggestions_cache').findOne({
+        tripId,
+        itineraryVersionId: latestVersion.id || String(latestVersion.version),
+        feature: 'packing'
+      })
+
+      if (cached && cached.output && Array.isArray(cached.output)) {
+        suggestions = cached.output
+        source = 'cache'
+      } else if (isLeader) {
+        // Leader: attempt LLM generation, cache result
+        try {
+          const { generatePackingSuggestions, PACKING_PROMPT_VERSION } = await import('@/lib/server/llm.js')
+          const startDate = trip.lockedStartDate || trip.startDate
+          const endDate = trip.lockedEndDate || trip.endDate
+          const durationDays = latestVersion.content.days?.length || 0
+
+          const llmResult = await generatePackingSuggestions({
+            itinerary: latestVersion.content,
+            destination: trip.destinationHint || trip.name,
+            startDate,
+            endDate,
+            durationDays
+          })
+
+          suggestions = llmResult.items
+          source = 'llm'
+
+          // Cache the result
+          await db.collection('prep_suggestions_cache').insertOne({
+            tripId,
+            itineraryVersionId: latestVersion.id || String(latestVersion.version),
+            feature: 'packing',
+            createdByUserId: auth.user.id,
+            model: llmResult._meta?.model || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+            promptVersion: PACKING_PROMPT_VERSION,
+            inputHash: null,
+            output: llmResult.items,
+            createdAt: new Date().toISOString()
+          })
+
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Packing] LLM generated ${suggestions.length} items, cached`)
+          }
+        } catch (llmError) {
+          // LLM failed — fall back to rule-based
+          console.error('[Packing] LLM failed, falling back to rule-based:', llmError.message)
+          source = 'fallback'
+        }
+      }
+
+      // If no suggestions yet (non-leader without cache, or LLM fallback), use rule-based
+      if (suggestions.length === 0 && (source === 'rule' || source === 'fallback')) {
+        const { derivePackingSuggestionsFromItinerary } = await import('@/lib/prep/derivePackingSuggestionsFromItinerary.js')
+        const startDate = trip.lockedStartDate || trip.startDate
+        const durationDays = latestVersion.content.days?.length || 0
+
+        suggestions = derivePackingSuggestionsFromItinerary({
+          itinerary: latestVersion.content,
+          startDate,
+          durationDays
+        })
+      }
+
+      // Insert suggestions as personal packing items (idempotent by dedupeKey)
+      let created = 0
+      let skipped = 0
+
+      for (const suggestion of suggestions) {
+        const dedupeKey = `packing:personal:${auth.user.id}:${suggestion.slug}`
+
+        const existing = await db.collection('prep_items').findOne({
+          tripId,
+          dedupeKey
+        })
+
+        if (!existing) {
+          const prepItem = {
+            id: uuidv4(),
+            tripId,
+            category: 'packing',
+            scope: 'personal',
+            title: suggestion.title,
+            quantity: null,
+            notes: suggestion.notes || null,
+            ownerUserId: auth.user.id,
+            dedupeKey,
+            status: 'todo',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+
+          await db.collection('prep_items').insertOne(prepItem)
+          created++
+        } else {
+          skipped++
+        }
+      }
+
+      // Update trip prepStatus to in_progress if currently not_started
+      if (created > 0 && (trip.prepStatus === 'not_started' || !trip.prepStatus)) {
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { prepStatus: 'in_progress' } }
+        )
+      }
+
+      return handleCORS(NextResponse.json({ created, skipped, total: suggestions.length, source }))
     }
 
     // Mark prep complete - POST /api/trips/:tripId/prep/markComplete

@@ -25,7 +25,9 @@ import {
   AlertTriangle,
   X,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  User,
+  Users
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
@@ -87,6 +89,9 @@ export function PrepOverlay({
   const [markingComplete, setMarkingComplete] = useState(false)
   const [deletingTransport, setDeletingTransport] = useState<string | null>(null)
   const [deletingChecklist, setDeletingChecklist] = useState<string | null>(null)
+  const [generatingPackingSuggestions, setGeneratingPackingSuggestions] = useState(false)
+  const [packingSuggestSource, setPackingSuggestSource] = useState<string | null>(null)
+  const [packingAddScope, setPackingAddScope] = useState<'personal' | 'group'>('personal')
 
   const [newTransport, setNewTransport] = useState({
     mode: 'other',
@@ -190,6 +195,7 @@ export function PrepOverlay({
         method: 'POST',
         body: JSON.stringify({
           category: 'packing',
+          scope: packingAddScope,
           title: newPackingItem.title.trim(),
           quantity: newPackingItem.quantity ? parseInt(newPackingItem.quantity) : null,
           notes: newPackingItem.notes.trim() || null
@@ -246,6 +252,33 @@ export function PrepOverlay({
       toast.error(error.message || 'Failed to generate suggestions')
     } finally {
       setGeneratingSuggestions(false)
+    }
+  }
+
+  const handleGeneratePackingSuggestions = async () => {
+    if (isReadOnly) return
+
+    setGeneratingPackingSuggestions(true)
+    setPackingSuggestSource(null)
+    try {
+      const result = await api(`/trips/${trip.id}/prep/packing-suggestions`, {
+        method: 'POST'
+      }, token)
+
+      setPackingSuggestSource(result.source || null)
+      const isAI = result.source === 'llm' || result.source === 'cache'
+      const suffix = isAI ? ' (AI-informed)' : ''
+      if (result.created > 0) {
+        toast.success(`Added ${result.created} item${result.created !== 1 ? 's' : ''} to your packing list${suffix}`)
+      } else {
+        toast.info('No new items to add — your list is up to date')
+      }
+      loadPrepData()
+      onRefresh()
+    } catch (error: any) {
+      toast.error(error.message || 'Could not generate suggestions — please try again')
+    } finally {
+      setGeneratingPackingSuggestions(false)
     }
   }
 
@@ -380,6 +413,15 @@ export function PrepOverlay({
   const packingItems = prepData?.packingItems || []
   const prepStatus = prepData?.prepStatus || 'not_started'
 
+  // Split packing items into personal (My Packing) and group
+  // Existing items without scope field default to 'group'
+  const myPackingItems = packingItems.filter(
+    (item: any) => item.scope === 'personal' && item.ownerUserId === user?.id
+  )
+  const groupPackingItems = packingItems.filter(
+    (item: any) => item.scope !== 'personal'
+  )
+
   return (
     <div className="space-y-6 p-4">
       {/* Header with Mark Complete */}
@@ -419,7 +461,7 @@ export function PrepOverlay({
               className="h-8 text-xs"
             >
               <Sparkles className="h-3 w-3 mr-1" />
-              {generatingSuggestions ? 'Generating...' : 'AI Suggest'}
+              {generatingSuggestions ? 'Generating...' : 'Smart Suggest'}
             </Button>
             {!showTransportForm && (
               <Button
@@ -673,31 +715,57 @@ export function PrepOverlay({
         )}
       </div>
 
-      {/* Packing List Section */}
+      {/* ── My Packing Section ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-            Packing List
-          </h3>
-          {!showPackingForm && (
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-brand-blue" />
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+              My Packing
+            </h3>
+          </div>
+          <div className="flex gap-2">
             <Button
+              variant="ghost"
               size="sm"
-              onClick={() => setShowPackingForm(true)}
-              disabled={isReadOnly}
-              className="h-8"
+              onClick={handleGeneratePackingSuggestions}
+              disabled={generatingPackingSuggestions || isReadOnly}
+              className="h-8 text-xs"
             >
-              <Plus className="h-3 w-3 mr-1" />
-              Add Item
+              <Sparkles className="h-3 w-3 mr-1" />
+              {generatingPackingSuggestions ? 'Generating...' : 'Smart Suggest'}
             </Button>
-          )}
+            {!showPackingForm && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setPackingAddScope('personal')
+                  setShowPackingForm(true)
+                }}
+                disabled={isReadOnly}
+                className="h-8"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add Item
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Inline Packing Form */}
-        {showPackingForm && (
+        {packingSuggestSource && (
+          <p className="text-xs text-gray-400 mb-2">
+            {(packingSuggestSource === 'llm' || packingSuggestSource === 'cache')
+              ? 'AI-informed (based on itinerary)'
+              : 'Based on itinerary'}
+          </p>
+        )}
+
+        {/* Inline Packing Form (personal scope) */}
+        {showPackingForm && packingAddScope === 'personal' && (
           <Card className="mb-4 border-brand-blue">
             <CardContent className="pt-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-brand-carbon">Add Packing Item</h4>
+                <h4 className="text-sm font-medium text-brand-carbon">Add to My Packing</h4>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -774,17 +842,17 @@ export function PrepOverlay({
           </Card>
         )}
 
-        {packingItems.length === 0 && !showPackingForm ? (
+        {myPackingItems.length === 0 && !showPackingForm ? (
           <Card>
             <CardContent className="py-6 text-center">
               <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No packing items yet</p>
-              <p className="text-xs text-gray-500 mt-1">Add items to your packing list</p>
+              <p className="text-sm text-gray-500">No personal packing items yet</p>
+              <p className="text-xs text-gray-500 mt-1">Use Smart Suggest or add items manually</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-1">
-            {packingItems.map((item: any) => (
+            {myPackingItems.map((item: any) => (
               <div
                 key={item.id}
                 className="flex items-center gap-3 p-3 rounded-lg border bg-white hover:bg-gray-50"
@@ -816,7 +884,167 @@ export function PrepOverlay({
                     className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
                     onClick={() => handleDeleteChecklist(item.id)}
                     disabled={deletingChecklist === item.id}
-                    aria-label="Delete checklist item"
+                    aria-label="Delete packing item"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Group Items Section ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-500" />
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+              Group Items
+            </h3>
+          </div>
+          {!showPackingForm && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setPackingAddScope('group')
+                setShowPackingForm(true)
+              }}
+              disabled={isReadOnly}
+              className="h-8"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add Item
+            </Button>
+          )}
+        </div>
+
+        {/* Inline Packing Form (group scope) */}
+        {showPackingForm && packingAddScope === 'group' && (
+          <Card className="mb-4 border-brand-blue">
+            <CardContent className="pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-brand-carbon">Add Group Item</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowPackingForm(false)
+                    setNewPackingItem({ title: '', quantity: '', notes: '' })
+                  }}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Item Name *</Label>
+                <Input
+                  value={newPackingItem.title}
+                  onChange={(e) => setNewPackingItem({ ...newPackingItem, title: e.target.value })}
+                  placeholder="e.g., First-aid kit, Speaker, Cooler"
+                  className="h-9"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newPackingItem.title.trim() && !adding) {
+                      handleAddPackingItem()
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Quantity</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={newPackingItem.quantity}
+                    onChange={(e) => setNewPackingItem({ ...newPackingItem, quantity: e.target.value })}
+                    placeholder="Number"
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Notes</Label>
+                  <Input
+                    value={newPackingItem.notes}
+                    onChange={(e) => setNewPackingItem({ ...newPackingItem, notes: e.target.value })}
+                    placeholder="Optional"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowPackingForm(false)
+                    setNewPackingItem({ title: '', quantity: '', notes: '' })
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddPackingItem}
+                  disabled={adding || !newPackingItem.title.trim()}
+                  className="flex-1"
+                >
+                  {adding ? 'Adding...' : 'Add Item'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {groupPackingItems.length === 0 && !(showPackingForm && packingAddScope === 'group') ? (
+          <Card>
+            <CardContent className="py-6 text-center">
+              <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No group items yet</p>
+              <p className="text-xs text-gray-500 mt-1">Add shared items the group needs (e.g., first-aid kit, speaker)</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-1">
+            {groupPackingItems.map((item: any) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-3 p-3 rounded-lg border bg-white hover:bg-gray-50"
+              >
+                <Checkbox
+                  checked={item.status === 'done'}
+                  onCheckedChange={() => handleTogglePackingItem(item.id, item.status)}
+                  disabled={isReadOnly}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm ${item.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}`}>
+                      {item.title}
+                    </span>
+                    {item.quantity && (
+                      <Badge variant="outline" className="text-xs">
+                        x{item.quantity}
+                      </Badge>
+                    )}
+                  </div>
+                  {item.notes && (
+                    <p className="text-xs text-gray-500 mt-0.5">{item.notes}</p>
+                  )}
+                </div>
+                {canDeleteItem(item.ownerUserId) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                    onClick={() => handleDeleteChecklist(item.id)}
+                    disabled={deletingChecklist === item.id}
+                    aria-label="Delete group item"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
