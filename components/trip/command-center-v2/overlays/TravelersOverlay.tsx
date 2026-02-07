@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle, Send } from 'lucide-react'
+import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle, Send, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
@@ -482,6 +482,52 @@ export function TravelersOverlay({
     }
   }
 
+  // Invite friends via Web Share API or clipboard fallback
+  const handleInvite = async () => {
+    const inviteCode = trip?.circle?.inviteCode || trip?.inviteCode
+    if (!inviteCode) {
+      toast.error('No invite code available')
+      return
+    }
+
+    const shareUrl = `${window.location.origin}/join/${inviteCode}?tripId=${trip.id}&ref=${user?.id || ''}`
+    const shareText = `Join "${trip.name}" on Trypzy to plan the trip together!`
+    const fullMessage = `${shareText}\n${shareUrl}`
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Trypzy Invite',
+          text: fullMessage,
+        })
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+        // Fall through to clipboard
+      }
+    }
+
+    // Fallback: copy to clipboard
+    try {
+      await navigator.clipboard.writeText(fullMessage)
+      toast.success('Invite link copied!')
+    } catch {
+      try {
+        const textarea = document.createElement('textarea')
+        textarea.value = fullMessage
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        toast.success('Invite link copied!')
+      } catch {
+        toast.error('Could not copy — please copy manually')
+      }
+    }
+  }
+
   // Accept pending leadership transfer
   const handleAcceptTransfer = async () => {
     if (!trip?.id || !token) return
@@ -794,6 +840,18 @@ export function TravelersOverlay({
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Invite Friends Button */}
+      {viewer.isActiveParticipant && !isCancelled && (
+        <Button
+          variant="outline"
+          className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-blue-50"
+          onClick={handleInvite}
+        >
+          <Share2 className="h-4 w-4 mr-2" />
+          Invite friends
+        </Button>
       )}
 
       {/* Active Travelers */}

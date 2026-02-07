@@ -59,6 +59,14 @@ function SignupPageContent() {
     setInitialized(true)
   }, [])
 
+  // Persist returnTo in localStorage so it survives the OAuth round-trip
+  useEffect(() => {
+    const returnTo = searchParams.get('returnTo')
+    if (returnTo && returnTo.startsWith('/')) {
+      localStorage.setItem('trypzy_pending_return_to', returnTo)
+    }
+  }, [searchParams])
+
   // Handle error query params from auth callbacks
   useEffect(() => {
     const error = searchParams.get('error')
@@ -101,24 +109,73 @@ function SignupPageContent() {
     const storedSecret = sessionStorage.getItem('signup_beta_secret')
 
     if (status === 'authenticated' && session?.accessToken) {
+      // Always store credentials when authenticated (ensures token is available after redirect)
+      localStorage.setItem('trypzy_token', session.accessToken)
+      localStorage.setItem('trypzy_user', JSON.stringify({
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name
+      }))
+
+      // Determine redirect destination: URL param > localStorage > dashboard
+      const urlReturnTo = searchParams.get('returnTo')
+      const storedReturnTo = localStorage.getItem('trypzy_pending_return_to')
+      const returnTo = urlReturnTo || storedReturnTo
+      const destination = returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard'
+
       if (storedSecret) {
-        // Just completed signup flow - store credentials and redirect
-        localStorage.setItem('trypzy_token', session.accessToken)
-        localStorage.setItem('trypzy_user', JSON.stringify({
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.name
-        }))
-        // Clear beta secret from sessionStorage
         sessionStorage.removeItem('signup_beta_secret')
-        // Clear auth mode cookie
         document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-        // Redirect to dashboard
-        router.replace('/dashboard')
-      } else {
-        // User is already logged in and just visiting signup page - redirect to dashboard
-        router.replace('/dashboard')
       }
+
+      // If destination is a join page, handle the join here (token is guaranteed available)
+      // then redirect to the trip/circle directly — avoids token timing issues on the join page
+      // Guard: localStorage flag survives React StrictMode remounts (refs don't)
+      const joinMatch = destination.match(/^\/join\/([^?]+)/)
+      if (joinMatch && !localStorage.getItem('trypzy_join_in_progress')) {
+        localStorage.setItem('trypzy_join_in_progress', '1')
+        // Clear auto-join signals BEFORE the call so the join page won't also try
+        localStorage.removeItem('trypzy_pending_return_to')
+        document.cookie = 'pendingCircleInvite=; path=/; max-age=0'
+
+        const joinCode = joinMatch[1].trim().toUpperCase()
+        const joinUrl = new URL(destination, window.location.origin)
+        const tripId = joinUrl.searchParams.get('tripId')
+        const refUserId = joinUrl.searchParams.get('ref')
+
+        fetch('/api/circles/join', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.accessToken}`
+          },
+          body: JSON.stringify({
+            inviteCode: joinCode,
+            ...(tripId ? { tripId } : {}),
+            ...(refUserId ? { invitedBy: refUserId } : {})
+          })
+        })
+          .then(res => res.json())
+          .then(data => {
+            localStorage.removeItem('trypzy_join_in_progress')
+            const redirectTripId = data.tripId || tripId
+            if (redirectTripId) {
+              router.replace(`/trips/${redirectTripId}`)
+            } else if (data.circleId) {
+              router.replace(`/circles/${data.circleId}`)
+            } else {
+              router.replace('/dashboard')
+            }
+          })
+          .catch(() => {
+            localStorage.removeItem('trypzy_join_in_progress')
+            // On failure, fall through to the join page
+            router.replace(destination)
+          })
+        return
+      }
+
+      router.replace(destination)
     }
   }, [session, status, router])
 
@@ -168,8 +225,13 @@ function SignupPageContent() {
 
       // Initiate Google OAuth sign-in
       // NextAuth will handle the redirect and callback
+      // Include returnTo in callbackUrl so it survives the OAuth round-trip in the URL itself
+      const pendingReturnTo = localStorage.getItem('trypzy_pending_return_to')
+      const callbackUrl = pendingReturnTo
+        ? `/signup?returnTo=${encodeURIComponent(pendingReturnTo)}`
+        : '/signup'
       await signIn('google', {
-        callbackUrl: '/signup',
+        callbackUrl,
         redirect: true,
       })
 
