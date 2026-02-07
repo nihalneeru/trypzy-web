@@ -3711,6 +3711,147 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ message: 'Date suggestion deleted' }))
     }
 
+    // ── Scheduling Insights ──
+
+    // Generate scheduling insights - POST /api/trips/:tripId/scheduling/insights
+    // Leader-only: generates LLM-informed insights from chat + windows + reactions
+    if (route.match(/^\/trips\/[^/]+\/scheduling\/insights$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
+      }
+
+      // Leader-only generation
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip leader can generate scheduling insights' },
+          { status: 403 }
+        ))
+      }
+
+      try {
+        const { buildSchedulingInsightSnapshot } = await import('@/lib/scheduling/buildSchedulingInsightSnapshot.js')
+        const { snapshot, inputHash } = await buildSchedulingInsightSnapshot(db, trip)
+
+        // Check cache
+        const cached = await db.collection('prep_suggestions_cache').findOne({
+          tripId,
+          feature: 'scheduling_insights',
+          inputHash
+        })
+
+        if (cached && cached.output) {
+          return handleCORS(NextResponse.json({
+            source: 'cache',
+            output: cached.output,
+            inputHash,
+            snapshotMeta: cached.snapshotMeta || null,
+            createdAt: cached.createdAt
+          }))
+        }
+
+        // Generate via LLM
+        const { generateSchedulingInsights, SCHEDULING_INSIGHTS_PROMPT_VERSION } = await import('@/lib/server/llm.js')
+        const result = await generateSchedulingInsights({ snapshot })
+
+        // Store in cache
+        await db.collection('prep_suggestions_cache').insertOne({
+          tripId,
+          feature: 'scheduling_insights',
+          inputHash,
+          itineraryVersionId: null,
+          createdByUserId: auth.user.id,
+          model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+          promptVersion: SCHEDULING_INSIGHTS_PROMPT_VERSION,
+          snapshotMeta: {
+            chatCount: result._meta?.chatCount || 0,
+            windowCount: result._meta?.windowCount || 0,
+            participantCount: result._meta?.participantCount || 0,
+            trigger: 'leader_click'
+          },
+          output: result.output,
+          createdAt: new Date().toISOString()
+        })
+
+        return handleCORS(NextResponse.json({
+          source: 'llm',
+          output: result.output,
+          inputHash,
+          createdAt: new Date().toISOString()
+        }))
+      } catch (llmError) {
+        console.error('[Scheduling Insights] LLM failed:', llmError.message)
+        return handleCORS(NextResponse.json({
+          source: 'fallback',
+          output: null,
+          inputHash: null,
+          error: 'Could not generate insights right now'
+        }))
+      }
+    }
+
+    // Get scheduling insights - GET /api/trips/:tripId/scheduling/insights
+    // Any traveler can fetch the latest cached insight
+    if (route.match(/^\/trips\/[^/]+\/scheduling\/insights$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
+      }
+
+      // Compute current inputHash to check if insight is stale
+      const { buildSchedulingInsightSnapshot } = await import('@/lib/scheduling/buildSchedulingInsightSnapshot.js')
+      const { inputHash: currentHash } = await buildSchedulingInsightSnapshot(db, trip)
+
+      // Find latest insight for this trip
+      const latest = await db.collection('prep_suggestions_cache').findOne(
+        { tripId, feature: 'scheduling_insights' },
+        { sort: { createdAt: -1 } }
+      )
+
+      const isLeader = trip.createdBy === auth.user.id
+
+      return handleCORS(NextResponse.json({
+        output: latest?.output || null,
+        inputHash: latest?.inputHash || null,
+        currentHash,
+        isStale: latest ? latest.inputHash !== currentHash : false,
+        createdAt: latest?.createdAt || null,
+        isLeader
+      }))
+    }
+
     // Set duration preference - POST /api/trips/:id/duration-preference
     // Traveler sets their preferred trip duration (optional, during COLLECTING phase)
     if (route.match(/^\/trips\/[^/]+\/duration-preference$/) && method === 'POST') {
