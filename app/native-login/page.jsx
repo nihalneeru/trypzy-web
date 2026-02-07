@@ -60,6 +60,9 @@ export default function NativeLoginPage() {
         throw new Error('Native plugins not available')
       }
 
+      // Initialize GoogleAuth with config (required for iOS to set iosClientId)
+      await GoogleAuth.initialize()
+
       // Show native Google Sign-In dialog
       const googleUser = await GoogleAuth.signIn()
       const idToken = googleUser.authentication?.idToken
@@ -69,14 +72,11 @@ export default function NativeLoginPage() {
       }
 
       // Exchange Google ID token for Trypzy JWT
-      const res = await fetch(
-        'https://beta.trypzy.com/api/mobile/auth/google',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken }),
-        }
-      )
+      const res = await fetch('/api/mobile/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      })
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
