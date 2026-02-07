@@ -247,7 +247,8 @@ export function PrepOverlay({
 
       toast.success('Suggestions generated')
       loadPrepData()
-      onRefresh()
+      // Note: no onRefresh() — transport suggestions don't change trip-level state,
+      // and onRefresh() triggers a full trip re-render that closes the overlay.
     } catch (error: any) {
       toast.error(error.message || 'Failed to generate suggestions')
     } finally {
