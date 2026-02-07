@@ -677,7 +677,7 @@ async function handleRoute(request, { params }) {
       }
 
       const body = await request.json()
-      let { inviteCode } = body
+      let { inviteCode, tripId: joinTripId, invitedBy } = body
 
       if (!inviteCode) {
         return handleCORS(NextResponse.json(
@@ -703,6 +703,9 @@ async function handleRoute(request, { params }) {
         circleId: circle.id
       })
 
+      let isNewCircleMember = false
+      const isAlreadyActiveMember = existingMembership && existingMembership.status !== 'left'
+
       if (existingMembership) {
         if (existingMembership.status === 'left') {
           // Rejoin: reactivate the existing membership
@@ -713,14 +716,10 @@ async function handleRoute(request, { params }) {
               $unset: { status: '', leftAt: '' }
             }
           )
-        } else {
-          // Already a member - return success (idempotent)
-          return handleCORS(NextResponse.json({
-            circleId: circle.id,
-            alreadyMember: true
-          }))
         }
+        // If active member, no circle changes needed — but continue for trip auto-add
       } else {
+        isNewCircleMember = true
         await db.collection('memberships').insertOne({
           userId: auth.user.id,
           circleId: circle.id,
@@ -729,64 +728,141 @@ async function handleRoute(request, { params }) {
         })
       }
 
-      // Backfill: Reactivate previously-left trip_participants for collaborative trips.
-      // Late joiners (membership.joinedAt > trip.createdAt) are NOT auto-added.
-      // They must use the join-request flow to become travelers.
-      const existingTrips = await db.collection('trips')
-        .find({ circleId: circle.id, type: 'collaborative' })
-        .toArray()
-
-      if (existingTrips.length > 0) {
-        const tripIds = existingTrips.map(t => t.id)
-        const now = new Date().toISOString()
-
-        // Get existing trip_participants records for this user in these trips
-        const existingParticipants = await db.collection('trip_participants')
-          .find({
-            tripId: { $in: tripIds },
+      // Auto-add to trip when invited from within a trip (tripId in request body)
+      // This runs for ALL cases (new member, rejoin, already member) because
+      // the user may be a circle member but not yet a participant in this specific trip
+      let addedToTrip = false
+      let joinedTrip = null
+      if (joinTripId) {
+        joinedTrip = await db.collection('trips').findOne({ id: joinTripId, circleId: circle.id })
+        if (joinedTrip) {
+          const existingParticipant = await db.collection('trip_participants').findOne({
+            tripId: joinTripId,
             userId: auth.user.id
           })
-          .toArray()
+          const now = new Date().toISOString()
 
-        const existingByTripId = new Map(existingParticipants.map(p => [p.tripId, p]))
-
-        // Only reactivate existing 'left' records (user previously left and is rejoining).
-        // Do NOT reactivate 'removed' records (removal was intentional).
-        // Do NOT create new records (late joiners must use join-request flow).
-        for (const trip of existingTrips) {
-          const existing = existingByTripId.get(trip.id)
-
-          if (existing && existing.status === 'left') {
+          if (!existingParticipant) {
+            // New participant — add them
+            await db.collection('trip_participants').insertOne({
+              tripId: joinTripId,
+              userId: auth.user.id,
+              status: 'active',
+              joinedAt: now,
+              createdAt: now,
+              updatedAt: now
+            })
+            addedToTrip = true
+          } else if (existingParticipant.status === 'left') {
+            // Previously left — reactivate
             await db.collection('trip_participants').updateOne(
-              { tripId: trip.id, userId: auth.user.id },
-              {
-                $set: {
-                  status: 'active',
-                  joinedAt: now,
-                  updatedAt: now
-                }
-              }
+              { tripId: joinTripId, userId: auth.user.id },
+              { $set: { status: 'active', joinedAt: now, updatedAt: now } }
             )
+            addedToTrip = true
           }
-          // If 'removed' → skip (intentional removal)
-          // If 'active' → no-op
-          // If no record → skip (late joiner must use join-request flow)
+          // If 'removed' or already 'active' — no-op
         }
       }
 
-      // Add system message for joining circle
-      await db.collection('circle_messages').insertOne({
-        id: uuidv4(),
-        circleId: circle.id,
-        userId: null,
-        content: `👋 ${auth.user.name} joined the circle`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
-      })
+      // Emit trip chat system message when user was actually added to the trip
+      if (addedToTrip && joinedTrip) {
+          let messageText = `${auth.user.name} joined the trip`
+
+          // Validate inviter is a current circle member
+          if (invitedBy) {
+            const inviterMembership = await db.collection('memberships').findOne({
+              userId: invitedBy,
+              circleId: circle.id,
+              status: { $ne: 'left' }
+            })
+            if (inviterMembership) {
+              const inviter = await db.collection('users').findOne({ id: invitedBy })
+              if (inviter?.name) {
+                messageText = `${auth.user.name} joined the trip — invited by ${inviter.name}`
+              }
+            }
+          }
+
+          try {
+            // Remove any previous "traveler_joined" messages for this user+trip
+            // (prevents duplicates on rejoin or dedupeKey format changes)
+            await db.collection('trip_messages').deleteMany({
+              tripId: joinTripId,
+              subtype: 'traveler_joined',
+              userId: auth.user.id
+            })
+
+            const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+            await emitTripChatEvent({
+              tripId: joinTripId,
+              circleId: circle.id,
+              actorUserId: auth.user.id,
+              subtype: 'traveler_joined',
+              text: messageText,
+              dedupeKey: `traveler_joined_${joinTripId}_${auth.user.id}`
+            })
+          } catch (err) {
+            console.error('Failed to emit trip join chat event:', err)
+            // Non-blocking — join still succeeds
+          }
+      }
+
+      // For new circle members only: backfill + circle system message
+      if (isNewCircleMember) {
+        // Backfill: Reactivate previously-left trip_participants for collaborative trips.
+        // Late joiners (membership.joinedAt > trip.createdAt) are NOT auto-added.
+        // They must use the join-request flow to become travelers.
+        const existingTrips = await db.collection('trips')
+          .find({ circleId: circle.id, type: 'collaborative' })
+          .toArray()
+
+        if (existingTrips.length > 0) {
+          const tripIds = existingTrips.map(t => t.id)
+          const now = new Date().toISOString()
+
+          const existingParticipants = await db.collection('trip_participants')
+            .find({
+              tripId: { $in: tripIds },
+              userId: auth.user.id
+            })
+            .toArray()
+
+          const existingByTripId = new Map(existingParticipants.map(p => [p.tripId, p]))
+
+          for (const trip of existingTrips) {
+            const existing = existingByTripId.get(trip.id)
+
+            if (existing && existing.status === 'left') {
+              await db.collection('trip_participants').updateOne(
+                { tripId: trip.id, userId: auth.user.id },
+                {
+                  $set: {
+                    status: 'active',
+                    joinedAt: now,
+                    updatedAt: now
+                  }
+                }
+              )
+            }
+          }
+        }
+
+        // Add system message for joining circle
+        await db.collection('circle_messages').insertOne({
+          id: uuidv4(),
+          circleId: circle.id,
+          userId: null,
+          content: `👋 ${auth.user.name} joined the circle`,
+          isSystem: true,
+          createdAt: new Date().toISOString()
+        })
+      }
 
       return handleCORS(NextResponse.json({
         circleId: circle.id,
-        alreadyMember: false
+        alreadyMember: isAlreadyActiveMember,
+        ...(joinTripId ? { tripId: joinTripId } : {})
       }))
     }
 
@@ -1686,7 +1762,7 @@ async function handleRoute(request, { params }) {
 
       return handleCORS(NextResponse.json({
         ...trip,
-        circle: circle ? { id: circle.id, name: circle.name, ownerId: circle.ownerId } : null,
+        circle: circle ? { id: circle.id, name: circle.name, ownerId: circle.ownerId, inviteCode: circle.inviteCode } : null,
         availabilities: availabilities.map(({ _id, ...rest }) => rest),
         userAvailability: userAvailability.map(({ _id, ...rest }) => rest),
         votes: votesWithVoters.map(({ _id, ...rest }) => rest),

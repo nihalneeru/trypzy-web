@@ -389,7 +389,6 @@ export function DateWindowsFunnel({
       toast.success('Dates added')
       resetFormState()
       await fetchWindows()
-      onRefresh()
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -441,7 +440,6 @@ export function DateWindowsFunnel({
       toast.success('Dates added')
       resetFormState()
       await fetchWindows()
-      onRefresh()
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -478,7 +476,6 @@ export function DateWindowsFunnel({
       toast.success('Dates added')
       resetFormState()
       await fetchWindows()
-      onRefresh()
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -567,7 +564,6 @@ export function DateWindowsFunnel({
 
       toast.success('Date suggestion removed')
       await fetchWindows()
-      onRefresh()
     } catch (err: any) {
       toast.error(err.message)
     }
