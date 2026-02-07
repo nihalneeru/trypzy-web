@@ -9534,7 +9534,7 @@ async function handleRoute(request, { params }) {
       }
 
       const tripId = path[1]
-      const itemId = path[3]
+      const itemId = path[4]
       const body = await request.json()
       const { status, title, quantity, notes } = body
 
@@ -9604,7 +9604,7 @@ async function handleRoute(request, { params }) {
       }
 
       const tripId = path[1]
-      const transportId = path[3]
+      const transportId = path[4]
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -9673,7 +9673,7 @@ async function handleRoute(request, { params }) {
       }
 
       const tripId = path[1]
-      const itemId = path[3]
+      const itemId = path[4]
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
