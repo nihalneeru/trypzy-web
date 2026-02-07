@@ -274,7 +274,8 @@ export function PrepOverlay({
         toast.info('No new items to add — your list is up to date')
       }
       loadPrepData()
-      onRefresh()
+      // Note: no onRefresh() here — packing suggestions don't change trip-level state,
+      // and onRefresh() triggers a full trip re-render that closes the overlay.
     } catch (error: any) {
       toast.error(error.message || 'Could not generate suggestions — please try again')
     } finally {
