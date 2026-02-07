@@ -51,15 +51,15 @@ export function CircleHeader({ circle, token, onLeft }) {
 
   // Smart share: Web Share API or clipboard fallback
   async function handleShare() {
-    const shareText = `Join "${circle.name}" on Trypzy to plan trips together!`
+    const inviteMessage = circle.name
+      ? `Join my Trypzy circle "${circle.name}" to plan trips together 🌍\nTap the link to join:\n${shareUrl}`
+      : `Join my Trypzy circle to plan trips together 🌍\nTap the link to join:\n${shareUrl}`
 
     // Try Web Share API first (mobile)
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Trypzy Invite',
-          text: shareText,
-          url: shareUrl
+          text: inviteMessage
         })
         return // Success - no toast needed, native share handles it
       } catch (err) {
@@ -72,10 +72,9 @@ export function CircleHeader({ circle, token, onLeft }) {
     }
 
     // Fallback: copy formatted message to clipboard
-    const fullMessage = `${shareText}\n${shareUrl}`
-    const success = await copyToClipboard(fullMessage)
+    const success = await copyToClipboard(inviteMessage)
     if (success) {
-      toast.success('Invite link copied!')
+      toast.success('Invite message copied!')
     } else {
       toast.error('Could not copy — please copy manually')
     }

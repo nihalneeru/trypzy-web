@@ -397,6 +397,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               onRefresh={onRefresh}
               onClose={closeOverlay}
               setHasUnsavedChanges={setHasUnsavedChanges}
+              onOpenOverlay={(overlay) => setActiveOverlay(overlay)}
             />
           )}
           {activeOverlay === 'prep' && (
