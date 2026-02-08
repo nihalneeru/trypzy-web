@@ -61,6 +61,12 @@ export default function PrivacySettingsPage() {
       const data = await api('/users/me/privacy', { method: 'GET' }, token)
       setPrivacy(data.privacy)
     } catch (error) {
+      if (error.message?.includes('Unauthorized')) {
+        localStorage.removeItem('trypzy_token')
+        localStorage.removeItem('trypzy_user')
+        router.replace('/')
+        return
+      }
       toast.error(error.message || 'Failed to load privacy settings')
     } finally {
       setLoading(false)
