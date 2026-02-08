@@ -23,6 +23,7 @@ import {
   emitTravelerJoined,
   emitTravelerLeft,
   emitLeaderChanged,
+  emitTripFirstFlowCompleted,
 } from '@/lib/events/instrumentation'
 
 // In-memory rate limiter for sensitive endpoints
@@ -1032,12 +1033,12 @@ async function handleRoute(request, { params }) {
       }
 
       const body = await request.json()
-      const { circleId, name, description, type, startDate, endDate, duration } = body
+      let { circleId, name, description, type, startDate, endDate, duration } = body
 
-      // Validate required fields
-      if (!circleId || !name || !type) {
+      // Validate required fields (circleId is optional — auto-created when absent)
+      if (!name || !type) {
         return handleCORS(NextResponse.json(
-          { error: 'Circle ID, name, and type are required' },
+          { error: 'Name and type are required' },
           { status: 400 }
         ))
       }
@@ -1056,6 +1057,32 @@ async function handleRoute(request, { params }) {
           { error: 'Hosted trips require start and end dates' },
           { status: 400 }
         ))
+      }
+
+      // Trip-first flow: auto-create circle when circleId is absent
+      let autoCreatedCircle = null
+      if (!circleId) {
+        const circle = {
+          id: uuidv4(),
+          name: name,
+          description: '',
+          ownerId: auth.user.id,
+          inviteCode: generateInviteCode(),
+          autoCreated: true,
+          createdAt: new Date().toISOString()
+        }
+
+        await db.collection('circles').insertOne(circle)
+
+        await db.collection('memberships').insertOne({
+          userId: auth.user.id,
+          circleId: circle.id,
+          role: 'owner',
+          joinedAt: new Date().toISOString()
+        })
+
+        circleId = circle.id
+        autoCreatedCircle = { id: circle.id, name: circle.name, inviteCode: circle.inviteCode }
       }
 
       // Check membership
@@ -1199,6 +1226,18 @@ async function handleRoute(request, { params }) {
             })
           }
         }
+      }
+
+      // Trip-first flow: emit event and include circle in response
+      if (autoCreatedCircle) {
+        emitTripFirstFlowCompleted(
+          trip.id,
+          circleId,
+          auth.user.id,
+          type,
+          new Date(trip.createdAt)
+        )
+        return handleCORS(NextResponse.json({ ...trip, circle: autoCreatedCircle }))
       }
 
       return handleCORS(NextResponse.json(trip))

@@ -13,10 +13,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { TripFormFields } from './TripFormFields'
 
 /**
  * Create Trip Dialog Component
@@ -171,105 +170,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
           <DialogDescription>Plan a new adventure with your circle</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
-          <div className="space-y-2">
-            <Label>Trip Name</Label>
-            <Input
-              value={tripForm.name}
-              onChange={(e) => setTripForm({ ...tripForm, name: e.target.value })}
-              placeholder="Summer Beach Trip"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Description (optional)</Label>
-            <Textarea
-              value={tripForm.description}
-              onChange={(e) => setTripForm({ ...tripForm, description: e.target.value })}
-              placeholder="A relaxing weekend getaway..."
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Trip Type</Label>
-            <Select 
-              value={tripForm.type} 
-              onValueChange={(v) => setTripForm({ ...tripForm, type: v })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="collaborative">Collaborative (everyone votes on dates)</SelectItem>
-                <SelectItem value="hosted">Hosted (fixed dates, join if available)</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-gray-500 mt-1">
-              {tripForm.type === 'collaborative'
-                ? "Your group suggests and votes on dates together. Best for flexible planning."
-                : "You set the dates, others join if they can. Best when dates are already decided."}
-            </p>
-          </div>
-          {tripForm.type === 'collaborative' && (
-            <div className="space-y-2">
-              <Label>
-                How long would you like this trip to be?
-                <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
-              </Label>
-              <p className="text-xs text-gray-500">
-                Just a starting point—your group can adjust this later.
-              </p>
-              <Select
-                value={tripForm.duration || 'none'}
-                onValueChange={(v) => setTripForm({ ...tripForm, duration: v === 'none' ? '' : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="No preference" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No preference</SelectItem>
-                  <SelectItem value="weekend">Weekend (2–3 days)</SelectItem>
-                  <SelectItem value="extended-weekend">Extended weekend (3–4 days)</SelectItem>
-                  <SelectItem value="few-days">A few days (4–5 days)</SelectItem>
-                  <SelectItem value="week">A week</SelectItem>
-                  <SelectItem value="week-plus">Week+ (8+ days)</SelectItem>
-                  <SelectItem value="flexible">Flexible</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label>
-              {tripForm.type === 'hosted' ? 'Trip Dates' : 'Planning Window'}
-              {tripForm.type === 'collaborative' && (
-                <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
-              )}
-            </Label>
-            <p className="text-xs text-gray-500">
-              {tripForm.type === 'hosted'
-                ? 'Set the fixed dates for your trip. Participants join if they can make it.'
-                : 'Optionally set a date range. Your group can suggest windows and finalize dates later.'}
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{tripForm.type === 'hosted' ? 'Start date' : 'Earliest possible date'}</Label>
-                <Input
-                  type="date"
-                  value={tripForm.startDate}
-                  onChange={(e) => setTripForm({ ...tripForm, startDate: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                  required={tripForm.type === 'hosted'}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{tripForm.type === 'hosted' ? 'End date' : 'Latest possible date'}</Label>
-                <Input
-                  type="date"
-                  value={tripForm.endDate}
-                  onChange={(e) => setTripForm({ ...tripForm, endDate: e.target.value })}
-                  min={tripForm.startDate || new Date().toISOString().split('T')[0]}
-                  required={tripForm.type === 'hosted'}
-                />
-              </div>
-            </div>
-          </div>
+          <TripFormFields tripForm={tripForm} onChange={setTripForm} />
           {/* Invite circle members (hosted trips only) */}
           {tripForm.type === 'hosted' && (
             <div className="space-y-2">
