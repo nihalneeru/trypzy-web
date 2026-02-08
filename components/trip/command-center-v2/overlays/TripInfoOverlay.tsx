@@ -241,7 +241,7 @@ export function TripInfoOverlay({
               {trip.type === 'hosted' ? 'Hosted Trip' : 'Collaborative Trip'}
             </Badge>
             {isLocked && (
-              <Badge className="bg-green-600 text-white">Dates Locked</Badge>
+              <Badge variant="outline" className="border-brand-blue bg-brand-blue text-white">Dates Locked</Badge>
             )}
           </div>
 
