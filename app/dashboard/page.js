@@ -134,13 +134,14 @@ export default function DashboardPage() {
         setDashboardData(data)
       } catch (err) {
         console.error('Dashboard error:', err)
-        setError(err.message)
-        // If unauthorized, redirect to login with clean URL
-        if (err.message.includes('Unauthorized')) {
+        // If unauthorized, redirect to login with clean URL (before setError to avoid flash)
+        if (err.message?.includes('Unauthorized')) {
           localStorage.removeItem('trypzy_token')
           localStorage.removeItem('trypzy_user')
           router.replace('/')
+          return
         }
+        setError(err.message)
       } finally {
         setLoading(false)
       }

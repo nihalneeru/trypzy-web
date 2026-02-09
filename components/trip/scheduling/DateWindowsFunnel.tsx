@@ -307,6 +307,17 @@ export function DateWindowsFunnel({
 
       if (!res.ok) {
         const data = await res.json()
+        if (data.code === 'GENERATION_LIMIT_REACHED') {
+          // Update local state so button hides immediately
+          setInsightData((prev: any) => ({
+            ...prev,
+            canRegenerate: false,
+            generationCount: data.generationCount,
+            maxGenerations: data.maxGenerations
+          }))
+          toast.error('Insight generation limit reached for this trip')
+          return
+        }
         throw new Error(data.error || 'Could not generate insights')
       }
 
@@ -323,7 +334,10 @@ export function DateWindowsFunnel({
         currentHash: data.inputHash,
         isStale: false,
         createdAt: data.createdAt,
-        isLeader: true
+        isLeader: true,
+        canRegenerate: data.canRegenerate,
+        generationCount: data.generationCount,
+        maxGenerations: data.maxGenerations
       })
       toast.success('Insights generated')
     } catch (err: any) {
@@ -1415,7 +1429,7 @@ export function DateWindowsFunnel({
           return (
             <div className="space-y-2">
               {/* Generate / Update button (leader only) */}
-              {isLeader && (!hasInsight || insightData?.isStale) && (
+              {isLeader && (!hasInsight || insightData?.isStale) && insightData?.canRegenerate !== false && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1433,6 +1447,13 @@ export function DateWindowsFunnel({
                 </Button>
               )}
 
+              {/* Limit reached message (leader only, when stale but can't regenerate) */}
+              {isLeader && hasInsight && insightData?.canRegenerate === false && insightData?.isStale && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Insight generation limit reached ({insightData.generationCount}/{insightData.maxGenerations})
+                </p>
+              )}
+
               {/* Insight card (visible to all when data exists) */}
               {hasInsight && (
                 <Card className="border-brand-blue/20 bg-brand-sand/30">
@@ -1441,6 +1462,11 @@ export function DateWindowsFunnel({
                       <h4 className="text-sm font-semibold text-brand-carbon flex items-center gap-1.5">
                         <Sparkles className="h-3.5 w-3.5 text-brand-blue" />
                         Scheduling Insights
+                        {insightData?.isLeader && insightData?.generationCount > 0 && (
+                          <span className="text-[10px] font-normal text-muted-foreground">
+                            {insightData.generationCount}/{insightData.maxGenerations}
+                          </span>
+                        )}
                       </h4>
                       {insightData?.isStale && (
                         <span className="text-[10px] text-muted-foreground bg-gray-100 px-1.5 py-0.5 rounded">
@@ -1512,22 +1538,26 @@ export function DateWindowsFunnel({
                       </div>
                     )}
 
-                    {/* Follow-up questions */}
+                    {/* Follow-up questions (role-aware) */}
                     {output.followups?.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-brand-carbon mb-1">Suggested follow-ups</p>
+                        <p className="text-xs font-medium text-brand-carbon mb-1">
+                          {isLeader ? 'Suggested questions to ask' : 'Open questions'}
+                        </p>
                         <ul className="space-y-2">
                           {output.followups.map((f: any, i: number) => (
                             <li key={i} className="text-sm text-muted-foreground bg-white rounded p-2 border">
                               <div className="flex items-start justify-between gap-2">
                                 <span className="italic">&ldquo;{f.question}&rdquo;</span>
-                                <button
-                                  onClick={() => handleCopyFollowup(f.question)}
-                                  className="shrink-0 text-muted-foreground hover:text-brand-blue p-1"
-                                  aria-label="Copy to clipboard"
-                                >
-                                  <Copy className="h-3.5 w-3.5" />
-                                </button>
+                                {isLeader && (
+                                  <button
+                                    onClick={() => handleCopyFollowup(f.question)}
+                                    className="shrink-0 text-muted-foreground hover:text-brand-blue p-1"
+                                    aria-label="Copy to clipboard"
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
                               </div>
                               {f.reason && (
                                 <p className="text-xs text-gray-400 mt-1">{f.reason}</p>
