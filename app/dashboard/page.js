@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { GlobalNotifications } from '@/components/dashboard/GlobalNotifications'
 import { CircleSection } from '@/components/dashboard/CircleSection'
 import { CreateCircleDialog } from '@/components/dashboard/CreateCircleDialog'
@@ -77,7 +77,13 @@ export default function DashboardPage() {
     }
   }, [pathname, token, user])
 
+  // Prevent duplicate loadDashboard runs from useSession status changes
+  const dashboardLoaded = useRef(false)
+
   useEffect(() => {
+    // If dashboard already loaded successfully, skip re-runs from session status changes
+    if (dashboardLoaded.current) return
+
     const loadDashboard = async () => {
       try {
         // Check for OAuth callback tokens in URL params first
@@ -141,6 +147,7 @@ export default function DashboardPage() {
 
         const data = await api('/dashboard', { method: 'GET' }, tokenValue)
         setDashboardData(data)
+        dashboardLoaded.current = true
       } catch (err) {
         const msg = err?.message || String(err)
         console.error('Dashboard error:', msg, err)
@@ -157,8 +164,10 @@ export default function DashboardPage() {
       }
     }
 
-    // Only run loadDashboard when session status is settled (or we have local tokens)
-    if (status !== 'loading' || localStorage.getItem('trypzy_token')) {
+    // If we have a localStorage token, load immediately (covers native + returning web users).
+    // Only wait for useSession when no localStorage token (fresh OAuth redirect).
+    const hasLocalToken = localStorage.getItem('trypzy_token')
+    if (hasLocalToken || status !== 'loading') {
       loadDashboard()
     }
   }, [router, session, status])
