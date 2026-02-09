@@ -28,7 +28,8 @@ export async function GET(request) {
     const db = await connectToMongo()
     
     // Get current user if authenticated (for isAuthor flag)
-    const currentUser = await getUserFromToken(request)
+    const currentUserResult = await getUserFromToken(request)
+    const currentUser = currentUserResult.user || null
     
     // Build query for discoverable posts only
     const query = { discoverable: true }
@@ -40,7 +41,8 @@ export async function GET(request) {
       query.circleId = null
     } else if (scope === 'circle') {
       // Circle feed: requires authentication and membership validation
-      const user = await getUserFromToken(request)
+      const userResult = await getUserFromToken(request)
+      const user = userResult.user || null
       if (!user) {
         return handleCORS(NextResponse.json(
           { error: 'Authentication required for circle feed' },

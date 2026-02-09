@@ -93,29 +93,40 @@ function handleCORS(response) {
 }
 
 // Get user from JWT token
+// Returns: { user } on success, { authError: true } for bad tokens, { serverError: true } for DB issues
 async function getUserFromToken(request) {
   const authHeader = request.headers.get('Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
+    return { authError: true }
   }
   const token = authHeader.split(' ')[1]
   try {
     const decoded = jwt.verify(token, jwtSecret)
     const db = await connectToMongo()
     const user = await db.collection('users').findOne({ id: decoded.userId })
-    return user
+    if (!user) return { authError: true }
+    return { user }
   } catch (error) {
-    return null
+    // JWT verification errors (expired, malformed) are auth failures
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return { authError: true }
+    }
+    // Everything else (DB connection, network) is a server error
+    console.error('getUserFromToken server error:', error.message)
+    return { serverError: true }
   }
 }
 
 // Protected route helper
 async function requireAuth(request) {
-  const user = await getUserFromToken(request)
-  if (!user) {
+  const result = await getUserFromToken(request)
+  if (result.serverError) {
+    return { error: 'Internal server error', status: 500 }
+  }
+  if (result.authError || !result.user) {
     return { error: 'Unauthorized', status: 401 }
   }
-  return { user }
+  return { user: result.user }
 }
 
 // Generate invite code
@@ -7899,12 +7910,12 @@ async function handleRoute(request, { params }) {
       }
 
       // Optional: get user if authenticated
-      const user = await getUserFromToken(request)
+      const authResult = await getUserFromToken(request)
 
       const report = {
         id: uuidv4(),
         postId,
-        reporterUserId: user?.id || null,
+        reporterUserId: authResult.user?.id || null,
         reason: reason.trim(),
         createdAt: new Date().toISOString()
       }
