@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { Save, Shield } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { AppHeader } from '@/components/common/AppHeader'
+import Link from 'next/link'
 
 const api = async (endpoint, options = {}, token) => {
   const response = await fetch(`/api${endpoint}`, {
@@ -113,12 +114,29 @@ export default function PrivacySettingsPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="h-6 w-6 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Privacy Settings</h1>
+            <Shield className="h-6 w-6 text-brand-blue" />
+            <h1 className="text-3xl font-bold text-brand-carbon">Privacy Settings</h1>
           </div>
           <p className="text-gray-600">
             Control who can see your profile and trip information.
           </p>
+        </div>
+
+        {/* Privacy Philosophy */}
+        <div className="bg-brand-sand/40 border border-brand-sand rounded-lg p-5 mb-6">
+          <h2 className="text-base font-semibold text-brand-carbon mb-2">Our Privacy Philosophy</h2>
+          <p className="text-sm text-gray-700 leading-relaxed">
+            Trypzy is built for trusted circles, not public audiences. Trips, conversations, and decisions
+            are private by default and shared only with the people you invite. Nothing is shared beyond your
+            circle unless you explicitly choose. Any smart or automated features are designed to support
+            coordination within your group, not to work against your expectations.
+          </p>
+          <Link
+            href="/privacy"
+            className="inline-block mt-3 text-sm font-medium text-brand-blue hover:underline"
+          >
+            Read our full Privacy Policy
+          </Link>
         </div>
         
         {/* Privacy Settings Card */}

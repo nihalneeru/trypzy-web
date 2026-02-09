@@ -17,8 +17,8 @@ import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { useSession } from 'next-auth/react'
 
-// API Helper
-const api = async (endpoint, options = {}, token = null) => {
+// API Helper with single retry for network errors
+const api = async (endpoint, options = {}, token = null, { retry = true } = {}) => {
   const headers = {
     'Content-Type': 'application/json',
   }
@@ -27,18 +27,27 @@ const api = async (endpoint, options = {}, token = null) => {
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: { ...headers, ...options.headers }
-  })
+  try {
+    const response = await fetch(`/api${endpoint}`, {
+      ...options,
+      headers: { ...headers, ...options.headers }
+    })
 
-  const data = await response.json()
+    const data = await response.json()
 
-  if (!response.ok) {
-    throw new Error(data.error || 'Something went wrong')
+    if (!response.ok) {
+      throw new Error(data.error || 'Something went wrong')
+    }
+
+    return data
+  } catch (err) {
+    // Retry once on network errors (e.g. dev server recompiling)
+    if (retry && err instanceof TypeError) {
+      await new Promise(r => setTimeout(r, 1500))
+      return api(endpoint, options, token, { retry: false })
+    }
+    throw err
   }
-
-  return data
 }
 
 // Dashboard Page
@@ -133,15 +142,16 @@ export default function DashboardPage() {
         const data = await api('/dashboard', { method: 'GET' }, tokenValue)
         setDashboardData(data)
       } catch (err) {
-        console.error('Dashboard error:', err)
+        const msg = err?.message || String(err)
+        console.error('Dashboard error:', msg, err)
         // If unauthorized, redirect to login with clean URL (before setError to avoid flash)
-        if (err.message?.includes('Unauthorized')) {
+        if (msg.includes('Unauthorized')) {
           localStorage.removeItem('trypzy_token')
           localStorage.removeItem('trypzy_user')
           router.replace('/')
           return
         }
-        setError(err.message)
+        setError(msg || 'Could not load dashboard')
       } finally {
         setLoading(false)
       }
@@ -153,7 +163,7 @@ export default function DashboardPage() {
     }
   }, [router, session, status])
 
-  const reloadDashboard = async () => {
+  const reloadDashboard = async ({ throwOnError = false } = {}) => {
     try {
       const tokenValue = localStorage.getItem('trypzy_token')
       if (!tokenValue) return
@@ -161,7 +171,8 @@ export default function DashboardPage() {
       const data = await api('/dashboard', { method: 'GET' }, tokenValue)
       setDashboardData(data)
     } catch (err) {
-      console.error('Dashboard reload error:', err)
+      console.error('Dashboard reload error:', err?.message || err)
+      if (throwOnError) throw err
     }
   }
 
@@ -189,8 +200,20 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card>
-          <CardContent className="py-8 px-6">
-            <p className="text-red-600">Error loading dashboard: {error}</p>
+          <CardContent className="py-8 px-6 text-center">
+            <p className="text-red-600 mb-4">Could not load dashboard — please try again.</p>
+            <Button
+              onClick={() => {
+                setError(null)
+                setLoading(true)
+                reloadDashboard({ throwOnError: true }).then(() => setLoading(false)).catch((err) => {
+                  setError(err?.message || 'Could not load dashboard')
+                  setLoading(false)
+                })
+              }}
+            >
+              Retry
+            </Button>
           </CardContent>
         </Card>
       </div>
