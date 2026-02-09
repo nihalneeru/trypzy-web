@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { Users, Sparkles, LogOut } from 'lucide-react'
 
 interface AppHeaderProps {
@@ -14,8 +16,10 @@ interface AppHeaderProps {
 
 export function AppHeader({ userName, activePage }: AppHeaderProps) {
   const router = useRouter()
+  const [loggingOut, setLoggingOut] = useState(false)
 
   const handleLogout = async () => {
+    setLoggingOut(true)
     // Clear localStorage
     localStorage.removeItem('trypzy_token')
     localStorage.removeItem('trypzy_user')
@@ -70,8 +74,8 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
             >
               Privacy
             </Link>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleLogout} title="Logout">
-              <LogOut className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleLogout} disabled={loggingOut} title="Logout">
+              {loggingOut ? <BrandedSpinner size="sm" /> : <LogOut className="h-4 w-4" />}
             </Button>
           </div>
         </div>
