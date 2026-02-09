@@ -8,7 +8,8 @@ import { JoinCircleDialog } from '@/components/dashboard/JoinCircleDialog'
 import { CircleOnboardingInterstitial } from '@/components/dashboard/CircleOnboardingInterstitial'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Users, UserPlus } from 'lucide-react'
+import { Plus, Users, UserPlus, Calendar } from 'lucide-react'
+import { TripFirstFlow } from '@/components/dashboard/TripFirstFlow'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton'
 import { AppHeader } from '@/components/common/AppHeader'
@@ -44,6 +45,7 @@ const api = async (endpoint, options = {}, token = null) => {
 // NOTE: /dashboard is the canonical post-login landing page.
 // All authenticated users should land here after login.
 export default function DashboardPage() {
+  const isTripFirst = process.env.NEXT_PUBLIC_TRIP_FIRST_ONBOARDING === 'true'
   const router = useRouter()
   const pathname = usePathname()
   const { data: session, status } = useSession()
@@ -56,6 +58,7 @@ export default function DashboardPage() {
   // Dialog states
   const [showCreateCircle, setShowCreateCircle] = useState(false)
   const [showJoinCircle, setShowJoinCircle] = useState(false)
+  const [showTripFirst, setShowTripFirst] = useState(false)
   const [newCircle, setNewCircle] = useState(null) // For onboarding interstitial
 
   // Dev-only navigation tracing
@@ -131,13 +134,14 @@ export default function DashboardPage() {
         setDashboardData(data)
       } catch (err) {
         console.error('Dashboard error:', err)
-        setError(err.message)
-        // If unauthorized, redirect to login with clean URL
-        if (err.message.includes('Unauthorized')) {
+        // If unauthorized, redirect to login with clean URL (before setError to avoid flash)
+        if (err.message?.includes('Unauthorized')) {
           localStorage.removeItem('trypzy_token')
           localStorage.removeItem('trypzy_user')
           router.replace('/')
+          return
         }
+        setError(err.message)
       } finally {
         setLoading(false)
       }
@@ -207,10 +211,22 @@ export default function DashboardPage() {
         {/* Global Notifications */}
         <GlobalNotifications notifications={dashboardData.globalNotifications || []} />
 
-        {/* Your Circles Heading */}
+        {/* Your Circles / Trips Heading */}
         {dashboardData.circles && dashboardData.circles.length > 0 && (
           <div className="flex items-center justify-between mb-6 mt-2 flex-wrap gap-3">
-            <h2 className="text-2xl font-semibold text-gray-900">Your Circles</h2>
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900">
+                {isTripFirst && dashboardData.circles.length === 1 ? 'Your Trips' : 'Your Circles'}
+              </h2>
+              {isTripFirst && dashboardData.circles.length === 1 && (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Circle:{' '}
+                  <a href={`/circles/${dashboardData.circles[0].id}`} className="hover:underline text-brand-blue">
+                    {dashboardData.circles[0].name}
+                  </a>
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -233,33 +249,63 @@ export default function DashboardPage() {
 
         {/* Circle Sections */}
         {dashboardData.circles && dashboardData.circles.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h2 className="text-lg font-medium text-gray-900 mb-2">No circles yet</h2>
-              <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                Circles are your travel groups — friends, family, or any crew you plan trips with.
-                Everyone in a circle can propose and join trips together.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                <div className="text-center">
-                  <Button onClick={() => setShowCreateCircle(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create circle
-                  </Button>
-                  <p className="text-xs text-gray-400 mt-1">Start a new group</p>
+          isTripFirst ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-lg font-medium text-gray-900 mb-2">Plan your first trip</h2>
+                <p className="text-gray-500 mb-2 max-w-md mx-auto">
+                  You've got something in mind — let's get it started.
+                </p>
+                <p className="text-xs text-gray-500 mb-6 max-w-md mx-auto">
+                  Your travelers will be saved as a group for future trips.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                  <div className="text-center">
+                    <Button onClick={() => setShowTripFirst(true)}>
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Plan a trip
+                    </Button>
+                  </div>
+                  <span className="text-gray-300 hidden sm:inline">or</span>
+                  <div className="text-center">
+                    <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Join a friend's trip
+                    </Button>
+                  </div>
                 </div>
-                <span className="text-gray-300 hidden sm:inline">or</span>
-                <div className="text-center">
-                  <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Join circle
-                  </Button>
-                  <p className="text-xs text-gray-400 mt-1">Got an invite code?</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-lg font-medium text-gray-900 mb-2">No circles yet</h2>
+                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                  Circles are your travel groups — friends, family, or any crew you plan trips with.
+                  Everyone in a circle can propose and join trips together.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                  <div className="text-center">
+                    <Button onClick={() => setShowCreateCircle(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create circle
+                    </Button>
+                    <p className="text-xs text-gray-400 mt-1">Start a new group</p>
+                  </div>
+                  <span className="text-gray-300 hidden sm:inline">or</span>
+                  <div className="text-center">
+                    <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Join circle
+                    </Button>
+                    <p className="text-xs text-gray-400 mt-1">Got an invite code?</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )
         ) : (
           dashboardData.circles.map((circle) => (
             <CircleSection
@@ -297,6 +343,14 @@ export default function DashboardPage() {
             token={token}
             onSkip={handleOnboardingSkip}
           />
+          {isTripFirst && (
+            <TripFirstFlow
+              open={showTripFirst}
+              onOpenChange={setShowTripFirst}
+              token={token}
+              onSuccess={() => reloadDashboard()}
+            />
+          )}
         </>
       )}
     </div>

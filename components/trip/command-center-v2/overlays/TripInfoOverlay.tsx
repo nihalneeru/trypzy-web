@@ -15,7 +15,8 @@ import {
   Check,
   Pencil,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Share2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
@@ -80,6 +81,43 @@ export function TripInfoOverlay({
       setTimeout(() => setCopied(false), 2000)
     } catch {
       toast.error('Failed to copy invite code')
+    }
+  }
+
+  // Share invite link (same pattern as TravelersOverlay)
+  const handleInvite = async () => {
+    if (!inviteCode) return
+
+    const shareUrl = `${window.location.origin}/join/${inviteCode}?tripId=${trip.id}&ref=${user?.id || ''}`
+    const shareText = `Join "${trip.name}" on Trypzy to plan the trip together!`
+    const fullMessage = `${shareText}\n${shareUrl}`
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Trypzy Invite', text: fullMessage })
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(fullMessage)
+      toast.success('Invite link copied!')
+    } catch {
+      try {
+        const textarea = document.createElement('textarea')
+        textarea.value = fullMessage
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        toast.success('Invite link copied!')
+      } catch {
+        toast.error('Could not copy invite link')
+      }
     }
   }
 
@@ -203,7 +241,7 @@ export function TripInfoOverlay({
               {trip.type === 'hosted' ? 'Hosted Trip' : 'Collaborative Trip'}
             </Badge>
             {isLocked && (
-              <Badge className="bg-green-600 text-white">Dates Locked</Badge>
+              <Badge variant="outline" className="border-brand-blue bg-brand-blue text-white">Dates Locked</Badge>
             )}
           </div>
 
@@ -342,9 +380,15 @@ export function TripInfoOverlay({
                 )}
               </Button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Share this code with friends to invite them to the circle
-            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleInvite}
+              className="w-full mt-3 border-dashed border-brand-blue text-brand-blue hover:bg-blue-50"
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Share invite link
+            </Button>
           </CardContent>
         </Card>
       )}

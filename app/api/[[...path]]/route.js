@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken'
 import { generateItinerary, summarizeFeedback, reviseItinerary, summarizePlanningChat, LLM_MODEL } from '@/lib/server/llm.js'
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
-import { ITINERARY_CONFIG } from '@/lib/itinerary/config.js'
+import { ITINERARY_CONFIG, SCHEDULING_CONFIG } from '@/lib/itinerary/config.js'
 import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
 
 // Event instrumentation (data moat)
@@ -23,6 +23,7 @@ import {
   emitTravelerJoined,
   emitTravelerLeft,
   emitLeaderChanged,
+  emitTripFirstFlowCompleted,
 } from '@/lib/events/instrumentation'
 
 // In-memory rate limiter for sensitive endpoints
@@ -677,7 +678,7 @@ async function handleRoute(request, { params }) {
       }
 
       const body = await request.json()
-      let { inviteCode } = body
+      let { inviteCode, tripId: joinTripId, invitedBy } = body
 
       if (!inviteCode) {
         return handleCORS(NextResponse.json(
@@ -703,6 +704,9 @@ async function handleRoute(request, { params }) {
         circleId: circle.id
       })
 
+      let isNewCircleMember = false
+      const isAlreadyActiveMember = existingMembership && existingMembership.status !== 'left'
+
       if (existingMembership) {
         if (existingMembership.status === 'left') {
           // Rejoin: reactivate the existing membership
@@ -713,14 +717,10 @@ async function handleRoute(request, { params }) {
               $unset: { status: '', leftAt: '' }
             }
           )
-        } else {
-          // Already a member - return success (idempotent)
-          return handleCORS(NextResponse.json({
-            circleId: circle.id,
-            alreadyMember: true
-          }))
         }
+        // If active member, no circle changes needed — but continue for trip auto-add
       } else {
+        isNewCircleMember = true
         await db.collection('memberships').insertOne({
           userId: auth.user.id,
           circleId: circle.id,
@@ -729,64 +729,141 @@ async function handleRoute(request, { params }) {
         })
       }
 
-      // Backfill: Reactivate previously-left trip_participants for collaborative trips.
-      // Late joiners (membership.joinedAt > trip.createdAt) are NOT auto-added.
-      // They must use the join-request flow to become travelers.
-      const existingTrips = await db.collection('trips')
-        .find({ circleId: circle.id, type: 'collaborative' })
-        .toArray()
-
-      if (existingTrips.length > 0) {
-        const tripIds = existingTrips.map(t => t.id)
-        const now = new Date().toISOString()
-
-        // Get existing trip_participants records for this user in these trips
-        const existingParticipants = await db.collection('trip_participants')
-          .find({
-            tripId: { $in: tripIds },
+      // Auto-add to trip when invited from within a trip (tripId in request body)
+      // This runs for ALL cases (new member, rejoin, already member) because
+      // the user may be a circle member but not yet a participant in this specific trip
+      let addedToTrip = false
+      let joinedTrip = null
+      if (joinTripId) {
+        joinedTrip = await db.collection('trips').findOne({ id: joinTripId, circleId: circle.id })
+        if (joinedTrip) {
+          const existingParticipant = await db.collection('trip_participants').findOne({
+            tripId: joinTripId,
             userId: auth.user.id
           })
-          .toArray()
+          const now = new Date().toISOString()
 
-        const existingByTripId = new Map(existingParticipants.map(p => [p.tripId, p]))
-
-        // Only reactivate existing 'left' records (user previously left and is rejoining).
-        // Do NOT reactivate 'removed' records (removal was intentional).
-        // Do NOT create new records (late joiners must use join-request flow).
-        for (const trip of existingTrips) {
-          const existing = existingByTripId.get(trip.id)
-
-          if (existing && existing.status === 'left') {
+          if (!existingParticipant) {
+            // New participant — add them
+            await db.collection('trip_participants').insertOne({
+              tripId: joinTripId,
+              userId: auth.user.id,
+              status: 'active',
+              joinedAt: now,
+              createdAt: now,
+              updatedAt: now
+            })
+            addedToTrip = true
+          } else if (existingParticipant.status === 'left') {
+            // Previously left — reactivate
             await db.collection('trip_participants').updateOne(
-              { tripId: trip.id, userId: auth.user.id },
-              {
-                $set: {
-                  status: 'active',
-                  joinedAt: now,
-                  updatedAt: now
-                }
-              }
+              { tripId: joinTripId, userId: auth.user.id },
+              { $set: { status: 'active', joinedAt: now, updatedAt: now } }
             )
+            addedToTrip = true
           }
-          // If 'removed' → skip (intentional removal)
-          // If 'active' → no-op
-          // If no record → skip (late joiner must use join-request flow)
+          // If 'removed' or already 'active' — no-op
         }
       }
 
-      // Add system message for joining circle
-      await db.collection('circle_messages').insertOne({
-        id: uuidv4(),
-        circleId: circle.id,
-        userId: null,
-        content: `👋 ${auth.user.name} joined the circle`,
-        isSystem: true,
-        createdAt: new Date().toISOString()
-      })
+      // Emit trip chat system message when user was actually added to the trip
+      if (addedToTrip && joinedTrip) {
+          let messageText = `${auth.user.name} joined the trip`
+
+          // Validate inviter is a current circle member
+          if (invitedBy) {
+            const inviterMembership = await db.collection('memberships').findOne({
+              userId: invitedBy,
+              circleId: circle.id,
+              status: { $ne: 'left' }
+            })
+            if (inviterMembership) {
+              const inviter = await db.collection('users').findOne({ id: invitedBy })
+              if (inviter?.name) {
+                messageText = `${auth.user.name} joined the trip — invited by ${inviter.name}`
+              }
+            }
+          }
+
+          try {
+            // Remove any previous "traveler_joined" messages for this user+trip
+            // (prevents duplicates on rejoin or dedupeKey format changes)
+            await db.collection('trip_messages').deleteMany({
+              tripId: joinTripId,
+              subtype: 'traveler_joined',
+              userId: auth.user.id
+            })
+
+            const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+            await emitTripChatEvent({
+              tripId: joinTripId,
+              circleId: circle.id,
+              actorUserId: auth.user.id,
+              subtype: 'traveler_joined',
+              text: messageText,
+              dedupeKey: `traveler_joined_${joinTripId}_${auth.user.id}`
+            })
+          } catch (err) {
+            console.error('Failed to emit trip join chat event:', err)
+            // Non-blocking — join still succeeds
+          }
+      }
+
+      // For new circle members only: backfill + circle system message
+      if (isNewCircleMember) {
+        // Backfill: Reactivate previously-left trip_participants for collaborative trips.
+        // Late joiners (membership.joinedAt > trip.createdAt) are NOT auto-added.
+        // They must use the join-request flow to become travelers.
+        const existingTrips = await db.collection('trips')
+          .find({ circleId: circle.id, type: 'collaborative' })
+          .toArray()
+
+        if (existingTrips.length > 0) {
+          const tripIds = existingTrips.map(t => t.id)
+          const now = new Date().toISOString()
+
+          const existingParticipants = await db.collection('trip_participants')
+            .find({
+              tripId: { $in: tripIds },
+              userId: auth.user.id
+            })
+            .toArray()
+
+          const existingByTripId = new Map(existingParticipants.map(p => [p.tripId, p]))
+
+          for (const trip of existingTrips) {
+            const existing = existingByTripId.get(trip.id)
+
+            if (existing && existing.status === 'left') {
+              await db.collection('trip_participants').updateOne(
+                { tripId: trip.id, userId: auth.user.id },
+                {
+                  $set: {
+                    status: 'active',
+                    joinedAt: now,
+                    updatedAt: now
+                  }
+                }
+              )
+            }
+          }
+        }
+
+        // Add system message for joining circle
+        await db.collection('circle_messages').insertOne({
+          id: uuidv4(),
+          circleId: circle.id,
+          userId: null,
+          content: `👋 ${auth.user.name} joined the circle`,
+          isSystem: true,
+          createdAt: new Date().toISOString()
+        })
+      }
 
       return handleCORS(NextResponse.json({
         circleId: circle.id,
-        alreadyMember: false
+        alreadyMember: isAlreadyActiveMember,
+        ...(joinTripId ? { tripId: joinTripId } : {})
       }))
     }
 
@@ -956,12 +1033,12 @@ async function handleRoute(request, { params }) {
       }
 
       const body = await request.json()
-      const { circleId, name, description, type, startDate, endDate, duration } = body
+      let { circleId, name, description, type, startDate, endDate, duration } = body
 
-      // Validate required fields
-      if (!circleId || !name || !type) {
+      // Validate required fields (circleId is optional — auto-created when absent)
+      if (!name || !type) {
         return handleCORS(NextResponse.json(
-          { error: 'Circle ID, name, and type are required' },
+          { error: 'Name and type are required' },
           { status: 400 }
         ))
       }
@@ -980,6 +1057,32 @@ async function handleRoute(request, { params }) {
           { error: 'Hosted trips require start and end dates' },
           { status: 400 }
         ))
+      }
+
+      // Trip-first flow: auto-create circle when circleId is absent
+      let autoCreatedCircle = null
+      if (!circleId) {
+        const circle = {
+          id: uuidv4(),
+          name: name,
+          description: '',
+          ownerId: auth.user.id,
+          inviteCode: generateInviteCode(),
+          autoCreated: true,
+          createdAt: new Date().toISOString()
+        }
+
+        await db.collection('circles').insertOne(circle)
+
+        await db.collection('memberships').insertOne({
+          userId: auth.user.id,
+          circleId: circle.id,
+          role: 'owner',
+          joinedAt: new Date().toISOString()
+        })
+
+        circleId = circle.id
+        autoCreatedCircle = { id: circle.id, name: circle.name, inviteCode: circle.inviteCode }
       }
 
       // Check membership
@@ -1123,6 +1226,18 @@ async function handleRoute(request, { params }) {
             })
           }
         }
+      }
+
+      // Trip-first flow: emit event and include circle in response
+      if (autoCreatedCircle) {
+        emitTripFirstFlowCompleted(
+          trip.id,
+          circleId,
+          auth.user.id,
+          type,
+          new Date(trip.createdAt)
+        )
+        return handleCORS(NextResponse.json({ ...trip, circle: autoCreatedCircle }))
       }
 
       return handleCORS(NextResponse.json(trip))
@@ -1686,7 +1801,7 @@ async function handleRoute(request, { params }) {
 
       return handleCORS(NextResponse.json({
         ...trip,
-        circle: circle ? { id: circle.id, name: circle.name, ownerId: circle.ownerId } : null,
+        circle: circle ? { id: circle.id, name: circle.name, ownerId: circle.ownerId, inviteCode: circle.inviteCode } : null,
         availabilities: availabilities.map(({ _id, ...rest }) => rest),
         userAvailability: userAvailability.map(({ _id, ...rest }) => rest),
         votes: votesWithVoters.map(({ _id, ...rest }) => rest),
@@ -3709,6 +3824,175 @@ async function handleRoute(request, { params }) {
       await db.collection('window_supports').deleteMany({ windowId, tripId })
 
       return handleCORS(NextResponse.json({ message: 'Date suggestion deleted' }))
+    }
+
+    // ── Scheduling Insights ──
+
+    // Generate scheduling insights - POST /api/trips/:tripId/scheduling/insights
+    // Leader-only: generates LLM-informed insights from chat + windows + reactions
+    if (route.match(/^\/trips\/[^/]+\/scheduling\/insights$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
+      }
+
+      // Leader-only generation
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip leader can generate scheduling insights' },
+          { status: 403 }
+        ))
+      }
+
+      try {
+        const { buildSchedulingInsightSnapshot } = await import('@/lib/scheduling/buildSchedulingInsightSnapshot.js')
+        const { snapshot, inputHash } = await buildSchedulingInsightSnapshot(db, trip)
+
+        // Check cache
+        const cached = await db.collection('prep_suggestions_cache').findOne({
+          tripId,
+          feature: 'scheduling_insights',
+          inputHash
+        })
+
+        // Count existing LLM generations for this trip
+        const generationCount = await db.collection('prep_suggestions_cache')
+          .countDocuments({ tripId, feature: 'scheduling_insights' })
+        const maxGenerations = SCHEDULING_CONFIG.MAX_SCHEDULING_INSIGHT_GENERATIONS
+
+        if (cached && cached.output) {
+          return handleCORS(NextResponse.json({
+            source: 'cache',
+            output: cached.output,
+            inputHash,
+            snapshotMeta: cached.snapshotMeta || null,
+            createdAt: cached.createdAt,
+            generationCount,
+            maxGenerations,
+            canRegenerate: generationCount < maxGenerations
+          }))
+        }
+
+        // Enforce generation limit before LLM call
+        if (generationCount >= maxGenerations) {
+          return handleCORS(NextResponse.json({
+            error: `Maximum of ${maxGenerations} insight generations reached for this trip`,
+            code: 'GENERATION_LIMIT_REACHED',
+            generationCount,
+            maxGenerations
+          }, { status: 400 }))
+        }
+
+        // Generate via LLM
+        const { generateSchedulingInsights, SCHEDULING_INSIGHTS_PROMPT_VERSION } = await import('@/lib/server/llm.js')
+        const result = await generateSchedulingInsights({ snapshot })
+
+        // Store in cache
+        await db.collection('prep_suggestions_cache').insertOne({
+          tripId,
+          feature: 'scheduling_insights',
+          inputHash,
+          itineraryVersionId: null,
+          createdByUserId: auth.user.id,
+          model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+          promptVersion: SCHEDULING_INSIGHTS_PROMPT_VERSION,
+          snapshotMeta: {
+            chatCount: result._meta?.chatCount || 0,
+            windowCount: result._meta?.windowCount || 0,
+            participantCount: result._meta?.participantCount || 0,
+            trigger: 'leader_click'
+          },
+          output: result.output,
+          createdAt: new Date().toISOString()
+        })
+
+        return handleCORS(NextResponse.json({
+          source: 'llm',
+          output: result.output,
+          inputHash,
+          createdAt: new Date().toISOString(),
+          generationCount: generationCount + 1,
+          maxGenerations,
+          canRegenerate: (generationCount + 1) < maxGenerations
+        }))
+      } catch (llmError) {
+        console.error('[Scheduling Insights] LLM failed:', llmError.message)
+        return handleCORS(NextResponse.json({
+          source: 'fallback',
+          output: null,
+          inputHash: null,
+          error: 'Could not generate insights right now'
+        }))
+      }
+    }
+
+    // Get scheduling insights - GET /api/trips/:tripId/scheduling/insights
+    // Any traveler can fetch the latest cached insight
+    if (route.match(/^\/trips\/[^/]+\/scheduling\/insights$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
+      })
+      if (!membership) {
+        return handleCORS(NextResponse.json({ error: 'You are not a member of this circle' }, { status: 403 }))
+      }
+
+      // Compute current inputHash to check if insight is stale
+      const { buildSchedulingInsightSnapshot } = await import('@/lib/scheduling/buildSchedulingInsightSnapshot.js')
+      const { inputHash: currentHash } = await buildSchedulingInsightSnapshot(db, trip)
+
+      // Find latest insight for this trip
+      const latest = await db.collection('prep_suggestions_cache').findOne(
+        { tripId, feature: 'scheduling_insights' },
+        { sort: { createdAt: -1 } }
+      )
+
+      const isLeader = trip.createdBy === auth.user.id
+
+      const generationCount = await db.collection('prep_suggestions_cache')
+        .countDocuments({ tripId, feature: 'scheduling_insights' })
+      const maxGenerations = SCHEDULING_CONFIG.MAX_SCHEDULING_INSIGHT_GENERATIONS
+
+      return handleCORS(NextResponse.json({
+        output: latest?.output || null,
+        inputHash: latest?.inputHash || null,
+        currentHash,
+        isStale: latest ? latest.inputHash !== currentHash : false,
+        createdAt: latest?.createdAt || null,
+        isLeader,
+        generationCount,
+        maxGenerations,
+        canRegenerate: generationCount < maxGenerations
+      }))
     }
 
     // Set duration preference - POST /api/trips/:id/duration-preference
@@ -9428,7 +9712,7 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { category, title, quantity, notes } = body
+      const { category, title, quantity, notes, scope } = body
 
       if (!title || !title.trim()) {
         return handleCORS(NextResponse.json(
@@ -9443,6 +9727,9 @@ async function handleRoute(request, { params }) {
           { status: 400 }
         ))
       }
+
+      // Validate scope if provided (packing items only)
+      const itemScope = (category === 'packing' && scope === 'personal') ? 'personal' : 'group'
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -9487,6 +9774,7 @@ async function handleRoute(request, { params }) {
         id: uuidv4(),
         tripId,
         category,
+        scope: itemScope,
         title: title.trim(),
         quantity: quantity ? parseInt(quantity) : null,
         notes: notes?.trim() || null,
@@ -9530,7 +9818,7 @@ async function handleRoute(request, { params }) {
       }
 
       const tripId = path[1]
-      const itemId = path[3]
+      const itemId = path[4]
       const body = await request.json()
       const { status, title, quantity, notes } = body
 
@@ -9600,7 +9888,7 @@ async function handleRoute(request, { params }) {
       }
 
       const tripId = path[1]
-      const transportId = path[3]
+      const transportId = path[4]
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -9669,7 +9957,7 @@ async function handleRoute(request, { params }) {
       }
 
       const tripId = path[1]
-      const itemId = path[3]
+      const itemId = path[4]
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -9848,6 +10136,180 @@ async function handleRoute(request, { params }) {
       }
 
       return handleCORS(NextResponse.json({ created, skipped }))
+    }
+
+    // Generate packing suggestions - POST /api/trips/:tripId/prep/packing-suggestions
+    if (route.match(/^\/trips\/[^/]+\/prep\/packing-suggestions$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip not found' },
+          { status: 404 }
+        ))
+      }
+
+      // Block modifications on canceled trips
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json(
+          { error: 'This trip has been canceled and is read-only' },
+          { status: 400 }
+        ))
+      }
+
+      // Check membership
+      const membership = await db.collection('memberships').findOne({
+        userId: auth.user.id,
+        circleId: trip.circleId,
+        status: { $ne: 'left' }
+      })
+
+      if (!membership) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a member of this circle' },
+          { status: 403 }
+        ))
+      }
+
+      // Check if user is an active traveler
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not an active traveler for this trip', code: 'USER_NOT_TRAVELER' },
+          { status: 403 }
+        ))
+      }
+
+      // Get latest itinerary version
+      const latestVersion = await db.collection('itinerary_versions')
+        .findOne({ tripId }, { sort: { version: -1 } })
+
+      if (!latestVersion || !latestVersion.content) {
+        return handleCORS(NextResponse.json(
+          { error: 'No itinerary found. Generate an itinerary first.' },
+          { status: 400 }
+        ))
+      }
+
+      const isLeader = trip.createdBy === auth.user.id
+      let suggestions = []
+      let source = 'rule'
+
+      // Check cache first
+      const cached = await db.collection('prep_suggestions_cache').findOne({
+        tripId,
+        itineraryVersionId: latestVersion.id || String(latestVersion.version),
+        feature: 'packing'
+      })
+
+      if (cached && cached.output && Array.isArray(cached.output)) {
+        suggestions = cached.output
+        source = 'cache'
+      } else if (isLeader) {
+        // Leader: attempt LLM generation, cache result
+        try {
+          const { generatePackingSuggestions, PACKING_PROMPT_VERSION } = await import('@/lib/server/llm.js')
+          const startDate = trip.lockedStartDate || trip.startDate
+          const endDate = trip.lockedEndDate || trip.endDate
+          const durationDays = latestVersion.content.days?.length || 0
+
+          const llmResult = await generatePackingSuggestions({
+            itinerary: latestVersion.content,
+            destination: trip.destinationHint || trip.name,
+            startDate,
+            endDate,
+            durationDays
+          })
+
+          suggestions = llmResult.items
+          source = 'llm'
+
+          // Cache the result
+          await db.collection('prep_suggestions_cache').insertOne({
+            tripId,
+            itineraryVersionId: latestVersion.id || String(latestVersion.version),
+            feature: 'packing',
+            createdByUserId: auth.user.id,
+            model: llmResult._meta?.model || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+            promptVersion: PACKING_PROMPT_VERSION,
+            inputHash: null,
+            output: llmResult.items,
+            createdAt: new Date().toISOString()
+          })
+
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Packing] LLM generated ${suggestions.length} items, cached`)
+          }
+        } catch (llmError) {
+          // LLM failed — fall back to rule-based
+          console.error('[Packing] LLM failed, falling back to rule-based:', llmError.message)
+          source = 'fallback'
+        }
+      }
+
+      // If no suggestions yet (non-leader without cache, or LLM fallback), use rule-based
+      if (suggestions.length === 0 && (source === 'rule' || source === 'fallback')) {
+        const { derivePackingSuggestionsFromItinerary } = await import('@/lib/prep/derivePackingSuggestionsFromItinerary.js')
+        const startDate = trip.lockedStartDate || trip.startDate
+        const durationDays = latestVersion.content.days?.length || 0
+
+        suggestions = derivePackingSuggestionsFromItinerary({
+          itinerary: latestVersion.content,
+          startDate,
+          durationDays
+        })
+      }
+
+      // Insert suggestions as personal packing items (idempotent by dedupeKey)
+      let created = 0
+      let skipped = 0
+
+      for (const suggestion of suggestions) {
+        const dedupeKey = `packing:personal:${auth.user.id}:${suggestion.slug}`
+
+        const existing = await db.collection('prep_items').findOne({
+          tripId,
+          dedupeKey
+        })
+
+        if (!existing) {
+          const prepItem = {
+            id: uuidv4(),
+            tripId,
+            category: 'packing',
+            scope: 'personal',
+            title: suggestion.title,
+            quantity: null,
+            notes: suggestion.notes || null,
+            ownerUserId: auth.user.id,
+            dedupeKey,
+            status: 'todo',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+
+          await db.collection('prep_items').insertOne(prepItem)
+          created++
+        } else {
+          skipped++
+        }
+      }
+
+      // Update trip prepStatus to in_progress if currently not_started
+      if (created > 0 && (trip.prepStatus === 'not_started' || !trip.prepStatus)) {
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { prepStatus: 'in_progress' } }
+        )
+      }
+
+      return handleCORS(NextResponse.json({ created, skipped, total: suggestions.length, source }))
     }
 
     // Mark prep complete - POST /api/trips/:tripId/prep/markComplete

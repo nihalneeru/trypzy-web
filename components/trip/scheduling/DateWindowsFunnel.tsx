@@ -14,7 +14,9 @@ import {
   ThumbsUp,
   ThumbsDown,
   HelpCircle,
-  Trash2
+  Trash2,
+  Sparkles,
+  Copy
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -158,6 +160,10 @@ export function DateWindowsFunnel({
   const [durationAggregate, setDurationAggregate] = useState<Record<string, Array<{ userId: string; userName: string }>>>({})
   const [durationTotalResponses, setDurationTotalResponses] = useState(0)
 
+  // Scheduling insight state
+  const [insightData, setInsightData] = useState<any>(null)
+  const [generatingInsights, setGeneratingInsights] = useState(false)
+
   // User window quota state
   const [userWindowCount, setUserWindowCount] = useState(0)
   const [maxWindows, setMaxWindows] = useState(2)
@@ -251,6 +257,24 @@ export function DateWindowsFunnel({
     fetchDurationPreferences()
   }, [fetchDurationPreferences])
 
+  // Fetch scheduling insights (fire-and-forget on mount)
+  const fetchInsight = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/scheduling/insights`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setInsightData(await res.json())
+      }
+    } catch {
+      // Silent fail — insights are supplementary
+    }
+  }, [trip.id, token])
+
+  useEffect(() => {
+    fetchInsight()
+  }, [fetchInsight])
+
   // Handle setting duration preference
   const handleSetDurationPref = async (pref: string | null) => {
     try {
@@ -270,6 +294,66 @@ export function DateWindowsFunnel({
     } catch {
       toast.error('Could not save preference — please try again')
     }
+  }
+
+  // Handle generating scheduling insights (leader only)
+  const handleGenerateInsights = async () => {
+    try {
+      setGeneratingInsights(true)
+      const res = await fetch(`/api/trips/${trip.id}/scheduling/insights`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        if (data.code === 'GENERATION_LIMIT_REACHED') {
+          // Update local state so button hides immediately
+          setInsightData((prev: any) => ({
+            ...prev,
+            canRegenerate: false,
+            generationCount: data.generationCount,
+            maxGenerations: data.maxGenerations
+          }))
+          toast.error('Insight generation limit reached for this trip')
+          return
+        }
+        throw new Error(data.error || 'Could not generate insights')
+      }
+
+      const data = await res.json()
+
+      if (data.source === 'fallback' || !data.output) {
+        toast.error('Could not generate insights — please try again later')
+        return
+      }
+
+      setInsightData({
+        output: data.output,
+        inputHash: data.inputHash,
+        currentHash: data.inputHash,
+        isStale: false,
+        createdAt: data.createdAt,
+        isLeader: true,
+        canRegenerate: data.canRegenerate,
+        generationCount: data.generationCount,
+        maxGenerations: data.maxGenerations
+      })
+      toast.success('Insights generated')
+    } catch (err: any) {
+      toast.error(err.message || 'Could not generate insights — please try again')
+    } finally {
+      setGeneratingInsights(false)
+    }
+  }
+
+  // Copy follow-up question to clipboard
+  const handleCopyFollowup = (question: string) => {
+    navigator.clipboard.writeText(question).then(() => {
+      toast.success('Copied to clipboard')
+    }).catch(() => {
+      toast.error('Could not copy')
+    })
   }
 
   // Handle adding a new window with free-form text
@@ -319,7 +403,6 @@ export function DateWindowsFunnel({
       toast.success('Dates added')
       resetFormState()
       await fetchWindows()
-      onRefresh()
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -371,7 +454,6 @@ export function DateWindowsFunnel({
       toast.success('Dates added')
       resetFormState()
       await fetchWindows()
-      onRefresh()
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -408,7 +490,6 @@ export function DateWindowsFunnel({
       toast.success('Dates added')
       resetFormState()
       await fetchWindows()
-      onRefresh()
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -497,7 +578,6 @@ export function DateWindowsFunnel({
 
       toast.success('Date suggestion removed')
       await fetchWindows()
-      onRefresh()
     } catch (err: any) {
       toast.error(err.message)
     }
@@ -1329,6 +1409,169 @@ export function DateWindowsFunnel({
           }
 
           return null
+        })()
+      )}
+
+      {/* Scheduling Insights card */}
+      {phase === 'COLLECTING' && windows.length > 0 && (
+        (() => {
+          const output = insightData?.output
+          const hasInsight = output && output.summary
+
+          // Resolve missing_people userIds to names
+          const missingNames = (output?.missing_people || [])
+            .map((uid: string) => {
+              const t = travelers.find((tr: any) => tr.userId === uid || tr.id === uid)
+              return t ? (t.name || t.userName || 'Unknown') : null
+            })
+            .filter(Boolean)
+
+          return (
+            <div className="space-y-2">
+              {/* Generate / Update button (leader only) */}
+              {isLeader && (!hasInsight || insightData?.isStale) && insightData?.canRegenerate !== false && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateInsights}
+                  disabled={generatingInsights}
+                  className="w-full text-brand-blue border-brand-blue/30 hover:bg-brand-blue/5"
+                >
+                  <Sparkles className="h-4 w-4 mr-1.5" />
+                  {generatingInsights
+                    ? 'Analyzing chat and windows...'
+                    : hasInsight && insightData?.isStale
+                      ? 'Update insights'
+                      : 'Generate scheduling insights'
+                  }
+                </Button>
+              )}
+
+              {/* Limit reached message (leader only, when stale but can't regenerate) */}
+              {isLeader && hasInsight && insightData?.canRegenerate === false && insightData?.isStale && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Insight generation limit reached ({insightData.generationCount}/{insightData.maxGenerations})
+                </p>
+              )}
+
+              {/* Insight card (visible to all when data exists) */}
+              {hasInsight && (
+                <Card className="border-brand-blue/20 bg-brand-sand/30">
+                  <CardContent className="py-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-brand-carbon flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-brand-blue" />
+                        Scheduling Insights
+                        {insightData?.isLeader && insightData?.generationCount > 0 && (
+                          <span className="text-[10px] font-normal text-muted-foreground">
+                            {insightData.generationCount}/{insightData.maxGenerations}
+                          </span>
+                        )}
+                      </h4>
+                      {insightData?.isStale && (
+                        <span className="text-[10px] text-muted-foreground bg-gray-100 px-1.5 py-0.5 rounded">
+                          may be outdated
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Summary */}
+                    <p className="text-sm text-brand-carbon leading-relaxed">{output.summary}</p>
+
+                    {/* Preferences */}
+                    {output.preferences?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-brand-carbon mb-1">Preferences mentioned</p>
+                        <ul className="space-y-1">
+                          {output.preferences.map((p: any, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                              <span className="text-brand-blue mt-0.5 shrink-0">•</span>
+                              <span>
+                                {p.text}
+                                {p.confidence === 'low' && (
+                                  <span className="text-[10px] text-gray-400 ml-1">(low confidence)</span>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Avoids / Conflicts */}
+                    {output.avoids?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-brand-carbon mb-1">Conflicts or dates to avoid</p>
+                        <ul className="space-y-1">
+                          {output.avoids.map((a: any, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                              <span className="text-brand-red mt-0.5 shrink-0">•</span>
+                              <span>{a.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Waiting on */}
+                    {missingNames.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-brand-carbon mb-1">
+                          Waiting on ({missingNames.length})
+                        </p>
+                        <p className="text-sm text-muted-foreground">{missingNames.join(', ')}</p>
+                      </div>
+                    )}
+
+                    {/* Ambiguities */}
+                    {output.ambiguities?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-brand-carbon mb-1">Unclear</p>
+                        <ul className="space-y-1">
+                          {output.ambiguities.map((a: any, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                              <span className="text-gray-400 mt-0.5 shrink-0">•</span>
+                              <span>{a.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Follow-up questions (role-aware) */}
+                    {output.followups?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-brand-carbon mb-1">
+                          {isLeader ? 'Suggested questions to ask' : 'Open questions'}
+                        </p>
+                        <ul className="space-y-2">
+                          {output.followups.map((f: any, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground bg-white rounded p-2 border">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="italic">&ldquo;{f.question}&rdquo;</span>
+                                {isLeader && (
+                                  <button
+                                    onClick={() => handleCopyFollowup(f.question)}
+                                    className="shrink-0 text-muted-foreground hover:text-brand-blue p-1"
+                                    aria-label="Copy to clipboard"
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                              {f.reason && (
+                                <p className="text-xs text-gray-400 mt-1">{f.reason}</p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )
         })()
       )}
 

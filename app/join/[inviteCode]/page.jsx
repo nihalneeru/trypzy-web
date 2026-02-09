@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
 export default function JoinCirclePage({ params }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const [circleInfo, setCircleInfo] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -19,6 +20,10 @@ export default function JoinCirclePage({ params }) {
 
   // Normalize invite code
   const inviteCode = params.inviteCode?.trim().toUpperCase()
+
+  // Trip-context params (from invite link shared within a trip)
+  const tripId = searchParams.get('tripId')
+  const ref = searchParams.get('ref')
 
   // Load token from localStorage
   useEffect(() => {
@@ -30,22 +35,34 @@ export default function JoinCirclePage({ params }) {
     }
   }, [])
 
-  // Check for return-from-auth (cookie exists)
-  useEffect(() => {
-    if (status === 'authenticated') {
-      const cookies = document.cookie.split(';').map(c => c.trim())
-      const pendingCookie = cookies.find(c => c.startsWith('pendingCircleInvite='))
-      if (pendingCookie) {
-        const cookieCode = pendingCookie.split('=')[1]?.trim().toUpperCase()
-        // Clear cookie immediately
-        document.cookie = 'pendingCircleInvite=; path=/; max-age=0'
-        // If cookie matches current code, auto-trigger join
-        if (cookieCode === inviteCode) {
-          handleJoin()
-        }
-      }
+  // Check if we're returning from auth and should auto-join
+  // Uses both cookie (original mechanism) and localStorage (more reliable across OAuth redirects)
+  function shouldAutoJoin() {
+    // Check pendingCircleInvite cookie
+    const cookies = document.cookie.split(';').map(c => c.trim())
+    const pendingCookie = cookies.find(c => c.startsWith('pendingCircleInvite='))
+    if (pendingCookie) {
+      const cookieCode = pendingCookie.split('=')[1]?.trim().toUpperCase()
+      document.cookie = 'pendingCircleInvite=; path=/; max-age=0'
+      if (cookieCode === inviteCode) return true
     }
-  }, [status, inviteCode])
+    // Check localStorage returnTo (set by handleAuthRedirect, survives OAuth)
+    const pendingReturnTo = localStorage.getItem('trypzy_pending_return_to')
+    if (pendingReturnTo && pendingReturnTo.includes(`/join/${inviteCode}`)) {
+      localStorage.removeItem('trypzy_pending_return_to')
+      return true
+    }
+    return false
+  }
+
+  // Auto-join when returning from auth (cookie or localStorage signal)
+  // Wait for session.accessToken to be available — useSession resolves it
+  // before the token-loading effect can populate the `token` state variable
+  useEffect(() => {
+    if (status === 'authenticated' && session?.accessToken && shouldAutoJoin()) {
+      handleJoin()
+    }
+  }, [status, session?.accessToken, inviteCode])
 
   // Fetch circle info when logged in
   useEffect(() => {
@@ -57,21 +74,22 @@ export default function JoinCirclePage({ params }) {
         return
       }
 
-      // Wait for token to be loaded
-      if (!token) return
+      // Wait for an auth token to be available
+      const authToken = session?.accessToken || token || localStorage.getItem('trypzy_token')
+      if (!authToken) return
 
       try {
         const res = await fetch(`/api/circles/validate-invite?code=${encodeURIComponent(inviteCode)}`, {
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${authToken}`
           }
         })
         const data = await res.json()
 
-        // If already a member, redirect to circle
+        // If already a member, redirect to trip (if context) or circle
         if (data.valid && data.alreadyMember && data.circleId) {
           toast.info("You're already in this circle")
-          router.push(`/circles/${data.circleId}`)
+          router.push(tripId ? `/trips/${tripId}` : `/circles/${data.circleId}`)
           return
         }
 
@@ -91,7 +109,15 @@ export default function JoinCirclePage({ params }) {
   function handleAuthRedirect(path) {
     const secure = window.location.protocol === 'https:' ? '; Secure' : ''
     document.cookie = `pendingCircleInvite=${inviteCode}; path=/; max-age=3600; SameSite=Lax${secure}`
-    router.push(`/${path}?returnTo=/join/${inviteCode}`)
+    // Build returnTo with full query params so trip context survives auth round-trip
+    const returnToParams = new URLSearchParams()
+    if (tripId) returnToParams.set('tripId', tripId)
+    if (ref) returnToParams.set('ref', ref)
+    const qs = returnToParams.toString()
+    const returnTo = `/join/${inviteCode}${qs ? '?' + qs : ''}`
+    // Store in localStorage (survives OAuth round-trip more reliably than sessionStorage)
+    localStorage.setItem('trypzy_pending_return_to', returnTo)
+    router.push(`/${path}?returnTo=${encodeURIComponent(returnTo)}`)
   }
 
   // Handle join (for logged-in users)
@@ -99,8 +125,9 @@ export default function JoinCirclePage({ params }) {
     if (joining) return
     setJoining(true)
 
-    // Get token (might not be in state yet if called from auto-join)
-    const authToken = token || localStorage.getItem('trypzy_token')
+    // Prefer session.accessToken (always available when status=authenticated),
+    // fall back to state/localStorage for manual join clicks
+    const authToken = session?.accessToken || token || localStorage.getItem('trypzy_token')
 
     try {
       const res = await fetch('/api/circles/join', {
@@ -109,7 +136,11 @@ export default function JoinCirclePage({ params }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
         },
-        body: JSON.stringify({ inviteCode })
+        body: JSON.stringify({
+          inviteCode,
+          ...(tripId ? { tripId } : {}),
+          ...(ref ? { invitedBy: ref } : {})
+        })
       })
 
       const data = await res.json()
@@ -118,12 +149,16 @@ export default function JoinCirclePage({ params }) {
         // Clear cookie on success (if it exists)
         document.cookie = 'pendingCircleInvite=; path=/; max-age=0'
 
+        // Determine redirect: trip page (if trip context) or circle page
+        const redirectTripId = data.tripId || tripId
+        const destination = redirectTripId ? `/trips/${redirectTripId}` : `/circles/${data.circleId}`
+
         if (data.alreadyMember) {
           toast.info("You're already in this circle")
         } else {
           toast.success('Joined circle!')
         }
-        router.push(`/circles/${data.circleId}`)
+        router.push(destination)
       } else {
         toast.error(data.error || 'Could not join circle — please try again')
         setJoining(false)

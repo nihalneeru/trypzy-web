@@ -38,7 +38,23 @@ function LoginPageContent() {
   const { data: session, status } = useSession()
   const [betaSecret, setBetaSecret] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+  const [isOAuthReturn, setIsOAuthReturn] = useState(false)
   const loadingTimeoutRef = useRef(null)
+
+  // Detect OAuth return vs fresh visit (client-only, avoids hydration mismatch)
+  useEffect(() => {
+    setIsOAuthReturn(!!sessionStorage.getItem('login_beta_secret'))
+    setInitialized(true)
+  }, [])
+
+  // Persist returnTo in localStorage so it survives the OAuth round-trip
+  useEffect(() => {
+    const returnTo = searchParams.get('returnTo')
+    if (returnTo && returnTo.startsWith('/')) {
+      localStorage.setItem('trypzy_pending_return_to', returnTo)
+    }
+  }, [searchParams])
 
   // Handle error query params from auth callbacks
   useEffect(() => {
@@ -81,24 +97,73 @@ function LoginPageContent() {
     const storedSecret = sessionStorage.getItem('login_beta_secret')
 
     if (status === 'authenticated' && session?.accessToken) {
+      // Always store credentials when authenticated (ensures token is available after redirect)
+      localStorage.setItem('trypzy_token', session.accessToken)
+      localStorage.setItem('trypzy_user', JSON.stringify({
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name
+      }))
+
+      // Determine redirect destination: URL param > localStorage > dashboard
+      const urlReturnTo = searchParams.get('returnTo')
+      const storedReturnTo = localStorage.getItem('trypzy_pending_return_to')
+      const returnTo = urlReturnTo || storedReturnTo
+      const destination = returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard'
+
       if (storedSecret) {
-        // Just completed login flow - store credentials and redirect
-        localStorage.setItem('trypzy_token', session.accessToken)
-        localStorage.setItem('trypzy_user', JSON.stringify({
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.name
-        }))
-        // Clear beta secret from sessionStorage
         sessionStorage.removeItem('login_beta_secret')
-        // Clear auth mode cookie
         document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-        // Redirect to dashboard
-        router.replace('/dashboard')
-      } else {
-        // User is already logged in and just visiting login page - redirect to dashboard
-        router.replace('/dashboard')
       }
+
+      // If destination is a join page, handle the join here (token is guaranteed available)
+      // then redirect to the trip/circle directly — avoids token timing issues on the join page
+      // Guard: localStorage flag survives React StrictMode remounts (refs don't)
+      const joinMatch = destination.match(/^\/join\/([^?]+)/)
+      if (joinMatch && !localStorage.getItem('trypzy_join_in_progress')) {
+        localStorage.setItem('trypzy_join_in_progress', '1')
+        // Clear auto-join signals BEFORE the call so the join page won't also try
+        localStorage.removeItem('trypzy_pending_return_to')
+        document.cookie = 'pendingCircleInvite=; path=/; max-age=0'
+
+        const joinCode = joinMatch[1].trim().toUpperCase()
+        const joinUrl = new URL(destination, window.location.origin)
+        const tripId = joinUrl.searchParams.get('tripId')
+        const refUserId = joinUrl.searchParams.get('ref')
+
+        fetch('/api/circles/join', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.accessToken}`
+          },
+          body: JSON.stringify({
+            inviteCode: joinCode,
+            ...(tripId ? { tripId } : {}),
+            ...(refUserId ? { invitedBy: refUserId } : {})
+          })
+        })
+          .then(res => res.json())
+          .then(data => {
+            localStorage.removeItem('trypzy_join_in_progress')
+            const redirectTripId = data.tripId || tripId
+            if (redirectTripId) {
+              router.replace(`/trips/${redirectTripId}`)
+            } else if (data.circleId) {
+              router.replace(`/circles/${data.circleId}`)
+            } else {
+              router.replace('/dashboard')
+            }
+          })
+          .catch(() => {
+            localStorage.removeItem('trypzy_join_in_progress')
+            // On failure, fall through to the join page
+            router.replace(destination)
+          })
+        return
+      }
+
+      router.replace(destination)
     }
   }, [session, status, router])
 
@@ -148,8 +213,13 @@ function LoginPageContent() {
 
       // Initiate Google OAuth sign-in
       // Use /login as callback so we can handle the session sync here
+      // Include returnTo in callbackUrl so it survives the OAuth round-trip in the URL itself
+      const pendingReturnTo = localStorage.getItem('trypzy_pending_return_to')
+      const callbackUrl = pendingReturnTo
+        ? `/login?returnTo=${encodeURIComponent(pendingReturnTo)}`
+        : '/login'
       await signIn('google', {
-        callbackUrl: '/login',
+        callbackUrl,
         redirect: true,
       })
     } catch (error) {
@@ -161,8 +231,9 @@ function LoginPageContent() {
     }
   }
 
-  // Show spinner while session is resolving (prevents beta code form flash on OAuth return)
-  if (status === 'loading') {
+  // Before useEffect runs, show spinner (matches server render = no hydration error).
+  // After useEffect: OAuth return → keep spinner until redirect; fresh visit → show form.
+  if (!initialized || (isOAuthReturn && status !== 'unauthenticated')) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="text-center">
@@ -170,7 +241,7 @@ function LoginPageContent() {
             <TrypzyLogo variant="full" className="h-10 w-auto" />
           </div>
           <BrandedSpinner size="lg" className="mx-auto mb-3" />
-          <p className="text-[#6B7280] text-sm">Signing you in...</p>
+          <p className="text-[#6B7280] text-sm">{isOAuthReturn ? 'Signing you in...' : ''}</p>
         </div>
       </div>
     )

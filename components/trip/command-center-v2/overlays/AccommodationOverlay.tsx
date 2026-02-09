@@ -29,7 +29,8 @@ import {
   AlertTriangle,
   MapPin,
   Calendar,
-  Search
+  Search,
+  Lightbulb
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
@@ -44,6 +45,7 @@ interface AccommodationOverlayProps {
   onRefresh: (updatedTrip?: any) => void
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
+  onOpenOverlay?: (overlay: string) => void
 }
 
 interface AccommodationOption {
@@ -159,7 +161,8 @@ export function AccommodationOverlay({
   user,
   onRefresh,
   onClose,
-  setHasUnsavedChanges
+  setHasUnsavedChanges,
+  onOpenOverlay
 }: AccommodationOverlayProps) {
   // Data state
   const [accommodations, setAccommodations] = useState<AccommodationOption[]>([])
@@ -393,8 +396,50 @@ export function AccommodationOverlay({
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
+  const hasItinerary = trip.itineraryStatus === 'selected' || trip.itineraryStatus === 'published'
+  const showItineraryNudge = !hasItinerary && stayRequirements.length === 0 && accommodations.length === 0 && !accommodationConfirmed
+
   return (
     <div className="space-y-6">
+      {/* Itinerary nudge — shown when no itinerary and no stays yet */}
+      {showItineraryNudge && (
+        <Card className="bg-brand-sand/40 border-brand-sand">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start gap-2.5">
+              <Lightbulb className="h-4 w-4 text-brand-blue mt-0.5 shrink-0" />
+              <div>
+                {isTripLeader ? (
+                  <>
+                    <p className="text-sm font-medium text-brand-carbon">Want personalized stay suggestions?</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Generate your trip itinerary first — it'll help narrow down where to stay based on your group's plans.
+                    </p>
+                    {onOpenOverlay && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 text-xs"
+                        onClick={() => onOpenOverlay('itinerary')}
+                      >
+                        Generate Itinerary →
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-brand-carbon">Want personalized stay suggestions?</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Ask your trip leader to generate the itinerary — it'll include stay guidance based on the group's plans.
+                      You can also add options below anytime.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stay Requirements Guidance (from itinerary) */}
       {stayRequirements.length > 0 && !accommodationConfirmed && (() => {
         // Filter to only show likely accommodation locations (not restaurants/activities)
