@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken'
 import { generateItinerary, summarizeFeedback, reviseItinerary, summarizePlanningChat, LLM_MODEL } from '@/lib/server/llm.js'
 import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
-import { ITINERARY_CONFIG } from '@/lib/itinerary/config.js'
+import { ITINERARY_CONFIG, SCHEDULING_CONFIG } from '@/lib/itinerary/config.js'
 import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
 
 // Event instrumentation (data moat)
@@ -3871,14 +3871,32 @@ async function handleRoute(request, { params }) {
           inputHash
         })
 
+        // Count existing LLM generations for this trip
+        const generationCount = await db.collection('prep_suggestions_cache')
+          .countDocuments({ tripId, feature: 'scheduling_insights' })
+        const maxGenerations = SCHEDULING_CONFIG.MAX_SCHEDULING_INSIGHT_GENERATIONS
+
         if (cached && cached.output) {
           return handleCORS(NextResponse.json({
             source: 'cache',
             output: cached.output,
             inputHash,
             snapshotMeta: cached.snapshotMeta || null,
-            createdAt: cached.createdAt
+            createdAt: cached.createdAt,
+            generationCount,
+            maxGenerations,
+            canRegenerate: generationCount < maxGenerations
           }))
+        }
+
+        // Enforce generation limit before LLM call
+        if (generationCount >= maxGenerations) {
+          return handleCORS(NextResponse.json({
+            error: `Maximum of ${maxGenerations} insight generations reached for this trip`,
+            code: 'GENERATION_LIMIT_REACHED',
+            generationCount,
+            maxGenerations
+          }, { status: 400 }))
         }
 
         // Generate via LLM
@@ -3908,7 +3926,10 @@ async function handleRoute(request, { params }) {
           source: 'llm',
           output: result.output,
           inputHash,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          generationCount: generationCount + 1,
+          maxGenerations,
+          canRegenerate: (generationCount + 1) < maxGenerations
         }))
       } catch (llmError) {
         console.error('[Scheduling Insights] LLM failed:', llmError.message)
@@ -3957,13 +3978,20 @@ async function handleRoute(request, { params }) {
 
       const isLeader = trip.createdBy === auth.user.id
 
+      const generationCount = await db.collection('prep_suggestions_cache')
+        .countDocuments({ tripId, feature: 'scheduling_insights' })
+      const maxGenerations = SCHEDULING_CONFIG.MAX_SCHEDULING_INSIGHT_GENERATIONS
+
       return handleCORS(NextResponse.json({
         output: latest?.output || null,
         inputHash: latest?.inputHash || null,
         currentHash,
         isStale: latest ? latest.inputHash !== currentHash : false,
         createdAt: latest?.createdAt || null,
-        isLeader
+        isLeader,
+        generationCount,
+        maxGenerations,
+        canRegenerate: generationCount < maxGenerations
       }))
     }
 
