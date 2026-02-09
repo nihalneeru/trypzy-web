@@ -44,7 +44,7 @@ vi.mock('@/lib/server/db.js', () => ({
 
 vi.mock('@/lib/server/auth.js', () => ({
   requireAuth: vi.fn((req) => Promise.resolve({ user: { id: 'user-1', name: 'Test User' } })),
-  getUserFromToken: vi.fn((req) => Promise.resolve({ id: 'user-1', name: 'Test User' }))
+  getUserFromToken: vi.fn((req) => Promise.resolve({ user: { id: 'user-1', name: 'Test User' } }))
 }))
 
 vi.mock('@/lib/server/cors.js', () => ({
@@ -81,7 +81,7 @@ describe('GET /api/discover/posts', () => {
   
   it('should require authentication for circle scope', async () => {
     const { getUserFromToken } = await import('@/lib/server/auth.js')
-    getUserFromToken.mockResolvedValueOnce(null)
+    getUserFromToken.mockResolvedValueOnce({ authError: true })
 
     const url = new URL('http://localhost:3000/api/discover/posts?scope=circle&circleId=circle-1')
     const request = new NextRequest(url)
