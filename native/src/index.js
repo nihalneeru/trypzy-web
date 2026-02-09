@@ -16,14 +16,26 @@ import { App } from '@capacitor/app'
 import { Preferences } from '@capacitor/preferences'
 import { SplashScreen } from '@capacitor/splash-screen'
 
-const BASE_URL = 'https://beta.trypzy.com'
-
 /**
  * Navigate the Capacitor WebView to a path.
+ * Uses window.location for the initial cold-start load (WebView is blank),
+ * then uses history API for subsequent in-app navigations to preserve React state.
  */
+let initialLoadDone = false
+
 function navigateTo(path) {
-  const url = path.startsWith('http') ? path : `${BASE_URL}${path}`
-  window.location.href = url
+  // Ensure path is relative (no external URLs)
+  const relativePath = path.startsWith('/') ? path : `/${path}`
+
+  if (!initialLoadDone) {
+    // Cold start — WebView has no React app loaded yet, must do a full navigation.
+    // The server URL is set in capacitor.config.ts and the WebView base URL matches it.
+    window.location.href = relativePath
+    initialLoadDone = true
+  } else {
+    // App is loaded — use history API to avoid full reload
+    window.location.assign(relativePath)
+  }
 }
 
 /**
@@ -34,8 +46,9 @@ function extractPath(url) {
   try {
     const parsed = new URL(url)
     if (parsed.protocol === 'trypzy:') {
-      // trypzy://trips/abc → /trips/abc
-      return '/' + parsed.host + parsed.pathname
+      // trypzy://trips/abc?foo=bar → /trips/abc?foo=bar
+      const path = '/' + parsed.host + parsed.pathname
+      return path + parsed.search + parsed.hash
     }
     // https://beta.trypzy.com/trips/abc → /trips/abc
     return parsed.pathname + parsed.search + parsed.hash
@@ -96,7 +109,7 @@ function setupDeepLinks() {
 }
 
 /**
- * Handle app resume (back from background).
+ * Handle app lifecycle events.
  */
 function setupAppStateListeners() {
   App.addListener('backButton', () => {

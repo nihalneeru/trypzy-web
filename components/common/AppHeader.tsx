@@ -25,13 +25,32 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
     localStorage.removeItem('trypzy_user')
     // Clear auth mode cookie
     document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+
+    // If running in Capacitor native, clear Preferences and Google sign-out
+    if (window.Capacitor?.isNativePlatform?.()) {
+      try {
+        const Prefs = window.Capacitor.Plugins?.Preferences
+        if (Prefs) {
+          await Prefs.remove({ key: 'trypzy_token' })
+          await Prefs.remove({ key: 'trypzy_user' })
+          await Prefs.remove({ key: 'pending_url' })
+        }
+        const GoogleAuth = window.Capacitor.Plugins?.GoogleAuth
+        if (GoogleAuth) {
+          await GoogleAuth.signOut().catch(() => {})
+        }
+      } catch {
+        // Native cleanup failure is non-critical — localStorage is already cleared
+      }
+    }
+
     // Clear NextAuth session (this clears the session cookie)
     await signOut({ redirect: false })
     router.replace('/')
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 safe-top">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Left: Logo + Navigation */}

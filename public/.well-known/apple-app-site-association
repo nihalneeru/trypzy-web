@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appID": "TEAMID.com.trypzy.app",
+        "appID": "A9HZAFZMF5.com.trypzy.app",
         "paths": [
           "/trips/*",
           "/circles/*",
@@ -18,7 +18,7 @@
   },
   "webcredentials": {
     "apps": [
-      "TEAMID.com.trypzy.app"
+      "A9HZAFZMF5.com.trypzy.app"
     ]
   }
 }

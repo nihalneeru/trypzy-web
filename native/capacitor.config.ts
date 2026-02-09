@@ -1,22 +1,33 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
+/**
+ * Capacitor config for Trypzy native shell.
+ *
+ * SERVER URL:
+ *   - For local dev, create native/.env with CAPACITOR_SERVER_URL=http://<your-ip>:3000
+ *   - For production builds, leave unset (defaults to https://beta.trypzy.com)
+ *   - The `npx cap sync` step reads this file, so changes require a re-sync.
+ */
+
+const DEV_SERVER_URL = process.env.CAPACITOR_SERVER_URL
+const PROD_URL = 'https://beta.trypzy.com'
+
+const serverUrl = DEV_SERVER_URL || PROD_URL
+const isDev = !!DEV_SERVER_URL
+
 const config: CapacitorConfig = {
   appId: 'com.trypzy.app',
   appName: 'Trypzy',
   webDir: 'www',
   server: {
-    // Hosted mode — WebView loads the web app
-    // For local dev: http://<your-ip>:3000 (requires cleartext: true)
-    // For production: https://beta.trypzy.com
-    url: 'http://192.168.86.31:3000',
-    cleartext: true,
+    url: serverUrl,
+    cleartext: isDev, // Only allow HTTP for local dev
   },
   ios: {
     scheme: 'trypzy',
     contentInset: 'automatic',
   },
   android: {
-    // Required for hosted URL mode
     allowMixedContent: false,
   },
   plugins: {

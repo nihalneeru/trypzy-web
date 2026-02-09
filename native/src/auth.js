@@ -11,8 +11,6 @@
 
 import { Preferences } from '@capacitor/preferences'
 
-const API_BASE = 'https://beta.trypzy.com'
-
 /**
  * Trigger native Google Sign-In and exchange for Trypzy JWT.
  * Returns { token, user } on success or throws on failure.
@@ -32,8 +30,8 @@ export async function nativeGoogleSignIn() {
     throw new Error('Google sign-in did not return an ID token')
   }
 
-  // Exchange Google ID token for Trypzy JWT
-  const res = await fetch(`${API_BASE}/api/mobile/auth/google`, {
+  // Exchange Google ID token for Trypzy JWT (relative URL — WebView base is the server)
+  const res = await fetch('/api/mobile/auth/google', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken }),
