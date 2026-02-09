@@ -11,6 +11,12 @@ const inter = Inter({
   display: 'swap',
 })
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+}
+
 export function generateMetadata() {
   return {
     title: 'Trypzy - Trips made easy',

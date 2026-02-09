@@ -158,6 +158,20 @@
 }
 
 @layer utilities {
+  /* iOS safe area insets for notch and home indicator */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-left {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .safe-right {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
   /* Hide scrollbar for Chrome, Safari and Opera */
   .scrollbar-none::-webkit-scrollbar {
     display: none;

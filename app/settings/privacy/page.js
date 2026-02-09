@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { Save, Shield } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { AppHeader } from '@/components/common/AppHeader'
+import Link from 'next/link'
 
 const api = async (endpoint, options = {}, token) => {
   const response = await fetch(`/api${endpoint}`, {
@@ -21,12 +22,12 @@ const api = async (endpoint, options = {}, token) => {
       ...options.headers,
     },
   })
-  
+
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.error || 'Request failed')
   }
-  
+
   return response.json()
 }
 
@@ -41,7 +42,12 @@ export default function PrivacySettingsPage() {
     allowTripJoinRequests: true,
     showTripDetailsLevel: 'limited'
   })
-  
+  // Track the last-saved values to detect dirty state
+  const savedPrivacy = useRef(null)
+
+  const isDirty = savedPrivacy.current !== null &&
+    JSON.stringify(privacy) !== JSON.stringify(savedPrivacy.current)
+
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem('trypzy_user')
@@ -49,7 +55,7 @@ export default function PrivacySettingsPage() {
     } catch {}
     loadPrivacy()
   }, [])
-  
+
   const loadPrivacy = async () => {
     try {
       const token = localStorage.getItem('trypzy_token')
@@ -57,9 +63,10 @@ export default function PrivacySettingsPage() {
         router.push('/')
         return
       }
-      
+
       const data = await api('/users/me/privacy', { method: 'GET' }, token)
       setPrivacy(data.privacy)
+      savedPrivacy.current = data.privacy
     } catch (error) {
       if (error.message?.includes('Unauthorized')) {
         localStorage.removeItem('trypzy_token')
@@ -72,7 +79,7 @@ export default function PrivacySettingsPage() {
       setLoading(false)
     }
   }
-  
+
   const savePrivacy = async () => {
     setSaving(true)
     try {
@@ -81,20 +88,21 @@ export default function PrivacySettingsPage() {
         router.push('/')
         return
       }
-      
+
       await api('/users/me/privacy', {
         method: 'PATCH',
         body: JSON.stringify(privacy)
       }, token)
-      
-      toast.success('Privacy settings saved!')
+
+      savedPrivacy.current = { ...privacy }
+      toast.success('Saved!')
     } catch (error) {
-      toast.error(error.message || 'Failed to save privacy settings')
+      toast.error(error.message || 'Could not save — please try again')
     } finally {
       setSaving(false)
     }
   }
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -105,7 +113,7 @@ export default function PrivacySettingsPage() {
       </div>
     )
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader userName={userName} />
@@ -113,14 +121,35 @@ export default function PrivacySettingsPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="h-6 w-6 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Privacy Settings</h1>
+            <Shield className="h-6 w-6 text-brand-blue" />
+            <h1 className="text-3xl font-bold text-brand-carbon">Privacy Settings</h1>
           </div>
           <p className="text-gray-600">
             Control who can see your profile and trip information.
           </p>
         </div>
-        
+
+        {/* Privacy Philosophy */}
+        <div className="bg-brand-sand/40 border border-brand-sand rounded-lg p-5 mb-6">
+          <h2 className="text-base font-semibold text-brand-carbon mb-2">Our Privacy Philosophy</h2>
+          <p className="text-sm text-gray-700 leading-relaxed">
+            Trypzy is built for trusted circles, not public audiences. Trips, conversations, and decisions
+            are private by default and shared only with the people you invite. Nothing is shared beyond your
+            circle unless you explicitly choose. Any smart or automated features are designed to support
+            coordination within your group and behave in clear, expected ways.
+          </p>
+          <p className="text-sm text-gray-700 leading-relaxed mt-2">
+            These settings control how your profile and trips appear to others — they do not affect how
+            Trypzy securely stores or processes your data.
+          </p>
+          <Link
+            href="/privacy"
+            className="inline-block mt-3 text-sm font-medium text-brand-blue hover:underline"
+          >
+            Read our full Privacy Policy
+          </Link>
+        </div>
+
         {/* Privacy Settings Card */}
         <Card>
           <CardHeader>
@@ -149,7 +178,7 @@ export default function PrivacySettingsPage() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="public" id="profile-public" />
                   <Label htmlFor="profile-public" className="font-normal cursor-pointer">
-                    Public - Anyone can see your profile
+                    Public - Visible beyond your circles
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -160,17 +189,17 @@ export default function PrivacySettingsPage() {
                 </div>
               </RadioGroup>
             </div>
-            
+
             <div className="border-t pt-6"></div>
-            
+
             {/* Trips Visibility */}
             <div className="space-y-3">
               <Label className="text-base font-semibold">Upcoming Trips Visibility</Label>
               <p className="text-sm text-gray-600">
                 Who can see your upcoming trips on your profile?
               </p>
-              <p className="text-xs text-gray-500 italic">
-                This only affects your profile view. You and your circle members will always see trips you're traveling on.
+              <p className="text-xs text-gray-600 font-medium">
+                This only affects your profile view. You and your circle members will always see trips you&apos;re traveling on.
               </p>
               <RadioGroup
                 value={privacy.tripsVisibility === 'private' ? 'circle' : privacy.tripsVisibility}
@@ -185,14 +214,14 @@ export default function PrivacySettingsPage() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="public" id="trips-public" />
                   <Label htmlFor="trips-public" className="font-normal cursor-pointer">
-                    Public - Share your travel experiences with everyone
+                    Public - Visible beyond your circles
                   </Label>
                 </div>
               </RadioGroup>
             </div>
-            
+
             <div className="border-t pt-6"></div>
-            
+
             {/* Trip Details Level */}
             <div className="space-y-3">
               <Label className="text-base font-semibold">Trip Details Level</Label>
@@ -217,9 +246,9 @@ export default function PrivacySettingsPage() {
                 </div>
               </RadioGroup>
             </div>
-            
+
             <div className="border-t pt-6"></div>
-            
+
             {/* Allow Join Requests */}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -227,16 +256,19 @@ export default function PrivacySettingsPage() {
                 <p className="text-sm text-gray-600">
                   Let others request to join your trips
                 </p>
+                <p className="text-xs text-gray-500">
+                  Requests are visible only to you and trip organizers.
+                </p>
               </div>
               <Switch
                 checked={privacy.allowTripJoinRequests}
                 onCheckedChange={(checked) => setPrivacy({ ...privacy, allowTripJoinRequests: checked })}
               />
             </div>
-            
+
             {/* Save Button */}
             <div className="flex justify-end pt-4">
-              <Button onClick={savePrivacy} disabled={saving}>
+              <Button onClick={savePrivacy} disabled={saving || !isDirty}>
                 <Save className="h-4 w-4 mr-2" />
                 {saving ? 'Saving...' : 'Save Settings'}
               </Button>
