@@ -1,4 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
+import { config as dotenvConfig } from 'dotenv'
+
+// Load native/.env so `npx cap sync` picks up CAPACITOR_SERVER_URL
+dotenvConfig()
 
 /**
  * Capacitor config for Trypzy native shell.
@@ -41,6 +45,7 @@ const config: CapacitorConfig = {
       scopes: ['profile', 'email'],
       serverClientId: '795030561959-kk4ldem7bisjkruiotru0unviu8hieg7.apps.googleusercontent.com',
       iosClientId: '795030561959-0rhoh8dih6vfimsd2v5fu5e4j3e4mt7e.apps.googleusercontent.com',
+      androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID || '',
       forceCodeForRefreshToken: false,
     },
   },
