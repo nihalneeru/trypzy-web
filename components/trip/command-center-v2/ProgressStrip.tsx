@@ -182,7 +182,7 @@ export function ProgressStrip({
   }, [blockerStageKey, activeOverlay])
 
   return (
-    <div className="border-b border-gray-200 bg-gray-50 shrink-0">
+    <div className="border-b border-gray-200 bg-gray-50 shrink-0 safe-top">
       {/* Row 1: Trip name + dates + participation meter */}
       <div className="flex items-center justify-between px-3 md:px-4 pt-2 pb-1 gap-2">
         <div className="flex items-center gap-2 min-w-0">
