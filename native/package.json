@@ -11,6 +11,7 @@
     "cap:build:android": "npx cap sync android && npx cap open android"
   },
   "dependencies": {
+    "@capacitor-community/apple-sign-in": "^6.0.0",
     "@capacitor/android": "^6.2.0",
     "@capacitor/app": "^6.0.0",
     "@capacitor/cli": "^6.2.0",

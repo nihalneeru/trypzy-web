@@ -24,6 +24,10 @@ function isCapacitorNative() {
   )
 }
 
+function isIOS() {
+  return window?.Capacitor?.getPlatform?.() === 'ios'
+}
+
 /**
  * Native login page — shown inside the Capacitor WebView.
  *
@@ -34,22 +38,25 @@ function isCapacitorNative() {
  */
 export default function NativeLoginPage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(null) // null | 'google' | 'apple'
   const [error, setError] = useState(null)
   const [isNative, setIsNative] = useState(null) // null = checking
+  const [showApple, setShowApple] = useState(false)
 
   useEffect(() => {
     const native = isCapacitorNative()
     setIsNative(native)
 
-    // If not in Capacitor, redirect to web login
-    if (!native) {
+    if (native) {
+      setShowApple(isIOS())
+    } else {
+      // If not in Capacitor, redirect to web login
       router.replace('/login')
     }
   }, [router])
 
   const handleGoogleSignIn = async () => {
-    setLoading(true)
+    setLoading('google')
     setError(null)
 
     try {
@@ -96,7 +103,73 @@ export default function NativeLoginPage() {
       router.replace('/native-bridge')
     } catch (err) {
       setError(err.message || 'Sign-in failed. Please try again.')
-      setLoading(false)
+      setLoading(null)
+    }
+  }
+
+  const handleAppleSignIn = async () => {
+    setLoading('apple')
+    setError(null)
+
+    try {
+      const SignInWithApple = getCapacitorPlugin('SignInWithApple')
+      const Preferences = getCapacitorPlugin('Preferences')
+
+      if (!SignInWithApple || !Preferences) {
+        throw new Error('Native plugins not available')
+      }
+
+      // Show native Apple Sign-In sheet — request email + name scopes
+      // so the identity token JWT includes the email claim for account linking
+      const result = await SignInWithApple.authorize({
+        scopes: 'email name',
+      })
+      const identityToken = result?.response?.identityToken
+
+      if (!identityToken) {
+        throw new Error('Apple sign-in did not return an identity token')
+      }
+
+      // Build fullName from response (only available on first sign-in)
+      const fullName =
+        result.response?.givenName || result.response?.familyName
+          ? {
+              givenName: result.response.givenName || '',
+              familyName: result.response.familyName || '',
+            }
+          : undefined
+
+      // Exchange Apple identity token for Trypzy JWT
+      const res = await fetch('/api/mobile/auth/apple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identityToken, fullName }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Authentication failed')
+      }
+
+      const { token, user } = await res.json()
+
+      // Store in Capacitor Preferences (native secure storage)
+      await Preferences.set({ key: 'trypzy_token', value: token })
+      await Preferences.set({
+        key: 'trypzy_user',
+        value: JSON.stringify(user),
+      })
+
+      // Navigate to bridge page which syncs to localStorage
+      router.replace('/native-bridge')
+    } catch (err) {
+      // User cancel shows as "The operation couldn't be completed" — suppress it
+      if (err?.message?.includes('1001') || err?.code === '1001') {
+        setLoading(null)
+        return
+      }
+      setError(err.message || 'Sign-in failed. Please try again.')
+      setLoading(null)
     }
   }
 
@@ -138,9 +211,9 @@ export default function NativeLoginPage() {
         <Button
           className="w-full h-12 text-base"
           onClick={handleGoogleSignIn}
-          disabled={loading}
+          disabled={!!loading}
         >
-          {loading ? (
+          {loading === 'google' ? (
             <div className="flex items-center gap-2">
               <BrandedSpinner size="sm" />
               <span>Signing in...</span>
@@ -169,6 +242,28 @@ export default function NativeLoginPage() {
             </div>
           )}
         </Button>
+
+        {showApple && (
+          <button
+            className="w-full h-12 text-base mt-3 rounded-lg bg-black text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+            onClick={handleAppleSignIn}
+            disabled={!!loading}
+          >
+            {loading === 'apple' ? (
+              <>
+                <BrandedSpinner size="sm" />
+                <span>Signing in...</span>
+              </>
+            ) : (
+              <>
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+                </svg>
+                <span>Continue with Apple</span>
+              </>
+            )}
+          </button>
+        )}
 
         <p className="text-xs text-[#6B7280] mt-6">
           By continuing, you agree to Trypzy&apos;s terms of service.

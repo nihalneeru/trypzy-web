@@ -7,5 +7,9 @@
 		<string>applinks:beta.trypzy.com</string>
 		<string>webcredentials:beta.trypzy.com</string>
 	</array>
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>
