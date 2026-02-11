@@ -42,7 +42,8 @@ export function CircleOnboardingInterstitial({
     type: 'collaborative',
     startDate: '',
     endDate: '',
-    duration: ''
+    duration: '',
+    destinationHint: ''
   })
   const [creating, setCreating] = useState(false)
   if (!circle) return null

@@ -34,7 +34,8 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
     type: 'collaborative',
     startDate: '',
     endDate: '',
-    duration: ''
+    duration: '',
+    destinationHint: ''
   })
   const [creating, setCreating] = useState(false)
   const [circleMembers, setCircleMembers] = useState([])
@@ -50,7 +51,8 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
         type: 'collaborative',
         startDate: '',
         endDate: '',
-        duration: ''
+        duration: '',
+        destinationHint: ''
       })
       setSelectedInvites([])
     }

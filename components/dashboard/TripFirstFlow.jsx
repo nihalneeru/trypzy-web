@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { Pencil, Check, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -12,9 +13,22 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { TripFormFields } from './TripFormFields'
 import { InviteShareBlock } from './InviteShareBlock'
 import { tripHref } from '@/lib/navigation/routes'
+
+const INITIAL_FORM = {
+  name: '',
+  description: '',
+  type: 'collaborative',
+  startDate: '',
+  endDate: '',
+  duration: '',
+  destinationHint: '',
+  circleName: '',
+  circleNameDirty: false
+}
 
 /**
  * Trip-First Onboarding Flow
@@ -31,31 +45,25 @@ import { tripHref } from '@/lib/navigation/routes'
 export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
   const router = useRouter()
   const [step, setStep] = useState('setup')
-  const [tripForm, setTripForm] = useState({
-    name: '',
-    description: '',
-    type: 'collaborative',
-    startDate: '',
-    endDate: '',
-    duration: ''
-  })
+  const [tripForm, setTripForm] = useState(INITIAL_FORM)
   const [creating, setCreating] = useState(false)
   const [result, setResult] = useState(null) // { trip, circle }
+
+  // Circle name inline edit state (invite step)
+  const [editingCircleName, setEditingCircleName] = useState(false)
+  const [circleNameDraft, setCircleNameDraft] = useState('')
+  const [savingCircleName, setSavingCircleName] = useState(false)
 
   // Reset form when dialog opens/closes
   useEffect(() => {
     if (!open) {
       setStep('setup')
-      setTripForm({
-        name: '',
-        description: '',
-        type: 'collaborative',
-        startDate: '',
-        endDate: '',
-        duration: ''
-      })
+      setTripForm(INITIAL_FORM)
       setCreating(false)
       setResult(null)
+      setEditingCircleName(false)
+      setCircleNameDraft('')
+      setSavingCircleName(false)
     }
   }, [open])
 
@@ -74,12 +82,20 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
     try {
       // POST without circleId — backend auto-creates circle
       const payload = { ...tripForm }
+      // Strip client-only dirty flag
+      delete payload.circleNameDirty
       if (tripForm.type === 'collaborative' && (!tripForm.startDate || !tripForm.endDate)) {
         delete payload.startDate
         delete payload.endDate
       }
       if (!tripForm.duration) {
         delete payload.duration
+      }
+      if (!payload.circleName?.trim()) {
+        delete payload.circleName
+      }
+      if (!payload.destinationHint?.trim()) {
+        delete payload.destinationHint
       }
 
       const response = await fetch('/api/trips', {
@@ -118,6 +134,57 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
     }
   }
 
+  const startEditCircleName = () => {
+    setCircleNameDraft(result?.circle?.name || '')
+    setEditingCircleName(true)
+  }
+
+  const cancelEditCircleName = () => {
+    setEditingCircleName(false)
+    setCircleNameDraft('')
+  }
+
+  const saveCircleName = async () => {
+    const trimmed = circleNameDraft.trim()
+    if (!trimmed) {
+      toast.error('Circle name cannot be empty')
+      return
+    }
+    if (trimmed === result?.circle?.name) {
+      setEditingCircleName(false)
+      return
+    }
+
+    setSavingCircleName(true)
+    try {
+      const response = await fetch(`/api/circles/${result.circle.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: trimmed })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Could not rename circle')
+      }
+
+      setResult(prev => ({
+        ...prev,
+        circle: { ...prev.circle, name: trimmed }
+      }))
+      toast.success('Circle renamed')
+      setEditingCircleName(false)
+    } catch (error) {
+      console.error('Rename circle error:', error)
+      toast.error(error.message || 'Could not rename circle — please try again')
+    } finally {
+      setSavingCircleName(false)
+    }
+  }
+
   const shareUrl = typeof window !== 'undefined' && result?.circle?.inviteCode
     ? `${window.location.origin}/join/${result.circle.inviteCode}`
     : ''
@@ -132,7 +199,53 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
               Share this link — they'll land right in the trip.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Your group:</span>
+              {editingCircleName ? (
+                <div className="flex items-center gap-1 flex-1">
+                  <Input
+                    value={circleNameDraft}
+                    onChange={(e) => setCircleNameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveCircleName()
+                      if (e.key === 'Escape') cancelEditCircleName()
+                    }}
+                    className="h-8 text-sm"
+                    maxLength={100}
+                    disabled={savingCircleName}
+                    autoFocus
+                  />
+                  <button
+                    onClick={saveCircleName}
+                    disabled={savingCircleName}
+                    className="p-1 text-brand-blue hover:text-brand-blue/80"
+                    aria-label="Save circle name"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={cancelEditCircleName}
+                    disabled={savingCircleName}
+                    className="p-1 text-gray-400 hover:text-gray-600"
+                    aria-label="Cancel editing"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-medium">"{result.circle.name}"</span>
+                  <button
+                    onClick={startEditCircleName}
+                    className="p-1 text-brand-blue hover:text-brand-blue/80"
+                    aria-label="Edit circle name"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
             <InviteShareBlock
               inviteCode={result.circle.inviteCode}
               shareText={`Join "${result.trip.name}" on Trypzy!`}
@@ -162,7 +275,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
-          <TripFormFields tripForm={tripForm} onChange={setTripForm} />
+          <TripFormFields tripForm={tripForm} onChange={setTripForm} showCircleName />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -106,7 +106,7 @@ describe('Trip-First Onboarding', () => {
     expect(data.type).toBe('collaborative')
     expect(data.circle).toBeDefined()
     expect(data.circle.id).toBeDefined()
-    expect(data.circle.name).toBe('Beach Trip')
+    expect(data.circle.name).toBe('Beach Trip circle')
     expect(data.circle.inviteCode).toBeDefined()
     expect(data.circle.inviteCode.length).toBeGreaterThan(0)
   })
@@ -193,5 +193,45 @@ describe('Trip-First Onboarding', () => {
     expect(trip.circleId).toBe(data.circle.id)
     expect(trip.createdBy).toBe(user.id)
     expect(trip.status).toBe('proposed')
+  })
+
+  test('POST /api/trips with custom circleName uses it for auto-created circle', async () => {
+    const user = await createTestUser()
+    const token = createToken(user.id)
+
+    const req = makeRequest(token, {
+      name: 'Beach Trip',
+      type: 'collaborative',
+      circleName: 'Beach Crew'
+    })
+
+    const res = await POST(req, { params: { path: ['trips'] } })
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.circle).toBeDefined()
+    expect(data.circle.name).toBe('Beach Crew')
+
+    // Verify in DB
+    const circle = await db.collection('circles').findOne({ id: data.circle.id })
+    expect(circle.name).toBe('Beach Crew')
+  })
+
+  test('POST /api/trips with empty circleName falls back to "${name} circle"', async () => {
+    const user = await createTestUser()
+    const token = createToken(user.id)
+
+    const req = makeRequest(token, {
+      name: 'Ski Trip',
+      type: 'collaborative',
+      circleName: '   '
+    })
+
+    const res = await POST(req, { params: { path: ['trips'] } })
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.circle).toBeDefined()
+    expect(data.circle.name).toBe('Ski Trip circle')
   })
 })
