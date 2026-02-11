@@ -81,13 +81,32 @@ export default function NativeBridgePage() {
           key: 'pending_url',
         })
 
-        if (pendingUrl) {
+        // Request push permission + register token (fire-and-forget)
+        try {
+          const PushNotifications = window?.Capacitor?.Plugins?.PushNotifications
+          if (PushNotifications) {
+            const perm = await PushNotifications.requestPermissions()
+            if (perm.receive === 'granted') {
+              await PushNotifications.register()
+              PushNotifications.addListener('registration', async (pushToken) => {
+                fetch('/api/push/register', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ token: pushToken.value, platform: 'ios' })
+                }).catch(() => {}) // fire-and-forget
+              })
+            }
+          }
+        } catch {} // Push is optional — never block app launch
+
+        if (pendingUrl && typeof pendingUrl === 'string' && pendingUrl.startsWith('/')) {
           await Preferences.remove({ key: 'pending_url' })
           router.replace(pendingUrl)
         } else {
           router.replace('/dashboard')
         }
-      } catch {
+      } catch (err) {
+        console.error('[native-bridge]', err)
         router.replace('/native-login')
       }
     }
@@ -96,7 +115,7 @@ export default function NativeBridgePage() {
   }, [router])
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <div className="text-center">
         <TrypzyLogo variant="full" className="h-10 w-auto mx-auto mb-4" />
         <BrandedSpinner size="lg" className="mx-auto mb-3" />

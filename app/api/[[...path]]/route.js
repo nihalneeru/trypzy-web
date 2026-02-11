@@ -6121,6 +6121,19 @@ async function handleRoute(request, { params }) {
         await recordNudgesShown(db, tripId, auth.user.id, filteredNudges)
       }
 
+      // Fire-and-forget push for eligible nudges
+      try {
+        const { sendPushForNudge } = await import('@/lib/push/sendPush.js')
+        const { isPushEligible } = await import('@/lib/push/pushEligible.js')
+        for (const nudge of filteredNudges) {
+          if (isPushEligible(nudge.type)) {
+            sendPushForNudge(db, nudge, trip).catch(err => console.error('[push]', err))
+          }
+        }
+      } catch (pushErr) {
+        console.error('[push] Failed to load push modules:', pushErr)
+      }
+
       return handleCORS(NextResponse.json({
         nudges: filteredNudges,
         actionNudge: filteredNudges.find(n =>
@@ -12305,6 +12318,56 @@ async function handleRoute(request, { params }) {
           { status: 500 }
         ))
       }
+    }
+
+    // ============ PUSH NOTIFICATION ROUTES ============
+
+    // Register push token - POST /api/push/register
+    if (route === '/push/register' && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const body = await request.json()
+      const { token: pushToken, platform } = body
+
+      if (!pushToken || typeof pushToken !== 'string') {
+        return handleCORS(NextResponse.json({ error: 'Missing or invalid token' }, { status: 400 }))
+      }
+      if (!platform || !['ios', 'android'].includes(platform)) {
+        return handleCORS(NextResponse.json({ error: 'Missing or invalid platform' }, { status: 400 }))
+      }
+
+      await db.collection('push_tokens').updateOne(
+        { userId: auth.user.id },
+        {
+          $set: {
+            userId: auth.user.id,
+            token: pushToken,
+            platform,
+            updatedAt: new Date().toISOString(),
+          },
+          $setOnInsert: {
+            createdAt: new Date().toISOString(),
+          },
+        },
+        { upsert: true }
+      )
+
+      return handleCORS(NextResponse.json({ success: true }))
+    }
+
+    // Unregister push token - DELETE /api/push/register
+    if (route === '/push/register' && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      await db.collection('push_tokens').deleteOne({ userId: auth.user.id })
+
+      return handleCORS(NextResponse.json({ success: true }))
     }
 
     // ============ DEV/SEEDING ROUTES ============

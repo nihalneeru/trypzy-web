@@ -62,7 +62,7 @@ You need **three** Google OAuth client IDs from Google Cloud Console:
 2. **iOS Client ID**
    - Create in Google Cloud Console → Credentials → OAuth 2.0 Client IDs
    - Type: iOS
-   - Bundle ID: `com.trypzy.app`
+   - Bundle ID: `com.trypzy.mobile`
    - Add reversed client ID to `ios/App/App/Info.plist` as a URL scheme:
      ```xml
      <key>CFBundleURLTypes</key>
@@ -79,7 +79,7 @@ You need **three** Google OAuth client IDs from Google Cloud Console:
 3. **Android Client ID**
    - Create in Google Cloud Console → Credentials → OAuth 2.0 Client IDs
    - Type: Android
-   - Package name: `com.trypzy.app`
+   - Package name: `com.trypzy.mobile`
    - SHA-1 fingerprint from your signing key:
      ```bash
      keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android
