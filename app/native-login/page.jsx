@@ -176,7 +176,7 @@ export default function NativeLoginPage() {
   // Still checking environment
   if (isNative === null) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         <div className="text-center">
           <TrypzyLogo variant="full" className="h-10 w-auto mx-auto mb-4" />
           <BrandedSpinner size="lg" className="mx-auto" />
@@ -188,14 +188,14 @@ export default function NativeLoginPage() {
   // Not native — will redirect (show spinner briefly)
   if (!isNative) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         <BrandedSpinner size="lg" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <div className="w-full max-w-sm text-center">
         <div className="mb-8">
           <TrypzyLogo variant="full" className="h-10 w-auto mx-auto mb-3" />
@@ -203,8 +203,8 @@ export default function NativeLoginPage() {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="mb-4 p-3 bg-brand-red/10 border border-brand-red/20 rounded-lg">
+            <p className="text-sm text-brand-red">{error}</p>
           </div>
         )}
 
@@ -245,7 +245,7 @@ export default function NativeLoginPage() {
 
         {showApple && (
           <button
-            className="w-full h-12 text-base mt-3 rounded-lg bg-black text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full h-12 text-base mt-3 rounded-lg bg-brand-carbon text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50"
             onClick={handleAppleSignIn}
             disabled={!!loading}
           >

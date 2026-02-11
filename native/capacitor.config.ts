@@ -20,7 +20,7 @@ const serverUrl = DEV_SERVER_URL || PROD_URL
 const isDev = !!DEV_SERVER_URL
 
 const config: CapacitorConfig = {
-  appId: 'com.trypzy.app',
+  appId: 'com.trypzy.mobile',
   appName: 'Trypzy',
   webDir: 'www',
   server: {

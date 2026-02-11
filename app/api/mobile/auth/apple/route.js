@@ -158,7 +158,8 @@ export async function POST(request) {
         name: user.name,
       },
     })
-  } catch {
+  } catch (err) {
+    console.error('[mobile/auth/apple]', err)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
