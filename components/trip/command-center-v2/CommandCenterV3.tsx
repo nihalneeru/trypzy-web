@@ -228,6 +228,23 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
     return null
   }, [trip])
 
+  // Overlay accent color — matches chevron color in ProgressStrip
+  const OVERLAY_TO_STEP: Record<string, string> = {
+    proposed: 'tripProposed',
+    scheduling: 'datesLocked',
+    itinerary: 'itineraryFinalized',
+    accommodation: 'accommodationChosen',
+    prep: 'prepStarted',
+  }
+
+  const overlayAccentColor = useMemo(() => {
+    if (!activeOverlay) return '#00334D'
+    const stepKey = OVERLAY_TO_STEP[activeOverlay]
+    if (!stepKey) return '#00334D' // non-stage overlays (travelers, expenses, memories, member)
+    if (stepKey === blocker.stageKey) return '#FA3823' // brand-red for blocker
+    return '#00334D' // brand-blue for completed/active/future
+  }, [activeOverlay, blocker.stageKey, progressSteps])
+
   // Overlay callbacks
   const openOverlay = useCallback((type: OverlayType, params?: OverlayParams) => {
     if (type) {
@@ -367,6 +384,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
           slideFrom="right"
           fullWidth={true}
           useAbsolutePosition={true}
+          accentColor={overlayAccentColor}
         >
           <ErrorBoundary>
             {activeOverlay === 'scheduling' && (

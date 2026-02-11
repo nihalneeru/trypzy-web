@@ -36,6 +36,8 @@ interface OverlayContainerProps {
   useAbsolutePosition?: boolean
   /** Use full width instead of max 448px (for V3 full-screen overlays) */
   fullWidth?: boolean
+  /** Accent color for title bar and border (hex, e.g. '#00334D'). Defaults to brand-blue. */
+  accentColor?: string
 }
 
 /**
@@ -60,7 +62,8 @@ export function OverlayContainer({
   bottomOffset = '0px',
   slideFrom = 'right',
   useAbsolutePosition = false,
-  fullWidth = false
+  fullWidth = false,
+  accentColor = '#00334D'
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -173,6 +176,7 @@ export function OverlayContainer({
             isAnimating ? 'translate-y-0' : 'translate-y-full'
           ] : [
             // Right slide: constrained to chat area, never covers chevron bar or bottom bar
+            'rounded-lg overflow-hidden',
             isAnimating ? 'translate-x-0' : 'translate-x-full'
           ]
         )}
@@ -188,10 +192,11 @@ export function OverlayContainer({
               ? {
                   // Right slide with absolute positioning (constrained to parent container)
                   top: topOffset,
-                  bottom: bottomOffset,
-                  right: rightOffset,
-                  left: fullWidth ? '0px' : undefined,
-                  width: fullWidth ? '100%' : 'min(448px, 100%)',
+                  bottom: `calc(${bottomOffset} + 15px)`,
+                  right: `calc(${rightOffset} + 15px)`,
+                  left: fullWidth ? '15px' : undefined,
+                  width: fullWidth ? 'calc(100% - 30px)' : 'min(448px, calc(100% - 30px))',
+                  border: `5px solid ${accentColor}`,
                 }
               : isBottomSlide
                 ? {
@@ -202,11 +207,12 @@ export function OverlayContainer({
                   }
                 : {
                     top: topOffset,
-                    bottom: bottomOffset,
-                    right: rightOffset,
-                    left: fullWidth ? '0px' : undefined,
-                    width: fullWidth ? `calc(100vw - ${rightOffset})` : 'min(448px, calc(100vw - 20px))',
-                    maxWidth: fullWidth ? undefined : `calc(100vw - ${rightOffset} - 10px)`
+                    bottom: `calc(${bottomOffset} + 15px)`,
+                    right: `calc(${rightOffset} + 15px)`,
+                    left: fullWidth ? '15px' : undefined,
+                    width: fullWidth ? `calc(100vw - ${rightOffset} - 30px)` : 'min(448px, calc(100vw - 30px))',
+                    maxWidth: fullWidth ? undefined : `calc(100vw - ${rightOffset} - 30px)`,
+                    border: `5px solid ${accentColor}`,
                   }
         }
         role="dialog"
@@ -214,18 +220,17 @@ export function OverlayContainer({
         aria-labelledby="overlay-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 shrink-0">
-          <h2 id="overlay-title" className="text-lg font-semibold text-brand-carbon">
+        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0" style={{ backgroundColor: accentColor }}>
+          <h2 id="overlay-title" className="text-lg font-semibold text-white">
             {title}
           </h2>
           <Button
             variant="ghost"
-            size="icon"
             onClick={handleCloseAttempt}
-            className="h-10 w-10 md:h-8 md:w-8"
+            className="h-14 w-14 md:h-12 md:w-12 p-0 text-white hover:bg-white/20 hover:text-white [&_svg]:size-auto"
             aria-label="Close overlay"
           >
-            <X className="h-5 w-5" />
+            <X className="h-10 w-10 md:h-9 md:w-9" strokeWidth={2.5} />
           </Button>
         </div>
 
