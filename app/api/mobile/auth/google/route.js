@@ -12,6 +12,7 @@ const jwtSecret = JWT_SECRET || 'dev-only-secret-key'
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 const GOOGLE_IOS_CLIENT_ID = process.env.GOOGLE_IOS_CLIENT_ID
+const GOOGLE_ANDROID_CLIENT_ID = process.env.GOOGLE_ANDROID_CLIENT_ID
 const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID)
 
 /**
@@ -44,8 +45,8 @@ export async function POST(request) {
       )
     }
 
-    // Accept tokens issued for either the web or iOS client ID
-    const validAudiences = [GOOGLE_CLIENT_ID, GOOGLE_IOS_CLIENT_ID].filter(Boolean)
+    // Accept tokens issued for the web, iOS, or Android client ID
+    const validAudiences = [GOOGLE_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID].filter(Boolean)
 
     // Verify Google ID token
     let ticket

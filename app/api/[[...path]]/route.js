@@ -1034,6 +1034,42 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ success: true }))
     }
 
+    // Update circle - PATCH /api/circles/:id
+    if (route.match(/^\/circles\/[^/]+$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const circleId = path[1]
+      const circle = await db.collection('circles').findOne({ id: circleId })
+
+      if (!circle) {
+        return handleCORS(NextResponse.json({ error: 'Circle not found' }, { status: 404 }))
+      }
+
+      if (circle.ownerId !== auth.user.id) {
+        return handleCORS(NextResponse.json({ error: 'Only the circle owner can update this circle' }, { status: 403 }))
+      }
+
+      const body = await request.json()
+      const { name } = body
+
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return handleCORS(NextResponse.json({ error: 'Name is required' }, { status: 400 }))
+      }
+
+      const trimmedName = name.trim().slice(0, 100)
+      const updatedAt = new Date().toISOString()
+
+      await db.collection('circles').updateOne(
+        { id: circleId },
+        { $set: { name: trimmedName, updatedAt } }
+      )
+
+      return handleCORS(NextResponse.json({ id: circleId, name: trimmedName, updatedAt }))
+    }
+
     // ============ TRIP ROUTES ============
 
     // Create trip - POST /api/trips
@@ -1044,7 +1080,7 @@ async function handleRoute(request, { params }) {
       }
 
       const body = await request.json()
-      let { circleId, name, description, type, startDate, endDate, duration } = body
+      let { circleId, name, description, type, startDate, endDate, duration, circleName } = body
 
       // Validate required fields (circleId is optional — auto-created when absent)
       if (!name || !type) {
@@ -1075,7 +1111,7 @@ async function handleRoute(request, { params }) {
       if (!circleId) {
         const circle = {
           id: uuidv4(),
-          name: name,
+          name: circleName?.trim() ? circleName.trim().slice(0, 100) : `${name} circle`,
           description: '',
           ownerId: auth.user.id,
           inviteCode: generateInviteCode(),

@@ -172,7 +172,7 @@ export default function PrivacySettingsPage() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="circle" id="profile-circle" />
                   <Label htmlFor="profile-circle" className="font-normal cursor-pointer">
-                    Circle Members Only - Only people in your circles can see your profile
+                    Circles - Only people in your circles
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -208,7 +208,7 @@ export default function PrivacySettingsPage() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="circle" id="trips-circle" />
                   <Label htmlFor="trips-circle" className="font-normal cursor-pointer">
-                    Circle Members Only - Only people in your circles can see your trips (Default)
+                    Circles - Only people in your circles
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
