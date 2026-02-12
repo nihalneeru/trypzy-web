@@ -5,30 +5,30 @@ import { config as dotenvConfig } from 'dotenv'
 dotenvConfig()
 
 /**
- * Capacitor config for Trypzy native shell.
+ * Capacitor config for Tripti native shell.
  *
  * SERVER URL:
  *   - For local dev, create native/.env with CAPACITOR_SERVER_URL=http://<your-ip>:3000
- *   - For production builds, leave unset (defaults to https://beta.trypzy.com)
+ *   - For production builds, leave unset (defaults to https://tripti.ai)
  *   - The `npx cap sync` step reads this file, so changes require a re-sync.
  */
 
 const DEV_SERVER_URL = process.env.CAPACITOR_SERVER_URL
-const PROD_URL = 'https://beta.trypzy.com'
+const PROD_URL = 'https://tripti.ai'
 
 const serverUrl = DEV_SERVER_URL || PROD_URL
 const isDev = !!DEV_SERVER_URL
 
 const config: CapacitorConfig = {
-  appId: 'com.trypzy.mobile',
-  appName: 'Trypzy',
+  appId: 'ai.tripti.app',
+  appName: 'Tripti',
   webDir: 'www',
   server: {
     url: serverUrl,
     cleartext: isDev, // Only allow HTTP for local dev
   },
   ios: {
-    scheme: 'trypzy',
+    scheme: 'tripti',
     contentInset: 'automatic',
   },
   android: {

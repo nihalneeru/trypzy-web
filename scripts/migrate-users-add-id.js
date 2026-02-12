@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from 'uuid'
 import 'dotenv/config'
 
 const MONGO_URL = process.env.MONGO_URL
-const DB_NAME = process.env.DB_NAME || 'trypzy'
+const DB_NAME = process.env.DB_NAME || 'tripti'
 
 async function migrate() {
   if (!MONGO_URL) {

@@ -19,7 +19,7 @@ export const viewport = {
 
 export function generateMetadata() {
   return {
-    title: 'Trypzy - Trips made easy',
+    title: 'Tripti — Nifty plans. Happy circles.',
     description: 'Private, trust-based trip planning for friend groups',
     other: {
       ...Sentry.getTraceData()

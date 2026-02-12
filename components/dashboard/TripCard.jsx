@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Users, Calendar, Clock, Info } from 'lucide-react'
 import Link from 'next/link'
 import { tripHref } from '@/lib/navigation/routes'
 import { TripProgressMini } from './TripProgressMini'
+import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import { formatTripDateRange } from '@/lib/utils'
 import {
@@ -77,6 +79,8 @@ function formatRelativeTime(timestamp) {
  * @param {string} [props.circleId] - Optional circle ID for returnTo parameter
  */
 export function TripCard({ trip, circleId = null }) {
+  const [navigating, setNavigating] = useState(false)
+
   // Ensure pendingActions exists (default to empty array)
   const pendingActions = trip.pendingActions || []
   
@@ -121,8 +125,13 @@ export function TripCard({ trip, circleId = null }) {
   const countdownLabel = getTripCountdownLabel(trip, trip.name)
   
   return (
-    <Link href={tripUrl} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`}>
-      <Card className="cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full min-w-0">
+    <Link href={tripUrl} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`} onClick={() => setNavigating(true)}>
+      <Card className="cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full min-w-0 relative">
+        {navigating && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 rounded-lg">
+            <BrandedSpinner size="md" />
+          </div>
+        )}
         <CardContent className="p-4 flex flex-col h-full min-w-0 flex-1">
           {/* Header with info icon */}
           <div className="flex items-start justify-between mb-2">

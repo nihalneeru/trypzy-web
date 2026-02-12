@@ -20,7 +20,7 @@ export function BrandedSpinner({ className = '', size = 'default' }) {
   return (
     <div className={`inline-flex items-center justify-center ${className}`}>
       <Image
-        src="/brand/trypzy-icon.png"
+        src="/brand/tripti-icon.svg"
         alt="Loading"
         width={dimensions[size]}
         height={dimensions[size]}

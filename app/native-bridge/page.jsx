@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
 /**
@@ -40,7 +40,7 @@ export default function NativeBridgePage() {
       try {
         if (!isCapacitorNative()) {
           // On web, check localStorage directly
-          const existingToken = localStorage.getItem('trypzy_token')
+          const existingToken = localStorage.getItem('tripti_token')
           if (existingToken) {
             router.replace('/dashboard')
           } else {
@@ -57,10 +57,10 @@ export default function NativeBridgePage() {
 
         // Read token from native storage
         const { value: token } = await Preferences.get({
-          key: 'trypzy_token',
+          key: 'tripti_token',
         })
         const { value: userJson } = await Preferences.get({
-          key: 'trypzy_user',
+          key: 'tripti_user',
         })
 
         if (!token) {
@@ -69,9 +69,9 @@ export default function NativeBridgePage() {
         }
 
         // Copy to localStorage (where API calls read Authorization header from)
-        localStorage.setItem('trypzy_token', token)
+        localStorage.setItem('tripti_token', token)
         if (userJson) {
-          localStorage.setItem('trypzy_user', userJson)
+          localStorage.setItem('tripti_user', userJson)
         }
 
         setStatus('Redirecting...')
@@ -117,7 +117,7 @@ export default function NativeBridgePage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <div className="text-center">
-        <TrypzyLogo variant="full" className="h-10 w-auto mx-auto mb-4" />
+        <TriptiLogo variant="full" className="h-10 w-auto mx-auto mb-4" />
         <BrandedSpinner size="lg" className="mx-auto mb-3" />
         <p className="text-sm text-[#6B7280]">{status}</p>
       </div>

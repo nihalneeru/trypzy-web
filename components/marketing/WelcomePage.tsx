@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { 
   Users, 
   XCircle,
@@ -38,8 +38,8 @@ export function WelcomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <Link href="/" className="flex items-center">
-              <TrypzyLogo variant="full" className="h-6 sm:h-8 w-auto" />
-              <span className="sr-only">Trypzy</span>
+              <TriptiLogo variant="full" className="h-6 sm:h-8 w-auto" />
+              <span className="sr-only">Tripti</span>
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
               <Button variant="ghost" size="sm" asChild className="text-sm">
@@ -132,7 +132,7 @@ export function WelcomePage() {
           </div>
           {/* Inline footer */}
           <div className="mt-4 pt-3 border-t border-gray-200/50">
-            <TrypzyLogo variant="full" className="h-5 w-auto mx-auto opacity-60" />
+            <TriptiLogo variant="full" className="h-5 w-auto mx-auto opacity-60" />
           </div>
         </div>
       </section>

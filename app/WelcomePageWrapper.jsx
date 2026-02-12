@@ -10,7 +10,7 @@ export default function WelcomePageWrapper() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('trypzy_token')
+    const token = localStorage.getItem('tripti_token')
 
     if (token) {
       // Redirect legacy deep-link URLs to new standalone routes

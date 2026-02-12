@@ -1,27 +1,27 @@
-# Trypzy – Product Philosophy & Business Context
+# Tripti – Product Philosophy & Business Context
 
 ⚠️ This document is **not** marketing copy and **not** runtime LLM context.  
 It exists to align human developers and AI collaborators (ChatGPT, Claude, Cursor)  
-on the **business intent, product principles, and design constraints** behind Trypzy.
+on the **business intent, product principles, and design constraints** behind Tripti.
 
 ---
 
-## 1. What Trypzy Is (and Is Not)
+## 1. What Tripti Is (and Is Not)
 
-**Trypzy is a group travel coordination product**, not a content platform.
+**Tripti is a group travel coordination product**, not a content platform.
 
-The core problem Trypzy solves is **group decision paralysis**:
+The core problem Tripti solves is **group decision paralysis**:
 - too many opinions
 - unclear ownership
 - fragmented chats
 - endless “we should plan this” conversations that never converge
 
-Trypzy exists to:
+Tripti exists to:
 - turn *social intent* into *decisions*
 - turn *discussion* into *momentum*
 - help groups **lock plans**, not browse ideas endlessly
 
-### Trypzy is NOT:
+### Tripti is NOT:
 - a social feed
 - a discovery-first travel app
 - a marketplace
@@ -51,7 +51,7 @@ This is why:
 
 ### The wedge is **coordination**, not content.
 
-Trypzy wins by:
+Tripti wins by:
 - making the *next action obvious*
 - reducing ambiguity about who needs to do what
 - applying **light social pressure** at the right moment
@@ -107,7 +107,7 @@ Chat is where:
 
 ## 6. Social Nudging Philosophy
 
-Trypzy uses **nudging, not nagging**.
+Tripti uses **nudging, not nagging**.
 
 Good nudges:
 - “Waiting on you” (only when truly blocking)
@@ -186,7 +186,7 @@ Key constraints:
 - MVP focus > feature breadth
 - Trust and clarity now > monetization now
 
-Trypzy optimizes for:
+Tripti optimizes for:
 - repeat usage within the same social groups
 - multiple trips per circle over time
 - becoming the *default place* where a group plans trips
@@ -195,7 +195,7 @@ Trypzy optimizes for:
 
 ## 10. Anti-Patterns (Do Not Introduce)
 
-The following are explicitly against Trypzy’s philosophy:
+The following are explicitly against Tripti’s philosophy:
 
 - ❌ Infinite scrolling feeds
 - ❌ Duplicate chat surfaces
@@ -229,8 +229,8 @@ If it only:
 
 ## 12. North Star
 
-> Trypzy succeeds when groups say:  
-> **“Let’s just plan it on Trypzy.”**
+> Tripti succeeds when groups say:  
+> **“Let’s just plan it on Tripti.”**
 
 Not:
 - “Let’s browse”

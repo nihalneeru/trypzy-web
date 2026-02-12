@@ -1,6 +1,6 @@
 # E2E Tests
 
-End-to-end tests for Trypzy using Playwright.
+End-to-end tests for Tripti using Playwright.
 
 ## Setup
 

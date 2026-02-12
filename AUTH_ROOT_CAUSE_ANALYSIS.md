@@ -5,7 +5,7 @@ Users who signed up successfully cannot login. They get "Authentication failed" 
 
 ## Root Cause: Split Database State
 
-Before PR #141, the MongoDBAdapter was writing to the **default database** from the connection string (`test`), while our custom code was writing to the **configured database** (`trypzy` via `DB_NAME`).
+Before PR #141, the MongoDBAdapter was writing to the **default database** from the connection string (`test`), while our custom code was writing to the **configured database** (`tripti` via `DB_NAME`).
 
 **Current state:**
 ```
@@ -13,7 +13,7 @@ test database:
   - accounts: 1 document (OAuth account links)
   - users: 1 document (NextAuth adapter user)
 
-trypzy database:
+tripti database:
   - accounts: 0 documents ← ADAPTER LOOKS HERE NOW
   - users: 14 documents (our custom users with id field)
 ```
@@ -21,11 +21,11 @@ trypzy database:
 ## Why Login Fails
 
 1. User clicks "Sign in with Google" on login page
-2. Cookie `trypzy_auth_mode=login` is set
+2. Cookie `tripti_auth_mode=login` is set
 3. OAuth redirect to Google, user selects account
 4. NextAuth callback receives OAuth response
-5. **signIn callback runs**: finds user in `trypzy.users` ✓, returns `true`
-6. **MongoDBAdapter runs**: looks for OAuth account in `trypzy.accounts`
+5. **signIn callback runs**: finds user in `tripti.users` ✓, returns `true`
+6. **MongoDBAdapter runs**: looks for OAuth account in `tripti.accounts`
 7. **No account found!** (it's in `test.accounts`)
 8. Adapter tries to create new user+account, but user email already exists
 9. **Error thrown** → redirects to `/signup?error=...`
@@ -34,9 +34,9 @@ trypzy database:
 ## Why Signup "Works" (shows correct error)
 
 1. User clicks "Sign up with Google" on signup page
-2. Cookie `trypzy_auth_mode=signup` is set
+2. Cookie `tripti_auth_mode=signup` is set
 3. OAuth redirect, user selects account
-4. signIn callback runs: finds user in `trypzy.users`, authMode is 'signup'
+4. signIn callback runs: finds user in `tripti.users`, authMode is 'signup'
 5. **Returns `/login?error=AccountExists`** before adapter runs
 6. User sees correct "Account already exists" message
 
@@ -60,7 +60,7 @@ These two systems are fighting over the same `users` collection with different s
 ## Solution Options
 
 ### Option A: Migrate accounts collection (Quick fix)
-- Copy `accounts` from `test` to `trypzy` database
+- Copy `accounts` from `test` to `tripti` database
 - Pros: Minimal code changes
 - Cons: Doesn't fix the architectural mess, future issues likely
 
@@ -211,8 +211,8 @@ db.collection('users').createIndex({ googleId: 1 }, { sparse: true })
 ### Rollback Plan
 If issues occur, re-add the adapter and migrate accounts collection as a temporary fix:
 ```javascript
-// Migrate accounts from test to trypzy
+// Migrate accounts from test to tripti
 db.getSiblingDB('test').accounts.find().forEach(doc => {
-  db.getSiblingDB('trypzy').accounts.insertOne(doc)
+  db.getSiblingDB('tripti').accounts.insertOne(doc)
 })
 ```

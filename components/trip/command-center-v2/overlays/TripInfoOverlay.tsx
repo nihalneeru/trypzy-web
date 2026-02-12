@@ -89,12 +89,12 @@ export function TripInfoOverlay({
     if (!inviteCode) return
 
     const shareUrl = `${window.location.origin}/join/${inviteCode}?tripId=${trip.id}&ref=${user?.id || ''}`
-    const shareText = `Join "${trip.name}" on Trypzy to plan the trip together!`
+    const shareText = `Join "${trip.name}" on Tripti to plan the trip together!`
     const fullMessage = `${shareText}\n${shareUrl}`
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Trypzy Invite', text: fullMessage })
+        await navigator.share({ title: 'Tripti Invite', text: fullMessage })
         return
       } catch (err: any) {
         if (err?.name === 'AbortError') return

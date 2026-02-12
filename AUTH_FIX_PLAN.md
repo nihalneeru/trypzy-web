@@ -15,10 +15,10 @@ This document outlines all issues found in the Google OAuth signup/login flow an
 import { signOut } from 'next-auth/react'
 
 const handleLogout = async () => {
-  localStorage.removeItem('trypzy_token')
-  localStorage.removeItem('trypzy_user')
+  localStorage.removeItem('tripti_token')
+  localStorage.removeItem('tripti_user')
   // Clear the auth mode cookie
-  document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+  document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
   // Sign out from NextAuth (clears session cookie)
   await signOut({ redirect: false })
   router.replace('/')
@@ -66,7 +66,7 @@ useEffect(() => {
 **Fix:** Clear cookie after successful auth in dashboard's session sync:
 ```javascript
 // After syncing session to localStorage
-document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 ```
 
 ---
@@ -88,14 +88,14 @@ useEffect(() => {
   const storedSecret = sessionStorage.getItem('login_beta_secret')
 
   if (status === 'authenticated' && session?.accessToken && storedSecret) {
-    localStorage.setItem('trypzy_token', session.accessToken)
-    localStorage.setItem('trypzy_user', JSON.stringify({
+    localStorage.setItem('tripti_token', session.accessToken)
+    localStorage.setItem('tripti_user', JSON.stringify({
       id: session.user.id,
       email: session.user.email,
       name: session.user.name
     }))
     sessionStorage.removeItem('login_beta_secret')
-    document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     router.replace('/dashboard')
   }
 }, [session, status, router])

@@ -22,7 +22,7 @@ module.exports = {
     			serif: ['Georgia', 'serif'],
     		},
     		colors: {
-    			// Trypzy Brand Colors
+    			// Tripti Brand Colors
     			brand: {
     				red: 'var(--brand-red)',
     				blue: 'var(--brand-blue)',

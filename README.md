@@ -1,10 +1,10 @@
-# Trypzy
+# Tripti
 
-**Trips made easy** - Private, trust-based trip planning for friend groups.
+**Nifty plans. Happy circles.** - Private, trust-based trip planning for friend groups.
 
 ## Overview
 
-Trypzy helps friend groups plan trips together through a progressive scheduling model that respects everyone's availability without requiring unanimous participation. The primary trip experience is the **Command Center V2** — a chat-centric interface where coordination happens through conversation, system messages, and slide-in overlays for actions like scheduling, itinerary planning, and accommodation.
+Tripti helps friend groups plan trips together through a progressive scheduling model that respects everyone's availability without requiring unanimous participation. The primary trip experience is the **Command Center V2** — a chat-centric interface where coordination happens through conversation, system messages, and slide-in overlays for actions like scheduling, itinerary planning, and accommodation.
 
 ## Key Features
 
@@ -42,7 +42,7 @@ npm install
 
 # Set up environment variables (create .env.local)
 MONGO_URL=mongodb://localhost:27017
-DB_NAME=trypzy
+DB_NAME=tripti
 JWT_SECRET=your-secret-key-here
 CORS_ORIGINS=http://localhost:3000
 
@@ -63,7 +63,7 @@ This creates sample users, circles, trips, and discover posts. See [SETUP.md](./
 ## Project Structure
 
 ```
-trypzy-web/
+tripti-web/
 ├── app/                    # Next.js app directory
 │   ├── api/               # API routes
 │   ├── globals.css        # Global styles
@@ -129,9 +129,9 @@ Trips progress through explicit stages:
 - Only **locking dates** represents commitment
 - The system can progress without unanimous participation
 
-### How Trypzy Keeps Trips Moving
+### How Tripti Keeps Trips Moving
 
-Trypzy uses lightweight system nudges in chat to celebrate milestones and clarify next steps. For example, when the first person shares their availability or when dates are locked, a short system message appears in the trip chat. Nudges are informational and non-blocking — they never pressure or shame.
+Tripti uses lightweight system nudges in chat to celebrate milestones and clarify next steps. For example, when the first person shares their availability or when dates are locked, a short system message appears in the trip chat. Nudges are informational and non-blocking — they never pressure or shame.
 
 ### Circles
 

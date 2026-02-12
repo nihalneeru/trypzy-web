@@ -61,8 +61,8 @@ module.exports = withSentryConfig(module.exports, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
-  org: "trypzy",
-  project: "trypzy-web",
+  org: "tripti",
+  project: "tripti-web",
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,

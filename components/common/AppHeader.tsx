@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { Users, Sparkles, LogOut } from 'lucide-react'
 
@@ -21,18 +21,18 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
   const handleLogout = async () => {
     setLoggingOut(true)
     // Clear localStorage
-    localStorage.removeItem('trypzy_token')
-    localStorage.removeItem('trypzy_user')
+    localStorage.removeItem('tripti_token')
+    localStorage.removeItem('tripti_user')
     // Clear auth mode cookie
-    document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 
     // If running in Capacitor native, clear Preferences and Google sign-out
     if (window.Capacitor?.isNativePlatform?.()) {
       try {
         const Prefs = window.Capacitor.Plugins?.Preferences
         if (Prefs) {
-          await Prefs.remove({ key: 'trypzy_token' })
-          await Prefs.remove({ key: 'trypzy_user' })
+          await Prefs.remove({ key: 'tripti_token' })
+          await Prefs.remove({ key: 'tripti_user' })
           await Prefs.remove({ key: 'pending_url' })
         }
         const GoogleAuth = window.Capacitor.Plugins?.GoogleAuth
@@ -56,8 +56,8 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
           {/* Left: Logo + Navigation */}
           <div className="flex items-center shrink-0">
             <Link href="/dashboard" className="flex items-center shrink-0" data-testid="logo-home">
-              <TrypzyLogo variant="full" className="h-6 sm:h-8 w-auto" />
-              <span className="sr-only">Trypzy</span>
+              <TriptiLogo variant="full" className="h-6 sm:h-8 w-auto" />
+              <span className="sr-only">Tripti</span>
             </Link>
             <nav className="flex items-center ml-2 sm:ml-4">
               <Button

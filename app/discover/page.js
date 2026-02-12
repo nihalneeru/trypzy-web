@@ -16,8 +16,8 @@ export default function DiscoverPage() {
 
   // Auth check + data fetch
   useEffect(() => {
-    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('trypzy_token') : null
-    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('trypzy_user') : null
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('tripti_token') : null
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('tripti_user') : null
 
     if (!storedToken || !storedUser) {
       router.replace('/')
@@ -43,8 +43,8 @@ export default function DiscoverPage() {
         })
 
         if (res.status === 401) {
-          localStorage.removeItem('trypzy_token')
-          localStorage.removeItem('trypzy_user')
+          localStorage.removeItem('tripti_token')
+          localStorage.removeItem('tripti_user')
           router.replace('/')
           return
         }

@@ -2,7 +2,7 @@
 
 ## 0) Product in 60 seconds
 
-**What Trypzy is**: A group travel coordination platform that reduces decision paralysis through progressive scheduling. Friend groups propose trips, share availability, vote on date windows, and lock dates—all without requiring unanimous participation.
+**What Tripti is**: A group travel coordination platform that reduces decision paralysis through progressive scheduling. Friend groups propose trips, share availability, vote on date windows, and lock dates—all without requiring unanimous participation.
 
 **Who it's for**: Friend groups (typically 4-30 people) planning trips together. Designed for both small groups (where everyone's input matters) and large/flaky groups (where partial participation is expected). Adults roughly 21-55 who are already socially connected.
 
@@ -14,14 +14,14 @@
 
 **Product philosophy (founder intent)**
 
-Trypzy exists to reduce coordination friction, not to enforce participation.
+Tripti exists to reduce coordination friction, not to enforce participation.
 
 Most group trips fail or become stressful not because people don't care, but because:
 - participation is uneven
 - decisions require too much synchronous effort
 - social pressure creates avoidance
 
-Trypzy is intentionally designed around the belief that:
+Tripti is intentionally designed around the belief that:
 - Uneven participation is normal and acceptable
 - A small number of motivated planners should be able to move the group forward
 - Others should be able to stay informed and join later without guilt or friction
@@ -48,7 +48,7 @@ If a flow trades simplicity for control, simplicity wins.
 - **Not for (yet)**: Corporate travel, large-scale tours, users who expect rigid task assignment or full participation enforcement, power planners who want deep constraint modeling
 
 **Business model (current + near-term)**:
-- **MVP goal**: Prove that Trypzy reduces planning friction and gets trips locked faster than chat-only coordination
+- **MVP goal**: Prove that Tripti reduces planning friction and gets trips locked faster than chat-only coordination
 - **Value creation (pre-monetization)**: Faster commitment, fewer abandoned trips, less back-and-forth confusion, clear "what's decided vs not" visibility
 - **Likely monetization paths (future, not MVP blockers)**: Hosted or guided trips, premium planning features (advanced itinerary versions, exports, templates), partner integrations (stays, activities), white-label group travel planning
 
@@ -59,7 +59,7 @@ If a flow trades simplicity for control, simplicity wins.
 - Planner satisfaction (not total engagement)
 
 **Brand & voice guardrails**:
-- **Tagline**: "Trips made easy"
+- **Tagline**: "Nifty plans. Happy circles."
 - **Tone**: Calm, friendly, non-preachy. Never scolding or guilt-inducing. Confident but not corporate. Helpful, not controlling
 - **Language we like**: "Plan together", "Move forward", "When you're ready", "Next step"
 - **Language we avoid**: "You must", "Everyone needs to…", "Required", "Incomplete" (for people)
@@ -83,7 +83,7 @@ The product should feel like a helpful organizer, not a manager.
 **Important: This repo is JavaScript-only.**
 Use `.jsx` (not `.tsx`) and do not include TypeScript syntax or types. The codebase is stable at MVP and we avoid TypeScript migration to prevent drift.
 
-## 1) Trypzy Brand Colors
+## 1) Tripti Brand Colors
 
 **CSS Variables** (defined in `app/globals.css`):
 ```css
@@ -401,7 +401,7 @@ npm install
 **Environment variables** (`.env.local`):
 ```env
 MONGO_URL=mongodb://localhost:27017
-DB_NAME=trypzy
+DB_NAME=tripti
 JWT_SECRET=your-secret-key
 CORS_ORIGINS=http://localhost:3000
 OPENAI_API_KEY=your-openai-key
@@ -554,7 +554,7 @@ A nudge engine exists and is **active** in the current codebase.
 
 ## 10.6) Event System (Data Moat)
 
-An event logging system for capturing group coordination behavior. This is the foundation of Trypzy's data moat — unique behavioral data that compounds over time.
+An event logging system for capturing group coordination behavior. This is the foundation of Tripti's data moat — unique behavioral data that compounds over time.
 
 **Core concept**: Log state-changing actions as immutable events. Learn how groups coordinate without adding new UX flows.
 
@@ -600,7 +600,7 @@ lib/events/
 ```bash
 # Run manually or via cron
 curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
-  https://trypzy.com/api/jobs/aggregates
+  https://tripti.ai/api/jobs/aggregates
 ```
 
 **Reference**: See `docs/EVENTS_SPEC.md` for full schema, taxonomy, and implementation checklist.
@@ -634,11 +634,11 @@ Returns instrumentation integrity report:
 ```bash
 # Query events for a trip
 curl -H "x-admin-debug-token: $ADMIN_DEBUG_TOKEN" \
-  "https://trypzy.com/api/admin/events?tripId=abc123"
+  "https://tripti.ai/api/admin/events?tripId=abc123"
 
 # Check trip health
 curl -H "x-admin-debug-token: $ADMIN_DEBUG_TOKEN" \
-  "https://trypzy.com/api/admin/events/trips/abc123/health"
+  "https://tripti.ai/api/admin/events/trips/abc123/health"
 ```
 
 **Key files**:

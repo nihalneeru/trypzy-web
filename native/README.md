@@ -1,9 +1,9 @@
-# Trypzy Native App (Capacitor)
+# Tripti Native App (Capacitor)
 
-iOS and Android wrapper for Trypzy using Capacitor in **hosted URL mode**.
-The native shell loads `https://beta.trypzy.com` in a WebView and adds:
+iOS and Android wrapper for Tripti using Capacitor in **hosted URL mode**.
+The native shell loads `https://tripti.ai` in a WebView and adds:
 - Native Google Sign-In (system dialog, not WebView OAuth)
-- Deep link handling (`https://beta.trypzy.com/*` and `trypzy://`)
+- Deep link handling (`https://tripti.ai/*` and `tripti://`)
 - App Store / Play Store distribution
 - Splash screen
 
@@ -16,7 +16,7 @@ The native shell loads `https://beta.trypzy.com` in a WebView and adds:
 ```
 Native App Start
     │
-    ├─ Has Preferences("trypzy_token")?
+    ├─ Has Preferences("tripti_token")?
     │     YES → /native-bridge (sync to localStorage → /dashboard)
     │     NO  → /native-login  (Google Sign-In → token exchange → /native-bridge)
     │
@@ -27,11 +27,11 @@ Native App Start
 
 **Token flow:**
 1. Native Google Sign-In returns Google ID token
-2. POST to `https://beta.trypzy.com/api/mobile/auth/google`
-3. Backend verifies ID token, returns Trypzy JWT
+2. POST to `https://tripti.ai/api/mobile/auth/google`
+3. Backend verifies ID token, returns Tripti JWT
 4. JWT stored in Capacitor `Preferences` (native secure storage)
 5. `/native-bridge` page copies token from Preferences → `localStorage`
-6. All API calls use `localStorage.trypzy_token` via `Authorization: Bearer <token>`
+6. All API calls use `localStorage.tripti_token` via `Authorization: Bearer <token>`
 
 ---
 
@@ -62,7 +62,7 @@ You need **three** Google OAuth client IDs from Google Cloud Console:
 2. **iOS Client ID**
    - Create in Google Cloud Console → Credentials → OAuth 2.0 Client IDs
    - Type: iOS
-   - Bundle ID: `com.trypzy.mobile`
+   - Bundle ID: `ai.tripti.app`
    - Add reversed client ID to `ios/App/App/Info.plist` as a URL scheme:
      ```xml
      <key>CFBundleURLTypes</key>
@@ -79,7 +79,7 @@ You need **three** Google OAuth client IDs from Google Cloud Console:
 3. **Android Client ID**
    - Create in Google Cloud Console → Credentials → OAuth 2.0 Client IDs
    - Type: Android
-   - Package name: `com.trypzy.mobile`
+   - Package name: `ai.tripti.app`
    - SHA-1 fingerprint from your signing key:
      ```bash
      keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android
@@ -114,7 +114,7 @@ npm run cap:open:android
 ### iOS (Associated Domains)
 
 1. In Xcode → Signing & Capabilities → Add "Associated Domains"
-2. Add: `applinks:beta.trypzy.com`
+2. Add: `applinks:tripti.ai`
 3. Replace `TEAMID` in `public/.well-known/apple-app-site-association` with your actual Apple Team ID
 
 ### Android (App Links)
@@ -126,13 +126,13 @@ npm run cap:open:android
    ```
 2. Verify after deployment:
    ```bash
-   curl https://beta.trypzy.com/.well-known/assetlinks.json
+   curl https://tripti.ai/.well-known/assetlinks.json
    ```
 
 ### Custom URL Scheme (fallback)
 
-Both platforms also support `trypzy://` as a fallback deep link scheme.
-- iOS: Configured via `ios.scheme: 'trypzy'` in `capacitor.config.ts`
+Both platforms also support `tripti://` as a fallback deep link scheme.
+- iOS: Configured via `ios.scheme: 'tripti'` in `capacitor.config.ts`
 - Android: Add intent filter in `android/app/src/main/AndroidManifest.xml`
 
 ---
@@ -151,12 +151,12 @@ Both platforms also support `trypzy://` as a fallback deep link scheme.
 Test with:
 ```bash
 # iOS Simulator
-xcrun simctl openurl booted "https://beta.trypzy.com/trips/test-trip-id"
-xcrun simctl openurl booted "trypzy://trips/test-trip-id"
+xcrun simctl openurl booted "https://tripti.ai/trips/test-trip-id"
+xcrun simctl openurl booted "tripti://trips/test-trip-id"
 
 # Android Emulator
-adb shell am start -a android.intent.action.VIEW -d "https://beta.trypzy.com/trips/test-trip-id"
-adb shell am start -a android.intent.action.VIEW -d "trypzy://trips/test-trip-id"
+adb shell am start -a android.intent.action.VIEW -d "https://tripti.ai/trips/test-trip-id"
+adb shell am start -a android.intent.action.VIEW -d "tripti://trips/test-trip-id"
 ```
 
 5. **Deep link while logged out** → saves URL → shows login → after auth → routes to saved URL
@@ -166,7 +166,7 @@ adb shell am start -a android.intent.action.VIEW -d "trypzy://trips/test-trip-id
 
 Open browser DevTools (Safari → Develop → Simulator) and verify:
 - `Authorization: Bearer <token>` header on API requests
-- Token comes from `localStorage.trypzy_token`
+- Token comes from `localStorage.tripti_token`
 
 ---
 

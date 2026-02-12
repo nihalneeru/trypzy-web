@@ -1,8 +1,8 @@
 {
-  "name": "trypzy-native",
+  "name": "tripti-native",
   "version": "1.0.0",
   "private": true,
-  "description": "Trypzy native shell — Capacitor wrapper for iOS + Android",
+  "description": "Tripti native shell — Capacitor wrapper for iOS + Android",
   "scripts": {
     "cap:sync": "npx cap sync",
     "cap:open:ios": "npx cap open ios",

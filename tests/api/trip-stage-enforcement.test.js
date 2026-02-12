@@ -19,7 +19,7 @@ import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { setupTestDatabase, teardownTestDatabase, JWT_SECRET } from '../testUtils/dbTestHarness.js'
 
 // Use test database
-const TEST_DB_NAME = 'trypzy_test'
+const TEST_DB_NAME = 'tripti_test'
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017'
 
 // Helper to create JWT token

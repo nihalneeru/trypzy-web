@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 
 /**
@@ -78,7 +78,7 @@ export default function NativeLoginPage() {
         throw new Error('Google sign-in did not return an ID token')
       }
 
-      // Exchange Google ID token for Trypzy JWT
+      // Exchange Google ID token for Tripti JWT
       const res = await fetch('/api/mobile/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,9 +93,9 @@ export default function NativeLoginPage() {
       const { token, user } = await res.json()
 
       // Store in Capacitor Preferences (native secure storage)
-      await Preferences.set({ key: 'trypzy_token', value: token })
+      await Preferences.set({ key: 'tripti_token', value: token })
       await Preferences.set({
-        key: 'trypzy_user',
+        key: 'tripti_user',
         value: JSON.stringify(user),
       })
 
@@ -139,7 +139,7 @@ export default function NativeLoginPage() {
             }
           : undefined
 
-      // Exchange Apple identity token for Trypzy JWT
+      // Exchange Apple identity token for Tripti JWT
       const res = await fetch('/api/mobile/auth/apple', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,9 +154,9 @@ export default function NativeLoginPage() {
       const { token, user } = await res.json()
 
       // Store in Capacitor Preferences (native secure storage)
-      await Preferences.set({ key: 'trypzy_token', value: token })
+      await Preferences.set({ key: 'tripti_token', value: token })
       await Preferences.set({
-        key: 'trypzy_user',
+        key: 'tripti_user',
         value: JSON.stringify(user),
       })
 
@@ -178,7 +178,7 @@ export default function NativeLoginPage() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         <div className="text-center">
-          <TrypzyLogo variant="full" className="h-10 w-auto mx-auto mb-4" />
+          <TriptiLogo variant="full" className="h-10 w-auto mx-auto mb-4" />
           <BrandedSpinner size="lg" className="mx-auto" />
         </div>
       </div>
@@ -198,8 +198,8 @@ export default function NativeLoginPage() {
     <div className="min-h-screen bg-white flex items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <div className="w-full max-w-sm text-center">
         <div className="mb-8">
-          <TrypzyLogo variant="full" className="h-10 w-auto mx-auto mb-3" />
-          <p className="text-[#6B7280]">Trips made easy</p>
+          <TriptiLogo variant="full" className="h-10 w-auto mx-auto mb-3" />
+          <p className="text-[#6B7280]">Nifty plans. Happy circles.</p>
         </div>
 
         {error && (
@@ -266,7 +266,7 @@ export default function NativeLoginPage() {
         )}
 
         <p className="text-xs text-[#6B7280] mt-6">
-          By continuing, you agree to Trypzy&apos;s terms of service.
+          By continuing, you agree to Tripti&apos;s terms of service.
         </p>
       </div>
     </div>

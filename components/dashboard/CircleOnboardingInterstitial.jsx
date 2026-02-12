@@ -207,7 +207,7 @@ export function CircleOnboardingInterstitial({
           <div className="py-4">
             <InviteShareBlock
               inviteCode={circle.inviteCode}
-              shareText={`Join "${circle.name}" on Trypzy to plan trips together!`}
+              shareText={`Join "${circle.name}" on Tripti to plan trips together!`}
               shareUrl={shareUrl}
             />
           </div>

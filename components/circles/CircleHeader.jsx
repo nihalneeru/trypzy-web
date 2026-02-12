@@ -52,8 +52,8 @@ export function CircleHeader({ circle, token, onLeft }) {
   // Smart share: Web Share API or clipboard fallback
   async function handleShare() {
     const inviteMessage = circle.name
-      ? `Join my Trypzy circle "${circle.name}" to plan trips together 🌍\nTap the link to join:\n${shareUrl}`
-      : `Join my Trypzy circle to plan trips together 🌍\nTap the link to join:\n${shareUrl}`
+      ? `Join my Tripti circle "${circle.name}" to plan trips together 🌍\nTap the link to join:\n${shareUrl}`
+      : `Join my Tripti circle to plan trips together 🌍\nTap the link to join:\n${shareUrl}`
 
     // Try Web Share API first (mobile)
     if (navigator.share) {

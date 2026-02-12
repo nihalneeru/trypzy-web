@@ -1,10 +1,10 @@
 /**
- * Native Google Sign-In + Trypzy token exchange.
+ * Native Google Sign-In + Tripti token exchange.
  *
  * Flow:
  *   1. System Google Sign-In dialog (native, NOT WebView)
  *   2. POST Google ID token to backend
- *   3. Backend verifies, returns Trypzy JWT
+ *   3. Backend verifies, returns Tripti JWT
  *   4. Store JWT in Capacitor Preferences
  *   5. Navigate WebView to /native-bridge (which copies to localStorage)
  */
@@ -12,7 +12,7 @@
 import { Preferences } from '@capacitor/preferences'
 
 /**
- * Trigger native Google Sign-In and exchange for Trypzy JWT.
+ * Trigger native Google Sign-In and exchange for Tripti JWT.
  * Returns { token, user } on success or throws on failure.
  */
 export async function nativeGoogleSignIn() {
@@ -30,7 +30,7 @@ export async function nativeGoogleSignIn() {
     throw new Error('Google sign-in did not return an ID token')
   }
 
-  // Exchange Google ID token for Trypzy JWT (relative URL — WebView base is the server)
+  // Exchange Google ID token for Tripti JWT (relative URL — WebView base is the server)
   const res = await fetch('/api/mobile/auth/google', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -44,11 +44,11 @@ export async function nativeGoogleSignIn() {
 
   const { token, user } = await res.json()
 
-  // Store Trypzy JWT in native secure storage
-  await Preferences.set({ key: 'trypzy_token', value: token })
+  // Store Tripti JWT in native secure storage
+  await Preferences.set({ key: 'tripti_token', value: token })
 
   // Store user data for bridge page
-  await Preferences.set({ key: 'trypzy_user', value: JSON.stringify(user) })
+  await Preferences.set({ key: 'tripti_user', value: JSON.stringify(user) })
 
   return { token, user }
 }
@@ -57,8 +57,8 @@ export async function nativeGoogleSignIn() {
  * Clear all stored auth state (for logout).
  */
 export async function nativeClearAuth() {
-  await Preferences.remove({ key: 'trypzy_token' })
-  await Preferences.remove({ key: 'trypzy_user' })
+  await Preferences.remove({ key: 'tripti_token' })
+  await Preferences.remove({ key: 'tripti_user' })
   await Preferences.remove({ key: 'pending_url' })
 
   try {
@@ -73,6 +73,6 @@ export async function nativeClearAuth() {
  * Check if native token exists.
  */
 export async function hasNativeToken() {
-  const { value } = await Preferences.get({ key: 'trypzy_token' })
+  const { value } = await Preferences.get({ key: 'tripti_token' })
   return !!value
 }

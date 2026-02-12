@@ -10,7 +10,7 @@ export default function PrivacyPolicyPage() {
 
   useEffect(() => {
     try {
-      const storedUser = localStorage.getItem('trypzy_user')
+      const storedUser = localStorage.getItem('tripti_user')
       if (storedUser) setUserName(JSON.parse(storedUser).name)
     } catch {}
   }, [])
@@ -28,14 +28,14 @@ export default function PrivacyPolicyPage() {
           <p className="text-sm text-gray-500">Last updated: February 9, 2026</p>
 
           <p>
-            Trypzy (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) operates the Trypzy application
-            and website (including beta.trypzy.com). This Privacy Policy explains what information we collect,
+            Tripti (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) operates the Tripti application
+            and website (including tripti.ai). This Privacy Policy explains what information we collect,
             how we use it, and your rights.
           </p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">Our Privacy Philosophy</h2>
           <p>
-            Trypzy is built for trusted circles, not public audiences.
+            Tripti is built for trusted circles, not public audiences.
           </p>
           <p>
             We believe planning trips works best in private spaces with people you know — without turning
@@ -52,13 +52,13 @@ export default function PrivacyPolicyPage() {
           <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Account Information</h3>
           <p>
             When you sign in using supported authentication providers, we receive basic account information
-            such as your name and email address. This information is used to create and manage your Trypzy
+            such as your name and email address. This information is used to create and manage your Tripti
             account and to display your identity to members of your circles and trips.
           </p>
 
           <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Collaboration Content</h3>
           <p>
-            We collect the content you create or contribute within Trypzy, including:
+            We collect the content you create or contribute within Tripti, including:
           </p>
           <ul className="list-disc pl-6 space-y-1">
             <li>Trip names, dates, destinations, and preferences</li>
@@ -83,7 +83,7 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">2. How We Use Your Information</h2>
           <p>We use your information to:</p>
           <ul className="list-disc pl-6 space-y-1">
-            <li>Provide, operate, and maintain the Trypzy service</li>
+            <li>Provide, operate, and maintain the Tripti service</li>
             <li>Enable coordination within trusted circles and trips</li>
             <li>Improve product reliability, performance, and usability</li>
             <li>Generate optional smart or AI-assisted features related to trip planning</li>
@@ -108,7 +108,7 @@ export default function PrivacyPolicyPage() {
             jurisdictions, we process personal data under the following legal bases:
           </p>
           <ul className="list-disc pl-6 space-y-1">
-            <li><strong>Contractual necessity</strong> — to provide the Trypzy service</li>
+            <li><strong>Contractual necessity</strong> — to provide the Tripti service</li>
             <li><strong>Legitimate interests</strong> — to improve reliability, security, and coordination features</li>
             <li><strong>Consent</strong> — where required for specific optional features</li>
           </ul>
@@ -116,14 +116,14 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">4. Data Sharing</h2>
           <p>Your information is shared only in the following ways:</p>
 
-          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Within Trypzy</h3>
+          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Within Tripti</h3>
           <p>
             With members of your circles and trips, based on participation and privacy context.
           </p>
 
           <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Service Providers</h3>
           <p>
-            We use trusted third-party service providers to operate and maintain Trypzy (such as
+            We use trusted third-party service providers to operate and maintain Tripti (such as
             authentication, hosting, storage, error monitoring, and optional smart features). These
             providers process data only on our behalf and under appropriate safeguards.
           </p>
@@ -139,8 +139,8 @@ export default function PrivacyPolicyPage() {
           </p>
           <p>
             You may request deletion of your account and associated data by contacting{' '}
-            <a href="mailto:privacy@trypzy.com" className="text-brand-blue hover:underline">
-              privacy@trypzy.com
+            <a href="mailto:privacy@tripti.ai" className="text-brand-blue hover:underline">
+              privacy@tripti.ai
             </a>
             . Some limited information may be retained only as long as reasonably necessary for security,
             legal, or operational purposes.
@@ -163,8 +163,8 @@ export default function PrivacyPolicyPage() {
           </p>
           <p>
             To exercise any rights, contact{' '}
-            <a href="mailto:privacy@trypzy.com" className="text-brand-blue hover:underline">
-              privacy@trypzy.com
+            <a href="mailto:privacy@tripti.ai" className="text-brand-blue hover:underline">
+              privacy@tripti.ai
             </a>
             .
           </p>
@@ -178,14 +178,14 @@ export default function PrivacyPolicyPage() {
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">8. Children&apos;s Privacy</h2>
           <p>
-            Trypzy is not intended for children under the age of 13. We do not knowingly collect personal
+            Tripti is not intended for children under the age of 13. We do not knowingly collect personal
             data from children. If we learn that we have collected personal information from a child
             under 13, we will take steps to delete it.
           </p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">9. International Data Transfers</h2>
           <p>
-            Trypzy may process and store information in countries outside your country of residence.
+            Tripti may process and store information in countries outside your country of residence.
             Where required, we use appropriate safeguards to protect personal data in accordance with
             applicable laws.
           </p>
@@ -201,8 +201,8 @@ export default function PrivacyPolicyPage() {
             For privacy questions or data requests, contact us at:
           </p>
           <p>
-            <a href="mailto:privacy@trypzy.com" className="text-brand-blue hover:underline">
-              privacy@trypzy.com
+            <a href="mailto:privacy@tripti.ai" className="text-brand-blue hover:underline">
+              privacy@tripti.ai
             </a>
           </p>
         </div>

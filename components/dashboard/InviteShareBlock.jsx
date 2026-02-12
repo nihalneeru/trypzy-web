@@ -12,7 +12,7 @@ import { Share2, Copy } from 'lucide-react'
  *
  * @param {Object} props
  * @param {string} props.inviteCode - The invite code to display
- * @param {string} props.shareText - Text for the share payload (e.g. 'Join "My Trip" on Trypzy!')
+ * @param {string} props.shareText - Text for the share payload (e.g. 'Join "My Trip" on Tripti!')
  * @param {string} props.shareUrl - Full URL for the invite link
  * @param {(shared: boolean) => void} [props.onShareComplete] - Called after share/skip
  */
@@ -57,7 +57,7 @@ export function InviteShareBlock({ inviteCode, shareText, shareUrl, onShareCompl
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Trypzy Invite',
+          title: 'Tripti Invite',
           text: shareText,
           url: shareUrl
         })

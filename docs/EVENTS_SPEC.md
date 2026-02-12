@@ -1,4 +1,4 @@
-# Trypzy Event System Specification
+# Tripti Event System Specification
 
 > **Status:** MVP Implementation Spec
 > **Last Updated:** 2026-01-29
@@ -6,13 +6,13 @@
 
 ## 1. Purpose
 
-This document defines Trypzy's event logging system for building a defensible data moat. The system captures **group coordination behavior** — how friend groups move from trip proposal to locked dates — which is data no competitor can replicate without building the same product.
+This document defines Tripti's event logging system for building a defensible data moat. The system captures **group coordination behavior** — how friend groups move from trip proposal to locked dates — which is data no competitor can replicate without building the same product.
 
 ### Moat Thesis
 
-Trypzy's moat is **coordination intelligence**: behavioral patterns of how real friend groups successfully (or unsuccessfully) coordinate multi-party commitments. This data:
+Tripti's moat is **coordination intelligence**: behavioral patterns of how real friend groups successfully (or unsuccessfully) coordinate multi-party commitments. This data:
 
-1. Doesn't exist elsewhere (born inside Trypzy)
+1. Doesn't exist elsewhere (born inside Tripti)
 2. Compounds over time (more circles → better predictions → higher completion rates)
 3. Is group-level, not creepy individual profiling
 4. Prioritizes negative signals (rejections, silence, stalls) over outcomes

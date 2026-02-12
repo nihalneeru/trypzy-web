@@ -1,10 +1,10 @@
 /**
- * Trypzy native app bootstrap.
+ * Tripti native app bootstrap.
  *
  * Runs on Capacitor app start. Decides initial route and sets up deep link handling.
  *
  * Cold start flow:
- *   - If Preferences has "trypzy_token" → navigate to /native-bridge
+ *   - If Preferences has "tripti_token" → navigate to /native-bridge
  *   - Else → navigate to /native-login
  *
  * Deep link flow:
@@ -40,17 +40,17 @@ function navigateTo(path) {
 
 /**
  * Extract a relative path from a deep link URL.
- * Handles both https://beta.trypzy.com/... and trypzy://...
+ * Handles both https://tripti.ai/... and tripti://...
  */
 function extractPath(url) {
   try {
     const parsed = new URL(url)
-    if (parsed.protocol === 'trypzy:') {
-      // trypzy://trips/abc?foo=bar → /trips/abc?foo=bar
+    if (parsed.protocol === 'tripti:') {
+      // tripti://trips/abc?foo=bar → /trips/abc?foo=bar
       const path = '/' + parsed.host + parsed.pathname
       return path + parsed.search + parsed.hash
     }
-    // https://beta.trypzy.com/trips/abc → /trips/abc
+    // https://tripti.ai/trips/abc → /trips/abc
     return parsed.pathname + parsed.search + parsed.hash
   } catch {
     return '/'
@@ -63,7 +63,7 @@ function extractPath(url) {
 async function bootstrap() {
   try {
     // Check for existing auth token
-    const { value: token } = await Preferences.get({ key: 'trypzy_token' })
+    const { value: token } = await Preferences.get({ key: 'tripti_token' })
 
     if (token) {
       // Has token — go through bridge to sync to localStorage
@@ -95,7 +95,7 @@ function setupDeepLinks() {
     }
 
     // Check if authenticated
-    const { value: token } = await Preferences.get({ key: 'trypzy_token' })
+    const { value: token } = await Preferences.get({ key: 'tripti_token' })
 
     if (token) {
       // Authenticated — route directly
