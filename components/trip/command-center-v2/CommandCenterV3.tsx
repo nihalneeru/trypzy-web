@@ -280,7 +280,8 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   // Read-only
   const viewer = trip?.viewer || {}
   const isCancelled = trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
-  const isReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || isCancelled
+  const isCompleted = trip?.status === 'completed'
+  const isReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || isCancelled || isCompleted
 
   // Check if any overlay is open
   const hasActiveOverlay = activeOverlay !== null
