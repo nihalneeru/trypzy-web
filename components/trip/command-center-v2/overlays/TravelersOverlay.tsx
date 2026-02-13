@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { nativeShare } from '@/lib/native/share'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -482,7 +483,7 @@ export function TravelersOverlay({
     }
   }
 
-  // Invite friends via Web Share API or clipboard fallback
+  // Invite friends via native share sheet, Web Share API, or clipboard fallback
   const handleInvite = async () => {
     const inviteCode = trip?.circle?.inviteCode || trip?.inviteCode
     if (!inviteCode) {
@@ -492,39 +493,12 @@ export function TravelersOverlay({
 
     const shareUrl = `${window.location.origin}/join/${inviteCode}?tripId=${trip.id}&ref=${user?.id || ''}`
     const shareText = `Join "${trip.name}" on Tripti to plan the trip together!`
-    const fullMessage = `${shareText}\n${shareUrl}`
 
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Tripti Invite',
-          text: fullMessage,
-        })
-        return
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return
-        // Fall through to clipboard
-      }
-    }
-
-    // Fallback: copy to clipboard
-    try {
-      await navigator.clipboard.writeText(fullMessage)
+    const result = await nativeShare({ title: 'Tripti Invite', text: shareText, url: shareUrl })
+    if (result === 'copied') {
       toast.success('Invite link copied!')
-    } catch {
-      try {
-        const textarea = document.createElement('textarea')
-        textarea.value = fullMessage
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-        toast.success('Invite link copied!')
-      } catch {
-        toast.error('Could not copy — please copy manually')
-      }
+    } else if (result === 'failed') {
+      toast.error('Could not copy — please copy manually')
     }
   }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { nativeShare, copyToClipboard } from '@/lib/native/share'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -74,50 +75,28 @@ export function TripInfoOverlay({
 
   const handleCopyInviteCode = async () => {
     if (!inviteCode) return
-    try {
-      await navigator.clipboard.writeText(inviteCode)
+    const result = await copyToClipboard(inviteCode)
+    if (result === 'copied') {
       setCopied(true)
       toast.success('Invite code copied')
       setTimeout(() => setCopied(false), 2000)
-    } catch {
+    } else {
       toast.error('Failed to copy invite code')
     }
   }
 
-  // Share invite link (same pattern as TravelersOverlay)
+  // Share invite link via native share sheet, Web Share API, or clipboard fallback
   const handleInvite = async () => {
     if (!inviteCode) return
 
     const shareUrl = `${window.location.origin}/join/${inviteCode}?tripId=${trip.id}&ref=${user?.id || ''}`
     const shareText = `Join "${trip.name}" on Tripti to plan the trip together!`
-    const fullMessage = `${shareText}\n${shareUrl}`
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Tripti Invite', text: fullMessage })
-        return
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return
-      }
-    }
-
-    try {
-      await navigator.clipboard.writeText(fullMessage)
+    const result = await nativeShare({ title: 'Tripti Invite', text: shareText, url: shareUrl })
+    if (result === 'copied') {
       toast.success('Invite link copied!')
-    } catch {
-      try {
-        const textarea = document.createElement('textarea')
-        textarea.value = fullMessage
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-        toast.success('Invite link copied!')
-      } catch {
-        toast.error('Could not copy invite link')
-      }
+    } else if (result === 'failed') {
+      toast.error('Could not copy invite link')
     }
   }
 
