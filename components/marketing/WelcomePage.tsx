@@ -1,11 +1,12 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { TriptiLogo } from '@/components/brand/TriptiLogo'
-import { 
-  Users, 
+import {
+  Users,
   XCircle,
   ArrowRight,
   Lightbulb,
@@ -19,6 +20,15 @@ import {
 } from 'lucide-react'
 
 export function WelcomePage() {
+  const [loginPath, setLoginPath] = useState('/login')
+  const [signupPath, setSignupPath] = useState('/signup')
+
+  useEffect(() => {
+    if (window.Capacitor?.isNativePlatform?.()) {
+      setLoginPath('/native-login')
+      setSignupPath('/native-login')
+    }
+  }, [])
   // Trip progress milestones in order
   const milestones = [
     { icon: Lightbulb, label: 'Trip Idea' },
@@ -43,10 +53,10 @@ export function WelcomePage() {
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
               <Button variant="ghost" size="sm" asChild className="text-sm">
-                <Link href="/login">Log in</Link>
+                <Link href={loginPath}>Log in</Link>
               </Button>
               <Button size="sm" asChild className="text-sm">
-                <Link href="/signup">Get started</Link>
+                <Link href={signupPath}>Get started</Link>
               </Button>
             </div>
           </div>
@@ -124,10 +134,10 @@ export function WelcomePage() {
           </h2>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-center">
             <Button size="default" asChild className="text-sm sm:text-base px-6 sm:px-10">
-              <Link href="/signup">Get started</Link>
+              <Link href={signupPath}>Get started</Link>
             </Button>
             <Button size="default" variant="outline" asChild className="text-sm sm:text-base px-6 sm:px-10">
-              <Link href="/login">Log in</Link>
+              <Link href={loginPath}>Log in</Link>
             </Button>
           </div>
           {/* Inline footer */}

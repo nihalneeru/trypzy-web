@@ -69,11 +69,11 @@ async function bootstrap() {
       // Has token — go through bridge to sync to localStorage
       navigateTo('/native-bridge')
     } else {
-      // No token — show native login
-      navigateTo('/native-login')
+      // No token — show welcome page (same as web)
+      navigateTo('/')
     }
   } catch {
-    navigateTo('/native-login')
+    navigateTo('/')
   } finally {
     // Hide splash screen after navigation decision
     await SplashScreen.hide().catch(() => {})

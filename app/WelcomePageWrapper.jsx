@@ -27,9 +27,6 @@ export default function WelcomePageWrapper() {
       } else {
         router.replace('/dashboard')
       }
-    } else if (window.Capacitor?.isNativePlatform?.()) {
-      // Native app: use native Google Sign-In (WebView OAuth is blocked by Google)
-      router.replace('/native-login')
     } else {
       setLoading(false)
     }
