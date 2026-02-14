@@ -44,7 +44,7 @@ export function WelcomePage() {
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-gray-200 shrink-0">
+      <header className="border-b border-gray-200 shrink-0 safe-top">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <Link href="/" className="flex items-center">
