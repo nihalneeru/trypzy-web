@@ -105,7 +105,7 @@ export function WelcomePage() {
                     <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-gray-600 text-left">
                       <li>• Friend groups</li>
                       <li>• Up to ~15 people</li>
-                      <li>• Low-pressure planning</li>
+                      <li>• Plan at your own pace</li>
                     </ul>
                   </CardContent>
                 </Card>
@@ -114,7 +114,7 @@ export function WelcomePage() {
                   <CardContent className="py-3 px-3 sm:py-4 sm:px-5">
                     <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-2">Not for (yet)</h3>
                     <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-gray-600 text-left">
-                      <li>• Booking travel</li>
+                      <li>• Flights & hotels</li>
                       <li>• Rigid checklists</li>
                       <li>• Planning alone</li>
                     </ul>
