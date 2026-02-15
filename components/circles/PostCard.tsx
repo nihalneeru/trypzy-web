@@ -153,7 +153,7 @@ export function PostCard({
               </span>
             </div>
             <div>
-              <p className="font-medium text-sm">{authorName}</p>
+              <p className="font-medium text-sm truncate">{authorName}</p>
               <p className="text-xs text-gray-500">{formatRelativeTime(post.createdAt)}</p>
             </div>
           </div>

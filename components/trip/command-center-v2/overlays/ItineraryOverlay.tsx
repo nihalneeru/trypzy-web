@@ -968,7 +968,7 @@ export function ItineraryOverlay({
           {/* Ideas List - Grouped by Traveler */}
           <div className="pt-2">
             <p className="text-xs font-medium text-gray-500 mb-2">All Ideas</p>
-            <ScrollArea className="h-[250px]">
+            <ScrollArea className="h-[180px] md:h-[250px]">
               {loadingIdeas ? (
                 <div className="flex flex-col items-center justify-center py-8">
                   <BrandedSpinner size="md" className="mb-2" />
@@ -1097,7 +1097,7 @@ export function ItineraryOverlay({
           </div>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[350px]">
+          <ScrollArea className="h-[250px] md:h-[350px]">
             {loadingVersions ? (
               <div className="flex flex-col items-center justify-center py-8">
                 <BrandedSpinner size="md" className="mb-2" />
@@ -1326,7 +1326,7 @@ export function ItineraryOverlay({
                               size="sm"
                               onClick={() => handleQuickReaction(reaction.id, group.category)}
                               disabled={isDisabled}
-                              className="text-xs h-8"
+                              className="text-xs h-9 md:h-8"
                               title={reactedUsers.length > 0 ? `Voted by: ${reactedUsers.join(', ')}` : undefined}
                             >
                               {isReacting ? (
@@ -1376,7 +1376,7 @@ export function ItineraryOverlay({
             {/* Feedback List */}
             <div className="pt-2 border-t">
               <p className="text-xs font-medium text-gray-500 mb-2">Feedback History</p>
-              <ScrollArea className="h-[200px]">
+              <ScrollArea className="h-[150px] md:h-[200px]">
                 {loadingFeedback ? (
                   <div className="flex flex-col items-center justify-center py-6">
                     <BrandedSpinner size="md" className="mb-2" />
@@ -1425,7 +1425,7 @@ export function ItineraryOverlay({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="space-y-2 pt-2">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Select
                       value={newFeedback.type}
                       onValueChange={(v) => setNewFeedback({ ...newFeedback, type: v })}

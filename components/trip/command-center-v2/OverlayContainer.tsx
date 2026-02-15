@@ -210,8 +210,8 @@ export function OverlayContainer({
                     bottom: `calc(${bottomOffset} + 15px)`,
                     right: `calc(${rightOffset} + 15px)`,
                     left: fullWidth ? '15px' : undefined,
-                    width: fullWidth ? `calc(100vw - ${rightOffset} - 30px)` : 'min(448px, calc(100vw - 30px))',
-                    maxWidth: fullWidth ? undefined : `calc(100vw - ${rightOffset} - 30px)`,
+                    width: fullWidth ? `calc(100% - ${rightOffset} - 30px)` : 'min(448px, calc(100% - 30px))',
+                    maxWidth: fullWidth ? undefined : `calc(100% - ${rightOffset} - 30px)`,
                     border: `5px solid ${accentColor}`,
                   }
         }

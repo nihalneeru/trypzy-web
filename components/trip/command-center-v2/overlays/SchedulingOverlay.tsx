@@ -847,7 +847,7 @@ export function SchedulingOverlay({
                     ))}
                     {monthData.days.map((day, idx) => {
                       if (!day) {
-                        return <div key={`empty-${idx}`} className="h-9" />
+                        return <div key={`empty-${idx}`} className="h-10 md:h-9" />
                       }
 
                       // Determine background color
@@ -888,7 +888,7 @@ export function SchedulingOverlay({
                           onMouseEnter={() => isValidForPreview && setHoveredStartDate(day.dateISO)}
                           onMouseLeave={() => setHoveredStartDate(null)}
                           disabled={isDisabled}
-                          className={`h-9 w-full rounded text-[11px] font-medium border transition-all relative flex items-center justify-center ${
+                          className={`h-10 md:h-9 w-full rounded text-[11px] font-medium border transition-all relative flex items-center justify-center ${
                             day.isValidStart && day.isInBounds && canParticipate
                               ? 'cursor-pointer hover:ring-2 hover:ring-blue-300'
                               : 'cursor-not-allowed opacity-40'
@@ -940,7 +940,7 @@ export function SchedulingOverlay({
             </div>
 
             {/* Legend */}
-            <div className="mt-3 flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+            <div className="mt-3 flex items-center gap-2 sm:gap-4 text-xs text-gray-500 flex-wrap">
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 bg-gray-100 border rounded" />
                 <span>No preference</span>

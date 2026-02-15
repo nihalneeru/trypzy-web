@@ -46,7 +46,7 @@ export function CancelTripDialog({
             Since there's no one to transfer leadership to, canceling will end the trip for everyone.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={handleCancel} disabled={loading}>
             Keep trip
           </Button>
