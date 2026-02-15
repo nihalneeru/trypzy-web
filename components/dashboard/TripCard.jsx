@@ -209,7 +209,7 @@ export function TripCard({ trip, circleId = null }) {
               </div>
             )}
             <div
-              className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors w-full h-10 md:h-8 px-3 ${
+              className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors w-full h-11 md:h-9 px-3 ${
                 actionRequired
                   ? 'bg-primary text-primary-foreground shadow hover:bg-primary/90'
                   : 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground'

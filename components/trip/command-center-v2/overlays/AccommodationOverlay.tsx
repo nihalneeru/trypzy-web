@@ -607,7 +607,7 @@ export function AccommodationOverlay({
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
           All Options ({accommodations.length})
         </h3>
-        <ScrollArea className="h-[350px]">
+        <ScrollArea className="h-[250px] md:h-[350px]">
           {accommodations.length === 0 ? (
             <div className="text-center py-8">
               <Home className="h-10 w-10 text-gray-400 mx-auto mb-3" />

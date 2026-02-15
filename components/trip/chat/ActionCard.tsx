@@ -44,7 +44,7 @@ export function ActionCard({
         </div>
         <button
           onClick={onDismiss}
-          className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+          className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 transition-colors"
           aria-label="Dismiss"
         >
           <X className="h-4 w-4" />
@@ -55,7 +55,7 @@ export function ActionCard({
         <Button
           onClick={onAction}
           size="sm"
-          className={`flex-shrink-0 ${actionRequired ? 'bg-red-600 hover:bg-red-700' : ''}`}
+          className={`flex-shrink-0 h-10 md:h-9 ${actionRequired ? 'bg-red-600 hover:bg-red-700' : ''}`}
         >
           {action.ctaLabel}
         </Button>

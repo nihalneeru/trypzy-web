@@ -98,12 +98,12 @@ export function TransferLeadershipDialog({
             </p>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={handleCancel} disabled={loading}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleConfirm} 
+          <Button
+            onClick={handleConfirm}
             disabled={!selectedNewLeader || loading}
           >
             {loading ? 'Leaving...' : 'Transfer & Leave'}

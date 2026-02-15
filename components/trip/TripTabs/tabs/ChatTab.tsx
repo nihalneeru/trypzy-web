@@ -681,7 +681,7 @@ export function ChatTab({
   // Chat content (shared between legacy and command-center modes)
   const chatContent = (
     <>
-      <ScrollArea ref={scrollAreaRef} className={`flex-1 pr-4 ${isCommandCenter ? 'h-[400px]' : ''}`}>
+      <ScrollArea ref={scrollAreaRef} className={`flex-1 pr-4 ${isCommandCenter ? 'h-[300px] md:h-[400px]' : ''}`}>
           <div className="space-y-4">
             {/* Waiting on... clarity message (system style, at top) */}
             {blockingInfo && (blockingInfo.reasonCode !== 'initial_scheduling' || allowInitialBlocking) && (
@@ -722,15 +722,15 @@ export function ChatTab({
                           setShowLockModal(true)
                         }
                       }}
-                      className="bg-green-600 hover:bg-green-700 text-white h-7 text-xs"
+                      className="bg-green-600 hover:bg-green-700 text-white h-9 md:h-7 text-xs"
                     >
                       Lock dates
                     </Button>
                   ) : (
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       disabled
-                      className="bg-gray-300 text-gray-500 h-7 text-xs cursor-not-allowed"
+                      className="bg-gray-300 text-gray-500 h-9 md:h-7 text-xs cursor-not-allowed"
                       title="Only the trip organizer can lock dates."
                     >
                       Lock dates
@@ -811,7 +811,7 @@ export function ChatTab({
                         onClick={() => handleApproveRequest(request.id)}
                         disabled={processingRequest === request.id}
                         size="sm"
-                        className="flex-1 bg-green-600 hover:bg-green-700"
+                        className="flex-1 bg-green-600 hover:bg-green-700 h-10 md:h-9"
                       >
                         {processingRequest === request.id ? 'Processing...' : 'Approve'}
                       </Button>
@@ -820,7 +820,7 @@ export function ChatTab({
                         onClick={() => handleDenyRequest(request.id)}
                         disabled={processingRequest === request.id}
                         size="sm"
-                        className="flex-1"
+                        className="flex-1 h-10 md:h-9"
                       >
                         {processingRequest === request.id ? 'Processing...' : 'Deny'}
                       </Button>
@@ -849,7 +849,7 @@ export function ChatTab({
                           placeholder="Add a note about this trip..."
                           className="min-h-[80px]"
                         />
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex flex-col sm:flex-row gap-2 justify-end">
                           <Button
                             variant="outline"
                             size="sm"
