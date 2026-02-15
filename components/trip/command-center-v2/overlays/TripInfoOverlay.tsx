@@ -90,9 +90,9 @@ export function TripInfoOverlay({
     if (!inviteCode) return
 
     const shareUrl = `${window.location.origin}/join/${inviteCode}?tripId=${trip.id}&ref=${user?.id || ''}`
-    const shareText = `Join "${trip.name}" on Tripti to plan the trip together!`
+    const shareText = `Join "${trip.name}" on Tripti.ai to plan the trip together!`
 
-    const result = await nativeShare({ title: 'Tripti Invite', text: shareText, url: shareUrl })
+    const result = await nativeShare({ title: 'Tripti.ai Invite', text: shareText, url: shareUrl })
     if (result === 'copied') {
       toast.success('Invite link copied!')
     } else if (result === 'failed') {

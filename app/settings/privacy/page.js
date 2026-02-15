@@ -133,13 +133,13 @@ export default function PrivacySettingsPage() {
         <div className="bg-brand-sand/40 border border-brand-sand rounded-lg p-5 mb-6">
           <h2 className="text-base font-semibold text-brand-carbon mb-2">Our Privacy Philosophy</h2>
           <p className="text-sm text-gray-700 leading-relaxed">
-            Tripti is designed for private group coordination within trusted circles. We prioritize
+            Tripti.ai is designed for private group coordination within trusted circles. We prioritize
             collaboration and user trust over public social feeds or advertising-driven models. We do not
             sell personal data to third parties. Trip content is visible only to members of your selected group.
           </p>
           <p className="text-sm text-gray-700 leading-relaxed mt-2">
             These settings control how your profile and trips appear to others — they do not affect how
-            Tripti securely stores or processes your data.
+            Tripti.ai securely stores or processes your data.
           </p>
           <Link
             href="/privacy"

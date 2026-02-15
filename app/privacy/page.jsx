@@ -28,10 +28,10 @@ export default function PrivacyPolicyPage() {
           <p className="text-sm text-gray-500">Last updated: February 9, 2026</p>
 
           <p>
-            Tripti (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is operated by Trypzy, Inc.,
+            Tripti.ai (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is operated by Trypzy, Inc.,
             a Delaware corporation (&ldquo;Company,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;).
             This Privacy Policy describes how we collect, use, share, and protect information when you use the
-            Tripti website (tripti.ai), mobile applications, and related services (collectively, the &ldquo;Service&rdquo;).
+            Tripti.ai website, mobile applications, and related services (collectively, the &ldquo;Service&rdquo;).
           </p>
           <p>
             If you are located in the European Economic Area (&ldquo;EEA&rdquo;), United Kingdom, or other
@@ -40,7 +40,7 @@ export default function PrivacyPolicyPage() {
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">Our Privacy Philosophy</h2>
           <p>
-            Tripti is designed for private group coordination within trusted circles. We prioritize
+            Tripti.ai is designed for private group coordination within trusted circles. We prioritize
             collaboration and user trust over public social feeds or advertising-driven models.
           </p>
           <p>
@@ -139,7 +139,7 @@ export default function PrivacyPolicyPage() {
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">5. International Data Transfers</h2>
           <p>
-            Tripti is operated from the United States. If you access the Service from outside the United
+            Tripti.ai is operated from the United States. If you access the Service from outside the United
             States, your information may be transferred to and processed in the United States or other
             countries.
           </p>
@@ -148,17 +148,30 @@ export default function PrivacyPolicyPage() {
             may include contractual protections with service providers.
           </p>
 
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">6. Data Retention</h2>
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">6. Data Retention &amp; Account Deletion</h2>
           <p>
             We retain account information and user content for as long as your account remains active.
           </p>
           <p>
-            To request account deletion, please contact{' '}
+            You can delete your account at any time from the account menu within the app, or by
+            visiting{' '}
+            <a href="/delete-account" className="text-brand-blue hover:underline">
+              tripti.ai/delete-account
+            </a>
+            . When you delete your account:
+          </p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Your personal identifiers (name, email, profile) are removed immediately</li>
+            <li>Your contributions to trips and circles are anonymized and attributed to &ldquo;Deleted member&rdquo;</li>
+            <li>You will be logged out and unable to sign back in with the same email</li>
+          </ul>
+          <p>
+            You may also contact{' '}
             <a href="mailto:privacy@tripti.ai" className="text-brand-blue hover:underline">
               privacy@tripti.ai
             </a>
-            . Upon verified request, we will delete or anonymize your personal data in accordance with
-            applicable laws, except where retention is required for legal or operational purposes.
+            {' '}with any data deletion requests. We will respond within 30 days in accordance with
+            applicable laws.
           </p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">7. Your Rights</h2>
@@ -212,7 +225,7 @@ export default function PrivacyPolicyPage() {
             </a>
           </p>
           <p className="text-sm text-gray-500 mt-6">
-            Tripti is a product of Trypzy, Inc.
+            Tripti.ai is a product of Trypzy, Inc.
           </p>
         </div>
 

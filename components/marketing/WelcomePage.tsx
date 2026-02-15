@@ -49,7 +49,7 @@ export function WelcomePage() {
           <div className="flex items-center justify-between h-14 sm:h-16">
             <Link href="/" className="flex items-center">
               <TriptiLogo variant="full" className="h-6 sm:h-8 w-auto" />
-              <span className="sr-only">Tripti</span>
+              <span className="sr-only">Tripti.ai</span>
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
               <Button variant="ghost" size="sm" asChild className="text-sm">

@@ -101,7 +101,7 @@ export async function POST(request) {
     const name =
       fullName?.givenName && fullName?.familyName
         ? `${fullName.givenName} ${fullName.familyName}`.trim()
-        : fullName?.givenName || email?.split('@')[0] || 'Tripti User'
+        : fullName?.givenName || email?.split('@')[0] || 'Tripti.ai User'
 
     const db = await connectToMongo()
 
@@ -110,6 +110,13 @@ export async function POST(request) {
     if (email) query.push({ email })
 
     let user = await db.collection('users').findOne({ $or: query })
+
+    if (user?.deletedAt) {
+      return NextResponse.json(
+        { error: 'This account has been deleted' },
+        { status: 410 }
+      )
+    }
 
     if (!user) {
       // Create new user

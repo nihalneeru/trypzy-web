@@ -192,7 +192,7 @@ export default function JoinCirclePage({ params }) {
               <Users className="h-8 w-8 text-brand-blue" />
             </div>
             <h1 className="text-2xl font-bold text-brand-carbon mb-2">
-              You're invited to a Tripti circle
+              You're invited to a Tripti.ai circle
             </h1>
             <p className="text-gray-600 mb-8">
               Sign in to view and join this circle

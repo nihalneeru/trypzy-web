@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
@@ -409,8 +410,18 @@ async function handleRoute(request, { params }) {
       const existingUser = await db.collection('users').findOne({ email: email.toLowerCase() })
       if (existingUser) {
         return handleCORS(NextResponse.json(
-          { error: 'Email already registered' },
-          { status: 400 }
+          { error: existingUser.deletedAt ? 'This account has been deleted' : 'Email already registered' },
+          { status: existingUser.deletedAt ? 410 : 400 }
+        ))
+      }
+
+      // Check if email was previously used by a deleted account
+      const emailHash = createHash('sha256').update(email.toLowerCase()).digest('hex')
+      const deletedUser = await db.collection('users').findOne({ deletedEmailHash: emailHash, deletedAt: { $exists: true } })
+      if (deletedUser) {
+        return handleCORS(NextResponse.json(
+          { error: 'This account has been deleted' },
+          { status: 410 }
         ))
       }
 
@@ -453,6 +464,13 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json(
           { error: 'Invalid credentials' },
           { status: 401 }
+        ))
+      }
+
+      if (user.deletedAt) {
+        return handleCORS(NextResponse.json(
+          { error: 'This account has been deleted' },
+          { status: 410 }
         ))
       }
 
@@ -12370,6 +12388,135 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ success: true }))
     }
 
+    // ============ ACCOUNT DELETION ============
+
+    // Delete account - DELETE /api/account
+    if (route === '/account' && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const body = await request.json()
+      if (body.confirm !== 'DELETE') {
+        return handleCORS(NextResponse.json(
+          { error: 'Confirmation required. Send { confirm: "DELETE" }' },
+          { status: 400 }
+        ))
+      }
+
+      const userId = auth.user.id
+      const userEmail = auth.user.email
+      const now = new Date().toISOString()
+
+      // 1. Transfer leadership for trips this user leads
+      const ledTrips = await db.collection('trips').find({
+        createdBy: userId,
+        status: { $nin: ['canceled', 'completed'] }
+      }).toArray()
+
+      for (const trip of ledTrips) {
+        // Find earliest-joined active participant (excluding the deleting user)
+        const nextLeader = await db.collection('trip_participants').findOne(
+          { tripId: trip.id, userId: { $ne: userId }, status: 'active' },
+          { sort: { joinedAt: 1 } }
+        )
+
+        if (nextLeader) {
+          await db.collection('trips').updateOne(
+            { id: trip.id },
+            { $set: { createdBy: nextLeader.userId } }
+          )
+        } else {
+          // No other participants — cancel the trip
+          await db.collection('trips').updateOne(
+            { id: trip.id },
+            { $set: { status: 'canceled', canceledAt: now, canceledBy: userId } }
+          )
+        }
+      }
+
+      // 2. Remove circle memberships
+      await db.collection('memberships').deleteMany({ userId })
+
+      // 3. Mark trip participations as deleted
+      await db.collection('trip_participants').updateMany(
+        { userId },
+        { $set: { status: 'deleted', updatedAt: now } }
+      )
+
+      // 4. Anonymize trip messages
+      await db.collection('trip_messages').updateMany(
+        { userId },
+        { $set: { userId: 'deleted', senderName: 'Deleted member' } }
+      )
+
+      // 5. Anonymize date windows and supports
+      await db.collection('date_windows').updateMany(
+        { proposedBy: userId },
+        { $set: { proposedBy: 'deleted' } }
+      )
+      await db.collection('window_supports').updateMany(
+        { userId },
+        { $set: { userId: 'deleted' } }
+      )
+
+      // 6. Anonymize votes and availabilities
+      await db.collection('votes').updateMany(
+        { userId },
+        { $set: { userId: 'deleted' } }
+      )
+      await db.collection('availabilities').updateMany(
+        { userId },
+        { $set: { userId: 'deleted' } }
+      )
+      await db.collection('trip_date_picks').updateMany(
+        { userId },
+        { $set: { userId: 'deleted' } }
+      )
+
+      // 7. Anonymize itinerary ideas
+      await db.collection('itinerary_ideas').updateMany(
+        { userId },
+        { $set: { userId: 'deleted' } }
+      )
+
+      // 8. Anonymize trip events
+      await db.collection('trip_events').updateMany(
+        { actorId: userId },
+        { $set: { actorId: 'deleted' } }
+      )
+
+      // 9. Delete nudge events
+      await db.collection('nudge_events').deleteMany({ userId })
+
+      // 10. Delete join requests
+      await db.collection('trip_join_requests').deleteMany({ userId })
+
+      // 11. Soft-delete the user record
+      const emailHash = createHash('sha256').update(userEmail.toLowerCase()).digest('hex')
+      await db.collection('users').updateOne(
+        { id: userId },
+        {
+          $set: {
+            name: 'Deleted member',
+            email: null,
+            password: null,
+            avatarUrl: null,
+            deletedAt: now,
+            deletedEmailHash: emailHash,
+            privacy: null,
+          },
+          $unset: {
+            googleId: '',
+            appleId: '',
+          }
+        }
+      )
+
+      return handleCORS(NextResponse.json({ success: true }))
+    }
+
     // ============ DEV/SEEDING ROUTES ============
     // Note: POST /api/seed/discover is now handled by app/api/seed/discover/route.js
 
@@ -12377,7 +12524,7 @@ async function handleRoute(request, { params }) {
 
     // Root endpoint
     if (route === '/' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: 'Tripti API', version: '1.0.0' }))
+      return handleCORS(NextResponse.json({ message: 'Tripti.ai API', version: '1.0.0' }))
     }
 
     // Route not found
