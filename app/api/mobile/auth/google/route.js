@@ -84,6 +84,13 @@ export async function POST(request) {
       ]
     })
 
+    if (user?.deletedAt) {
+      return NextResponse.json(
+        { error: 'This account has been deleted' },
+        { status: 410 }
+      )
+    }
+
     if (!user) {
       // Create new user (mirrors lib/auth.js jwt callback)
       user = {

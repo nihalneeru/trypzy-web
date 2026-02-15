@@ -111,6 +111,13 @@ export async function POST(request) {
 
     let user = await db.collection('users').findOne({ $or: query })
 
+    if (user?.deletedAt) {
+      return NextResponse.json(
+        { error: 'This account has been deleted' },
+        { status: 410 }
+      )
+    }
+
     if (!user) {
       // Create new user
       user = {

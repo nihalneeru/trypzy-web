@@ -148,17 +148,30 @@ export default function PrivacyPolicyPage() {
             may include contractual protections with service providers.
           </p>
 
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">6. Data Retention</h2>
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">6. Data Retention &amp; Account Deletion</h2>
           <p>
             We retain account information and user content for as long as your account remains active.
           </p>
           <p>
-            To request account deletion, please contact{' '}
+            You can delete your account at any time from the account menu within the app, or by
+            visiting{' '}
+            <a href="/delete-account" className="text-brand-blue hover:underline">
+              tripti.ai/delete-account
+            </a>
+            . When you delete your account:
+          </p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Your personal identifiers (name, email, profile) are removed immediately</li>
+            <li>Your contributions to trips and circles are anonymized and attributed to &ldquo;Deleted member&rdquo;</li>
+            <li>You will be logged out and unable to sign back in with the same email</li>
+          </ul>
+          <p>
+            You may also contact{' '}
             <a href="mailto:privacy@tripti.ai" className="text-brand-blue hover:underline">
               privacy@tripti.ai
             </a>
-            . Upon verified request, we will delete or anonymize your personal data in accordance with
-            applicable laws, except where retention is required for legal or operational purposes.
+            {' '}with any data deletion requests. We will respond within 30 days in accordance with
+            applicable laws.
           </p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">7. Your Rights</h2>
