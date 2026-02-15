@@ -28,7 +28,7 @@ export default function JoinCirclePage({ params }) {
   // Load token from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedToken = localStorage.getItem('trypzy_token')
+      const storedToken = localStorage.getItem('tripti_token')
       if (storedToken) {
         setToken(storedToken)
       }
@@ -47,9 +47,9 @@ export default function JoinCirclePage({ params }) {
       if (cookieCode === inviteCode) return true
     }
     // Check localStorage returnTo (set by handleAuthRedirect, survives OAuth)
-    const pendingReturnTo = localStorage.getItem('trypzy_pending_return_to')
+    const pendingReturnTo = localStorage.getItem('tripti_pending_return_to')
     if (pendingReturnTo && pendingReturnTo.includes(`/join/${inviteCode}`)) {
-      localStorage.removeItem('trypzy_pending_return_to')
+      localStorage.removeItem('tripti_pending_return_to')
       return true
     }
     return false
@@ -75,7 +75,7 @@ export default function JoinCirclePage({ params }) {
       }
 
       // Wait for an auth token to be available
-      const authToken = session?.accessToken || token || localStorage.getItem('trypzy_token')
+      const authToken = session?.accessToken || token || localStorage.getItem('tripti_token')
       if (!authToken) return
 
       try {
@@ -116,7 +116,7 @@ export default function JoinCirclePage({ params }) {
     const qs = returnToParams.toString()
     const returnTo = `/join/${inviteCode}${qs ? '?' + qs : ''}`
     // Store in localStorage (survives OAuth round-trip more reliably than sessionStorage)
-    localStorage.setItem('trypzy_pending_return_to', returnTo)
+    localStorage.setItem('tripti_pending_return_to', returnTo)
     router.push(`/${path}?returnTo=${encodeURIComponent(returnTo)}`)
   }
 
@@ -127,7 +127,7 @@ export default function JoinCirclePage({ params }) {
 
     // Prefer session.accessToken (always available when status=authenticated),
     // fall back to state/localStorage for manual join clicks
-    const authToken = session?.accessToken || token || localStorage.getItem('trypzy_token')
+    const authToken = session?.accessToken || token || localStorage.getItem('tripti_token')
 
     try {
       const res = await fetch('/api/circles/join', {
@@ -192,7 +192,7 @@ export default function JoinCirclePage({ params }) {
               <Users className="h-8 w-8 text-brand-blue" />
             </div>
             <h1 className="text-2xl font-bold text-brand-carbon mb-2">
-              You're invited to a Trypzy circle
+              You're invited to a Tripti circle
             </h1>
             <p className="text-gray-600 mb-8">
               Sign in to view and join this circle

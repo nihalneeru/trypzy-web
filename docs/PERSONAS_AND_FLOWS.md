@@ -1,6 +1,6 @@
-# Trypzy Personas, Flows & Feature Map
+# Tripti Personas, Flows & Feature Map
 
-> Reference doc for UX design. Covers who uses Trypzy, what they see at each stage, and what actions are available to them.
+> Reference doc for UX design. Covers who uses Tripti, what they see at each stage, and what actions are available to them.
 
 ---
 

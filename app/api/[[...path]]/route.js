@@ -72,7 +72,7 @@ async function connectToMongo() {
   if (!client) {
     client = new MongoClient(process.env.MONGO_URL)
     await client.connect()
-    db = client.db(process.env.DB_NAME || 'trypzy')
+    db = client.db(process.env.DB_NAME || 'tripti')
   }
   return db
 }
@@ -486,7 +486,7 @@ async function handleRoute(request, { params }) {
 
       const body = await request.json()
       const { secret } = body
-      const PRIVATE_BETA_SECRET = process.env.PRIVATE_BETA_SECRET || 'trypzy-beta-2024'
+      const PRIVATE_BETA_SECRET = process.env.PRIVATE_BETA_SECRET || 'tripti-beta-2024'
 
       return handleCORS(NextResponse.json({
         valid: secret?.toLowerCase() === PRIVATE_BETA_SECRET?.toLowerCase()
@@ -12377,7 +12377,7 @@ async function handleRoute(request, { params }) {
 
     // Root endpoint
     if (route === '/' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: 'Trypzy API', version: '1.0.0' }))
+      return handleCORS(NextResponse.json({ message: 'Tripti API', version: '1.0.0' }))
     }
 
     // Route not found

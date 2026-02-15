@@ -19,6 +19,7 @@ import {
   Copy
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { copyToClipboard } from '@/lib/native/share'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -348,12 +349,13 @@ export function DateWindowsFunnel({
   }
 
   // Copy follow-up question to clipboard
-  const handleCopyFollowup = (question: string) => {
-    navigator.clipboard.writeText(question).then(() => {
+  const handleCopyFollowup = async (question: string) => {
+    const result = await copyToClipboard(question)
+    if (result === 'copied') {
       toast.success('Copied to clipboard')
-    }).catch(() => {
+    } else {
       toast.error('Could not copy')
-    })
+    }
   }
 
   // Handle adding a new window with free-form text

@@ -10,7 +10,7 @@ if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
 }
 const jwtSecret = JWT_SECRET || 'dev-only-secret-key'
 
-const APPLE_BUNDLE_ID = 'com.trypzy.mobile'
+const APPLE_BUNDLE_ID = 'ai.tripti.app'
 
 // JWKS client for fetching Apple's public signing keys
 const jwksClient = jwksRsa({
@@ -58,7 +58,7 @@ function verifyAppleToken(identityToken) {
  * POST /api/mobile/auth/apple
  *
  * Accepts an Apple identity token from the native app, verifies it,
- * finds or creates the user, and returns a Trypzy JWT.
+ * finds or creates the user, and returns a Tripti JWT.
  *
  * Apple quirk: email and name are only provided on the FIRST sign-in.
  * On subsequent sign-ins the JWT payload still contains the email,
@@ -101,7 +101,7 @@ export async function POST(request) {
     const name =
       fullName?.givenName && fullName?.familyName
         ? `${fullName.givenName} ${fullName.familyName}`.trim()
-        : fullName?.givenName || email?.split('@')[0] || 'Trypzy User'
+        : fullName?.givenName || email?.split('@')[0] || 'Tripti User'
 
     const db = await connectToMongo()
 

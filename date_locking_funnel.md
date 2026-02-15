@@ -1,7 +1,7 @@
 # Date Locking Funnel — Decision Memo
 
 **Status:** Locked — this is the DEFAULT scheduling flow for collaborative trips
-**Owner:** Trypzy Product
+**Owner:** Tripti Product
 **Scope:** Collaborative trip date convergence & locking
 **Scheduling Mode:** `date_windows` (set automatically on collaborative trip creation)
 **Last Updated:** 2026-01
@@ -16,7 +16,7 @@ Groups fail to lock trip dates not because overlap is hard to find, but because:
 - Leaders feel social risk proposing too early
 - Formal voting creates fear of commitment and friction
 
-Trypzy’s philosophy is to **reduce coordination friction without removing human agency**.
+Tripti’s philosophy is to **reduce coordination friction without removing human agency**.
 
 This memo defines the canonical design for how collaborative trips converge on dates.
 
@@ -192,7 +192,7 @@ This design treats **date locking as a social convergence problem**, not a calen
 
 It allows uncertainty early, clarity later, and commitment only when humans choose it.
 
-This is the canonical model for Trypzy.
+This is the canonical model for Tripti.
 
 ---
 

@@ -100,7 +100,7 @@ After successfully creating a circle, users see a lightweight onboarding interst
 ## Notes
 
 - Interstitial is modal/dialog-based (not a separate page)
-- Consistent with existing Trypzy UI patterns
+- Consistent with existing Tripti UI patterns
 - No backend schema changes needed
 - Reuses existing trip creation API
 - Reuses existing invite code system

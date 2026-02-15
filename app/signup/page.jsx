@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
+import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import Image from 'next/image'
 import { toast } from 'sonner'
@@ -63,7 +63,7 @@ function SignupPageContent() {
   useEffect(() => {
     const returnTo = searchParams.get('returnTo')
     if (returnTo && returnTo.startsWith('/')) {
-      localStorage.setItem('trypzy_pending_return_to', returnTo)
+      localStorage.setItem('tripti_pending_return_to', returnTo)
     }
   }, [searchParams])
 
@@ -110,8 +110,8 @@ function SignupPageContent() {
 
     if (status === 'authenticated' && session?.accessToken) {
       // Always store credentials when authenticated (ensures token is available after redirect)
-      localStorage.setItem('trypzy_token', session.accessToken)
-      localStorage.setItem('trypzy_user', JSON.stringify({
+      localStorage.setItem('tripti_token', session.accessToken)
+      localStorage.setItem('tripti_user', JSON.stringify({
         id: session.user.id,
         email: session.user.email,
         name: session.user.name
@@ -119,23 +119,23 @@ function SignupPageContent() {
 
       // Determine redirect destination: URL param > localStorage > dashboard
       const urlReturnTo = searchParams.get('returnTo')
-      const storedReturnTo = localStorage.getItem('trypzy_pending_return_to')
+      const storedReturnTo = localStorage.getItem('tripti_pending_return_to')
       const returnTo = urlReturnTo || storedReturnTo
       const destination = returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard'
 
       if (storedSecret) {
         sessionStorage.removeItem('signup_beta_secret')
-        document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
       }
 
       // If destination is a join page, handle the join here (token is guaranteed available)
       // then redirect to the trip/circle directly — avoids token timing issues on the join page
       // Guard: localStorage flag survives React StrictMode remounts (refs don't)
       const joinMatch = destination.match(/^\/join\/([^?]+)/)
-      if (joinMatch && !localStorage.getItem('trypzy_join_in_progress')) {
-        localStorage.setItem('trypzy_join_in_progress', '1')
+      if (joinMatch && !localStorage.getItem('tripti_join_in_progress')) {
+        localStorage.setItem('tripti_join_in_progress', '1')
         // Clear auto-join signals BEFORE the call so the join page won't also try
-        localStorage.removeItem('trypzy_pending_return_to')
+        localStorage.removeItem('tripti_pending_return_to')
         document.cookie = 'pendingCircleInvite=; path=/; max-age=0'
 
         const joinCode = joinMatch[1].trim().toUpperCase()
@@ -157,7 +157,7 @@ function SignupPageContent() {
         })
           .then(res => res.json())
           .then(data => {
-            localStorage.removeItem('trypzy_join_in_progress')
+            localStorage.removeItem('tripti_join_in_progress')
             const redirectTripId = data.tripId || tripId
             if (redirectTripId) {
               router.replace(`/trips/${redirectTripId}`)
@@ -168,7 +168,7 @@ function SignupPageContent() {
             }
           })
           .catch(() => {
-            localStorage.removeItem('trypzy_join_in_progress')
+            localStorage.removeItem('tripti_join_in_progress')
             // On failure, fall through to the join page
             router.replace(destination)
           })
@@ -221,12 +221,12 @@ function SignupPageContent() {
 
       // Set auth mode cookie for server-side validation
       // Use SameSite=Lax to ensure cookie survives OAuth redirect
-      document.cookie = 'trypzy_auth_mode=signup; path=/; SameSite=Lax'
+      document.cookie = 'tripti_auth_mode=signup; path=/; SameSite=Lax'
 
       // Initiate Google OAuth sign-in
       // NextAuth will handle the redirect and callback
       // Include returnTo in callbackUrl so it survives the OAuth round-trip in the URL itself
-      const pendingReturnTo = localStorage.getItem('trypzy_pending_return_to')
+      const pendingReturnTo = localStorage.getItem('tripti_pending_return_to')
       const callbackUrl = pendingReturnTo
         ? `/signup?returnTo=${encodeURIComponent(pendingReturnTo)}`
         : '/signup'
@@ -252,7 +252,7 @@ function SignupPageContent() {
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="text-center">
           <div className="flex items-center justify-center mb-4">
-            <TrypzyLogo variant="full" className="h-10 w-auto" />
+            <TriptiLogo variant="full" className="h-10 w-auto" />
           </div>
           <BrandedSpinner size="lg" className="mx-auto mb-3" />
           <p className="text-[#6B7280] text-sm">{isOAuthReturn ? 'Signing you in...' : ''}</p>
@@ -266,9 +266,9 @@ function SignupPageContent() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
-            <TrypzyLogo variant="full" className="h-10 w-auto" />
+            <TriptiLogo variant="full" className="h-10 w-auto" />
           </div>
-          <p className="text-[#6B7280]">Trips made easy</p>
+          <p className="text-[#6B7280]">Nifty plans. Happy circles.</p>
         </div>
 
         <Card className="shadow-xl border-0">
@@ -309,7 +309,7 @@ function SignupPageContent() {
                   <div className="flex items-center gap-2">
                     <div className="h-5 w-5 shrink-0 animate-spin">
                       <Image
-                        src="/brand/trypzy-icon.png"
+                        src="/brand/tripti-icon.svg"
                         alt="Loading"
                         width={20}
                         height={20}

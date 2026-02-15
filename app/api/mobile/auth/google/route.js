@@ -19,7 +19,7 @@ const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID)
  * POST /api/mobile/auth/google
  *
  * Accepts a Google ID token from native app, verifies it,
- * finds or creates the user, and returns a Trypzy JWT.
+ * finds or creates the user, and returns a Tripti JWT.
  *
  * The JWT uses the SAME payload format and secret as the web flow:
  *   jwt.sign({ userId }, jwtSecret, { expiresIn: '7d' })

@@ -1,11 +1,12 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { TrypzyLogo } from '@/components/brand/TrypzyLogo'
-import { 
-  Users, 
+import { TriptiLogo } from '@/components/brand/TriptiLogo'
+import {
+  Users,
   XCircle,
   ArrowRight,
   Lightbulb,
@@ -19,6 +20,15 @@ import {
 } from 'lucide-react'
 
 export function WelcomePage() {
+  const [loginPath, setLoginPath] = useState('/login')
+  const [signupPath, setSignupPath] = useState('/signup')
+
+  useEffect(() => {
+    if (window.Capacitor?.isNativePlatform?.()) {
+      setLoginPath('/native-login')
+      setSignupPath('/native-login')
+    }
+  }, [])
   // Trip progress milestones in order
   const milestones = [
     { icon: Lightbulb, label: 'Trip Idea' },
@@ -34,19 +44,19 @@ export function WelcomePage() {
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-gray-200 shrink-0">
+      <header className="border-b border-gray-200 shrink-0 safe-top">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <Link href="/" className="flex items-center">
-              <TrypzyLogo variant="full" className="h-6 sm:h-8 w-auto" />
-              <span className="sr-only">Trypzy</span>
+              <TriptiLogo variant="full" className="h-6 sm:h-8 w-auto" />
+              <span className="sr-only">Tripti</span>
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
               <Button variant="ghost" size="sm" asChild className="text-sm">
-                <Link href="/login">Log in</Link>
+                <Link href={loginPath}>Log in</Link>
               </Button>
               <Button size="sm" asChild className="text-sm">
-                <Link href="/signup">Get started</Link>
+                <Link href={signupPath}>Get started</Link>
               </Button>
             </div>
           </div>
@@ -124,15 +134,15 @@ export function WelcomePage() {
           </h2>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-center">
             <Button size="default" asChild className="text-sm sm:text-base px-6 sm:px-10">
-              <Link href="/signup">Get started</Link>
+              <Link href={signupPath}>Get started</Link>
             </Button>
             <Button size="default" variant="outline" asChild className="text-sm sm:text-base px-6 sm:px-10">
-              <Link href="/login">Log in</Link>
+              <Link href={loginPath}>Log in</Link>
             </Button>
           </div>
           {/* Inline footer */}
           <div className="mt-4 pt-3 border-t border-gray-200/50">
-            <TrypzyLogo variant="full" className="h-5 w-auto mx-auto opacity-60" />
+            <TriptiLogo variant="full" className="h-5 w-auto mx-auto opacity-60" />
           </div>
         </div>
       </section>

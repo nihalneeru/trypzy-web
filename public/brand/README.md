@@ -1,46 +1,37 @@
-# Trypzy Brand Assets
+# Tripti Brand Assets
 
 ## Logo Files
 
-### Full Logo Variants (SVG)
-- `trypzy-light-background-full-logo-with-spacing.svg` - Full logo for light backgrounds
-- `trypzy-dark-background-full-logo-with-spacing.svg` - Full logo for dark backgrounds
+### Active Assets
+- `tripti-logo.svg` - Full logo with wordmark (primary color, light backgrounds)
+- `tripti-icon.svg` - Red logomark for UI elements, buttons, spinners
 
-### Small Mark
-- `trypzy-logomark.svg` - Small mark for static icon usage (UI elements, buttons, etc.)
-
-### Legacy Assets
-- `trypzy-logo.png` - Legacy full logo (deprecated, use SVG variants)
-- `trypzy-icon.png` - Icon for loading spinners ONLY (do not use for static icons)
+Source files are in `tripti.ai-logo-final-versions/` (not committed to repo).
 
 ## Usage Guidelines
 
 ### Full Logo (Theme-Aware)
 
-**Use `<TrypzyLogo variant="full" />` component:**
+**Use `<TriptiLogo variant="full" />` component:**
 - Headers and navigation bars
 - Auth pages (sign in/sign up)
 - Landing pages or marketing contexts
 - Large header contexts where brand presence is primary
-- The component automatically selects the correct SVG based on theme (light/dark)
 - Default size: height 32px (h-8) with width auto to preserve aspect ratio
 
 ### Small Mark (Static Icons)
 
-**Use `<TrypzyLogo variant="icon" />` component:**
+**Use `<TriptiLogo variant="icon" />` component:**
 - Navigation bars (when space is limited)
 - UI elements and buttons
 - Small contexts where space is limited
 - Default size: 24-32px
 
-**Do NOT use `trypzy-icon.png` for static icons** - use `trypzy-logomark.svg` via the component instead.
-
 ### Loading Spinners
 
-**Use `trypzy-icon.png` ONLY for spinners:**
-- Loading spinners (animated) - use `<BrandedSpinner />` component
+**Use `<BrandedSpinner />` component:**
+- Loading spinners (animated)
 - Page-load spinners
-- The `trypzy-icon.png` is specifically designed for rotation animation
 - Default size: 16-32px (varies by context)
 
 ### Implementation
@@ -61,13 +52,12 @@
 
 ### Do's and Don'ts
 
-✅ **Do:**
+**Do:**
 - Use Next/Image for all brand assets
 - Maintain consistent sizing within contexts
 - Use logo on auth, icon in nav
 - Keep brand usage tasteful and minimal
-
-❌ **Don't:**
+**Don't:**
 - Recolor, distort, rotate, or crop logos
 - Add shadows, gradients, outlines, or filters
 - Use generic placeholders instead of brand assets
@@ -76,6 +66,6 @@
 
 ## Branded Loading Spinner
 
-The `<BrandedSpinner />` component uses `trypzy-icon.png` with a rotation animation. Use it to replace all generic loading spinners for brand consistency.
+The `<BrandedSpinner />` component provides a branded rotation animation for loading states. Use it to replace all generic loading spinners for brand consistency.
 
-**Important:** `trypzy-icon.png` is ONLY for spinners. For static icons, use `trypzy-logomark.svg` via `<TrypzyLogo variant="icon" />`.
+**Important:** For static icons, use `<TriptiLogo variant="icon" />`, not the spinner asset.

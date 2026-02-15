@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Share2, Copy } from 'lucide-react'
+import { nativeShare, copyToClipboard } from '@/lib/native/share'
 
 /**
  * Reusable invite link + share UI block.
@@ -12,39 +13,17 @@ import { Share2, Copy } from 'lucide-react'
  *
  * @param {Object} props
  * @param {string} props.inviteCode - The invite code to display
- * @param {string} props.shareText - Text for the share payload (e.g. 'Join "My Trip" on Trypzy!')
+ * @param {string} props.shareText - Text for the share payload (e.g. 'Join "My Trip" on Tripti!')
  * @param {string} props.shareUrl - Full URL for the invite link
  * @param {(shared: boolean) => void} [props.onShareComplete] - Called after share/skip
  */
 export function InviteShareBlock({ inviteCode, shareText, shareUrl, onShareComplete }) {
   const [inviteCopied, setInviteCopied] = useState(false)
 
-  async function copyToClipboard(text) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return true
-    } catch (err) {
-      try {
-        const textarea = document.createElement('textarea')
-        textarea.value = text
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-        return true
-      } catch (fallbackErr) {
-        console.error('Clipboard fallback failed:', fallbackErr)
-        return false
-      }
-    }
-  }
-
   async function handleCopyInviteCode() {
     if (!inviteCode) return
-    const success = await copyToClipboard(inviteCode)
-    if (success) {
+    const result = await copyToClipboard(inviteCode)
+    if (result === 'copied') {
       setInviteCopied(true)
       toast.success('Code copied!')
       setTimeout(() => setInviteCopied(false), 2000)
@@ -54,24 +33,9 @@ export function InviteShareBlock({ inviteCode, shareText, shareUrl, onShareCompl
   }
 
   async function handleShare() {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Trypzy Invite',
-          text: shareText,
-          url: shareUrl
-        })
-        if (onShareComplete) onShareComplete(true)
-        return
-      } catch (err) {
-        if (err?.name === 'AbortError') return
-      }
-    }
-
-    const fullMessage = `${shareText}\n${shareUrl}`
-    const success = await copyToClipboard(fullMessage)
-    if (success) {
-      toast.success('Invite link copied!')
+    const result = await nativeShare({ title: 'Tripti Invite', text: shareText, url: shareUrl })
+    if (result === 'shared' || result === 'copied') {
+      if (result === 'copied') toast.success('Invite link copied!')
       if (onShareComplete) onShareComplete(true)
     } else {
       toast.error('Could not copy — please copy manually')

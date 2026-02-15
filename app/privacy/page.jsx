@@ -10,7 +10,7 @@ export default function PrivacyPolicyPage() {
 
   useEffect(() => {
     try {
-      const storedUser = localStorage.getItem('trypzy_user')
+      const storedUser = localStorage.getItem('tripti_user')
       if (storedUser) setUserName(JSON.parse(storedUser).name)
     } catch {}
   }, [])
@@ -28,182 +28,191 @@ export default function PrivacyPolicyPage() {
           <p className="text-sm text-gray-500">Last updated: February 9, 2026</p>
 
           <p>
-            Trypzy (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) operates the Trypzy application
-            and website (including beta.trypzy.com). This Privacy Policy explains what information we collect,
-            how we use it, and your rights.
+            Tripti (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is operated by Trypzy, Inc.,
+            a Delaware corporation (&ldquo;Company,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;).
+            This Privacy Policy describes how we collect, use, share, and protect information when you use the
+            Tripti website (tripti.ai), mobile applications, and related services (collectively, the &ldquo;Service&rdquo;).
+          </p>
+          <p>
+            If you are located in the European Economic Area (&ldquo;EEA&rdquo;), United Kingdom, or other
+            jurisdictions with data protection laws, additional provisions may apply as described below.
           </p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">Our Privacy Philosophy</h2>
           <p>
-            Trypzy is built for trusted circles, not public audiences.
+            Tripti is designed for private group coordination within trusted circles. We prioritize
+            collaboration and user trust over public social feeds or advertising-driven models.
           </p>
           <p>
-            We believe planning trips works best in private spaces with people you know — without turning
-            personal plans into public content.
+            We do not sell personal data to third parties.
           </p>
           <p>
-            Trips, conversations, and decisions are private by default and shared only with the people you
-            invite. Any smart or automated features are designed to support coordination within your group,
-            not to work against your expectations.
+            Trip content is visible only to members of your selected group. We aim to collect only the
+            information necessary to operate and improve the Service.
           </p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">1. Information We Collect</h2>
 
           <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Account Information</h3>
           <p>
-            When you sign in using supported authentication providers, we receive basic account information
-            such as your name and email address. This information is used to create and manage your Trypzy
-            account and to display your identity to members of your circles and trips.
+            When you create or access an account, we collect basic information such as your name and
+            email address. If you sign in using a third-party authentication provider (such as Google
+            or Apple), we receive basic account information from that provider as permitted by your
+            account settings.
           </p>
 
-          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Collaboration Content</h3>
+          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">User Content</h3>
+          <p>We collect content you create or upload within the Service, including:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Trip details (names, destinations, dates, preferences)</li>
+            <li>Itineraries, votes, chat messages, lists</li>
+            <li>Photos or other files shared with your group</li>
+          </ul>
+          <p>This content is visible only to members of your selected group.</p>
+
+          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Device &amp; Technical Information</h3>
+          <p>We may collect technical data such as:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>IP address</li>
+            <li>Device type</li>
+            <li>Browser type</li>
+            <li>App version</li>
+            <li>Interaction data</li>
+          </ul>
           <p>
-            We collect the content you create or contribute within Trypzy, including:
+            If you enable push notifications, we collect device push notification tokens to deliver
+            notifications.
+          </p>
+
+          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Cookies &amp; Similar Technologies</h3>
+          <p>We use cookies and similar technologies, including local storage, to:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Authenticate users</li>
+            <li>Maintain sessions</li>
+            <li>Store preferences</li>
+            <li>Improve performance and reliability</li>
+          </ul>
+          <p>These technologies are used for functional and operational purposes.</p>
+
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">2. How We Use Information</h2>
+          <p>We use collected information to:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Provide and operate the Service</li>
+            <li>Maintain and secure accounts</li>
+            <li>Enable collaboration features</li>
+            <li>Deliver notifications</li>
+            <li>Improve functionality, reliability, and performance</li>
+            <li>Develop optional smart or automated features</li>
+            <li>Respond to support inquiries</li>
+            <li>Comply with legal obligations</li>
+          </ul>
+          <p className="font-medium">We do not sell personal data to third parties.</p>
+
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">3. Data Sharing &amp; Third Parties</h2>
+          <p>
+            We may share information with trusted third-party service providers that help us operate
+            the Service, such as hosting providers, authentication providers, analytics tools, storage
+            providers, and infrastructure services.
+          </p>
+          <p>
+            Certain optional smart features (such as itinerary suggestions) may involve processing trip
+            context through third-party AI service providers. These providers process data on our behalf
+            under contractual safeguards.
+          </p>
+          <p>We do not share personal data for third-party advertising purposes.</p>
+          <p>
+            We may disclose information if required by law or to protect the safety, rights, or integrity
+            of the Service.
+          </p>
+
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">4. Legal Bases for Processing (EEA/UK Users)</h2>
+          <p>
+            If you are located in the EEA or United Kingdom, we process personal data under one or more
+            of the following legal bases:
           </p>
           <ul className="list-disc pl-6 space-y-1">
-            <li>Trip names, dates, destinations, and preferences</li>
-            <li>Itinerary ideas, votes, and coordination inputs</li>
-            <li>Chat messages, expenses, and packing lists</li>
-          </ul>
-          <p>This content is visible only to members of the relevant circle or trip.</p>
-
-          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Photos</h3>
-          <p>
-            Images you upload as trip memories are stored in cloud storage and are visible only to members
-            of the associated trip.
-          </p>
-
-          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Usage &amp; Event Data</h3>
-          <p>
-            We collect limited usage and event data (such as trips created or dates locked) to understand
-            how groups coordinate and to improve the product. This data is analyzed in aggregate for internal
-            purposes and is not combined with third-party data sources for profiling.
-          </p>
-
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">2. How We Use Your Information</h2>
-          <p>We use your information to:</p>
-          <ul className="list-disc pl-6 space-y-1">
-            <li>Provide, operate, and maintain the Trypzy service</li>
-            <li>Enable coordination within trusted circles and trips</li>
-            <li>Improve product reliability, performance, and usability</li>
-            <li>Generate optional smart or AI-assisted features related to trip planning</li>
-            <li>Send system-generated messages related to trip progress and coordination</li>
+            <li><strong>Contractual Necessity:</strong> To provide the Service you request.</li>
+            <li><strong>Legitimate Interests:</strong> To operate, secure, and improve the Service.</li>
+            <li><strong>Consent:</strong> Where required, such as for optional features.</li>
+            <li><strong>Legal Obligations:</strong> To comply with applicable laws.</li>
           </ul>
 
-          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">AI-Assisted Features</h3>
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">5. International Data Transfers</h2>
           <p>
-            Some optional features may use third-party processing services to generate suggestions
-            (for example, itinerary or planning assistance). Only the minimum necessary trip context is
-            shared for these features, and personal identifiers are not intentionally included.
+            Tripti is operated from the United States. If you access the Service from outside the United
+            States, your information may be transferred to and processed in the United States or other
+            countries.
           </p>
           <p>
-            We do not submit private messages or photos to third-party AI services unless explicitly
-            stated for a specific feature. Third-party service providers process data only to provide
-            requested features and do not receive data for independent advertising or tracking purposes.
-          </p>
-
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">3. Legal Bases for Processing (GDPR)</h2>
-          <p>
-            If you are located in the European Economic Area (EEA), the United Kingdom, or similar
-            jurisdictions, we process personal data under the following legal bases:
-          </p>
-          <ul className="list-disc pl-6 space-y-1">
-            <li><strong>Contractual necessity</strong> — to provide the Trypzy service</li>
-            <li><strong>Legitimate interests</strong> — to improve reliability, security, and coordination features</li>
-            <li><strong>Consent</strong> — where required for specific optional features</li>
-          </ul>
-
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">4. Data Sharing</h2>
-          <p>Your information is shared only in the following ways:</p>
-
-          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Within Trypzy</h3>
-          <p>
-            With members of your circles and trips, based on participation and privacy context.
+            Where required by law, we implement appropriate safeguards for international transfers, which
+            may include contractual protections with service providers.
           </p>
 
-          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">Service Providers</h3>
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">6. Data Retention</h2>
           <p>
-            We use trusted third-party service providers to operate and maintain Trypzy (such as
-            authentication, hosting, storage, error monitoring, and optional smart features). These
-            providers process data only on our behalf and under appropriate safeguards.
-          </p>
-          <p className="font-medium">We do not sell your personal data.</p>
-
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">5. Data Retention</h2>
-          <p>
-            Your account information and trip content are retained while your account is active.
+            We retain account information and user content for as long as your account remains active.
           </p>
           <p>
-            If you leave a trip or circle, your active participation ends, but content you previously
-            contributed may remain visible to other participants as part of the trip&apos;s history.
-          </p>
-          <p>
-            You may request deletion of your account and associated data by contacting{' '}
-            <a href="mailto:privacy@trypzy.com" className="text-brand-blue hover:underline">
-              privacy@trypzy.com
+            To request account deletion, please contact{' '}
+            <a href="mailto:privacy@tripti.ai" className="text-brand-blue hover:underline">
+              privacy@tripti.ai
             </a>
-            . Some limited information may be retained only as long as reasonably necessary for security,
-            legal, or operational purposes.
+            . Upon verified request, we will delete or anonymize your personal data in accordance with
+            applicable laws, except where retention is required for legal or operational purposes.
           </p>
 
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">6. Your Rights</h2>
-          <p>Depending on your location, you may have the right to:</p>
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">7. Your Rights</h2>
+          <p>Depending on your jurisdiction, you may have the right to:</p>
           <ul className="list-disc pl-6 space-y-1">
-            <li>Access your personal data</li>
-            <li>Correct inaccurate or incomplete data</li>
+            <li>Access the personal data we hold about you</li>
+            <li>Request correction of inaccurate data</li>
             <li>Request deletion of your data</li>
             <li>Restrict or object to certain processing</li>
+            <li>Withdraw consent where processing is based on consent</li>
             <li>Request a copy of your data in a portable format</li>
+            <li>Lodge a complaint with a supervisory authority</li>
           </ul>
-
-          <h3 className="text-lg font-semibold text-brand-carbon mt-6 mb-2">California Residents (CCPA)</h3>
           <p>
-            California residents have the right to request information about the categories of personal
-            data collected and to request deletion of personal data, subject to permitted exceptions.
-          </p>
-          <p>
-            To exercise any rights, contact{' '}
-            <a href="mailto:privacy@trypzy.com" className="text-brand-blue hover:underline">
-              privacy@trypzy.com
+            To exercise these rights, contact{' '}
+            <a href="mailto:privacy@tripti.ai" className="text-brand-blue hover:underline">
+              privacy@tripti.ai
             </a>
             .
           </p>
 
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">7. Security</h2>
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">8. Security</h2>
           <p>
-            We use reasonable technical and organizational measures to protect personal data, including
-            secure authentication, encrypted connections, and access controls around private trip data.
-            No system is completely secure, and we cannot guarantee absolute security.
+            We implement reasonable administrative, technical, and organizational safeguards designed to
+            protect personal information. However, no system can be guaranteed to be completely secure.
           </p>
 
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">8. Children&apos;s Privacy</h2>
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">9. Children&apos;s Privacy</h2>
           <p>
-            Trypzy is not intended for children under the age of 13. We do not knowingly collect personal
-            data from children. If we learn that we have collected personal information from a child
-            under 13, we will take steps to delete it.
-          </p>
-
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">9. International Data Transfers</h2>
-          <p>
-            Trypzy may process and store information in countries outside your country of residence.
-            Where required, we use appropriate safeguards to protect personal data in accordance with
-            applicable laws.
+            The Service is not intended for children under 13. We do not knowingly collect personal
+            information from children under 13. If we become aware that we have done so, we will take
+            appropriate steps to delete such information.
           </p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">10. Changes to This Policy</h2>
           <p>
-            We may update this Privacy Policy from time to time. If changes are material, we will notify
-            users through the app or other appropriate means.
+            We may update this Privacy Policy from time to time. If we make material changes, we will
+            update the &ldquo;Last updated&rdquo; date and provide notice where required by law.
+          </p>
+          <p>
+            Continued use of the Service after updates indicates acceptance of the revised policy.
           </p>
 
-          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">11. Contact Us</h2>
+          <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">11. Contact Information</h2>
           <p>
-            For privacy questions or data requests, contact us at:
+            If you have questions about this Privacy Policy or our data practices, contact:
           </p>
           <p>
-            <a href="mailto:privacy@trypzy.com" className="text-brand-blue hover:underline">
-              privacy@trypzy.com
+            <a href="mailto:privacy@tripti.ai" className="text-brand-blue hover:underline">
+              privacy@tripti.ai
             </a>
+          </p>
+          <p className="text-sm text-gray-500 mt-6">
+            Tripti is a product of Trypzy, Inc.
           </p>
         </div>
 

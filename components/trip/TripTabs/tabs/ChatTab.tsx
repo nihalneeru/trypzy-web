@@ -78,9 +78,12 @@ export function ChatTab({
   // Use prop if provided, otherwise compute from trip data
   const viewer = trip?.viewer || {}
   const isCancelled = trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
-  const viewerIsReadOnly = isReadOnly !== undefined ? isReadOnly : (!viewer.isActiveParticipant || viewer.participantStatus === 'left' || isCancelled)
+  const isCompleted = trip?.status === 'completed'
+  const viewerIsReadOnly = isReadOnly !== undefined ? isReadOnly : (!viewer.isActiveParticipant || viewer.participantStatus === 'left' || isCancelled || isCompleted)
   const readOnlyPlaceholder = isCancelled
     ? 'Trip is canceled'
+    : isCompleted
+    ? 'This trip has ended'
     : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
     ? "You've left this trip"
     : 'Type a message...'
@@ -663,7 +666,7 @@ export function ChatTab({
       setAllowInitialBlocking(false)
       return
     }
-    const storageKey = `trypzy.initial_scheduling.${trip.id}.${user.id}`
+    const storageKey = `tripti.initial_scheduling.${trip.id}.${user.id}`
     const seen = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : '1'
     if (seen) {
       setAllowInitialBlocking(false)

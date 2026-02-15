@@ -50,7 +50,7 @@ export default function PrivacySettingsPage() {
 
   useEffect(() => {
     try {
-      const storedUser = localStorage.getItem('trypzy_user')
+      const storedUser = localStorage.getItem('tripti_user')
       if (storedUser) setUserName(JSON.parse(storedUser).name)
     } catch {}
     loadPrivacy()
@@ -58,7 +58,7 @@ export default function PrivacySettingsPage() {
 
   const loadPrivacy = async () => {
     try {
-      const token = localStorage.getItem('trypzy_token')
+      const token = localStorage.getItem('tripti_token')
       if (!token) {
         router.push('/')
         return
@@ -69,8 +69,8 @@ export default function PrivacySettingsPage() {
       savedPrivacy.current = data.privacy
     } catch (error) {
       if (error.message?.includes('Unauthorized')) {
-        localStorage.removeItem('trypzy_token')
-        localStorage.removeItem('trypzy_user')
+        localStorage.removeItem('tripti_token')
+        localStorage.removeItem('tripti_user')
         router.replace('/')
         return
       }
@@ -83,7 +83,7 @@ export default function PrivacySettingsPage() {
   const savePrivacy = async () => {
     setSaving(true)
     try {
-      const token = localStorage.getItem('trypzy_token')
+      const token = localStorage.getItem('tripti_token')
       if (!token) {
         router.push('/')
         return
@@ -133,14 +133,13 @@ export default function PrivacySettingsPage() {
         <div className="bg-brand-sand/40 border border-brand-sand rounded-lg p-5 mb-6">
           <h2 className="text-base font-semibold text-brand-carbon mb-2">Our Privacy Philosophy</h2>
           <p className="text-sm text-gray-700 leading-relaxed">
-            Trypzy is built for trusted circles, not public audiences. Trips, conversations, and decisions
-            are private by default and shared only with the people you invite. Nothing is shared beyond your
-            circle unless you explicitly choose. Any smart or automated features are designed to support
-            coordination within your group and behave in clear, expected ways.
+            Tripti is designed for private group coordination within trusted circles. We prioritize
+            collaboration and user trust over public social feeds or advertising-driven models. We do not
+            sell personal data to third parties. Trip content is visible only to members of your selected group.
           </p>
           <p className="text-sm text-gray-700 leading-relaxed mt-2">
             These settings control how your profile and trips appear to others — they do not affect how
-            Trypzy securely stores or processes your data.
+            Tripti securely stores or processes your data.
           </p>
           <Link
             href="/privacy"

@@ -1,4 +1,4 @@
-# Trypzy Web Setup Guide
+# Tripti Web Setup Guide
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ Create a `.env.local` file in the root directory:
 
 ```env
 MONGO_URL=mongodb://localhost:27017
-DB_NAME=trypzy
+DB_NAME=tripti
 JWT_SECRET=your-secret-key-here
 CORS_ORIGINS=http://localhost:3000
 

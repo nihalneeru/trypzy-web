@@ -94,15 +94,15 @@ export default function DashboardPage() {
 
           if (oauthToken && oauthUser) {
             // Store OAuth tokens in localStorage
-            localStorage.setItem('trypzy_token', oauthToken)
-            localStorage.setItem('trypzy_user', oauthUser)
+            localStorage.setItem('tripti_token', oauthToken)
+            localStorage.setItem('tripti_user', oauthUser)
             // Clean up URL
             window.history.replaceState({}, '', '/dashboard')
           }
         }
 
-        let tokenValue = localStorage.getItem('trypzy_token')
-        let userValue = localStorage.getItem('trypzy_user')
+        let tokenValue = localStorage.getItem('tripti_token')
+        let userValue = localStorage.getItem('tripti_user')
 
         // If no local token but valid session exists (e.g. from direct Google redirect), sync it
         if (!tokenValue && status === 'authenticated' && session?.accessToken) {
@@ -114,7 +114,7 @@ export default function DashboardPage() {
           }
 
           tokenValue = session.accessToken
-          localStorage.setItem('trypzy_token', tokenValue)
+          localStorage.setItem('tripti_token', tokenValue)
 
           // Construct user object from session if needed
           if (!userValue && session.user) {
@@ -124,11 +124,11 @@ export default function DashboardPage() {
               name: session.user.name
             }
             userValue = JSON.stringify(userData)
-            localStorage.setItem('trypzy_user', userValue)
+            localStorage.setItem('tripti_user', userValue)
           }
 
           // Clear auth mode cookie after successful sync
-          document.cookie = 'trypzy_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+          document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
         }
 
         if (!tokenValue) {
@@ -153,8 +153,8 @@ export default function DashboardPage() {
         console.error('Dashboard error:', msg, err)
         // If unauthorized, redirect to login with clean URL (before setError to avoid flash)
         if (msg.includes('Unauthorized')) {
-          localStorage.removeItem('trypzy_token')
-          localStorage.removeItem('trypzy_user')
+          localStorage.removeItem('tripti_token')
+          localStorage.removeItem('tripti_user')
           router.replace('/')
           return
         }
@@ -166,7 +166,7 @@ export default function DashboardPage() {
 
     // If we have a localStorage token, load immediately (covers native + returning web users).
     // Only wait for useSession when no localStorage token (fresh OAuth redirect).
-    const hasLocalToken = localStorage.getItem('trypzy_token')
+    const hasLocalToken = localStorage.getItem('tripti_token')
     if (hasLocalToken || status !== 'loading') {
       loadDashboard()
     }
@@ -174,7 +174,7 @@ export default function DashboardPage() {
 
   const reloadDashboard = async ({ throwOnError = false } = {}) => {
     try {
-      const tokenValue = localStorage.getItem('trypzy_token')
+      const tokenValue = localStorage.getItem('tripti_token')
       if (!tokenValue) return
 
       const data = await api('/dashboard', { method: 'GET' }, tokenValue)

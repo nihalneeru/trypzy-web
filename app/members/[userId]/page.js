@@ -81,7 +81,7 @@ export default function MemberProfilePage() {
   
   useEffect(() => {
     try {
-      const storedUser = localStorage.getItem('trypzy_user')
+      const storedUser = localStorage.getItem('tripti_user')
       if (storedUser) setUserName(JSON.parse(storedUser).name)
     } catch {}
   }, [])
@@ -100,7 +100,7 @@ export default function MemberProfilePage() {
     setLoading(true)
     setProfileError(null)
     try {
-      const token = localStorage.getItem('trypzy_token')
+      const token = localStorage.getItem('tripti_token')
       if (!token) {
         router.push('/')
         return
@@ -110,8 +110,8 @@ export default function MemberProfilePage() {
       setProfile(data)
     } catch (error) {
       if (error.message?.includes('Unauthorized')) {
-        localStorage.removeItem('trypzy_token')
-        localStorage.removeItem('trypzy_user')
+        localStorage.removeItem('tripti_token')
+        localStorage.removeItem('tripti_user')
         router.replace('/')
         return
       }
@@ -128,7 +128,7 @@ export default function MemberProfilePage() {
     setLoadingTrips(true)
     setTripsError(null)
     try {
-      const token = localStorage.getItem('trypzy_token')
+      const token = localStorage.getItem('tripti_token')
       if (!token) {
         return
       }
@@ -191,7 +191,7 @@ export default function MemberProfilePage() {
     
     setSubmittingRequest(true)
     try {
-      const token = localStorage.getItem('trypzy_token')
+      const token = localStorage.getItem('tripti_token')
       if (!token) {
         toast.error('Please log in to request to join')
         return
@@ -230,7 +230,7 @@ export default function MemberProfilePage() {
   // Get current user ID from token (decode JWT)
   const getCurrentUserId = () => {
     try {
-      const token = localStorage.getItem('trypzy_token')
+      const token = localStorage.getItem('tripti_token')
       if (!token) return null
       const payload = JSON.parse(atob(token.split('.')[1]))
       return payload.userId

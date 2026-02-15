@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { LeaveCircleDialog } from '@/components/circles/LeaveCircleDialog'
+import { nativeShare, copyToClipboard } from '@/lib/native/share'
 
 export function CircleHeader({ circle, token, onLeft }) {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
@@ -15,67 +16,26 @@ export function CircleHeader({ circle, token, onLeft }) {
     ? `${window.location.origin}/join/${circle.inviteCode}`
     : `/join/${circle.inviteCode}`
 
-  // Clipboard copy with try/catch fallback
-  async function copyToClipboard(text) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return true
-    } catch (err) {
-      // Fallback for browsers without clipboard API or permission denied
-      try {
-        const textarea = document.createElement('textarea')
-        textarea.value = text
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-        return true
-      } catch (fallbackErr) {
-        console.error('Clipboard fallback failed:', fallbackErr)
-        return false
-      }
-    }
-  }
-
   // Copy just the invite code
   async function handleCopyCode() {
-    const success = await copyToClipboard(circle.inviteCode)
-    if (success) {
+    const result = await copyToClipboard(circle.inviteCode)
+    if (result === 'copied') {
       toast.success('Code copied!')
     } else {
       toast.error('Could not copy — please copy manually')
     }
   }
 
-  // Smart share: Web Share API or clipboard fallback
+  // Share invite via native share sheet, Web Share API, or clipboard fallback
   async function handleShare() {
-    const inviteMessage = circle.name
-      ? `Join my Trypzy circle "${circle.name}" to plan trips together 🌍\nTap the link to join:\n${shareUrl}`
-      : `Join my Trypzy circle to plan trips together 🌍\nTap the link to join:\n${shareUrl}`
+    const shareText = circle.name
+      ? `Join my Tripti circle "${circle.name}" to plan trips together!`
+      : `Join my Tripti circle to plan trips together!`
 
-    // Try Web Share API first (mobile)
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          text: inviteMessage
-        })
-        return // Success - no toast needed, native share handles it
-      } catch (err) {
-        // User cancelled (AbortError) - do nothing
-        if (err?.name === 'AbortError') {
-          return
-        }
-        // Other error - fall through to clipboard
-      }
-    }
-
-    // Fallback: copy formatted message to clipboard
-    const success = await copyToClipboard(inviteMessage)
-    if (success) {
+    const result = await nativeShare({ title: 'Tripti Invite', text: shareText, url: shareUrl })
+    if (result === 'copied') {
       toast.success('Invite message copied!')
-    } else {
+    } else if (result === 'failed') {
       toast.error('Could not copy — please copy manually')
     }
   }

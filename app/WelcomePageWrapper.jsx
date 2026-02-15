@@ -10,7 +10,7 @@ export default function WelcomePageWrapper() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('trypzy_token')
+    const token = localStorage.getItem('tripti_token')
 
     if (token) {
       // Redirect legacy deep-link URLs to new standalone routes
@@ -27,9 +27,6 @@ export default function WelcomePageWrapper() {
       } else {
         router.replace('/dashboard')
       }
-    } else if (window.Capacitor?.isNativePlatform?.()) {
-      // Native app: use native Google Sign-In (WebView OAuth is blocked by Google)
-      router.replace('/native-login')
     } else {
       setLoading(false)
     }

@@ -10,9 +10,9 @@
 import { MongoClient } from 'mongodb'
 import { resetMongoConnection } from '../../lib/server/db.js'
 
-const TEST_DB_NAME = 'trypzy_test'
+const TEST_DB_NAME = 'tripti_test'
 const MONGO_URI = process.env.MONGO_URI || process.env.MONGO_URL || 'mongodb://localhost:27017'
-const JWT_SECRET = process.env.JWT_SECRET || 'trypzy-secret-key-change-in-production'
+const JWT_SECRET = process.env.JWT_SECRET || 'tripti-secret-key-change-in-production'
 
 /**
  * Sets up test database environment and returns a db handle

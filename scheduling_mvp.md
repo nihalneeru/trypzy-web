@@ -2,7 +2,7 @@
 
 ---
 
-Trypzy – Scheduling MVP (Source of Truth)
+Tripti – Scheduling MVP (Source of Truth)
 
 Status: MVP-locked (superseded by date_locking_funnel.md for default flow)
 Owner: Product / Engineering
@@ -99,7 +99,7 @@ This moment means
 	•	Scheduling ends
 	•	Planning begins
 
-Everything in Trypzy flows downstream of this moment.
+Everything in Tripti flows downstream of this moment.
 
 ⸻
 
@@ -140,7 +140,7 @@ To prevent stalls and indecision:
 	•	Votes are split
 	•	Participation is partial
 
-Trypzy favors progress over perfection.
+Tripti favors progress over perfection.
 
 ⸻
 
@@ -222,4 +222,4 @@ The UI must repeatedly reinforce:
 
 11. Non-Negotiable Rule
 
-In Trypzy, scheduling narrows intent until a single moment of commitment — and everything else flows from that.
+In Tripti, scheduling narrows intent until a single moment of commitment — and everything else flows from that.

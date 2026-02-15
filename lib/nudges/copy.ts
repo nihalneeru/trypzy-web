@@ -2,7 +2,7 @@
  * Nudge Copy Templates
  *
  * All user-facing text for nudges.
- * Follows Trypzy brand guidelines:
+ * Follows Tripti brand guidelines:
  * - Calm, friendly, non-preachy
  * - No guilt/shaming language
  * - Celebrate progress, don't pressure
