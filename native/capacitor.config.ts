@@ -21,7 +21,7 @@ const isDev = !!DEV_SERVER_URL
 
 const config: CapacitorConfig = {
   appId: 'ai.tripti.app',
-  appName: 'tripti.ai',
+  appName: 'Tripti.ai',
   webDir: 'www',
   server: {
     url: serverUrl,

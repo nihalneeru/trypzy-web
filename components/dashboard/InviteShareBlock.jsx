@@ -33,7 +33,7 @@ export function InviteShareBlock({ inviteCode, shareText, shareUrl, onShareCompl
   }
 
   async function handleShare() {
-    const result = await nativeShare({ title: 'tripti.ai Invite', text: shareText, url: shareUrl })
+    const result = await nativeShare({ title: 'Tripti.ai Invite', text: shareText, url: shareUrl })
     if (result === 'shared' || result === 'copied') {
       if (result === 'copied') toast.success('Invite link copied!')
       if (onShareComplete) onShareComplete(true)
