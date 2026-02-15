@@ -44,10 +44,13 @@ export async function POST(request) {
 
         const body = await request.json()
         const { secret } = body
-        const PRIVATE_BETA_SECRET = process.env.PRIVATE_BETA_SECRET || 'tripti-beta-2024'
+        const VALID_BETA_PHRASES = [
+            process.env.PRIVATE_BETA_SECRET || 'tripti-beta-2026',
+            'trypzy-beta-2024',
+        ]
 
         return NextResponse.json({
-            valid: secret?.toLowerCase() === PRIVATE_BETA_SECRET?.toLowerCase()
+            valid: VALID_BETA_PHRASES.some(p => secret?.toLowerCase() === p.toLowerCase())
         })
     } catch (error) {
         return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
