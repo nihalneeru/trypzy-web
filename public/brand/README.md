@@ -2,17 +2,11 @@
 
 ## Logo Files
 
-### Primary Assets (Tripti rebrand)
-- `tripti-logo.svg` - Full logo for light backgrounds
-- `tripti-logo-dark.svg` - Full logo for dark backgrounds
-- `tripti-icon.svg` - Small mark / icon for UI elements, buttons, spinners
+### Active Assets
+- `tripti-logo.svg` - Full logo with wordmark (primary color, light backgrounds)
+- `tripti-icon.svg` - Red logomark for UI elements, buttons, spinners
 
-### Legacy Assets (pre-rebrand, being phased out)
-- `trypzy-light-background-full-logo-with-spacing.svg` - Legacy full logo for light backgrounds
-- `trypzy-dark-background-full-logo-with-spacing.svg` - Legacy full logo for dark backgrounds
-- `trypzy-logomark.svg` - Legacy small mark
-- `trypzy-logo.png` - Legacy full logo (deprecated)
-- `trypzy-icon.png` - Legacy icon for loading spinners
+Source files are in `tripti.ai-logo-final-versions/` (not committed to repo).
 
 ## Usage Guidelines
 
@@ -23,7 +17,6 @@
 - Auth pages (sign in/sign up)
 - Landing pages or marketing contexts
 - Large header contexts where brand presence is primary
-- The component automatically selects the correct SVG based on theme (light/dark)
 - Default size: height 32px (h-8) with width auto to preserve aspect ratio
 
 ### Small Mark (Static Icons)
@@ -64,15 +57,12 @@
 - Maintain consistent sizing within contexts
 - Use logo on auth, icon in nav
 - Keep brand usage tasteful and minimal
-- Use the new `tripti-*` assets for all new work
-
 **Don't:**
 - Recolor, distort, rotate, or crop logos
 - Add shadows, gradients, outlines, or filters
 - Use generic placeholders instead of brand assets
 - Over-brand (keep it subtle and clean)
 - Use both logo and icon in the same context (choose one)
-- Reference old `trypzy-*` assets in new code
 
 ## Branded Loading Spinner
 
