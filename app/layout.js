@@ -19,26 +19,26 @@ export const viewport = {
 
 export function generateMetadata() {
   return {
-    title: 'Tripti — Nifty plans. Happy circles.',
+    title: 'tripti.ai — Nifty plans. Happy circles.',
     description: 'Private, trust-based trip planning for friend groups',
     openGraph: {
-      title: 'Tripti — Nifty plans. Happy circles.',
+      title: 'tripti.ai — Nifty plans. Happy circles.',
       description: 'Private, trust-based trip planning for friend groups',
       url: 'https://tripti.ai',
-      siteName: 'Tripti',
+      siteName: 'tripti.ai',
       images: [
         {
           url: 'https://tripti.ai/brand/logomark-png/tripti.ai-lm-primary-white-on-red1024x1024.png',
           width: 1024,
           height: 1024,
-          alt: 'Tripti logo',
+          alt: 'tripti.ai logo',
         },
       ],
       type: 'website',
     },
     twitter: {
       card: 'summary',
-      title: 'Tripti — Nifty plans. Happy circles.',
+      title: 'tripti.ai — Nifty plans. Happy circles.',
       description: 'Private, trust-based trip planning for friend groups',
       images: ['https://tripti.ai/brand/logomark-png/tripti.ai-lm-primary-white-on-red1024x1024.png'],
     },

@@ -63,7 +63,7 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
             <div className="flex items-center shrink-0">
               <Link href="/dashboard" className="flex items-center shrink-0" data-testid="logo-home">
                 <TriptiLogo variant="full" className="h-6 sm:h-8 w-auto" />
-                <span className="sr-only">Tripti</span>
+                <span className="sr-only">tripti.ai</span>
               </Link>
               <nav className="flex items-center ml-2 sm:ml-4">
                 <Button

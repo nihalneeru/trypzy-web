@@ -101,7 +101,7 @@ export async function POST(request) {
     const name =
       fullName?.givenName && fullName?.familyName
         ? `${fullName.givenName} ${fullName.familyName}`.trim()
-        : fullName?.givenName || email?.split('@')[0] || 'Tripti User'
+        : fullName?.givenName || email?.split('@')[0] || 'tripti.ai User'
 
     const db = await connectToMongo()
 

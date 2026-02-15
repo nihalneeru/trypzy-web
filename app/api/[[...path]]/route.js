@@ -12524,7 +12524,7 @@ async function handleRoute(request, { params }) {
 
     // Root endpoint
     if (route === '/' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: 'Tripti API', version: '1.0.0' }))
+      return handleCORS(NextResponse.json({ message: 'tripti.ai API', version: '1.0.0' }))
     }
 
     // Route not found

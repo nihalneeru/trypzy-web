@@ -16,7 +16,7 @@ export function TriptiLogo({ variant = 'full', className = '' }) {
     return (
       <Image
         src="/brand/tripti-icon.svg"
-        alt="Tripti"
+        alt="tripti.ai"
         width={32}
         height={32}
         className={className || "h-8 w-8"}
@@ -29,7 +29,7 @@ export function TriptiLogo({ variant = 'full', className = '' }) {
   return (
     <Image
       src="/brand/tripti-logo.svg"
-      alt="Tripti"
+      alt="tripti.ai"
       width={140}
       height={40}
       className={className || "h-8 w-auto"}

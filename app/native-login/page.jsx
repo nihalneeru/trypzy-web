@@ -344,7 +344,7 @@ export default function NativeLoginPage() {
         )}
 
         <p className="text-xs text-[#6B7280] mt-6">
-          By continuing, you agree to Tripti&apos;s terms of service.
+          By continuing, you agree to tripti.ai&apos;s terms of service.
         </p>
       </div>
     </div>

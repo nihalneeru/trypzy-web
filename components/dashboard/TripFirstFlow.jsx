@@ -248,7 +248,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
             </div>
             <InviteShareBlock
               inviteCode={result.circle.inviteCode}
-              shareText={`Join "${result.trip.name}" on Tripti!`}
+              shareText={`Join "${result.trip.name}" on tripti.ai!`}
               shareUrl={shareUrl}
             />
           </div>

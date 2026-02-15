@@ -29,10 +29,10 @@ export function CircleHeader({ circle, token, onLeft }) {
   // Share invite via native share sheet, Web Share API, or clipboard fallback
   async function handleShare() {
     const shareText = circle.name
-      ? `Join my Tripti circle "${circle.name}" to plan trips together!`
-      : `Join my Tripti circle to plan trips together!`
+      ? `Join my tripti.ai circle "${circle.name}" to plan trips together!`
+      : `Join my tripti.ai circle to plan trips together!`
 
-    const result = await nativeShare({ title: 'Tripti Invite', text: shareText, url: shareUrl })
+    const result = await nativeShare({ title: 'tripti.ai Invite', text: shareText, url: shareUrl })
     if (result === 'copied') {
       toast.success('Invite message copied!')
     } else if (result === 'failed') {
