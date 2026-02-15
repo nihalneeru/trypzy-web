@@ -400,7 +400,7 @@ export function AccommodationOverlay({
   const showItineraryNudge = !hasItinerary && stayRequirements.length === 0 && accommodations.length === 0 && !accommodationConfirmed
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       {/* Itinerary nudge — shown when no itinerary and no stays yet */}
       {showItineraryNudge && (
         <Card className="bg-brand-sand/40 border-brand-sand">

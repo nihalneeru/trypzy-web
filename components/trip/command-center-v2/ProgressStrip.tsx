@@ -23,8 +23,8 @@ const STEP_TO_OVERLAY: Record<string, OverlayType> = {
   tripOngoing: null
 }
 
-// Only show main stage chevrons (exclude Memories and Expenses - those are in CTA bar)
-const STAGE_CHEVRON_KEYS = [
+// Only show main stage steps (exclude Memories and Expenses - those are in CTA bar)
+const STAGE_STEP_KEYS = [
   'tripProposed',
   'datesLocked',
   'itineraryFinalized',
@@ -34,47 +34,33 @@ const STAGE_CHEVRON_KEYS = [
 ]
 
 // ─────────────────────────────────────────────────
-// Chevron arrow (horizontal variant)
+// Circle step indicator
 // ─────────────────────────────────────────────────
 
-function StripChevron({
+function StripCircle({
   isCompleted,
   isBlocker,
   isActiveOverlay,
   isClickable,
   icon: Icon,
-  pointDirection = 'right'
 }: {
   isCompleted: boolean
   isBlocker: boolean
   isActiveOverlay: boolean
   isClickable: boolean
   icon: React.ComponentType<{ className?: string }>
-  pointDirection?: 'right' | 'down'
 }) {
-  const getFillColor = () => {
-    if (isActiveOverlay) return '#00334D' // brand-blue
-    if (isBlocker) return '#FA3823' // brand-red
-    if (isCompleted) return '#00334D' // brand-blue
-    return '#2E303B33' // brand-carbon at 20%
+  const getBgColor = () => {
+    if (isActiveOverlay) return 'bg-brand-blue'
+    if (isBlocker) return 'bg-brand-red'
+    if (isCompleted) return 'bg-brand-blue'
+    return 'bg-brand-carbon/20'
   }
 
   const getIconColor = () => {
     if (isActiveOverlay || isBlocker || isCompleted) return 'text-white'
     return 'text-gray-500'
   }
-
-  // Shape dimensions (compact for horizontal row)
-  const w = 32
-  const h = 32
-
-  // Right-pointing: arrow tip on right edge (mirror of V2's left path)
-  const rightPath = `M0,0 L${w - 10},0 L${w},${h / 2} L${w - 10},${h} L0,${h} Z`
-
-  // Down-pointing: arrow tip on bottom edge (same concept as V2)
-  const downPath = `M0,0 L${w},0 L${w},${h - 10} L${w / 2},${h} L0,${h - 10} Z`
-
-  const path = pointDirection === 'down' ? downPath : rightPath
 
   return (
     <div
@@ -85,28 +71,8 @@ function StripChevron({
       )}
       style={{ width: 44, height: 44, minWidth: 44, minHeight: 44 }}
     >
-      <div className="relative" style={{ width: w, height: h }}>
-        <svg
-          width={w}
-          height={h}
-          viewBox={`0 0 ${w} ${h}`}
-          className="absolute inset-0"
-        >
-          <path
-            d={path}
-            fill={getFillColor()}
-            className="transition-colors duration-200"
-          />
-        </svg>
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{
-            marginRight: pointDirection === 'right' ? '3px' : '0',
-            marginBottom: pointDirection === 'down' ? '3px' : '0'
-          }}
-        >
-          <Icon className={cn('w-4 h-4', getIconColor())} />
-        </div>
+      <div className={cn('w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200', getBgColor())}>
+        <Icon className={cn('w-4 h-4', getIconColor())} />
       </div>
     </div>
   )
@@ -219,7 +185,7 @@ export function ProgressStrip({
         )}
       </div>
 
-      {/* Row 2: Chevron arrows - horizontal scroll with snap on mobile */}
+      {/* Row 2: Stage circles - horizontal scroll with snap on mobile */}
       {/* Only shows main stages (Proposed → On Trip). Memories/Expenses are in bottom CTA bar */}
       <div
         ref={scrollContainerRef}
@@ -230,7 +196,7 @@ export function ProgressStrip({
         )}
       >
         {TRIP_PROGRESS_STEPS
-          .filter(step => STAGE_CHEVRON_KEYS.includes(step.key))
+          .filter(step => STAGE_STEP_KEYS.includes(step.key))
           .map((step) => {
             const isCompleted = progressSteps[step.key]
             const isBlocker = step.key === blockerStageKey
@@ -238,8 +204,7 @@ export function ProgressStrip({
             const isActive = overlayType !== null && activeOverlay === overlayType
             const isClickable = overlayType !== null
 
-            // Blocker or active overlay points DOWN (attention); rest point RIGHT (flow)
-            const pointDirection = (isBlocker || isActive) ? 'down' : 'right'
+            const isCurrent = isBlocker || isActive
 
             return (
               <button
@@ -252,16 +217,16 @@ export function ProgressStrip({
                 )}
                 aria-label={`${step.label}${isCompleted ? ' (completed)' : ''}${isBlocker ? ' (needs attention)' : ''}`}
               >
-                <StripChevron
+                <StripCircle
                   isCompleted={isCompleted}
                   isBlocker={isBlocker}
                   isActiveOverlay={isActive}
                   isClickable={isClickable}
                   icon={step.icon}
-                  pointDirection={pointDirection}
                 />
                 <span className={cn(
                   'text-[9px] md:text-[10px] font-medium leading-tight text-center whitespace-nowrap',
+                  isCurrent && 'underline underline-offset-2',
                   isActive
                     ? 'text-brand-blue'
                     : isBlocker
