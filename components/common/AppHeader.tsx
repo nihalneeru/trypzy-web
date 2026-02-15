@@ -14,8 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { DeleteAccountDialog } from '@/components/account/DeleteAccountDialog'
-import { Users, Sparkles, ChevronDown, Shield, Trash2, LogOut } from 'lucide-react'
+import { Users, Sparkles, ChevronDown, Settings, FileText, LogOut } from 'lucide-react'
 
 interface AppHeaderProps {
   userName?: string | null
@@ -25,9 +24,6 @@ interface AppHeaderProps {
 export function AppHeader({ userName, activePage }: AppHeaderProps) {
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-
-  const token = typeof window !== 'undefined' ? localStorage.getItem('tripti_token') : null
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -55,8 +51,7 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
   }
 
   return (
-    <>
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 safe-top">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 safe-top">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Left: Logo + Navigation */}
@@ -105,17 +100,13 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => router.push('/settings/privacy')}>
-                    <Shield className="h-4 w-4 mr-2" />
-                    Privacy
+                  <DropdownMenuItem onClick={() => router.push('/settings')}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-brand-red focus:text-brand-red"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete account
+                  <DropdownMenuItem onClick={() => router.push('/privacy')}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Privacy Policy
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
@@ -127,13 +118,6 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
             </div>
           </div>
         </div>
-      </header>
-
-      <DeleteAccountDialog
-        open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
-        token={token}
-      />
-    </>
+    </header>
   )
 }
