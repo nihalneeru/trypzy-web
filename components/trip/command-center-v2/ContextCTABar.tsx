@@ -71,14 +71,26 @@ export function ContextCTABar({
     const isLeader = progressSnapshot.isTripLeader
     const userId = user.id
 
-    // 0. Non-traveler: show "Ask to join" as primary CTA
+    // 0. Non-traveler: show join request CTA based on request status
     const viewer = trip.viewer || {}
     if (!viewer.isActiveParticipant && trip.status !== 'canceled') {
-      return {
-        label: 'Ask to join',
-        icon: UserPlus,
-        overlayType: 'travelers',
-        priority: 0
+      if (viewer.joinRequestStatus === 'pending') {
+        return {
+          label: 'Request pending',
+          icon: Clock,
+          overlayType: 'travelers',
+          priority: 0,
+          isBlocking: false
+        }
+      }
+      // 'approved' falls through to participant CTAs; otherwise show "Ask to join"
+      if (viewer.joinRequestStatus !== 'approved') {
+        return {
+          label: 'Ask to join',
+          icon: UserPlus,
+          overlayType: 'travelers',
+          priority: 0
+        }
       }
     }
 
@@ -95,9 +107,8 @@ export function ContextCTABar({
     const hasSubmittedAvailability = hasSubmittedDatePicks || !!userAvailability?.dates?.length
     const votingOpen = trip.votingStatus === 'open' || trip.dateVotingOpen || trip.status === 'voting'
     const userHasVoted = trip.dateVotes?.some((v: any) => v.userId === userId) || !!trip.userVote
-    const userIdeasCount = trip.ideas?.filter(
-      (i: any) => i.userId === userId || i.createdBy === userId
-    )?.length || 0
+    const userIdeasCount = trip.ideaSummary?.userIdeaCount ?? 0
+    const totalIdeasCount = trip.ideaSummary?.totalCount ?? 0
     const hasItinerary = trip.itinerary?.days?.length > 0 || itineraryFinalized
     const userHasVotedOnAccommodation = trip.accommodationUserVoted ||
       trip.accommodations?.some((a: any) => a.userVoted)
@@ -172,26 +183,38 @@ export function ContextCTABar({
       }
     }
 
-    // 4. Add ideas (only if itinerary not finalized and user has fewer than 3 ideas)
-    // P1-5: Use inviting language - "Add your ideas" instead of "Submit ideas"
-    if (!itineraryFinalized && userIdeasCount < 2 && datesLocked) {
-      return {
-        label: 'Suggest an idea',
-        icon: Lightbulb,
-        overlayType: 'itinerary',
-        priority: 4,
-        isBlocking: false  // Optional - encouraged but not required
+    // 4. Idea CTAs (only if itinerary not finalized and dates locked)
+    if (!itineraryFinalized && !hasItinerary && datesLocked) {
+      // 4a. User has < 2 ideas: encourage adding more
+      if (userIdeasCount < 2) {
+        return {
+          label: 'Suggest an idea',
+          icon: Lightbulb,
+          overlayType: 'itinerary',
+          priority: 4,
+          isBlocking: false
+        }
+      }
+      // 4b. Non-leader with 2+ ideas: review what others submitted
+      if (!isLeader) {
+        return {
+          label: 'Review ideas',
+          icon: Lightbulb,
+          overlayType: 'itinerary',
+          priority: 4,
+          isBlocking: false
+        }
       }
     }
 
-    // 5. Generate itinerary (if leader and no itinerary)
+    // 5. Build/generate itinerary (leader only, no itinerary yet)
     if (isLeader && !hasItinerary && datesLocked) {
       return {
-        label: 'Generate itinerary',
+        label: totalIdeasCount > 0 ? 'Build itinerary' : 'Generate itinerary',
         icon: Sparkles,
         overlayType: 'itinerary',
         priority: 5,
-        isBlocking: false  // Leader action but not urgent
+        isBlocking: false
       }
     }
 

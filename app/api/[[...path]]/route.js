@@ -1850,6 +1850,29 @@ async function handleRoute(request, { params }) {
         } // end if (startBound && endBound)
       }
 
+      // Idea counts for CTA decisions (safe fallback: { totalCount: 0, userIdeaCount: 0 })
+      let ideaSummary = { totalCount: 0, userIdeaCount: 0 }
+      try {
+        const allIdeas = await db.collection('itinerary_ideas')
+          .find({ tripId })
+          .project({ authorUserId: 1 })
+          .toArray()
+        ideaSummary = {
+          totalCount: allIdeas.length,
+          userIdeaCount: allIdeas.filter(i => i.authorUserId === auth.user.id).length
+        }
+      } catch {}
+
+      // Viewer's join request status — only queried for non-participants (safe fallback: null)
+      let viewerJoinRequestStatus = null
+      if (!isActiveParticipant) {
+        try {
+          const jr = await db.collection('trip_join_requests')
+            .findOne({ tripId, requesterId: auth.user.id }, { sort: { createdAt: -1 }, projection: { status: 1 } })
+          viewerJoinRequestStatus = jr?.status || 'none'
+        } catch {}
+      }
+
       // Compute progress steps for client-side chevrons and CTA decisions
       const selectedAccommodation = await db.collection('accommodation_options')
         .findOne({ tripId, status: 'selected' })
@@ -1896,7 +1919,9 @@ async function handleRoute(request, { params }) {
           isRemovedTraveler: !isFormerMember && !isActiveParticipant && (userParticipantStatus === 'left' || userParticipantStatus === 'removed'),
           // Pending leadership transfer info
           pendingLeadershipTransfer: trip.pendingLeadershipTransfer || null,
-          isPendingLeader: trip.pendingLeadershipTransfer?.toUserId === auth.user.id
+          isPendingLeader: trip.pendingLeadershipTransfer?.toUserId === auth.user.id,
+          // Join request status for non-participants (null if active participant)
+          joinRequestStatus: viewerJoinRequestStatus
         },
         // Progress tracking stats
         totalMembers,
@@ -1911,6 +1936,8 @@ async function handleRoute(request, { params }) {
         pickProgress, // { respondedCount, totalCount, respondedUserIds } - only for top3_heatmap
         // Itinerary status (for locked trips)
         itineraryStatus: trip.itineraryStatus || null,
+        // Idea counts for CTA bar decisions
+        ideaSummary,
         // Progress steps for chevrons and CTA decisions
         progress: { steps: progressSteps },
         // Voting status (for voting stage)
