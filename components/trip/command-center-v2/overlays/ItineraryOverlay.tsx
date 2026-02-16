@@ -372,9 +372,11 @@ export function ItineraryOverlay({
   const readOnlyReason =
     isCancelled
       ? 'Trip is canceled'
-      : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
+      : viewer.isRemovedTraveler
         ? "You've left this trip"
-        : null
+        : !viewer.isActiveParticipant
+          ? 'You are not a traveler on this trip'
+          : null
   const isLeader = trip?.isCreator === true
   const destinationHint = (trip?.destinationHint || '').trim()
 

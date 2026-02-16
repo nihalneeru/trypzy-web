@@ -3447,7 +3447,10 @@ async function handleRoute(request, { params }) {
         travelers = memberships
           .filter(m => {
             const status = statusMap.get(m.userId)
-            return !status || status === 'active'
+            if (status === 'active') return true
+            if (status === 'left' || status === 'removed') return false
+            // No participant record — exclude late joiners
+            return !isLateJoinerForTrip(m, trip)
           })
           .map(m => ({ id: m.userId }))
       } else {
@@ -4355,7 +4358,10 @@ async function handleRoute(request, { params }) {
         travelers = memberships
           .filter(m => {
             const status = statusMap.get(m.userId)
-            return !status || status === 'active'
+            if (status === 'active') return true
+            if (status === 'left' || status === 'removed') return false
+            // No participant record — exclude late joiners
+            return !isLateJoinerForTrip(m, trip)
           })
           .map(m => ({ id: m.userId }))
       } else {

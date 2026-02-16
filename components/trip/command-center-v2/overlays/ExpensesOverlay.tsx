@@ -393,20 +393,23 @@ export function ExpensesOverlay({
   }
 
   if (error) {
+    const isNotTraveler = error.toLowerCase().includes('not a traveler') || error.toLowerCase().includes('not an active participant')
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
-        <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
+        <AlertTriangle className={`h-10 w-10 mb-3 ${isNotTraveler ? 'text-amber-500' : 'text-brand-red'}`} />
         <p className="text-sm text-gray-600 mb-4">{error}</p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setError(null)
-            loadExpenses()
-          }}
-        >
-          Try again
-        </Button>
+        {!isNotTraveler && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null)
+              loadExpenses()
+            }}
+          >
+            Try again
+          </Button>
+        )}
       </div>
     )
   }

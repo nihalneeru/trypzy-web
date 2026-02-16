@@ -84,8 +84,10 @@ export function ChatTab({
     ? 'Trip is canceled'
     : isCompleted
     ? 'This trip has ended'
-    : !viewer.isActiveParticipant || viewer.participantStatus === 'left'
+    : viewer.isRemovedTraveler
     ? "You've left this trip"
+    : !viewer.isActiveParticipant
+    ? 'You are not an active participant in this trip'
     : 'Type a message...'
   
   // Get user's completion state
