@@ -66,11 +66,7 @@ function LoginPageContent() {
       console.log('[Auth] Error from callback:', error)
     }
 
-    if (error === 'AccountNotFound') {
-      toast.error('No account found with that email. Redirecting to sign up...')
-      setTimeout(() => router.replace('/signup'), 1500)
-      return // Don't clean URL, we're redirecting
-    } else if (error === 'AccountExists') {
+    if (error === 'AccountExists') {
       toast.error('An account already exists with that email. Please log in.')
     } else if (error === 'CallbackError') {
       toast.error('Something went wrong during sign in. Please try again.')
