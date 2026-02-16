@@ -192,6 +192,11 @@ export function DateWindowsFunnel({
   const [pendingProposeWindowId, setPendingProposeWindowId] = useState<string | null>(null)
   const [useLeaderOverride, setUseLeaderOverride] = useState(false)
 
+  // Custom proposal state (leader-only)
+  const [showCustomProposal, setShowCustomProposal] = useState(false)
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
+
   // Concrete dates dialog (for unstructured windows)
   const [showConcreteDatesDialog, setShowConcreteDatesDialog] = useState(false)
   const [concreteDatesStart, setConcreteDatesStart] = useState('')
@@ -257,6 +262,25 @@ export function DateWindowsFunnel({
   useEffect(() => {
     fetchDurationPreferences()
   }, [fetchDurationPreferences])
+
+  // Mapping from trip creation duration values to scheduling overlay chip values
+  const DURATION_CREATION_TO_CHIP: Record<string, string> = {
+    'weekend': 'weekend',
+    'extended-weekend': 'extended',
+    'week': 'week',
+    'week-plus': 'week_plus',
+    'flexible': 'flexible',
+  }
+
+  // Auto-populate leader's duration preference from trip creation if not yet set
+  useEffect(() => {
+    if (!loading && isLeader && !userDurationPref && trip.duration) {
+      const mapped = DURATION_CREATION_TO_CHIP[trip.duration]
+      if (mapped) {
+        handleSetDurationPref(mapped)
+      }
+    }
+  }, [loading, isLeader, userDurationPref, trip.duration])
 
   // Fetch scheduling insights (fire-and-forget on mount)
   const fetchInsight = useCallback(async () => {
@@ -510,6 +534,9 @@ export function DateWindowsFunnel({
     setManualStartDate('')
     setManualEndDate('')
     setNormalizationError(null)
+    setShowCustomProposal(false)
+    setCustomStartDate('')
+    setCustomEndDate('')
   }
 
   // Handle supporting a window
@@ -634,6 +661,60 @@ export function DateWindowsFunnel({
       toast.success('Dates proposed')
       setPendingProposeWindowId(null)
       setUseLeaderOverride(false)
+      await fetchWindows()
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle proposing custom dates (leader only — dates not in the pool)
+  const handleProposeCustomDates = async () => {
+    if (!customStartDate || !customEndDate) {
+      toast.error('Please enter both start and end dates')
+      return
+    }
+
+    if (customStartDate > customEndDate) {
+      toast.error('Looks like the end date is before the start date')
+      return
+    }
+
+    // Check max 14-day duration
+    const start = new Date(customStartDate + 'T12:00:00')
+    const end = new Date(customEndDate + 'T12:00:00')
+    const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    if (days > 14) {
+      toast.error('Date range cannot exceed 14 days')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      const response = await fetch(`/api/trips/${trip.id}/propose-dates`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: customStartDate,
+          endDate: customEndDate,
+          leaderOverride: true
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to propose dates')
+      }
+
+      toast.success('Dates proposed')
+      setShowCustomProposal(false)
+      setCustomStartDate('')
+      setCustomEndDate('')
       await fetchWindows()
       onRefresh()
     } catch (err: any) {
@@ -1065,7 +1146,6 @@ export function DateWindowsFunnel({
               Trip creator suggested: <span className="font-medium">
                 {trip.duration === 'weekend' ? 'Weekend (2-3 days)' :
                  trip.duration === 'extended-weekend' ? 'Extended weekend (3-4 days)' :
-                 trip.duration === 'few-days' ? 'A few days (4-5 days)' :
                  trip.duration === 'week' ? 'A week' :
                  trip.duration === 'week-plus' ? 'Week+ (8+ days)' :
                  trip.duration === 'flexible' ? 'Flexible' : trip.duration}
@@ -1338,8 +1418,8 @@ export function DateWindowsFunnel({
                         </TooltipProvider>
                       )}
 
-                      {/* Propose button (leader only, hidden when primary CTA card is visible) */}
-                      {isLeader && phase === 'COLLECTING' && !proposalStatus?.proposalReady && (
+                      {/* Propose button (leader only) */}
+                      {isLeader && phase === 'COLLECTING' && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -1595,6 +1675,64 @@ export function DateWindowsFunnel({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Leader: Propose custom dates (not in the pool) */}
+      {isLeader && phase === 'COLLECTING' && (
+        <Collapsible open={showCustomProposal} onOpenChange={setShowCustomProposal}>
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-full justify-between border-brand-blue/30 text-brand-blue hover:bg-brand-blue/5"
+            >
+              <span className="flex items-center">
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                Propose different dates
+              </span>
+              {showCustomProposal ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-3">
+            <Card className="border-brand-blue/20">
+              <CardContent className="pt-4 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Propose dates that nobody has suggested yet.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="custom-start" className="text-sm">Start date</Label>
+                    <Input
+                      id="custom-start"
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="custom-end" className="text-sm">End date</Label>
+                    <Input
+                      id="custom-end"
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      min={customStartDate || new Date().toISOString().split('T')[0]}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleProposeCustomDates}
+                  disabled={submitting || !customStartDate || !customEndDate}
+                  className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                >
+                  {submitting ? 'Proposing...' : 'Propose these dates'}
+                </Button>
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
       )}
 
       {/* Concrete dates dialog (for unstructured windows) */}

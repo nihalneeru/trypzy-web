@@ -105,7 +105,6 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
               <SelectItem value="none">No preference</SelectItem>
               <SelectItem value="weekend">Weekend (2–3 days)</SelectItem>
               <SelectItem value="extended-weekend">Extended weekend (3–4 days)</SelectItem>
-              <SelectItem value="few-days">A few days (4–5 days)</SelectItem>
               <SelectItem value="week">A week</SelectItem>
               <SelectItem value="week-plus">Week+ (8+ days)</SelectItem>
               <SelectItem value="flexible">Flexible</SelectItem>
