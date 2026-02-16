@@ -187,6 +187,9 @@ export function DateWindowsFunnel({
   const [showSimilarNudge, setShowSimilarNudge] = useState(false)
   const [pendingWindowText, setPendingWindowText] = useState('')
 
+  // Viewer participation check — disable interactions for non-travelers
+  const isActiveParticipant = trip?.viewer?.isActiveParticipant !== false
+
   // Confirmation dialogs
   const [showLockConfirm, setShowLockConfirm] = useState(false)
   const [pendingProposeWindowId, setPendingProposeWindowId] = useState<string | null>(null)
@@ -910,11 +913,12 @@ export function DateWindowsFunnel({
           </Card>
         )}
 
-        {/* Reaction buttons - show for everyone */}
+        {/* Reaction buttons - show for active participants */}
         <div className="space-y-3">
           <p className="text-sm font-medium text-center text-brand-carbon">
-            Do these dates work?
+            {isActiveParticipant ? 'Do these dates work?' : 'Reactions from travelers'}
           </p>
+          {isActiveParticipant && (
           <div className="flex gap-2 justify-center">
             <TooltipProvider>
               <Tooltip>
@@ -968,6 +972,7 @@ export function DateWindowsFunnel({
               </Tooltip>
             </TooltipProvider>
           </div>
+          )}
         </div>
 
         {/* Reaction summary */}
@@ -1164,8 +1169,11 @@ export function DateWindowsFunnel({
               <button
                 key={opt.value}
                 onClick={() => handleSetDurationPref(userDurationPref === opt.value ? null : opt.value)}
+                disabled={!isActiveParticipant}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                  userDurationPref === opt.value
+                  !isActiveParticipant
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    : userDurationPref === opt.value
                     ? 'bg-brand-blue text-white border-brand-blue'
                     : 'bg-white text-gray-700 border-gray-200 hover:border-brand-blue/50'
                 }`}
@@ -1201,11 +1209,13 @@ export function DateWindowsFunnel({
           <Button
             variant="outline"
             className="w-full justify-between"
-            disabled={!canCreateWindow}
+            disabled={!canCreateWindow || !isActiveParticipant}
           >
             <span className="flex items-center">
               <Plus className="h-4 w-4 mr-2" />
-              {canCreateWindow
+              {!isActiveParticipant
+                ? 'View only — not a traveler'
+                : canCreateWindow
                 ? `Add your dates (${remainingWindows} left)`
                 : `Limit reached (${maxWindows}/${maxWindows})`
               }
@@ -1377,7 +1387,7 @@ export function DateWindowsFunnel({
 
                     <div className="flex items-center gap-2">
                       {/* Support/unsupport button */}
-                      {phase === 'COLLECTING' && (
+                      {phase === 'COLLECTING' && isActiveParticipant && (
                         isSupported ? (
                           <Button
                             size="sm"
