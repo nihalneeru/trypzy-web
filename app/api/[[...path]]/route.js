@@ -1850,6 +1850,29 @@ async function handleRoute(request, { params }) {
         } // end if (startBound && endBound)
       }
 
+      // Idea counts for CTA decisions (safe fallback: { totalCount: 0, userIdeaCount: 0 })
+      let ideaSummary = { totalCount: 0, userIdeaCount: 0 }
+      try {
+        const allIdeas = await db.collection('itinerary_ideas')
+          .find({ tripId })
+          .project({ authorUserId: 1 })
+          .toArray()
+        ideaSummary = {
+          totalCount: allIdeas.length,
+          userIdeaCount: allIdeas.filter(i => i.authorUserId === auth.user.id).length
+        }
+      } catch {}
+
+      // Viewer's join request status — only queried for non-participants (safe fallback: null)
+      let viewerJoinRequestStatus = null
+      if (!isActiveParticipant) {
+        try {
+          const jr = await db.collection('trip_join_requests')
+            .findOne({ tripId, requesterId: auth.user.id }, { sort: { createdAt: -1 }, projection: { status: 1 } })
+          viewerJoinRequestStatus = jr?.status || 'none'
+        } catch {}
+      }
+
       // Compute progress steps for client-side chevrons and CTA decisions
       const selectedAccommodation = await db.collection('accommodation_options')
         .findOne({ tripId, status: 'selected' })
@@ -1896,7 +1919,9 @@ async function handleRoute(request, { params }) {
           isRemovedTraveler: !isFormerMember && !isActiveParticipant && (userParticipantStatus === 'left' || userParticipantStatus === 'removed'),
           // Pending leadership transfer info
           pendingLeadershipTransfer: trip.pendingLeadershipTransfer || null,
-          isPendingLeader: trip.pendingLeadershipTransfer?.toUserId === auth.user.id
+          isPendingLeader: trip.pendingLeadershipTransfer?.toUserId === auth.user.id,
+          // Join request status for non-participants (null if active participant)
+          joinRequestStatus: viewerJoinRequestStatus
         },
         // Progress tracking stats
         totalMembers,
@@ -1911,6 +1936,8 @@ async function handleRoute(request, { params }) {
         pickProgress, // { respondedCount, totalCount, respondedUserIds } - only for top3_heatmap
         // Itinerary status (for locked trips)
         itineraryStatus: trip.itineraryStatus || null,
+        // Idea counts for CTA bar decisions
+        ideaSummary,
         // Progress steps for chevrons and CTA decisions
         progress: { steps: progressSteps },
         // Voting status (for voting stage)
@@ -4175,10 +4202,10 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { windowId, leaderOverride = false, concreteDates } = body
+      const { windowId, startDate, endDate, leaderOverride = false, concreteDates } = body
 
-      if (!windowId) {
-        return handleCORS(NextResponse.json({ error: 'windowId is required' }, { status: 400 }))
+      if (!windowId && (!startDate || !endDate)) {
+        return handleCORS(NextResponse.json({ error: 'Provide either windowId or startDate + endDate' }, { status: 400 }))
       }
 
       const trip = await db.collection('trips').findOne({ id: tripId })
@@ -4194,50 +4221,126 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: validation.message }, { status: validation.status }))
       }
 
-      // Check window exists
-      let window = await db.collection('date_windows').findOne({ id: windowId, tripId })
-      if (!window) {
-        return handleCORS(NextResponse.json({ error: 'Window not found' }, { status: 404 }))
-      }
+      let window
 
-      // If window is unstructured, leader must supply concrete dates
-      if (window.precision === 'unstructured') {
-        if (!concreteDates || !concreteDates.startDate || !concreteDates.endDate) {
-          return handleCORS(NextResponse.json({
-            error: 'This date option needs concrete dates before it can be proposed.',
-            code: 'REQUIRES_CONCRETE_DATES',
-            windowId,
-            sourceText: window.sourceText
-          }, { status: 400 }))
+      if (windowId) {
+        // Mode A: Propose an existing window
+        window = await db.collection('date_windows').findOne({ id: windowId, tripId })
+        if (!window) {
+          return handleCORS(NextResponse.json({ error: 'Window not found' }, { status: 404 }))
         }
 
-        // Validate concrete dates format
+        // If window is unstructured, leader must supply concrete dates
+        if (window.precision === 'unstructured') {
+          if (!concreteDates || !concreteDates.startDate || !concreteDates.endDate) {
+            return handleCORS(NextResponse.json({
+              error: 'This date option needs concrete dates before it can be proposed.',
+              code: 'REQUIRES_CONCRETE_DATES',
+              windowId,
+              sourceText: window.sourceText
+            }, { status: 400 }))
+          }
+
+          // Validate concrete dates format
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+          if (!dateRegex.test(concreteDates.startDate) || !dateRegex.test(concreteDates.endDate)) {
+            return handleCORS(NextResponse.json({ error: 'Dates must be in YYYY-MM-DD format' }, { status: 400 }))
+          }
+          if (concreteDates.startDate > concreteDates.endDate) {
+            return handleCORS(NextResponse.json({ error: 'Start date must be before or equal to end date' }, { status: 400 }))
+          }
+
+          // Update the window with concrete dates
+          await db.collection('date_windows').updateOne(
+            { id: windowId },
+            {
+              $set: {
+                startDate: concreteDates.startDate,
+                endDate: concreteDates.endDate,
+                normalizedStart: concreteDates.startDate,
+                normalizedEnd: concreteDates.endDate,
+                precision: 'exact',
+                concretizedAt: new Date().toISOString(),
+                concretizedBy: auth.user.id
+              }
+            }
+          )
+
+          // Refresh window data
+          window = await db.collection('date_windows').findOne({ id: windowId, tripId })
+        }
+      } else {
+        // Mode B: Create a new window from custom dates and propose it
+        const { WINDOW_CONFIG } = await import('@/lib/trips/normalizeWindow.js')
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-        if (!dateRegex.test(concreteDates.startDate) || !dateRegex.test(concreteDates.endDate)) {
+        if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
           return handleCORS(NextResponse.json({ error: 'Dates must be in YYYY-MM-DD format' }, { status: 400 }))
         }
-        if (concreteDates.startDate > concreteDates.endDate) {
+        if (startDate > endDate) {
           return handleCORS(NextResponse.json({ error: 'Start date must be before or equal to end date' }, { status: 400 }))
         }
+        const s = new Date(startDate + 'T12:00:00')
+        const e = new Date(endDate + 'T12:00:00')
+        const days = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1
+        if (days > WINDOW_CONFIG.MAX_WINDOW_DAYS) {
+          return handleCORS(NextResponse.json({ error: `Date range cannot exceed ${WINDOW_CONFIG.MAX_WINDOW_DAYS} days` }, { status: 400 }))
+        }
 
-        // Update the window with concrete dates
-        await db.collection('date_windows').updateOne(
-          { id: windowId },
-          {
-            $set: {
-              startDate: concreteDates.startDate,
-              endDate: concreteDates.endDate,
-              normalizedStart: concreteDates.startDate,
-              normalizedEnd: concreteDates.endDate,
-              precision: 'exact',
-              concretizedAt: new Date().toISOString(),
-              concretizedBy: auth.user.id
-            }
-          }
-        )
+        // Create the window record
+        const newWindowId = uuidv4()
+        window = {
+          id: newWindowId,
+          tripId,
+          proposedBy: auth.user.id,
+          startDate,
+          endDate,
+          sourceText: `${startDate} to ${endDate}`,
+          normalizedStart: startDate,
+          normalizedEnd: endDate,
+          precision: 'exact',
+          createdViaCustomProposal: true,
+          createdAt: new Date().toISOString()
+        }
+        await db.collection('date_windows').insertOne(window)
 
-        // Refresh window data
-        window = await db.collection('date_windows').findOne({ id: windowId, tripId })
+        // Auto-support for leader
+        await db.collection('window_supports').insertOne({
+          id: uuidv4(),
+          windowId: newWindowId,
+          tripId,
+          userId: auth.user.id,
+          createdAt: new Date().toISOString()
+        })
+
+        // Auto-transition from proposed to scheduling if needed
+        if (trip.status === 'proposed') {
+          await db.collection('trips').updateOne(
+            { id: tripId },
+            { $set: { status: 'scheduling' } }
+          )
+          emitTripStatusChanged(
+            tripId,
+            trip.circleId,
+            auth.user.id,
+            'leader',
+            'proposed',
+            'scheduling',
+            new Date(trip.createdAt)
+          )
+        }
+
+        // Emit window suggested event
+        emitWindowSuggested(
+          tripId,
+          trip.circleId,
+          auth.user.id,
+          'leader',
+          newWindowId,
+          'exact',
+          startDate,
+          endDate,
+          new Date(trip.createdAt)
+        ).catch(err => console.error('[events] emitWindowSuggested failed:', err))
       }
 
       // Get travelers and supports for proposal readiness check
@@ -4263,8 +4366,11 @@ async function handleRoute(request, { params }) {
       const windows = await db.collection('date_windows').find({ tripId }).toArray()
       const supports = await db.collection('window_supports').find({ tripId }).toArray()
 
+      // For custom proposals, always use leader override
+      const effectiveOverride = windowId ? leaderOverride : true
+
       // Check if leader can propose (threshold met OR override)
-      const proposalCheck = canLeaderPropose(trip, travelers, windows, supports, leaderOverride)
+      const proposalCheck = canLeaderPropose(trip, travelers, windows, supports, effectiveOverride)
       if (!proposalCheck.canPropose) {
         return handleCORS(NextResponse.json({
           error: 'Cannot propose dates yet. Not enough travelers have indicated their availability.',
@@ -4277,9 +4383,9 @@ async function handleRoute(request, { params }) {
         { id: tripId },
         {
           $set: {
-            proposedWindowId: windowId,
+            proposedWindowId: window.id,
             proposedAt: new Date().toISOString(),
-            proposedByOverride: leaderOverride,
+            proposedByOverride: effectiveOverride,
             proposedWindowReactions: []  // Clear reactions for new proposal
           }
         }
@@ -4294,7 +4400,7 @@ async function handleRoute(request, { params }) {
         actorUserId: auth.user.id,
         subtype: 'dates_proposed',
         text: `📅 ${auth.user.name} proposed ${formatDate(window.startDate)}–${formatDate(window.endDate)} for the trip`,
-        metadata: { windowId, startDate: window.startDate, endDate: window.endDate }
+        metadata: { windowId: window.id, startDate: window.startDate, endDate: window.endDate }
       })
 
       // Emit scheduling.window.proposed event
@@ -4302,7 +4408,7 @@ async function handleRoute(request, { params }) {
         tripId,
         trip.circleId,
         auth.user.id,
-        windowId,
+        window.id,
         new Date(trip.createdAt)
       )
 

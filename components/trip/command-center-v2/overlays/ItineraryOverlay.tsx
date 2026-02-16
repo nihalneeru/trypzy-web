@@ -626,6 +626,7 @@ export function ItineraryOverlay({
       setHasUnsavedChanges(false)
       toast.success('Idea submitted!')
       await loadIdeas()
+      onRefresh() // Refresh trip to update ideaSummary for CTA bar
     } catch (error: any) {
       toast.error(error.message || 'Could not add idea — please try again')
     } finally {
