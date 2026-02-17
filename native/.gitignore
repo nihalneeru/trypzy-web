@@ -5,3 +5,6 @@ android/
 *.xcworkspace
 *.xcodeproj
 build/
+*.keystore
+*.jks
+.env
