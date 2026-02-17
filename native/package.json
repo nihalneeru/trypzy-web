@@ -4,6 +4,7 @@
   "private": true,
   "description": "Tripti native shell — Capacitor wrapper for iOS + Android",
   "scripts": {
+    "postinstall": "npx patch-package",
     "cap:sync": "npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
@@ -22,5 +23,8 @@
     "@capacitor/splash-screen": "^6.0.0",
     "@codetrix-studio/capacitor-google-auth": "3.4.0-rc.4",
     "dotenv": "^17.2.4"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
   }
 }
