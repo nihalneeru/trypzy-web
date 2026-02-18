@@ -365,7 +365,7 @@ export function SchedulingOverlay({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Failed to save picks')
+        throw new Error(error.message || 'Couldn\'t save picks — try again')
       }
 
       const updatedTrip = await response.json()
@@ -395,7 +395,7 @@ export function SchedulingOverlay({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Failed to submit vote')
+        throw new Error(error.message || 'Couldn\'t submit vote — try again')
       }
 
       // P0-3: Get updated trip for immediate UI refresh
@@ -412,7 +412,7 @@ export function SchedulingOverlay({
 
   const lockDates = async (startDateISO: string) => {
     if (!isCreator) {
-      toast.error('Only the trip organizer can lock dates.')
+      toast.error('Only the trip leader can lock dates.')
       return
     }
 
@@ -436,7 +436,7 @@ export function SchedulingOverlay({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Failed to lock dates')
+        throw new Error(error.message || 'Couldn\'t lock dates — try again')
       }
 
       // P0-3: Get updated trip for immediate UI refresh
@@ -520,15 +520,15 @@ export function SchedulingOverlay({
         <Card className="bg-green-50 border-green-200">
           <CardContent className="py-8 text-center">
             <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Dates Locked</h3>
+            <h3 className="text-lg font-semibold text-brand-carbon mb-2">Dates confirmed</h3>
             <p className="text-gray-600 mb-4">
-              Trip dates have been finalized
+              Trip dates are set
             </p>
             <div className="text-3xl font-bold text-green-800 mb-4">
               {formatTripDateRange(trip.lockedStartDate, trip.lockedEndDate)}
             </div>
             <p className="text-sm text-green-700">
-              Your trip dates are confirmed. Time to start planning the details!
+              Dates are set — ready to plan the itinerary!
             </p>
           </CardContent>
         </Card>
@@ -551,10 +551,10 @@ export function SchedulingOverlay({
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-blue-800">
               <Vote className="h-5 w-5" />
-              Vote for Your Preferred Dates
+              Which dates work best?
             </CardTitle>
             <CardDescription>
-              Voting is preference - we'll move forward even if everyone doesn't vote.
+              Voting is optional — we'll move forward even if not everyone votes.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -629,12 +629,12 @@ export function SchedulingOverlay({
                 className="flex-1"
               >
                 {!canParticipate
-                  ? 'You have left this trip'
+                  ? 'You left this trip'
                   : submittingVote
-                  ? 'Submitting...'
+                  ? 'Saving...'
                   : trip.userVote
-                  ? 'Update Vote'
-                  : 'Submit Vote'}
+                  ? 'Update vote'
+                  : 'Save vote'}
               </Button>
 
               {isCreator && selectedVote && canParticipate && (
@@ -644,14 +644,14 @@ export function SchedulingOverlay({
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <Lock className="h-4 w-4 mr-2" />
-                  Lock Dates
+                  Lock dates
                 </Button>
               )}
             </div>
 
             {!isCreator && (
               <p className="text-xs text-gray-500 mt-2">
-                Only the trip organizer can lock dates.
+                Only the trip leader can lock dates.
               </p>
             )}
           </CardContent>
@@ -661,9 +661,9 @@ export function SchedulingOverlay({
         <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+              <AlertDialogTitle>Lock in these dates?</AlertDialogTitle>
               <AlertDialogDescription>
-                This finalizes the trip dates. Once locked, dates cannot be changed.
+                These dates will be final — everyone will be notified.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -695,8 +695,7 @@ export function SchedulingOverlay({
         <Card className="border-orange-200 bg-orange-50">
           <CardContent className="py-4">
             <p className="text-sm text-orange-800">
-              <strong>You have left this trip</strong> - scheduling actions are disabled.
-              You can still view the trip, but cannot participate in scheduling.
+              <strong>You left this trip</strong> (view only) — you can't participate in scheduling.
             </p>
           </CardContent>
         </Card>
@@ -706,11 +705,11 @@ export function SchedulingOverlay({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5" />
-            Pick Your Top 3 Date Windows
+            Pick your top 3 date windows
           </CardTitle>
           <CardDescription>
             Pick your top 3 date options. Hover to preview, then click to select.
-            You can adjust your picks anytime until the leader locks dates.
+            You can change these anytime until locked.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -718,7 +717,7 @@ export function SchedulingOverlay({
           <div className="mb-4 space-y-2">
             {datePicks.length === 0 ? (
               <p className="text-sm text-gray-500">
-                Hover over dates to preview, then click to select your first pick.
+                Hover over dates to preview, then click to add your first pick.
               </p>
             ) : (
               datePicks
@@ -968,10 +967,10 @@ export function SchedulingOverlay({
               className="flex-1"
             >
               {!canParticipate
-                ? 'You have left this trip'
+                ? 'You left this trip'
                 : savingPicks
                 ? 'Saving...'
-                : 'Save Picks'}
+                : 'Save picks'}
             </Button>
             {datePicks.length > 0 && canParticipate && (
               <Button

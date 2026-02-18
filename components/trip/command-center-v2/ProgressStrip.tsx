@@ -164,7 +164,7 @@ export function ProgressStrip({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">You're organizing this trip. You can lock dates and make final decisions.</p>
+                  <p className="text-xs">You're leading this trip. You can lock dates and make key decisions.</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

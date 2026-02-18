@@ -315,7 +315,7 @@ export default function DashboardPage() {
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h2 className="text-lg font-medium text-gray-900 mb-2">No circles yet</h2>
                 <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                  Circles are your travel groups — friends, family, or any crew you plan trips with.
+                  A circle is your travel group — friends, family, or any crew you plan trips with.
                   Everyone in a circle can propose and join trips together.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">

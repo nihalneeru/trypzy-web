@@ -67,13 +67,13 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
       )
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `Failed to ${action} invitation`)
+        throw new Error(err.error || `Couldn't ${action} invitation`)
       }
       toast.success(action === 'accept' ? 'You joined the trip!' : 'Invitation declined')
       setInvitation(null)
       onRefresh()
     } catch (err: any) {
-      toast.error(err.message || `Failed to ${action} invitation`)
+      toast.error(err.message || `Couldn't ${action} invitation — try again`)
     } finally {
       setProcessing(false)
     }
@@ -89,14 +89,14 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
       )
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `Failed to ${action} transfer`)
+        throw new Error(err.error || `Couldn't ${action} transfer`)
       }
       toast.success(
         action === 'accept' ? 'You are now the trip leader!' : 'Leadership transfer declined'
       )
       onRefresh()
     } catch (err: any) {
-      toast.error(err.message || `Failed to ${action} transfer`)
+      toast.error(err.message || `Couldn't ${action} transfer — try again`)
     } finally {
       setProcessing(false)
     }

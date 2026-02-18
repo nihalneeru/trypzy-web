@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
             Something went wrong
           </h2>
           <p className="text-sm text-gray-600 mb-4 max-w-md">
-            We encountered an unexpected error. Please try again.
+            Something went wrong — try refreshing the page.
           </p>
           <Button onClick={this.handleRetry} variant="outline">
             Try again

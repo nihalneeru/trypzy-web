@@ -73,19 +73,19 @@ export function getNudgeCopy(
       return {
         title: 'Things are moving!',
         message: payload.travelerName
-          ? `${payload.travelerName} shared their availability. The trip is getting started!`
-          : 'Someone shared their availability. The trip is getting started!',
+          ? `${payload.travelerName} added their dates. The trip is getting started!`
+          : 'Someone added their dates. The trip is getting started!',
       }
 
     case NudgeType.AVAILABILITY_HALF_SUBMITTED:
       return {
         title: 'Halfway there!',
-        message: `${payload.travelerCount || 'Several'} people have shared their dates. Momentum is building.`,
+        message: `${payload.travelerCount || 'Several'} people have shared their dates. Looking good!`,
       }
 
     case NudgeType.STRONG_OVERLAP_DETECTED:
       return {
-        title: 'A winner emerges',
+        title: 'A date is pulling ahead',
         message: payload.dateRange
           ? `${payload.dateRange.label} works for ${payload.coverage?.count || 'most'} people!`
           : 'There\'s a date range that works for most people!',
@@ -93,10 +93,10 @@ export function getNudgeCopy(
 
     case NudgeType.DATES_LOCKED:
       return {
-        title: 'It\'s official!',
+        title: 'Dates confirmed!',
         message: payload.dateRange
           ? `The trip is happening ${payload.dateRange.label}. Time to plan the fun stuff!`
-          : 'The dates are locked. Time to plan the fun stuff!',
+          : 'The dates are confirmed. Time to plan the fun stuff!',
       }
 
     // ============ Leader Action Nudges ============
@@ -105,17 +105,17 @@ export function getNudgeCopy(
       return {
         title: 'Ready when you are',
         message: payload.dateRange
-          ? `${payload.dateRange.label} looks promising. You can propose it whenever you're ready.`
-          : 'There\'s a popular date option. You can propose it whenever you\'re ready.',
-        ctaLabel: 'Propose dates',
+          ? `${payload.dateRange.label} is looking good. You can suggest it whenever you're ready.`
+          : 'There\'s a popular date option. You can suggest it whenever you\'re ready.',
+        ctaLabel: 'Suggest to group',
       }
 
     case NudgeType.LEADER_CAN_LOCK_DATES:
       return {
         title: 'Ready to lock?',
         message: payload.dateRange
-          ? `${payload.dateRange.label} has support. Lock it in when you're confident.`
-          : 'The proposed dates have support. Lock them in when you\'re confident.',
+          ? `${payload.dateRange.label} has support. Lock it in when you're ready.`
+          : 'The proposed dates have support. Lock them in when you\'re ready.',
         ctaLabel: 'Lock dates',
       }
 
@@ -123,7 +123,7 @@ export function getNudgeCopy(
 
     case NudgeType.TRAVELER_TOO_MANY_WINDOWS:
       return {
-        message: `You've already shared ${payload.windowCount || 2} date options. Adding more might make it harder to find overlap.`,
+        message: `You've already shared ${payload.windowCount || 2} date options. Adding more might make it harder to find a match.`,
       }
 
     // ============ Confirmation Nudges ============
@@ -134,7 +134,7 @@ export function getNudgeCopy(
         message: payload.coverage
           ? `Only ${payload.coverage.count} of ${payload.coverage.total} people can make this date range. Still want to propose it?`
           : 'Not everyone can make this date range. Still want to propose it?',
-        ctaLabel: 'Propose anyway',
+        ctaLabel: 'Suggest anyway',
       }
 
     default:

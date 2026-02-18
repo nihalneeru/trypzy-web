@@ -130,9 +130,9 @@ const FEEDBACK_TYPES = [
   { value: 'general', label: 'General' },
   { value: 'add', label: 'Add something' },
   { value: 'remove', label: 'Remove something' },
-  { value: 'modify', label: 'Modify' },
-  { value: 'timing', label: 'Timing issue' },
-  { value: 'budget', label: 'Budget concern' }
+  { value: 'modify', label: 'Change something' },
+  { value: 'timing', label: 'Timing' },
+  { value: 'budget', label: 'Budget' }
 ]
 
 const REACTION_GROUPS = [
@@ -143,13 +143,13 @@ const REACTION_GROUPS = [
     advanced: false,
     reactions: [
       { id: 'pace:slow', label: 'Slower', emoji: '🐢', advanced: false },
-      { id: 'pace:balanced', label: 'Balanced', emoji: '⚖️', advanced: false },
+      { id: 'pace:balanced', label: 'Just right', emoji: '⚖️', advanced: false },
       { id: 'pace:fast', label: 'Faster', emoji: '⚡', advanced: false }
     ]
   },
   {
     category: 'focus',
-    label: 'Focus',
+    label: 'What matters most',
     exclusive: false,
     advanced: false,
     reactions: [
@@ -166,20 +166,20 @@ const REACTION_GROUPS = [
     exclusive: true,
     advanced: false,
     reactions: [
-      { id: 'budget:lower', label: 'Save', emoji: '💰', advanced: false },
+      { id: 'budget:lower', label: 'Budget-friendly', emoji: '💰', advanced: false },
       { id: 'budget:mid', label: 'Comfortable', emoji: '💵', advanced: false },
       { id: 'budget:high', label: 'Splurge', emoji: '💎', advanced: false }
     ]
   },
   {
     category: 'logistics',
-    label: 'Logistics',
+    label: 'Travel style',
     exclusive: false,
     advanced: true,
     reactions: [
       { id: 'logistics:fewer-moves', label: 'Fewer travel days', emoji: '🎒', advanced: true },
-      { id: 'logistics:short-days', label: 'Shorter daily travel', emoji: '⏱️', advanced: true },
-      { id: 'logistics:central-base', label: 'Centralized stays', emoji: '🏨', advanced: true }
+      { id: 'logistics:short-days', label: 'Shorter days', emoji: '⏱️', advanced: true },
+      { id: 'logistics:central-base', label: 'One home base', emoji: '🏨', advanced: true }
     ]
   }
 ]
@@ -626,7 +626,7 @@ export function ItineraryOverlay({
       )
       setNewIdeaText('')
       setHasUnsavedChanges(false)
-      toast.success('Idea submitted!')
+      toast.success('Idea added!')
       await loadIdeas()
       onRefresh() // Refresh trip to update ideaSummary for CTA bar
     } catch (error: any) {
@@ -665,7 +665,7 @@ export function ItineraryOverlay({
       setEditingDestinationHint(false)
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update destination hint')
+      toast.error(error.message || 'Couldn\'t update destination — try again')
     } finally {
       setSavingDestinationHint(false)
     }
@@ -694,7 +694,7 @@ export function ItineraryOverlay({
       // Pass updated trip if returned, otherwise trigger refetch
       onRefresh(result?.trip || undefined)
     } catch (error: any) {
-      const message = error.message || 'Failed to generate itinerary'
+      const message = error.message || 'Couldn\'t generate itinerary — try again'
       if (message.includes('AI features are disabled')) {
         setLlmDisabledMessage(message)
       }
@@ -731,7 +731,7 @@ export function ItineraryOverlay({
       // Pass updated trip if returned, otherwise trigger refetch
       onRefresh(result?.trip || undefined)
     } catch (error: any) {
-      const message = error.message || 'Failed to revise itinerary'
+      const message = error.message || 'Couldn\'t revise itinerary — try again'
 
       // Handle specific error codes
       if (error.code === 'VERSION_LIMIT_REACHED') {
@@ -766,7 +766,7 @@ export function ItineraryOverlay({
         },
         token
       )
-      toast.success('Feedback submitted!')
+      toast.success('Feedback added')
       setNewFeedback({ type: 'general', target: '', message: '' })
       setShowFeedbackForm(false)
       await loadFeedback()
@@ -870,14 +870,14 @@ export function ItineraryOverlay({
             Activity Ideas
           </CardTitle>
           <CardDescription>
-            Suggest up to {MAX_IDEAS_PER_USER} activities for the trip (max {MAX_IDEA_LENGTH} chars each)
+            Share up to {MAX_IDEAS_PER_USER} activity ideas
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Destination Hint (Leader only) */}
           {(trip?.destinationHint || isLeader) && (
             <div className="pb-3 border-b">
-              <p className="text-xs font-medium text-gray-500 mb-1">Destination Hint</p>
+              <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
               {editingDestinationHint && isLeader ? (
                 <div className="space-y-2">
                   <Input
@@ -921,7 +921,7 @@ export function ItineraryOverlay({
                   {trip?.destinationHint ? (
                     <p className="text-sm text-gray-700 flex-1">{trip.destinationHint}</p>
                   ) : (
-                    <p className="text-sm text-gray-400 italic flex-1">No destination hint set</p>
+                    <p className="text-sm text-gray-400 italic flex-1">No destination set</p>
                   )}
                   {isLeader && (
                     <Edit2 className="h-3 w-3 text-gray-400 shrink-0 mt-0.5" />
@@ -948,7 +948,7 @@ export function ItineraryOverlay({
               />
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>{newIdeaText.length}/{MAX_IDEA_LENGTH} characters</span>
-                <span>{userIdeaCount}/{MAX_IDEAS_PER_USER} ideas submitted</span>
+                <span>{userIdeaCount}/{MAX_IDEAS_PER_USER} ideas added</span>
               </div>
               <Button
                 onClick={handleAddIdea}
@@ -956,7 +956,7 @@ export function ItineraryOverlay({
                 className="w-full"
                 size="sm"
               >
-                {addingIdea ? 'Submitting...' : 'Submit Idea'}
+                {addingIdea ? 'Adding...' : 'Add idea'}
               </Button>
               {viewerIsReadOnly && readOnlyReason && (
                 <p className="text-xs text-gray-500 text-center mt-1">{readOnlyReason}</p>
@@ -964,7 +964,7 @@ export function ItineraryOverlay({
             </div>
           ) : (
             <div className="text-center py-4 px-2 bg-gray-50 rounded-lg border">
-              <p className="text-sm text-gray-600">You've submitted {MAX_IDEAS_PER_USER} ideas</p>
+              <p className="text-sm text-gray-600">You've added all {MAX_IDEAS_PER_USER} ideas</p>
             </div>
           )}
 
@@ -1117,7 +1117,7 @@ export function ItineraryOverlay({
                   </p>
                 ) : (
                   <p className="text-xs text-gray-400">
-                    The organizer will generate an itinerary once ideas are collected.
+                    The leader will generate an itinerary once ideas are in.
                   </p>
                 )}
                 {llmDisabledMessage && (
@@ -1387,7 +1387,7 @@ export function ItineraryOverlay({
                   </div>
                 ) : feedback.length === 0 ? (
                   <p className="text-center text-gray-500 py-6 text-sm">
-                    No feedback yet. Share your thoughts!
+                    No feedback yet — be the first!
                   </p>
                 ) : (
                   <div className="space-y-2 pr-2">
@@ -1465,7 +1465,7 @@ export function ItineraryOverlay({
                     className="w-full"
                     size="sm"
                   >
-                    {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                    {submittingFeedback ? 'Adding...' : 'Add feedback'}
                   </Button>
                 </div>
               </CollapsibleContent>

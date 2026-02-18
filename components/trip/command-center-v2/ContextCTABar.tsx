@@ -133,7 +133,7 @@ export function ContextCTABar({
       )
       if (!userReacted) {
         return {
-          label: 'Share your thoughts',
+          label: 'React to dates',
           icon: MessageCircle,
           overlayType: 'scheduling',
           priority: 1,
@@ -141,7 +141,7 @@ export function ContextCTABar({
         }
       }
       return {
-        label: 'Awaiting lock',
+        label: 'Waiting for lock',
         icon: Clock,
         overlayType: 'scheduling',
         priority: 1,
@@ -188,7 +188,7 @@ export function ContextCTABar({
       // 4a. User has < 2 ideas: encourage adding more
       if (userIdeasCount < 2) {
         return {
-          label: 'Suggest an idea',
+          label: 'Add an idea',
           icon: Lightbulb,
           overlayType: 'itinerary',
           priority: 4,
@@ -223,7 +223,7 @@ export function ContextCTABar({
       // Leader: Select accommodation
       if (isLeader) {
         return {
-          label: 'Select stay',
+          label: 'Pick a stay',
           icon: Check,
           overlayType: 'accommodation',
           priority: 6,
@@ -234,7 +234,7 @@ export function ContextCTABar({
       // P1-5: Use inviting language - "Share your pick" instead of "Vote now"
       if (!userHasVotedOnAccommodation) {
         return {
-          label: 'Share your pick',
+          label: 'Vote on stays',
           icon: ThumbsUp,
           overlayType: 'accommodation',
           priority: 6,

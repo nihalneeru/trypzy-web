@@ -167,7 +167,7 @@ export function MemberProfileOverlay({
       const data = await api(`/users/${memberId}/profile`, { method: 'GET' }, token)
       setProfile(data)
     } catch (error: any) {
-      setProfileError(error.message || 'Failed to load profile')
+      setProfileError(error.message || 'Couldn\'t load profile — try again')
     } finally {
       setLoading(false)
     }
@@ -197,7 +197,7 @@ export function MemberProfileOverlay({
       )
       setJoinRequestStatuses(statuses)
     } catch (error: any) {
-      setTripsError(error.message || 'Failed to load upcoming trips')
+      setTripsError(error.message || 'Couldn\'t load trips — try again')
     } finally {
       setLoadingTrips(false)
     }
@@ -253,7 +253,7 @@ export function MemberProfileOverlay({
         }))
         toast.info('You are already on this trip')
       } else {
-        toast.error(error.message || 'Failed to submit join request')
+        toast.error(error.message || 'Couldn\'t send request — try again')
       }
     } finally {
       setSubmittingRequest(false)
@@ -482,10 +482,10 @@ export function MemberProfileOverlay({
                           <Badge variant="default" className="text-xs">On this trip</Badge>
                         )}
                         <Badge variant={trip.status === 'locked' ? 'default' : 'secondary'} className="text-xs">
-                          {trip.status === 'locked' ? 'Finalized' :
+                          {trip.status === 'locked' ? 'Dates set' :
                            trip.status === 'voting' ? 'Voting' :
-                           trip.status === 'scheduling' ? 'Scheduling' :
-                           trip.status === 'proposed' ? 'Proposed' : trip.status}
+                           trip.status === 'scheduling' ? 'Picking dates' :
+                           trip.status === 'proposed' ? 'New' : trip.status}
                         </Badge>
                       </div>
                     </div>
@@ -505,12 +505,12 @@ export function MemberProfileOverlay({
               Request to join {selectedTrip?.name}
             </DialogTitle>
             <DialogDescription>
-              Send a message to the Trip Leader (optional)
+              Say hi or let the leader know why you'd like to join (optional)
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Textarea
-              placeholder="Add a message..."
+              placeholder="Say hi or mention why you'd like to join"
               value={joinMessage}
               onChange={(e) => setJoinMessage(e.target.value)}
               rows={3}

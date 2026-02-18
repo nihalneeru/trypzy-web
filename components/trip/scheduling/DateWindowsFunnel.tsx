@@ -951,7 +951,7 @@ export function DateWindowsFunnel({
                     Maybe
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>I might be able to make this work</TooltipContent>
+                <TooltipContent>I might be able to make this</TooltipContent>
               </Tooltip>
             </TooltipProvider>
             <TooltipProvider>
@@ -1000,8 +1000,8 @@ export function DateWindowsFunnel({
                 )}
               </div>
               <p className="text-xs text-center text-muted-foreground mt-1">
-                {approvalSummary.totalReactions} of {approvalSummary.memberCount} responded
-                {!canLock && ` • ${approvalSummary.requiredApprovals} approvals needed`}
+                {approvalSummary.totalReactions} of {approvalSummary.memberCount} have responded
+                {!canLock && ` • ${approvalSummary.requiredApprovals - (approvalSummary.approvals || 0)} more needed to lock`}
               </p>
               {/* Show who reacted */}
               {approvalSummary.reactions.length > 0 && (
@@ -1044,7 +1044,7 @@ export function DateWindowsFunnel({
               disabled={submitting}
             >
               <Lock className="h-4 w-4 mr-2" />
-              {canLock ? 'Lock these dates' : `Lock dates (${approvalSummary?.approvals || 0} of ${approvalSummary?.requiredApprovals || '?'} approvals so far)`}
+              {canLock ? 'Lock these dates' : `Lock dates (${(approvalSummary?.requiredApprovals || 0) - (approvalSummary?.approvals || 0)} more approvals needed)`}
             </Button>
 
             {/* Secondary: Change proposal (withdraw and go back to COLLECTING) */}
@@ -1055,7 +1055,7 @@ export function DateWindowsFunnel({
               disabled={submitting}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Change proposal
+              Try different dates
             </Button>
           </div>
         )}
@@ -1064,8 +1064,8 @@ export function DateWindowsFunnel({
         {!isLeader && (
           <p className="text-sm text-center text-muted-foreground pt-2 border-t">
             {canLock
-              ? 'Waiting for the trip leader to lock dates.'
-              : `The leader can lock dates once ${approvalSummary?.requiredApprovals || '?'} travelers approve.`
+              ? 'Waiting for the leader to lock dates.'
+              : `The leader can lock once ${approvalSummary?.requiredApprovals || '?'} travelers approve.`
             }
           </p>
         )}
@@ -1074,7 +1074,7 @@ export function DateWindowsFunnel({
         <AlertDialog open={showLockConfirm} onOpenChange={setShowLockConfirm}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Lock these dates?</AlertDialogTitle>
+              <AlertDialogTitle>Lock in these dates?</AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-2">
                   {proposedWindow && (
@@ -1092,7 +1092,7 @@ export function DateWindowsFunnel({
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground">
-                    Once locked, the trip dates cannot be changed. Everyone can then start planning the itinerary.
+                    These dates will be final — everyone will be notified.
                   </p>
                 </div>
               </AlertDialogDescription>
@@ -1105,7 +1105,7 @@ export function DateWindowsFunnel({
                   disabled={submitting}
                   className="bg-brand-red hover:bg-brand-red/90"
                 >
-                  {submitting ? 'Locking...' : 'Move forward'}
+                  {submitting ? 'Locking...' : 'Lock anyway'}
                 </AlertDialogAction>
               )}
               {canLock && (
@@ -1137,7 +1137,7 @@ export function DateWindowsFunnel({
         <h3 className="text-lg font-semibold text-brand-carbon">When works for everyone?</h3>
         {stats && (
           <p className="text-sm text-muted-foreground">
-            {stats.responderCount} of {stats.totalTravelers} travelers have responded
+            {stats.responderCount} of {stats.totalTravelers} travelers have weighed in
           </p>
         )}
       </div>
@@ -1214,10 +1214,10 @@ export function DateWindowsFunnel({
             <span className="flex items-center">
               <Plus className="h-4 w-4 mr-2" />
               {!isActiveParticipant
-                ? 'View only — not a traveler'
+                ? "View only — you're not on this trip"
                 : canCreateWindow
                 ? `Add your dates (${remainingWindows} left)`
-                : `Limit reached (${maxWindows}/${maxWindows})`
+                : `You've added ${maxWindows} — support an existing option`
               }
             </span>
             {canCreateWindow && (showAddWindow ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />)}
@@ -1230,11 +1230,11 @@ export function DateWindowsFunnel({
               {showSimilarNudge && similarWindow && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <p className="text-sm font-medium text-amber-800 mb-2">
-                    This looks similar to an existing option:
+                    This looks similar to a date already suggested:
                   </p>
                   <p className="text-sm text-amber-700 mb-3">
                     {formatDate(similarWindow.startDate)} – {formatDate(similarWindow.endDate)}
-                    <span className="text-xs ml-1">({similarWindow.supportCount} supporters)</span>
+                    <span className="text-xs ml-1">({similarWindow.supportCount} can go)</span>
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -1242,7 +1242,7 @@ export function DateWindowsFunnel({
                       onClick={() => handleSupport(similarWindow.id)}
                       className="flex-1 bg-brand-blue hover:bg-brand-blue/90"
                     >
-                      Support existing
+                      I can make this
                     </Button>
                     {remainingWindows > 0 && (
                       <Button
@@ -1252,7 +1252,7 @@ export function DateWindowsFunnel({
                         disabled={submitting}
                         className="flex-1"
                       >
-                        Create anyway
+                        Add mine anyway
                       </Button>
                     )}
                   </div>
@@ -1306,7 +1306,7 @@ export function DateWindowsFunnel({
                           className="mt-1"
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Examples: "Feb 7-9", "mid March", "last weekend of June", "April"
+                          Try: "Feb 7–9", "mid March", "last weekend of June"
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
                           You can change your dates anytime until they're locked.
@@ -1331,7 +1331,7 @@ export function DateWindowsFunnel({
       {/* At cap message */}
       {!canCreateWindow && (
         <p className="text-sm text-center text-muted-foreground">
-          You've suggested {maxWindows} dates. Support an existing option below.
+          You've added {maxWindows} dates. See one that works? Tap "I can make this".
         </p>
       )}
 
@@ -1339,7 +1339,7 @@ export function DateWindowsFunnel({
       {sortedWindows.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <CalendarIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>No suggestions yet. Share dates like "Feb 7-9" or "first week of April"</p>
+          <p>No dates yet. Add yours — something like "Feb 7–9" or "first week of April"</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -1365,17 +1365,17 @@ export function DateWindowsFunnel({
                         </span>
                         {isLeading && (
                           <Badge variant="outline" className="text-xs bg-brand-blue/10 text-brand-blue border-brand-blue/30">
-                            Leading
+                            Most popular
                           </Badge>
                         )}
                         {window.precision === 'approx' && (
                           <Badge variant="outline" className="text-xs">
-                            ~approx
+                            Flexible
                           </Badge>
                         )}
                         {window.precision === 'unstructured' && (
                           <Badge variant="outline" className="text-xs">
-                            approximate
+                            Flexible
                           </Badge>
                         )}
                       </div>
@@ -1423,7 +1423,7 @@ export function DateWindowsFunnel({
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Remove your suggestion</TooltipContent>
+                            <TooltipContent>Remove your dates</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       )}
@@ -1440,13 +1440,13 @@ export function DateWindowsFunnel({
                                 disabled={submitting}
                                 className="text-brand-red hover:text-brand-red hover:bg-brand-red/10"
                               >
-                                {submitting ? 'Proposing...' : 'Propose'}
+                                {submitting ? 'Suggesting...' : 'Suggest to group'}
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
                               {proposalStatus?.proposalReady
-                                ? 'Put this to the group for feedback'
-                                : 'Put to group — some travelers haven\'t weighed in yet'}
+                                ? 'Suggest these dates and get reactions'
+                                : 'Suggest to group — some travelers haven\'t weighed in yet'}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -1477,7 +1477,7 @@ export function DateWindowsFunnel({
                       ? <> <strong>{formatWindowDisplay(leadingWindow)}</strong> leads with {leaderCount}.</>
                       : null
                     }
-                    {' '}You can propose any option when ready.
+                    {' '}You can suggest any option when ready.
                   </p>
                 </CardContent>
               </Card>
@@ -1489,7 +1489,7 @@ export function DateWindowsFunnel({
               <Card className="border-brand-blue/20 bg-blue-50/20">
                 <CardContent className="py-4">
                   <p className="text-sm text-muted-foreground text-center">
-                    Over half the group has responded ({stats.responderCount} of {stats.totalTravelers}).
+                    Over half the group has weighed in ({stats.responderCount} of {stats.totalTravelers}).
                     {leadingWindow && leaderCount > 0
                       ? <> <strong>{formatWindowDisplay(leadingWindow)}</strong> leads with {leaderCount} supporter{leaderCount !== 1 ? 's' : ''}.</>
                       : null
@@ -1534,7 +1534,7 @@ export function DateWindowsFunnel({
                     ? 'Analyzing chat and windows...'
                     : hasInsight && insightData?.isStale
                       ? 'Update insights'
-                      : 'Generate scheduling insights'
+                      : 'Generate date insights'
                   }
                 </Button>
               )}
@@ -1553,7 +1553,7 @@ export function DateWindowsFunnel({
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold text-brand-carbon flex items-center gap-1.5">
                         <Sparkles className="h-3.5 w-3.5 text-brand-blue" />
-                        Scheduling Insights
+                        Date insights
                         {insightData?.isLeader && insightData?.generationCount > 0 && (
                           <span className="text-[10px] font-normal text-muted-foreground">
                             {insightData.generationCount}/{insightData.maxGenerations}
@@ -1573,7 +1573,7 @@ export function DateWindowsFunnel({
                     {/* Preferences */}
                     {output.preferences?.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-brand-carbon mb-1">Preferences mentioned</p>
+                        <p className="text-xs font-medium text-brand-carbon mb-1">Preferences from the group</p>
                         <ul className="space-y-1">
                           {output.preferences.map((p: any, i: number) => (
                             <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
@@ -1593,7 +1593,7 @@ export function DateWindowsFunnel({
                     {/* Avoids / Conflicts */}
                     {output.avoids?.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-brand-carbon mb-1">Conflicts or dates to avoid</p>
+                        <p className="text-xs font-medium text-brand-carbon mb-1">Dates to avoid</p>
                         <ul className="space-y-1">
                           {output.avoids.map((a: any, i: number) => (
                             <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">

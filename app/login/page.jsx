@@ -255,7 +255,7 @@ function LoginPageContent() {
 
         <Card className="shadow-xl border-0">
           <CardHeader>
-            <CardTitle>Welcome Back</CardTitle>
+            <CardTitle>Welcome back</CardTitle>
             <CardDescription>
               Sign in to continue planning
             </CardDescription>
