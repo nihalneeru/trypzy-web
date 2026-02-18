@@ -65,9 +65,9 @@ export function TransferLeadershipDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Transfer leadership to leave</DialogTitle>
+          <DialogTitle>Pass the lead before leaving</DialogTitle>
           <DialogDescription>
-            You must transfer leadership to another active member before leaving this trip.
+            Pick someone to take over before you go.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">

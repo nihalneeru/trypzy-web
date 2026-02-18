@@ -304,7 +304,7 @@ export function PostCard({
             <Textarea
               value={reportReason}
               onChange={(e) => setReportReason(e.target.value)}
-              placeholder="Describe the issue..."
+              placeholder="What's wrong with this post?"
               rows={3}
             />
           </div>

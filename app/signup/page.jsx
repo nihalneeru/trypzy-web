@@ -273,7 +273,7 @@ function SignupPageContent() {
 
         <Card className="shadow-xl border-0">
           <CardHeader>
-            <CardTitle>Create Account</CardTitle>
+            <CardTitle>Create account</CardTitle>
             <CardDescription>
               Start planning trips with friends
             </CardDescription>

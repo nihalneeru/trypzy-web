@@ -234,7 +234,7 @@ export function AccommodationOverlay({
       setStayRequirements(staysData || [])
     } catch (err: any) {
       console.error('Failed to load accommodation data:', err)
-      setError(err.message || 'Failed to load accommodation data')
+      setError(err.message || 'Couldn\'t load stay options — try again')
     } finally {
       setLoading(false)
     }
@@ -257,7 +257,7 @@ export function AccommodationOverlay({
   const handleAdd = async () => {
     if (!formTitle.trim() || adding || viewerIsReadOnly) return
     if (userOptionCount >= MAX_OPTIONS_PER_USER) {
-      toast.error(`You can only submit ${MAX_OPTIONS_PER_USER} accommodation options`)
+      toast.error(`You can add up to ${MAX_OPTIONS_PER_USER} stay options`)
       return
     }
 
@@ -274,7 +274,7 @@ export function AccommodationOverlay({
         })
       }, token)
 
-      toast.success('Accommodation option added!')
+      toast.success('Stay option added!')
       resetForm()
       await loadData()
       onRefresh?.()
@@ -315,7 +315,7 @@ export function AccommodationOverlay({
         method: 'POST'
       }, token)
 
-      toast.success('Vote recorded')
+      toast.success('Vote saved')
       await loadData()
       onRefresh?.()
     } catch (err: any) {
@@ -340,13 +340,13 @@ export function AccommodationOverlay({
         method: 'POST'
       }, token)
 
-      toast.success('Accommodation selected!')
+      toast.success('Stay confirmed!')
       setShowSelectConfirm(false)
       setOptionToSelect(null)
       await loadData()
       onRefresh?.(result?.trip || undefined)
     } catch (err: any) {
-      toast.error(err.message || 'Could not select accommodation — please try again')
+      toast.error(err.message || 'Couldn\'t confirm stay — try again')
     } finally {
       setSelecting(false)
     }
@@ -357,10 +357,9 @@ export function AccommodationOverlay({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Lock className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Dates Not Locked</h3>
+        <h3 className="text-lg font-medium text-brand-carbon mb-2">Dates not confirmed yet</h3>
         <p className="text-gray-500 max-w-sm">
-          Accommodation planning is only available after dates are locked.
-          Complete the scheduling phase first.
+          Stay options open up once your dates are confirmed.
         </p>
       </div>
     )
@@ -371,7 +370,7 @@ export function AccommodationOverlay({
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <BrandedSpinner size="md" className="mb-4" />
-        <p className="text-gray-500">Loading accommodation options...</p>
+        <p className="text-gray-500">Loading stay options...</p>
       </div>
     )
   }
@@ -412,7 +411,7 @@ export function AccommodationOverlay({
                   <>
                     <p className="text-sm font-medium text-brand-carbon">Want personalized stay suggestions?</p>
                     <p className="text-xs text-gray-600 mt-1">
-                      Generate your trip itinerary first — it'll help narrow down where to stay based on your group's plans.
+                      Generate your itinerary first — it'll suggest locations based on your group's plans.
                     </p>
                     {onOpenOverlay && (
                       <Button
@@ -421,7 +420,7 @@ export function AccommodationOverlay({
                         className="mt-2 text-xs"
                         onClick={() => onOpenOverlay('itinerary')}
                       >
-                        Generate Itinerary →
+                        Generate itinerary →
                       </Button>
                     )}
                   </>
@@ -429,8 +428,8 @@ export function AccommodationOverlay({
                   <>
                     <p className="text-sm font-medium text-brand-carbon">Want personalized stay suggestions?</p>
                     <p className="text-xs text-gray-600 mt-1">
-                      Ask your trip leader to generate the itinerary — it'll include stay guidance based on the group's plans.
-                      You can also add options below anytime.
+                      Ask your leader to generate the itinerary — it'll suggest stays based on your group's plans.
+                      You can add options anytime.
                     </p>
                   </>
                 )}
@@ -526,19 +525,19 @@ export function AccommodationOverlay({
         <Card>
           <CardContent className="pt-4 pb-4 space-y-3">
             <p className="text-xs font-medium text-gray-500">
-              Suggest an accommodation option ({userOptionCount}/{MAX_OPTIONS_PER_USER} submitted)
+              Add a stay option ({userOptionCount}/{MAX_OPTIONS_PER_USER} added)
             </p>
             <Input
               value={formTitle}
               onChange={(e) => setFormTitle(e.target.value)}
-              placeholder="Option name (e.g., Cozy apartment in city center)"
+              placeholder="Stay name (e.g., cozy apartment in city center)"
               className="text-sm"
               disabled={viewerIsReadOnly || adding}
             />
             <Input
               value={formUrl}
               onChange={(e) => setFormUrl(e.target.value)}
-              placeholder="Link (optional - Airbnb, Booking, etc.)"
+              placeholder="Link (optional — Airbnb, Booking, etc.)"
               className="text-sm"
               type="url"
               disabled={viewerIsReadOnly || adding}
@@ -555,7 +554,7 @@ export function AccommodationOverlay({
             <Textarea
               value={formNotes}
               onChange={(e) => setFormNotes(e.target.value)}
-              placeholder="Notes (optional - why you like this option, amenities, etc.)"
+              placeholder="Notes (optional — why you like this, amenities, etc.)"
               className="text-sm min-h-[60px] resize-none"
               disabled={viewerIsReadOnly || adding}
             />
@@ -565,14 +564,14 @@ export function AccommodationOverlay({
               className="w-full"
               size="sm"
             >
-              {adding ? 'Submitting...' : 'Submit Option'}
+              {adding ? 'Adding...' : 'Add stay'}
             </Button>
           </CardContent>
         </Card>
       ) : !accommodationConfirmed && userOptionCount >= MAX_OPTIONS_PER_USER ? (
         <div className="text-center py-3 px-2 bg-gray-50 rounded-lg border">
           <p className="text-sm text-gray-600">
-            You've submitted {MAX_OPTIONS_PER_USER} options
+            You've added {MAX_OPTIONS_PER_USER} options
           </p>
         </div>
       ) : null}
@@ -582,7 +581,7 @@ export function AccommodationOverlay({
         <div className="p-4 bg-green-50 rounded-lg border border-green-200">
           <div className="flex items-center gap-2 text-green-800 mb-2">
             <Check className="h-5 w-5" />
-            <span className="font-medium">Accommodation Confirmed</span>
+            <span className="font-medium">Stay confirmed</span>
           </div>
           <h4 className="font-medium text-gray-900">{selectedOption.title}</h4>
           {selectedOption.priceRange && (
@@ -605,15 +604,15 @@ export function AccommodationOverlay({
       {/* Options List */}
       <div>
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-          All Options ({accommodations.length})
+          Stay options ({accommodations.length})
         </h3>
         <ScrollArea className="h-[250px] md:h-[350px]">
           {accommodations.length === 0 ? (
             <div className="text-center py-8">
               <Home className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 mb-1 text-sm">No options yet</p>
+              <p className="text-gray-500 mb-1 text-sm">No stays yet</p>
               <p className="text-xs text-gray-400">
-                Share a link, name, and price to help the group decide where to stay
+                Add a stay option to help the group decide
               </p>
             </div>
           ) : (
@@ -770,9 +769,9 @@ export function AccommodationOverlay({
       <AlertDialog open={showSelectConfirm} onOpenChange={setShowSelectConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Selection</AlertDialogTitle>
+            <AlertDialogTitle>Confirm this stay?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to select this accommodation? This will mark it as the chosen option for the trip.
+              This will be your group's stay for the trip. Everyone will be notified.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -782,7 +781,7 @@ export function AccommodationOverlay({
               disabled={selecting}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {selecting ? 'Selecting...' : 'Confirm Selection'}
+              {selecting ? 'Confirming...' : 'Confirm stay'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

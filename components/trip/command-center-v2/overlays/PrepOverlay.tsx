@@ -132,7 +132,7 @@ export function PrepOverlay({
       setError(null)
     } catch (err: any) {
       console.error('Failed to load prep data:', err)
-      setError(err.message || 'Failed to load prep data')
+      setError(err.message || 'Couldn\'t load prep data — try again')
     } finally {
       setLoading(false)
     }
@@ -156,7 +156,7 @@ export function PrepOverlay({
   const handleAddTransport = async () => {
     if (isReadOnly) return
     if (!newTransport.fromLocation.trim() || !newTransport.toLocation.trim()) {
-      toast.error('Please fill in from and to locations')
+      toast.error('Enter departure and arrival locations')
       return
     }
 
@@ -201,7 +201,7 @@ export function PrepOverlay({
         })
       }, token)
 
-      toast.success('Item added to packing list')
+      toast.success('Added to packing list')
       setShowPackingForm(false)
       setNewPackingItem({
         title: '',
@@ -247,7 +247,7 @@ export function PrepOverlay({
       // Note: no onRefresh() — transport suggestions don't change trip-level state,
       // and onRefresh() triggers a full trip re-render that closes the overlay.
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate suggestions')
+      toast.error(error.message || 'Couldn\'t generate suggestions — try again')
     } finally {
       setGeneratingSuggestions(false)
     }
@@ -290,11 +290,11 @@ export function PrepOverlay({
         method: 'POST'
       }, token)
 
-      toast.success('Prep marked as complete')
+      toast.success('Prep complete')
       loadPrepData()
       onRefresh()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to mark prep complete')
+      toast.error(error.message || 'Couldn\'t mark prep complete — try again')
     } finally {
       setMarkingComplete(false)
     }
@@ -373,7 +373,7 @@ export function PrepOverlay({
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Lock className="h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Prep Not Available</h3>
-        <p className="text-gray-500">Trip preparation is only available after dates are locked.</p>
+        <p className="text-gray-500">Prep opens up once your dates are confirmed.</p>
       </div>
     )
   }
@@ -600,7 +600,7 @@ export function PrepOverlay({
                     <Textarea
                       value={newTransport.notes}
                       onChange={(e) => setNewTransport({ ...newTransport, notes: e.target.value })}
-                      placeholder="Additional details..."
+                      placeholder="Any extra details..."
                       rows={2}
                       className="text-sm"
                     />

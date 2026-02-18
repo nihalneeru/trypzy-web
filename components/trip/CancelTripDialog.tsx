@@ -41,9 +41,9 @@ export function CancelTripDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>You're the last traveler</DialogTitle>
+          <DialogTitle>You're the last one here</DialogTitle>
           <DialogDescription>
-            Since there's no one to transfer leadership to, canceling will end the trip for everyone.
+            There's no one to hand the trip to — canceling will end it for everyone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">

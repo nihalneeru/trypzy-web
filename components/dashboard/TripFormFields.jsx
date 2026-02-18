@@ -32,7 +32,7 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
         <Input
           value={tripForm.name}
           onChange={(e) => handleNameChange(e.target.value)}
-          placeholder="Summer Beach Trip"
+          placeholder="e.g., Beach weekend in Miami"
         />
       </div>
       <div className="space-y-2">
@@ -75,14 +75,14 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="collaborative">Collaborative (everyone votes on dates)</SelectItem>
-            <SelectItem value="hosted">Hosted (fixed dates, join if available)</SelectItem>
+            <SelectItem value="collaborative">Flexible dates (group picks together)</SelectItem>
+            <SelectItem value="hosted">Fixed dates (already decided)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-xs text-gray-500 mt-1">
           {tripForm.type === 'collaborative'
-            ? "Your group suggests and votes on dates together. Best for flexible planning."
-            : "You set the dates, others join if they can. Best when dates are already decided."}
+            ? "Your group suggests dates and picks what works. Best when dates are flexible."
+            : "Dates are set — others join if they can make it."}
         </p>
       </div>
       {tripForm.type === 'collaborative' && (
@@ -114,19 +114,19 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
       )}
       <div className="space-y-2">
         <Label>
-          {tripForm.type === 'hosted' ? 'Trip Dates' : 'Planning Window'}
+          {tripForm.type === 'hosted' ? 'Trip dates' : 'Date range'}
           {tripForm.type === 'collaborative' && (
             <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
           )}
         </Label>
         <p className="text-xs text-gray-500">
           {tripForm.type === 'hosted'
-            ? 'Set the fixed dates for your trip. Participants join if they can make it.'
-            : 'Optionally set a date range. Your group can suggest windows and finalize dates later.'}
+            ? 'Set the fixed dates for your trip. Others join if they can make it.'
+            : 'Set a general range. Your group can suggest dates and narrow it down.'}
         </p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>{tripForm.type === 'hosted' ? 'Start date' : 'Earliest possible date'}</Label>
+            <Label>{tripForm.type === 'hosted' ? 'Start date' : 'Earliest date'}</Label>
             <Input
               type="date"
               value={tripForm.startDate}
@@ -136,7 +136,7 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
             />
           </div>
           <div className="space-y-2">
-            <Label>{tripForm.type === 'hosted' ? 'End date' : 'Latest possible date'}</Label>
+            <Label>{tripForm.type === 'hosted' ? 'End date' : 'Latest date'}</Label>
             <Input
               type="date"
               value={tripForm.endDate}

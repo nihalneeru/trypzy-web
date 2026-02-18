@@ -35,7 +35,7 @@ import {
  * @returns {string}
  */
 function formatDateRange(startDate, endDate) {
-  if (!startDate || !endDate) return 'Dates not locked'
+  if (!startDate || !endDate) return 'Dates not set'
   
   const start = new Date(startDate)
   const end = new Date(endDate)
@@ -114,7 +114,7 @@ export function TripCard({ trip, circleId = null }) {
     } else {
       // Fallback: use generic action text based on status
       if (trip.status === 'proposed' || trip.status === 'scheduling') {
-        primaryLabel = trip.schedulingMode === 'top3_heatmap' ? 'Pick your dates' : 'Mark availability'
+        primaryLabel = trip.schedulingMode === 'top3_heatmap' ? 'Pick your dates' : 'Add your dates'
       } else if (trip.status === 'voting') {
         primaryLabel = 'Vote on dates'
       }
@@ -146,7 +146,7 @@ export function TripCard({ trip, circleId = null }) {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Click to open trip</p>
+                  <p>Open trip</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -169,7 +169,7 @@ export function TripCard({ trip, circleId = null }) {
             <span className="line-clamp-1">
               {trip.startDate && trip.endDate 
                 ? formatTripDateRange(trip.startDate, trip.endDate)
-                : 'Dates not locked'}
+                : 'Dates not set'}
             </span>
           </div>
           

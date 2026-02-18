@@ -31,7 +31,7 @@ export function WelcomePage() {
   }, [])
   // Trip progress milestones in order
   const milestones = [
-    { icon: Lightbulb, label: 'Trip Idea' },
+    { icon: Lightbulb, label: 'Trip idea' },
     { icon: CalendarIcon, label: 'Dates' },
     { icon: ListTodo, label: 'Itinerary' },
     { icon: Home, label: 'Stay' },
@@ -69,7 +69,7 @@ export function WelcomePage() {
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12 lg:py-20">
           <div className="text-center">
             <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6 sm:mb-10">
-              Plan trips together — without coordination chaos.
+              Plan trips together — without the chaos.
             </h1>
 
             {/* Visual Flow Graphic - All 8 milestones */}

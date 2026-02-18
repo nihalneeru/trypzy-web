@@ -150,7 +150,7 @@ describe('Nudge Surfacing Pipeline', () => {
 
       const chatText = buildChatMessage(nudge.type, nudge.payload)
       expect(chatText).toContain('🎉')
-      expect(chatText).toContain('availability')
+      expect(chatText).toContain('dates')
     })
   })
 

@@ -77,7 +77,7 @@ export function CreateCircleDialog({ open, onOpenChange, onSuccess, token }) {
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="College Friends"
+              placeholder="e.g., College friends"
             />
           </div>
           <div className="space-y-2">
@@ -85,7 +85,7 @@ export function CreateCircleDialog({ open, onOpenChange, onSuccess, token }) {
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Our adventure crew"
+              placeholder="e.g., Weekend warriors, travel buddies..."
             />
           </div>
         </div>

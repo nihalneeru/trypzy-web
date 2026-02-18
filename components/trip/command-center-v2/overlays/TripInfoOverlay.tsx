@@ -81,7 +81,7 @@ export function TripInfoOverlay({
       toast.success('Invite code copied')
       setTimeout(() => setCopied(false), 2000)
     } else {
-      toast.error('Failed to copy invite code')
+      toast.error('Couldn\'t copy invite code')
     }
   }
 
@@ -150,7 +150,7 @@ export function TripInfoOverlay({
 
       if (!response.ok) {
         const err = await response.json()
-        throw new Error(err.error || 'Failed to update trip')
+        throw new Error(err.error || 'Couldn\'t update trip — try again')
       }
 
       const updatedTrip = await response.json()
@@ -217,7 +217,7 @@ export function TripInfoOverlay({
               variant="outline"
               className={trip.type === 'hosted' ? 'border-amber-500 text-amber-700' : 'border-brand-blue text-brand-blue'}
             >
-              {trip.type === 'hosted' ? 'Hosted Trip' : 'Collaborative Trip'}
+              {trip.type === 'hosted' ? 'Fixed dates' : 'Flexible dates'}
             </Badge>
             {isLocked && (
               <Badge variant="outline" className="border-brand-blue bg-brand-blue text-white">Dates Locked</Badge>

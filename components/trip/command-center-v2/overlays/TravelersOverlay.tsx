@@ -239,13 +239,13 @@ export function TravelersOverlay({
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Failed to send join request')
+        throw new Error(err.error || 'Couldn\'t send join request')
       }
       toast.success('Join request sent!')
       setJoinRequestStatus('pending')
       onRefresh()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to send join request')
+      toast.error(err.message || 'Couldn\'t send request — try again')
     } finally {
       setSubmittingJoinRequest(false)
     }
@@ -338,14 +338,14 @@ export function TravelersOverlay({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || `Failed to ${action} invitation`)
+        throw new Error(error.error || `Couldn't ${action} invitation`)
       }
 
       toast.success(action === 'accept' ? 'You joined the trip!' : 'Invitation declined')
       setMyInvitation(null)
       onRefresh()
     } catch (err: any) {
-      toast.error(err.message || `Failed to ${action} invitation`)
+      toast.error(err.message || `Couldn't ${action} invitation — try again`)
     } finally {
       setProcessingInvitation(false)
     }
@@ -367,7 +367,7 @@ export function TravelersOverlay({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to process request')
+        throw new Error(error.error || 'Couldn\'t process request')
       }
 
       // P0-3: Get updated trip for immediate UI refresh (travelers list + progress)
@@ -377,7 +377,7 @@ export function TravelersOverlay({
       onRefresh(result?.trip || undefined)
       await loadJoinRequests()
     } catch (error: any) {
-      toast.error(error.message || 'Failed to process request')
+      toast.error(error.message || 'Couldn\'t process request — try again')
     } finally {
       setProcessingRequest(null)
     }
@@ -389,7 +389,7 @@ export function TravelersOverlay({
     setLeaving(true)
     try {
       await api(`/trips/${trip.id}/leave`, { method: 'POST' }, token)
-      toast.success('You have left the trip')
+      toast.success('You left the trip')
       setShowLeaveDialog(false)
       onRefresh()
       onClose()
@@ -421,7 +421,7 @@ export function TravelersOverlay({
       onRefresh()
       onClose()
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to leave trip'
+      const errorMessage = err.message || 'Couldn\'t leave trip — try again'
       toast.error(errorMessage)
     } finally {
       setLeaving(false)
@@ -441,7 +441,7 @@ export function TravelersOverlay({
       onRefresh()
       onClose()
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to cancel trip'
+      const errorMessage = err.message || 'Couldn\'t cancel trip — try again'
       toast.error(errorMessage)
     } finally {
       setCanceling(false)
@@ -476,7 +476,7 @@ export function TravelersOverlay({
       setShowStandaloneTransferDialog(false)
       onRefresh()
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to initiate leadership transfer'
+      const errorMessage = err.message || 'Couldn\'t transfer — try again'
       toast.error(errorMessage)
     } finally {
       setTransferring(false)
@@ -514,7 +514,7 @@ export function TravelersOverlay({
       toast.success('You are now the trip leader!')
       onRefresh()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to accept transfer')
+      toast.error(err.message || 'Couldn\'t accept transfer — try again')
     } finally {
       setAcceptingTransfer(false)
     }
@@ -532,7 +532,7 @@ export function TravelersOverlay({
       toast.success('Leadership transfer declined')
       onRefresh()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to decline transfer')
+      toast.error(err.message || 'Couldn\'t decline transfer — try again')
     } finally {
       setDecliningTransfer(false)
     }
@@ -550,7 +550,7 @@ export function TravelersOverlay({
       toast.success('Leadership transfer canceled')
       onRefresh()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to cancel transfer')
+      toast.error(err.message || 'Couldn\'t cancel transfer — try again')
     } finally {
       setCancelingTransfer(false)
     }
@@ -1016,9 +1016,9 @@ export function TravelersOverlay({
       <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Transfer leadership to leave</DialogTitle>
+            <DialogTitle>Pass the lead before leaving</DialogTitle>
             <DialogDescription>
-              You must transfer leadership to another active member before leaving this trip.
+              Pick someone to take over before you go.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
