@@ -1306,6 +1306,22 @@ async function handleRoute(request, { params }) {
           type,
           new Date(trip.createdAt)
         )
+      }
+
+      // Push notification: trip created (P0 — awaited)
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        await pushRouter(db, {
+          type: 'trip_created_notify',
+          tripId: trip.id,
+          trip,
+          context: { tripName: trip.name, actorName: auth.user.name, actorUserId: auth.user.id }
+        })
+      } catch (pushErr) {
+        console.error('[push] trip_created_notify failed:', pushErr.message)
+      }
+
+      if (autoCreatedCircle) {
         return handleCORS(NextResponse.json({ ...trip, circle: autoCreatedCircle }))
       }
 
@@ -3754,6 +3770,21 @@ async function handleRoute(request, { params }) {
         new Date(trip.createdAt)
       ).catch(err => console.error('[events] emitWindowSuggested failed:', err))
 
+      // Push notification: first dates suggested (P0 — awaited)
+      if (existingWindows.length === 0) {
+        try {
+          const { pushRouter } = await import('@/lib/push/pushRouter.js')
+          await pushRouter(db, {
+            type: 'first_dates_suggested',
+            tripId,
+            trip,
+            context: { tripName: trip.name, actorUserId: auth.user.id }
+          })
+        } catch (pushErr) {
+          console.error('[push] first_dates_suggested failed:', pushErr.message)
+        }
+      }
+
       // Build response with similarity info if applicable
       const response = {
         window,
@@ -4418,6 +4449,25 @@ async function handleRoute(request, { params }) {
         new Date(trip.createdAt)
       )
 
+      // Push notification: dates proposed by leader (P0 — awaited)
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        await pushRouter(db, {
+          type: 'dates_proposed_by_leader',
+          tripId,
+          trip,
+          context: {
+            tripName: trip.name,
+            actorName: auth.user.name,
+            actorUserId: auth.user.id,
+            dates: `${formatDate(window.startDate)}\u2013${formatDate(window.endDate)}`,
+            windowId: window.id
+          }
+        })
+      } catch (pushErr) {
+        console.error('[push] dates_proposed_by_leader failed:', pushErr.message)
+      }
+
       // Get updated trip
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
 
@@ -4758,6 +4808,24 @@ async function handleRoute(request, { params }) {
 
       // Get updated trip
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
+
+      // Push notification: dates locked (P0 — awaited)
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        const fmtDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        await pushRouter(db, {
+          type: 'dates_locked',
+          tripId,
+          trip: updatedTrip,
+          context: {
+            tripName: trip.name,
+            actorUserId: auth.user.id,
+            dates: `${fmtDate(proposedWindow.startDate)}\u2013${fmtDate(proposedWindow.endDate)}`
+          }
+        })
+      } catch (pushErr) {
+        console.error('[push] dates_locked failed:', pushErr.message)
+      }
 
       return handleCORS(NextResponse.json(updatedTrip))
     }
@@ -5522,6 +5590,19 @@ async function handleRoute(request, { params }) {
         new Date(trip.createdAt)
       )
 
+      // Push notification: trip canceled (P0 — awaited)
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        await pushRouter(db, {
+          type: 'trip_canceled',
+          tripId,
+          trip,
+          context: { tripName: trip.name, actorName: auth.user.name, actorUserId: auth.user.id }
+        })
+      } catch (pushErr) {
+        console.error('[push] trip_canceled failed:', pushErr.message)
+      }
+
       return handleCORS(NextResponse.json({
         message: 'Trip canceled successfully',
         trip: { id: tripId, status: 'canceled', tripStatus: 'CANCELLED' }
@@ -5672,6 +5753,19 @@ async function handleRoute(request, { params }) {
         text: `${auth.user.name} requested to join the trip`,
         metadata: { requestId: joinRequest.id }
       })
+
+      // Push notification: join request received (P0 — awaited)
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        await pushRouter(db, {
+          type: 'join_request_received',
+          tripId,
+          trip,
+          context: { tripName: trip.name, actorName: auth.user.name, requesterId: auth.user.id }
+        })
+      } catch (pushErr) {
+        console.error('[push] join_request_received failed:', pushErr.message)
+      }
 
       return handleCORS(NextResponse.json({
         request: joinRequest,
@@ -5862,6 +5956,19 @@ async function handleRoute(request, { params }) {
           text: `${auth.user.name || 'Trip organizer'} approved ${requesterName}'s request to join`,
           metadata: { requestId }
         })
+
+        // Push notification: join request approved (P1 — fire-and-forget)
+        try {
+          const { pushRouter } = await import('@/lib/push/pushRouter.js')
+          pushRouter(db, {
+            type: 'join_request_approved',
+            tripId,
+            trip,
+            context: { tripName: trip.name, requesterId: joinRequest.requesterId }
+          }).catch(err => console.error('[push] join_request_approved failed:', err.message))
+        } catch (pushErr) {
+          console.error('[push] join_request_approved failed:', pushErr.message)
+        }
       } else {
         // Reject
         await db.collection('trip_join_requests').updateOne(
@@ -11278,6 +11385,19 @@ async function handleRoute(request, { params }) {
           })
         }
 
+        // Push notification: itinerary generated (P1 — fire-and-forget)
+        try {
+          const { pushRouter } = await import('@/lib/push/pushRouter.js')
+          pushRouter(db, {
+            type: 'itinerary_generated',
+            tripId,
+            trip,
+            context: { tripName: trip.name, version: version.version }
+          }).catch(err => console.error('[push] itinerary_generated failed:', err.message))
+        } catch (pushErr) {
+          console.error('[push] itinerary_generated failed:', pushErr.message)
+        }
+
         const { _id, ...versionResponse } = version
         return handleCORS(NextResponse.json(versionResponse))
       } catch (error) {
@@ -12042,6 +12162,19 @@ async function handleRoute(request, { params }) {
           })
         }
 
+        // Push notification: itinerary revised (P1 — fire-and-forget)
+        try {
+          const { pushRouter } = await import('@/lib/push/pushRouter.js')
+          pushRouter(db, {
+            type: 'itinerary_generated',
+            tripId,
+            trip,
+            context: { tripName: trip.name, version: newVersion.version }
+          }).catch(err => console.error('[push] itinerary_generated failed:', err.message))
+        } catch (pushErr) {
+          console.error('[push] itinerary_generated failed:', pushErr.message)
+        }
+
         const { _id, ...versionResponse } = newVersion
         return handleCORS(NextResponse.json(versionResponse))
       } catch (error) {
@@ -12473,13 +12606,15 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Missing or invalid platform' }, { status: 400 }))
       }
 
+      const provider = platform === 'android' ? 'fcm' : 'apns'
       await db.collection('push_tokens').updateOne(
-        { userId: auth.user.id },
+        { userId: auth.user.id, token: pushToken },
         {
           $set: {
             userId: auth.user.id,
             token: pushToken,
             platform,
+            provider,
             updatedAt: new Date().toISOString(),
           },
           $setOnInsert: {
@@ -12499,7 +12634,15 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
 
-      await db.collection('push_tokens').deleteOne({ userId: auth.user.id })
+      let deleteBody = {}
+      try { deleteBody = await request.json() } catch {} // Empty body OK for backward compat
+      const { token: deleteToken } = deleteBody
+      if (deleteToken) {
+        await db.collection('push_tokens').deleteOne({ userId: auth.user.id, token: deleteToken })
+      } else {
+        // Fallback: delete all tokens for user (backward compatibility)
+        await db.collection('push_tokens').deleteMany({ userId: auth.user.id })
+      }
 
       return handleCORS(NextResponse.json({ success: true }))
     }

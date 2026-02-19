@@ -1,28 +1,34 @@
 # Push Notifications Implementation Spec
 
-> **Status**: Final
+> **Status**: Final (v2 — hybrid architecture)
 > **Approach**: Hybrid — event-driven inline dispatch + trip-load evaluation + 1 daily Vercel cron
-> **Platforms**: iOS + Android (FCM) and Web (Web Push API + VAPID)
+> **Platforms**: iOS (APNS) + Android (FCM) and Web (Web Push API + VAPID)
 > **Hosting**: Vercel Hobby plan (2 cron jobs, 1x/day each)
 
 ---
 
 ## 1. Architecture Overview
 
-### 1.1 Platform Strategy: FCM for Native + Web Push for Browsers
+### 1.1 Platform Strategy: APNS for iOS + FCM for Android + Web Push for Browsers
 
-| Platform | Technology | Token Format | Phase |
-|---|---|---|---|
-| **iOS** | FCM (proxies to APNS) | FCM registration token (~150 chars) | Phase 0 |
-| **Android** | FCM (native) | FCM registration token (~150 chars) | Phase 0 |
-| **Web** | Web Push API + VAPID | PushSubscription JSON (endpoint + p256dh + auth) | Phase 3 |
+| Platform | Technology | Server Library | Token Format | Phase |
+|---|---|---|---|---|
+| **iOS** | APNS (direct) | `@parse/node-apn` | APNS device token (~64 hex chars) | Phase 0 |
+| **Android** | FCM (native) | `firebase-admin` | FCM registration token (~150 chars) | Phase 0 |
+| **Web** | Web Push API + VAPID | `web-push` | PushSubscription JSON (endpoint + p256dh + auth) | Phase 3 |
 
-**Why this approach**:
-- FCM provides a single server-side API (`firebase-admin.messaging().send()`) for both iOS and Android
-- Eliminates the unmaintained `apn` npm package (last release 8 years ago)
-- Web Push uses the W3C standard — no Firebase client SDK needed (saves ~100KB vs FCM-for-web)
-- Android `build.gradle` already has conditional `google-services` plugin support — near-zero native setup
-- Two server codepaths (FCM + Web Push) instead of three
+**Why this approach (Option B — hybrid)**:
+- **Zero iOS native changes** — Capacitor's `@capacitor/push-notifications` already returns APNS tokens on iOS. No Firebase SDK, no `GoogleService-Info.plist`, no Podfile changes, no App Store resubmission for push
+- **`@parse/node-apn`** is actively maintained (replaces unmaintained `apn` v2.2.0, last release 8+ years ago)
+- Android already has conditional `google-services` plugin support in `build.gradle` — near-zero native setup
+- Web Push uses the W3C standard — no Firebase client SDK needed (saves ~100KB)
+- Two server send paths (APNS + FCM) routed by `provider` field on token — clean separation
+
+**Why NOT FCM-for-all (Option A)**:
+- Requires Firebase iOS SDK init in `AppDelegate.swift` + `GoogleService-Info.plist` + Podfile changes
+- Requires App Store resubmission just to change how tokens are generated
+- Adds Firebase as iOS runtime dependency for a single feature
+- FCM migration sequencing is fragile (old APNS tokens coexist with new FCM tokens)
 
 ### 1.2 Delivery Channels
 
@@ -53,87 +59,152 @@ pushRouter(db, { type, tripId, trip, context })
   |-- Parallel send: sendPushBatch(db, tokens, { title, body, data })
         |
         |-- Fetch tokens from push_tokens (all devices per user)
-        |-- FCM: admin.messaging().sendEach([...messages])  (iOS + Android)
-        |-- Web Push: webpush.sendNotification(subscription, payload)  (Phase 3)
-        |-- Prune invalid tokens (messaging/registration-token-not-registered)
+        |-- Route by provider field:
+        |     |-- provider: 'apns' --> apnProvider.send(notification)  (iOS)
+        |     |-- provider: 'fcm'  --> admin.messaging().sendEach()   (Android)
+        |     |-- provider: 'web'  --> webpush.sendNotification()     (Phase 3)
+        |-- Prune invalid tokens (APNS: status 410; FCM: registration-token-not-registered)
 ```
 
 ### 1.4 Global Guardrails
 
 - **Max 3 push notifications per user per day** (P0 exempt from cap)
 - **Daily cap uses UTC midnight** (known limitation — user-local time requires timezone storage, Phase 3+)
-- **Soft dependency**: All push code fails silently if Firebase not configured
+- **Soft dependency**: All push code fails silently if APNS/Firebase not configured
 - **Idempotent dedupe**: Every push uses atomic `$setOnInsert` upsert on `push_events` — no race conditions
 - **Parallel sends**: All APNS/FCM sends use `Promise.allSettled()` — never sequential
-- **Fire-and-forget**: All inline push dispatches are non-awaited (`.catch(console.error)`)
+- **P0 inline dispatches are `await`ed** — Vercel serverless can terminate before non-awaited promises resolve. P1 inline dispatches are fire-and-forget (`.catch(console.error)`)
 - **Foreground behavior**: Default OS behavior (banner shown). No in-app interception — user sees the state change via chat polling anyway.
 
 ---
 
 ## 2. Platform Setup (Phase 0)
 
-### 2.1 Firebase Project Setup
+### 2.1 iOS Setup (Zero Native Changes)
 
-1. Create Firebase project in Firebase Console
-2. Register iOS app (`ai.tripti.app`) — download `GoogleService-Info.plist`
-3. Register Android app (`ai.tripti.app`) — download `google-services.json`
-4. Upload existing APNS auth key (`.p8` file) to Firebase Console > Project Settings > Cloud Messaging > APNs Authentication Key
-5. Generate Firebase Admin SDK service account key — base64-encode for `FIREBASE_SERVICE_ACCOUNT_JSON` env var
+**No native changes required.** Capacitor's `@capacitor/push-notifications` plugin already:
+- Requests notification permission
+- Returns raw APNS device tokens
+- Handles `pushNotificationReceived` and `pushNotificationActionPerformed` events
 
-### 2.2 iOS Native Changes
+The existing `native-bridge/page.jsx` registration flow sends the APNS token to `POST /api/push/register`. The only change is adding the `provider` field (see Section 2.5).
 
-**Files to modify**:
-- `native/ios/App/App/AppDelegate.swift` — Initialize Firebase, set APNS token on Firebase Messaging
-- `native/ios/App/Podfile` — Add `pod 'FirebaseMessaging'`
-- `native/ios/App/App/` — Add `GoogleService-Info.plist` to Xcode project
+**APNS auth key**: The existing `.p8` file (Apple Push Notification Authentication Key) is used directly by `@parse/node-apn` on the server. No need to upload it to Firebase Console.
 
-**Token flow change**: Currently the Capacitor plugin returns a raw APNS token. After Firebase init, it returns an FCM token instead — no client-side JS changes needed.
-
-### 2.3 Android Native Changes
+### 2.2 Android Native Changes
 
 **Files to modify**:
 - `native/android/app/google-services.json` — Add file (download from Firebase Console)
 - `native/android/app/build.gradle` — Add `implementation 'com.google.firebase:firebase-messaging'` (the `apply plugin: 'com.google.gms.google-services'` block is already conditionally present at lines 47-54)
 
-### 2.4 Server-Side Changes
+**Firebase project setup for Android only**:
+1. Create Firebase project in Firebase Console
+2. Register Android app (`ai.tripti.app`) — download `google-services.json`
+3. Generate Firebase Admin SDK service account key — base64-encode for `FIREBASE_SERVICE_ACCOUNT_JSON` env var
+4. No iOS app registration needed in Firebase
 
-**Replace `apn` with `firebase-admin`**:
+### 2.3 Server-Side Changes
+
+**Replace `apn` with `@parse/node-apn` (iOS) + `firebase-admin` (Android)**:
 
 ```javascript
 // lib/push/sendPush.js — new implementation
+import apn from '@parse/node-apn'
 import admin from 'firebase-admin'
 
-let _app = null
-function getFirebaseApp() {
-  if (_app) return _app
-  const encoded = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-  if (!encoded) return null  // Push not configured — skip silently
-  const serviceAccount = JSON.parse(Buffer.from(encoded, 'base64').toString())
-  _app = admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
-  return _app
+// ============ APNS Provider (iOS) ============
+
+let _apnProvider = null
+function getApnProvider() {
+  if (_apnProvider) return _apnProvider
+  const keyBase64 = process.env.APNS_KEY_BASE64
+  if (!keyBase64) return null  // APNS not configured — skip silently
+  _apnProvider = new apn.Provider({
+    token: {
+      key: Buffer.from(keyBase64, 'base64'),
+      keyId: process.env.APNS_KEY_ID,
+      teamId: process.env.APNS_TEAM_ID,
+    },
+    production: process.env.NODE_ENV === 'production',
+  })
+  return _apnProvider
 }
 
-export async function sendPush(db, userIds, { title, body, data }) {
-  const app = getFirebaseApp()
-  if (!app) return
+// ============ Firebase App (Android) ============
 
+function getFirebaseApp() {
+  if (admin.apps.length) return admin.apps[0]  // Hot-reload guard
+  const encoded = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+  if (!encoded) return null  // FCM not configured — skip silently
+  const serviceAccount = JSON.parse(Buffer.from(encoded, 'base64').toString())
+  return admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
+}
+
+// ============ Unified Send ============
+
+export async function sendPush(db, userIds, { title, body, data }) {
   // Fetch ALL tokens for target users (supports multiple devices)
   const tokens = await db.collection('push_tokens')
-    .find({ userId: { $in: userIds }, platform: { $in: ['ios', 'android'] } })
+    .find({ userId: { $in: userIds }, provider: { $in: ['apns', 'fcm'] } })
     .toArray()
 
   if (tokens.length === 0) return
 
-  // Build messages for FCM
+  // Split by provider
+  const apnsTokens = tokens.filter(t => t.provider === 'apns')
+  const fcmTokens = tokens.filter(t => t.provider === 'fcm')
+
+  const results = await Promise.allSettled([
+    sendApns(db, apnsTokens, { title, body, data }),
+    sendFcm(db, fcmTokens, { title, body, data }),
+  ])
+
+  // Log any failures (non-blocking)
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.error(`[push] ${i === 0 ? 'APNS' : 'FCM'} batch failed:`, r.reason?.message)
+    }
+  })
+}
+
+async function sendApns(db, tokens, { title, body, data }) {
+  if (tokens.length === 0) return
+  const provider = getApnProvider()
+  if (!provider) return
+
+  const results = await Promise.allSettled(tokens.map(t => {
+    const note = new apn.Notification()
+    note.alert = { title, body }
+    note.sound = 'default'
+    note.topic = process.env.APNS_BUNDLE_ID || 'ai.tripti.app'
+    note.threadId = data?.tripId || undefined  // Group by trip in notification center
+    if (data) note.payload = data
+    return provider.send(note, t.token)
+  }))
+
+  // Prune invalid tokens (status 410 = unregistered)
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value?.failed?.length > 0) {
+      const failure = r.value.failed[0]
+      if (failure.status === '410' || failure.response?.reason === 'Unregistered') {
+        db.collection('push_tokens').deleteOne({ _id: tokens[i]._id }).catch(() => {})
+      }
+    }
+  })
+}
+
+async function sendFcm(db, tokens, { title, body, data }) {
+  if (tokens.length === 0) return
+  const app = getFirebaseApp()
+  if (!app) return
+
   const messages = tokens.map(t => ({
     token: t.token,
     notification: { title, body },
     data: data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {},
-    apns: { payload: { aps: { sound: 'default', badge: 1 } } },
     android: { priority: 'high', notification: { sound: 'default' } },
   }))
 
-  // Send in parallel
   const results = await admin.messaging().sendEach(messages)
 
   // Prune invalid tokens
@@ -146,17 +217,20 @@ export async function sendPush(db, userIds, { title, body, data }) {
 }
 ```
 
-### 2.5 Multi-Device Token Storage Fix
+### 2.4 Multi-Device Token Storage Fix
 
 **Current problem**: `push_tokens` uses `updateOne({ userId })` with upsert — one token per user. Second device overwrites first.
 
-**Fix — Register endpoint**: Change upsert key from `{ userId }` to `{ userId, token }`:
+**Fix — Register endpoint**: Change upsert key from `{ userId }` to `{ userId, token }`, add `provider` field:
 
 ```javascript
 // POST /api/push/register handler — updated
+const platform = body.platform || 'ios'
+const provider = platform === 'android' ? 'fcm' : 'apns'  // iOS = APNS token, Android = FCM token
+
 await db.collection('push_tokens').updateOne(
   { userId, token },  // was: { userId }
-  { $set: { userId, token, platform, updatedAt: new Date().toISOString() },
+  { $set: { userId, token, platform, provider, updatedAt: new Date().toISOString() },
     $setOnInsert: { createdAt: new Date().toISOString() } },
   { upsert: true }
 )
@@ -170,7 +244,9 @@ const { token } = await request.json()
 await db.collection('push_tokens').deleteOne({ userId: auth.user.id, token })  // was: { userId }
 ```
 
-### 2.6 Android Platform Detection Fix
+**Unregister on logout**: The client must call `DELETE /api/push/register` with the current device token before clearing the auth session. Add this to the logout flow in the app.
+
+### 2.5 Android Platform Detection Fix
 
 The existing `native-bridge/page.jsx` hardcodes `platform: 'ios'`. Fix:
 
@@ -181,30 +257,19 @@ const platform = window.Capacitor?.getPlatform?.() === 'android' ? 'android' : '
 body: JSON.stringify({ token: pushToken.value, platform })
 ```
 
-### 2.7 FCM Migration Sequencing
-
-**Critical**: The server-side FCM switch must NOT deploy until native app updates with Firebase are live in both app stores. During the transition:
-
-1. Deploy native app updates (iOS + Android) with Firebase SDK initialized → users who open the app re-register with FCM tokens
-2. The multi-device fix means old APNS tokens and new FCM tokens coexist in `push_tokens`
-3. Deploy server-side `firebase-admin` switch → FCM sends succeed for new tokens, fail for old APNS tokens (which get pruned automatically)
-4. Users who have not updated their app will lose push until they reopen the app (the token prune is one-time)
-
-**Acceptable transition window**: For beta with <100 users, this is a brief disruption. Coordinate native deploy + server deploy within the same week.
-
 ### 2.6 Environment Variables
 
-**Remove** (after FCM migration):
+**Keep** (still needed for direct APNS):
 ```env
-# APNS_KEY_BASE64    — no longer needed (key uploaded to Firebase Console)
-# APNS_KEY_ID        — no longer needed
-# APNS_TEAM_ID       — no longer needed
-# APNS_BUNDLE_ID     — no longer needed
+APNS_KEY_BASE64=...            # Base64-encoded .p8 auth key
+APNS_KEY_ID=...                # Key ID from Apple Developer Console
+APNS_TEAM_ID=...               # Team ID from Apple Developer Console
+APNS_BUNDLE_ID=ai.tripti.app  # iOS bundle ID (optional, defaults in code)
 ```
 
 **Add**:
 ```env
-FIREBASE_SERVICE_ACCOUNT_JSON=...   # Base64-encoded Firebase Admin SDK service account JSON
+FIREBASE_SERVICE_ACCOUNT_JSON=...   # Base64-encoded Firebase Admin SDK service account JSON (Android only)
 
 # Phase 3 (Web Push):
 # VAPID_PUBLIC_KEY=...
@@ -254,7 +319,7 @@ export async function pushRouter(db, { type, tripId, trip, context = {} }) { ...
 
 All push notification copy. Each entry is a function receiving `(context, { userId, trip })` and returning `{ title, body }`. The second argument enables per-user copy variants (e.g., `dates_locked` shows different copy for leader vs travelers by checking `trip.createdBy === userId`).
 
-**Convention**: Title is always the trip name (more useful than "Tripti" when scanning notification list). Subtitle "Tripti" is set via FCM `apns.payload.aps.alert.subtitle`.
+**Convention**: Title is always the trip name (more useful than "Tripti" when scanning notification list). Subtitle "Tripti" is set via APNS `alert.subtitle` / FCM `notification.tag`.
 
 ### `lib/push/pushAudience.js`
 
@@ -311,10 +376,13 @@ Daily cron endpoint. `CRON_SECRET` is **mandatory** (returns 500 if not set, unl
 ### `lib/push/sendPush.js`
 
 **Changes**:
-- Replace `apn` provider with `firebase-admin` (see section 2.4)
+- Replace `apn` with `@parse/node-apn` for iOS + `firebase-admin` for Android (see section 2.3)
 - Extract `sendPush(db, userIds, { title, body, data })` as general-purpose function
-- Sends use `admin.messaging().sendEach()` for parallel delivery
-- **Rewrite `sendPushForNudge()`** to delegate to the new FCM-based `sendPush()` function (the old code uses the `apn` package directly, which is being removed). It remains a separate path that calls `sendPush()` directly — does NOT route through `pushRouter()`. This avoids double-dedupe since the nudge engine already has its own dedupe via `nudge_events`.
+- Route by `provider` field: APNS tokens via `@parse/node-apn`, FCM tokens via `firebase-admin`
+- Sends use `Promise.allSettled()` for parallel delivery
+- No `badge` count on APNS (never increments/clears properly — remove entirely)
+- iOS notifications grouped by trip using `threadId: tripId`
+- **Rewrite `sendPushForNudge()`** to delegate to the new `sendPush()` function (the old code uses the `apn` package directly, which is being removed). It remains a separate path that calls `sendPush()` directly — does NOT route through `pushRouter()`. This avoids double-dedupe since the nudge engine already has its own dedupe via `nudge_events`.
 
 ### `lib/push/pushEligible.js`
 
@@ -324,23 +392,23 @@ Daily cron endpoint. `CRON_SECRET` is **mandatory** (returns 500 if not set, unl
 
 ### `app/api/[[...path]]/route.js`
 
-**Inline dispatch points** (all fire-and-forget with `.catch()`):
+**Inline dispatch points** — P0 types are `await`ed (Vercel serverless can terminate non-awaited promises); P1 types use `.catch(console.error)`:
 
-| Endpoint | Push Type | Condition |
-|---|---|---|
-| `POST /api/trips` | `trip_created_notify` | After successful insert |
-| `POST /api/trips/:id/date-windows` | `first_dates_suggested` | Only when count of windows for trip === 1 |
-| `POST /api/trips/:id/date-windows/:wid/support` | `window_supported_author` | Skip if supporter === author |
-| `POST /api/trips/:id/proposed-window` | `dates_proposed_by_leader` | After successful creation |
-| `POST /api/trips/:id/lock-proposed` | `dates_locked` | After successful lock |
-| `POST /api/trips/:id/cancel` | `trip_canceled` | After successful cancel |
-| `POST /api/trips/:id/itinerary/ideas` | `first_idea_contributed` | Only when count of ideas for trip === 1 |
-| `POST /api/trips/:id/itinerary/generate` | `itinerary_generated` | After successful generation |
-| `POST /api/trips/:id/join-requests` | `join_request_received` | After successful insert (201) |
-| Join request approval endpoint | `join_request_approved` | After status set to approved |
-| `POST /api/trips/:id/transfer-leadership` | `leader_transferred` | After successful transfer |
-| `POST /api/trips/:id/expenses` | `expense_added` | After successful insert |
-| Accommodation select endpoint | `accommodation_selected` | After successful selection |
+| Endpoint | Push Type | Priority | Condition |
+|---|---|---|---|
+| `POST /api/trips` | `trip_created_notify` | P0 | After successful insert |
+| `POST /api/trips/:id/date-windows` | `first_dates_suggested` | P0 | Only when count of windows for trip === 1 |
+| `POST /api/trips/:id/date-windows/:wid/support` | `window_supported_author` | P1 | Skip if supporter === author |
+| `POST /api/trips/:id/proposed-window` | `dates_proposed_by_leader` | P0 | After successful creation |
+| `POST /api/trips/:id/lock-proposed` | `dates_locked` | P0 | After successful lock |
+| `POST /api/trips/:id/cancel` | `trip_canceled` | P0 | After successful cancel |
+| `POST /api/trips/:id/itinerary/ideas` | `first_idea_contributed` | P1 | Only when count of ideas for trip === 1 |
+| `POST /api/trips/:id/itinerary/generate` | `itinerary_generated` | P1 | After successful generation |
+| `POST /api/trips/:id/join-requests` | `join_request_received` | P0 | After successful insert (201) |
+| Join request approval endpoint | `join_request_approved` | P1 | After status set to approved |
+| `POST /api/trips/:id/transfer-leadership` | `leader_transferred` | P1 | After successful transfer |
+| `POST /api/trips/:id/expenses` | `expense_added` | P1 | After successful insert |
+| Accommodation select endpoint | `accommodation_selected` | P1 | After successful selection |
 
 ### `app/api/[[...path]]/route.js` — GET `/api/trips/:id/nudges`
 
@@ -349,9 +417,7 @@ Daily cron endpoint. `CRON_SECRET` is **mandatory** (returns 500 if not set, unl
 | Push Type | Condition |
 |---|---|
 | `prep_reminder_7d` | `lockedStartDate` is 5–7 days from today |
-| `prep_reminder_3d` | `lockedStartDate` is 2–3 days from today |
 | `trip_started` | `lockedStartDate` is today (±12hr tolerance) |
-| `trip_completed_recap` | `lockedEndDate` was 1–2 days ago |
 | `collecting_momentum_reminder` | Trip in `scheduling` 48+ hours, <50% response rate, viewer hasn't participated |
 
 All evaluated with atomic dedupe — fire at most once per trip per user.
@@ -411,13 +477,14 @@ Tracks every push notification sent. Used for atomic dedupe, daily cap, and anal
 
 ### Existing Collection: `push_tokens`
 
-**Schema change**: Support multiple devices per user.
+**Schema change**: Support multiple devices per user + `provider` field for platform routing.
 
 ```javascript
 {
   userId: string,
-  token: string,           // FCM registration token (iOS/Android) or 'web:endpoint_hash' (Phase 3)
+  token: string,           // APNS device token (iOS) or FCM registration token (Android) or 'web:endpoint_hash' (Phase 3)
   platform: 'ios' | 'android' | 'web',
+  provider: 'apns' | 'fcm' | 'web',   // Server-side routing key (iOS→apns, Android→fcm)
   // Phase 3 (web only):
   subscription: { endpoint, keys: { p256dh, auth } } | null,
   createdAt: string,
@@ -426,6 +493,8 @@ Tracks every push notification sent. Used for atomic dedupe, daily cap, and anal
 ```
 
 **Index change**: Unique index on `{ userId: 1, token: 1 }` (was effectively `{ userId: 1 }`).
+
+**Why `provider` separate from `platform`**: Future-proofing. If we ever migrate iOS to FCM (Option A), we change `provider` from `'apns'` to `'fcm'` without touching `platform`. The routing logic only reads `provider`.
 
 ---
 
@@ -451,8 +520,8 @@ Ship in Phase 1. Exempt from daily cap.
 |---|---|
 | **Trigger** | Inline — trip cancel endpoint |
 | **Audience** | All active travelers except the canceler |
-| **Copy** | Title: `"[TripName]"` / Body: `"This trip has been canceled by [LeaderName]."` |
-| **Dedupe** | `trip_canceled:{tripId}` / 30d (TTL-bound) |
+| **Copy** | Title: `"[TripName]"` / Body: `"[LeaderName] canceled this trip."` |
+| **Dedupe** | `trip_canceled:{tripId}:{userId}` / 30d (TTL-bound) |
 | **Deep link** | `{ tripId, overlay: null }` |
 | **Notes** | Flagged as missing by Codex review. Travelers must know when a trip they were planning is called off. |
 
@@ -472,7 +541,7 @@ Ship in Phase 1. Exempt from daily cap.
 |---|---|
 | **Trigger** | Inline — `POST /api/trips/:id/proposed-window` |
 | **Audience** | All active travelers except leader |
-| **Copy** | Title: `"[TripName]"` / Body: `"[LeaderName] proposed [StartDate–EndDate]. Let them know if it works!"` |
+| **Copy** | Title: `"[TripName]"` / Body: `"[LeaderName] suggested [StartDate–EndDate]. Let them know if it works!"` |
 | **Dedupe** | `dates_proposed:{tripId}:{windowId}` / Per proposal |
 | **Deep link** | `{ tripId, overlay: 'scheduling' }` |
 
@@ -482,7 +551,7 @@ Ship in Phase 1. Exempt from daily cap.
 |---|---|
 | **Trigger** | Nudge engine (existing path via `sendPushForNudge`) |
 | **Audience** | Leader only |
-| **Copy** | Title: `"[TripName]"` / Body: `"[X] travelers said [StartDate–EndDate] works. Lock it in when you're ready."` |
+| **Copy** | Title: `"[TripName]"` / Body: `"[X] travelers said [StartDate–EndDate] works. Confirm the dates when you're ready."` |
 | **Dedupe** | `leader_lock:{tripId}` / 72 hours (existing) |
 | **Deep link** | `{ tripId, overlay: 'scheduling' }` |
 | **Migration** | Enhance existing copy to include dates and count. Stays in nudge path (not pushRouter). |
@@ -493,8 +562,8 @@ Ship in Phase 1. Exempt from daily cap.
 |---|---|
 | **Trigger** | Inline — `POST /api/trips/:id/lock-proposed` |
 | **Audience** | All active travelers |
-| **Copy (travelers)** | Title: `"[TripName]"` / Body: `"Dates locked: [StartDate–EndDate]! Next up — share trip ideas."` |
-| **Copy (leader)** | Title: `"[TripName]"` / Body: `"You locked in [StartDate–EndDate]. Nice work organizing."` |
+| **Copy (travelers)** | Title: `"[TripName]"` / Body: `"Dates confirmed: [StartDate–EndDate]! Next up — share trip ideas."` |
+| **Copy (leader)** | Title: `"[TripName]"` / Body: `"You confirmed [StartDate–EndDate]. Nice work!"` |
 | **Dedupe** | `dates_locked:{tripId}` / 30d (TTL-bound) |
 | **Deep link** | `{ tripId, overlay: 'itinerary' }` |
 | **Migration** | Remove `dates_locked` from `PUSH_ELIGIBLE_TYPES` set in `pushEligible.js` to prevent double-fire from nudge path. |
@@ -516,7 +585,7 @@ Ship in Phase 1. Exempt from daily cap.
 |---|---|
 | **Trigger** | Inline — `POST /api/trips/:id/join-requests` (status 201) |
 | **Audience** | Leader only |
-| **Copy** | Title: `"[TripName]"` / Body: `"[RequesterName] wants to join. Review their request."` |
+| **Copy** | Title: `"[TripName]"` / Body: `"[RequesterName] wants to join — take a look when you're ready."` |
 | **Dedupe** | `join_request:{tripId}:{requesterId}` / 24 hours |
 | **Deep link** | `{ tripId, overlay: 'travelers' }` |
 
@@ -562,7 +631,7 @@ Ship in Phase 2. Subject to daily cap.
 |---|---|
 | **Trigger** | Inline — `POST /api/trips/:id/expenses` |
 | **Audience** | All travelers in the split except submitter |
-| **Copy** | Title: `"[TripName]"` / Body: `"[SubmitterName] added an expense. Tap to view details."` |
+| **Copy** | Title: `"[TripName]"` / Body: `"[SubmitterName] added an expense — check it out."` |
 | **Dedupe** | `expense_added:{tripId}:{expenseId}` / None (each unique) |
 | **Deep link** | `{ tripId, overlay: 'expenses' }` |
 | **Notes** | Dollar amount intentionally omitted from copy (lock screen privacy). |
@@ -630,6 +699,7 @@ Listed in priority order — top items should be evaluated first after Phase 2 d
 | High | `trip_completed_recap` | Drives post-trip engagement (memories, expenses). Low urgency since users who care will open the app. |
 | Medium | `traveler_left` (leader-only) | Leader needs to know when someone drops out (affects accommodation, expenses). Target leader only — the person who left should NOT receive a notification about their own departure. Copy: "Someone left [TripName]. Check the travelers list." (deliberately vague, no name). |
 | Medium | `prep_reminder_3d` | Redundant with `prep_reminder_7d`. Add only if data shows 7d reminder insufficient. |
+| Medium | `join_request_rejected` | Notify the requester when their request is declined. Low volume, but good UX closure. |
 | Low | `accommodation_option_added` | Noisy if multiple options added same day. Revisit with coalescing logic. |
 | Low | `packing_list_ready` | Low engagement value — packing generation is leader-triggered, deep in prep flow. |
 | Low | `chat_mention` | Requires @mention feature (parsing + UI) that doesn't exist yet. |
@@ -638,7 +708,7 @@ Listed in priority order — top items should be evaluated first after Phase 2 d
 
 **Why we rejected some Codex suggestions**:
 - `reaction_submitted` to leader — would fire on every reaction, too noisy. Leader already gets `leader_can_lock_dates` at threshold.
-- Push token format validation — over-engineering. Invalid tokens fail at FCM send time and get pruned.
+- Push token format validation — over-engineering. Invalid tokens fail at send time and get pruned.
 
 ---
 
@@ -695,7 +765,7 @@ const trips = await db.collection('trips').find({
 
 **Timeout mitigation** (Vercel Hobby = 10 second limit):
 1. Dedupe check at trip level BEFORE audience resolution (skip trips where all pushes already sent)
-2. Parallel FCM sends via `admin.messaging().sendEach()`
+2. Parallel sends via `Promise.allSettled()`
 3. Process at most 30 trips per sweep (log warning if more)
 4. At beta scale (~50 trips total) this is well within limits
 
@@ -726,17 +796,19 @@ const PUSH_ELIGIBLE_TYPES = new Set([
 
 ### Phase 0: Platform Foundation (Week 1)
 
-1. Create Firebase project, configure iOS + Android
-2. Replace `apn` with `firebase-admin` in `sendPush.js`
+1. Install `@parse/node-apn` (iOS) and `firebase-admin` (Android)
+2. Rewrite `sendPush.js` with hybrid APNS/FCM routing by `provider` field
 3. Fix multi-device token storage (`{ userId, token }` upsert key)
-4. Test FCM delivery on real iOS + Android devices
-5. Update `native-bridge/page.jsx` for Android platform detection
+4. Add `provider` field to token registration
+5. Fix `native-bridge/page.jsx` for Android platform detection
+6. Test APNS delivery on real iOS device, FCM delivery on real Android device
+7. Add token unregister on logout flow
 
 ### Phase 1: P0 Notifications + Deep Linking (Week 2)
 
 1. Create `lib/push/pushRouter.js`, `pushCopy.js`, `pushAudience.js`, `pushDedupe.js`, `pushDeepLink.js`
 2. Create `push_events` collection with indexes
-3. Implement 8 P0 notifications (inline dispatch)
+3. Implement 8 P0 notifications (inline dispatch, `await`ed)
 4. Remove `dates_locked` from `PUSH_ELIGIBLE_TYPES`
 5. Create `components/common/PushHandler.jsx` at app root for deep link handling
 6. Add `?overlay=` param handling in `CommandCenterV3.tsx`
@@ -779,14 +851,15 @@ const PUSH_ELIGIBLE_TYPES = new Set([
 
 ### Manual Testing Checklist
 
-- [ ] iOS: Push received, tap opens correct trip + overlay
-- [ ] Android: Push received, tap opens correct trip + overlay
+- [ ] iOS: Push received via APNS, tap opens correct trip + overlay
+- [ ] Android: Push received via FCM, tap opens correct trip + overlay
 - [ ] Multi-device: Both devices receive the push
 - [ ] Dedupe: Same push not received twice
 - [ ] Left traveler: Does NOT receive pushes after leaving
 - [ ] Daily cap: 4th non-P0 push in a day is suppressed
-- [ ] APNS env vars removed: App still works (FCM takes over)
-- [ ] Firebase not configured: Push silently skipped, no crashes
+- [ ] APNS env vars missing: iOS push silently skipped, no crashes
+- [ ] Firebase env vars missing: Android push silently skipped, no crashes
+- [ ] Token unregister on logout: Old device stops receiving pushes
 
 ---
 
@@ -818,7 +891,12 @@ Returns: `{ totalSent, byType: { trip_created_notify: 5, ... }, recentPushes: [.
 
 | Decision | Alternatives Considered | Rationale |
 |---|---|---|
-| FCM for native (Option C) | Direct APNS + FCM + Web Push (Option B), FCM for all (Option A) | Eliminates unmaintained `apn` package, single API for both native platforms, no Firebase client SDK on web |
+| **Hybrid: APNS for iOS + FCM for Android (Option B)** | FCM for all (Option A), Direct APNS + FCM + Web Push (Option C) | Zero iOS native changes, no Firebase iOS dependency, no App Store resubmission. `@parse/node-apn` is actively maintained. Capacitor already returns APNS tokens. AI Council (Claude + Gemini + GPT-5.2) unanimously recommended Option B. |
+| `@parse/node-apn` for iOS | `apn` v2.2.0 (unmaintained), FCM proxy | Actively maintained fork, drop-in replacement, direct APNS HTTP/2 |
+| `provider` field on push_tokens | Derive from `platform` field | Future-proofing: if iOS ever migrates to FCM, change `provider` without touching `platform`. Clean routing logic. |
+| P0 dispatches `await`ed | All fire-and-forget | Vercel serverless can terminate before non-awaited promises resolve. P0 notifications are critical enough to justify the small latency cost. |
+| No `badge` count on APNS | `badge: 1` on all pushes | Badge never increments or clears properly without server-side count tracking. Removing is cleaner than implementing badge management. |
+| iOS `threadId` for notification grouping | No grouping | Groups notifications by trip in iOS notification center. Zero cost, better UX. |
 | Trip name as notification title | "Tripti" as title | More useful when scanning notifications across multiple trips |
 | Atomic upsert dedupe | findOne-then-insert | Prevents race condition when two triggers fire simultaneously |
 | `sendPushForNudge` stays separate | Route through pushRouter | Avoids double-dedupe with nudge engine's own dedupe layer |
@@ -827,6 +905,5 @@ Returns: `{ totalSent, byType: { trip_created_notify: 5, ... }, recentPushes: [.
 | No `reaction_submitted` push | Batched reaction notifications to leader | Leader already gets `leader_can_lock_dates` at threshold — per-reaction pushes are too noisy |
 | No `collecting_momentum_reminder` in Phase 1-2 | Include in cron sweep | Risks feeling naggy. Evaluate after drop-off data is available. |
 | Mandatory `CRON_SECRET` for push-sweep | Optional (match aggregates pattern) | Unauthenticated sweep would spam all users |
-| Daily cap at UTC midnight | User-local midnight | Simpler implementation. Edge case: user can receive up to 6 pushes in a 24hr window across UTC boundary. Acceptable for beta without timezone storage. |
+| Token unregister on logout | Leave tokens until they expire | Prevents phantom pushes to logged-out devices. Small implementation cost. |
 | Defer `collecting_momentum_reminder` | Include in Phase 1-2 cron sweep | Risks feeling naggy at beta scale. Highest-priority deferred item — evaluate first after Phase 1 data. Cron query block is pre-written (commented out). |
-| P2 fully deferred | Ship some P2 in Phase 2 | 17 types is already ambitious. Ship, measure, then expand. |
