@@ -3864,6 +3864,61 @@ async function handleRoute(request, { params }) {
         new Date(trip.createdAt)
       ).catch(err => console.error('[events] emitWindowSupported failed:', err))
 
+      // Push notification: notify window author (P1, fire-and-forget)
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        pushRouter(db, {
+          type: 'window_supported_author',
+          tripId,
+          trip,
+          context: {
+            tripName: trip.name,
+            actorName: auth.user.name,
+            actorUserId: auth.user.id,
+            authorUserId: window.proposedBy,
+            windowId,
+          }
+        }).catch(err => console.error('[push] window_supported_author failed:', err.message))
+      } catch {}
+
+      // Push notification: leader_ready_to_propose when response rate crosses >50% (P1, fire-and-forget)
+      if (auth.user.id !== trip.createdBy) {
+        try {
+          const allSupports = await db.collection('window_supports').find({ tripId }).toArray()
+          const allWindows = await db.collection('date_windows').find({ tripId }).toArray()
+          const { getActiveTravelerIds } = await import('@/lib/push/pushAudience.js')
+          const travelerIds = await getActiveTravelerIds(db, trip)
+          const responders = new Set(allSupports.map(s => s.userId))
+          const responseRate = travelerIds.length > 0 ? responders.size / travelerIds.length : 0
+
+          if (responseRate > 0.5) {
+            // Find leading window for context
+            const windowCounts = {}
+            for (const s of allSupports) {
+              windowCounts[s.windowId] = (windowCounts[s.windowId] || 0) + 1
+            }
+            let leadingWindowId = null
+            let maxCount = 0
+            for (const [wId, count] of Object.entries(windowCounts)) {
+              if (count > maxCount) { maxCount = count; leadingWindowId = wId }
+            }
+            const leadingWindow = allWindows.find(w => w.id === leadingWindowId)
+            const { formatDateRange } = await import('@/lib/push/pushCopy.js')
+            const dates = leadingWindow?.normalizedStart && leadingWindow?.normalizedEnd
+              ? formatDateRange(leadingWindow.normalizedStart, leadingWindow.normalizedEnd)
+              : null
+
+            const { pushRouter } = await import('@/lib/push/pushRouter.js')
+            pushRouter(db, {
+              type: 'leader_ready_to_propose',
+              tripId,
+              trip,
+              context: { tripName: trip.name, dates }
+            }).catch(err => console.error('[push] leader_ready_to_propose failed:', err.message))
+          }
+        } catch {}
+      }
+
       return handleCORS(NextResponse.json({ message: 'Support added' }))
     }
 
@@ -5339,6 +5394,17 @@ async function handleRoute(request, { params }) {
           newLeaderId: auth.user.id
         }
       })
+
+      // Push notification: leader transferred (P1, fire-and-forget)
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        pushRouter(db, {
+          type: 'leader_transferred',
+          tripId,
+          trip: { ...trip, createdBy: auth.user.id },
+          context: { tripName: trip.name, newLeaderId: auth.user.id }
+        }).catch(err => console.error('[push] leader_transferred failed:', err.message))
+      } catch {}
 
       return handleCORS(NextResponse.json({
         message: 'Leadership transfer accepted. You are now the trip leader.',
@@ -9817,6 +9883,17 @@ async function handleRoute(request, { params }) {
         }
       })
 
+      // Push notification: accommodation selected (P1, fire-and-forget)
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        pushRouter(db, {
+          type: 'accommodation_selected',
+          tripId,
+          trip,
+          context: { tripName: trip.name, actorUserId: auth.user.id }
+        }).catch(err => console.error('[push] accommodation_selected failed:', err.message))
+      } catch {}
+
       // Return updated trip data so client can detect phase completion
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
       const updatedProgress = await db.collection('trip_progress').findOne({ tripId })
@@ -10810,6 +10887,18 @@ async function handleRoute(request, { params }) {
         },
         dedupeKey: `idea:${idea.id}`
       })
+
+      // Push notification: first idea contributed (P1, fire-and-forget)
+      // Trip-scoped dedupe key ensures only one push per trip regardless of race conditions
+      try {
+        const { pushRouter } = await import('@/lib/push/pushRouter.js')
+        pushRouter(db, {
+          type: 'first_idea_contributed',
+          tripId,
+          trip,
+          context: { tripName: trip.name, actorName: auth.user.name, actorUserId: auth.user.id }
+        }).catch(err => console.error('[push] first_idea_contributed failed:', err.message))
+      } catch {}
 
       return handleCORS(NextResponse.json(idea))
     }

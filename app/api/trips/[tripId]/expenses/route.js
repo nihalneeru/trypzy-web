@@ -277,6 +277,22 @@ export async function POST(request, { params }) {
       }
     )
     
+    // Push notification: expense added (P1, fire-and-forget)
+    try {
+      const { pushRouter } = await import('@/lib/push/pushRouter.js')
+      pushRouter(db, {
+        type: 'expense_added',
+        tripId,
+        trip,
+        context: {
+          tripName: trip.name,
+          actorName: auth.user.name,
+          actorUserId: auth.user.id,
+          expenseId: expense._id.toString(),
+        }
+      }).catch(err => console.error('[push] expense_added failed:', err.message))
+    } catch {}
+
     return handleCORS(NextResponse.json(expense))
   } catch (error) {
     console.error('Error in POST /api/trips/:tripId/expenses:', error)

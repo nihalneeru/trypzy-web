@@ -103,6 +103,11 @@ describe('resolveTargetUsers', () => {
     expect(result).toEqual(['alice'])
   })
 
+  it('leader_ready_to_propose: leader only', async () => {
+    const result = await resolveTargetUsers(db, 'leader_ready_to_propose', COLLAB_TRIP, {})
+    expect(result).toEqual(['leader'])
+  })
+
   it('window_supported_author: author only, excludes self-support', async () => {
     const result = await resolveTargetUsers(db, 'window_supported_author', COLLAB_TRIP, {
       authorUserId: 'alice',

@@ -98,11 +98,9 @@ describe('pushRouter', () => {
     expect(resolveTargetUsers).not.toHaveBeenCalled()
   })
 
-  it('daily cap suppresses P1 types', async () => {
+  it('daily cap suppresses P1 types without recording dedupe', async () => {
     isP0Type.mockReturnValue(false)
     isDailyCapped.mockResolvedValue(true)
-    // tryRecordPush still returns true (new event), but cap blocks send
-    // However the implementation records first then checks cap, so both get suppressed
     const stats = await pushRouter(DB, {
       type: 'trip_created_notify',
       tripId: 'trip-1',
@@ -111,6 +109,8 @@ describe('pushRouter', () => {
     })
     expect(stats.suppressed).toBe(2)
     expect(stats.sent).toBe(0)
+    // Cap is checked before dedupe — no dedupe record should be created
+    expect(tryRecordPush).not.toHaveBeenCalled()
   })
 
   it('P0 types skip daily cap check', async () => {
