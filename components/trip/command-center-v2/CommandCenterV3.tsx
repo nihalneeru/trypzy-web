@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 import type { OverlayType, OverlayParams } from './types'
@@ -186,6 +187,25 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
       headers: { Authorization: `Bearer ${token}` }
     }).catch(() => {})
   }, [trip?.id, trip?.status, token])
+
+  // Deep link: open overlay from ?overlay= URL param (push notification tap)
+  const searchParams = useSearchParams()
+  const deepLinkHandledRef = useRef(false)
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return
+    const overlayParam = searchParams?.get('overlay')
+    if (!overlayParam) return
+    const VALID_OVERLAYS: OverlayType[] = [
+      'proposed', 'scheduling', 'itinerary', 'accommodation',
+      'travelers', 'prep', 'expenses', 'memories'
+    ]
+    if (VALID_OVERLAYS.includes(overlayParam as OverlayType)) {
+      deepLinkHandledRef.current = true
+      setActiveOverlay(overlayParam as OverlayType)
+      // Clean URL without triggering navigation
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [searchParams])
 
   // Derived state
   const progressSteps = useMemo(() => computeProgressSteps(trip), [trip])

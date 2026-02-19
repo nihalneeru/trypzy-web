@@ -89,11 +89,14 @@ export default function NativeBridgePage() {
             if (perm.receive === 'granted') {
               await PushNotifications.register()
               PushNotifications.addListener('registration', async (pushToken) => {
+                const pushPlatform = window.Capacitor?.getPlatform?.() === 'android' ? 'android' : 'ios'
                 fetch('/api/push/register', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ token: pushToken.value, platform: 'ios' })
+                  body: JSON.stringify({ token: pushToken.value, platform: pushPlatform })
                 }).catch(() => {}) // fire-and-forget
+                // Save token for logout unregister
+                try { localStorage.setItem('tripti_push_token', pushToken.value) } catch {}
               })
             }
           }

@@ -27,6 +27,21 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
 
   const handleLogout = async () => {
     setLoggingOut(true)
+
+    // Unregister push token before clearing auth (best-effort)
+    try {
+      const pushToken = localStorage.getItem('tripti_push_token')
+      const authToken = localStorage.getItem('tripti_token')
+      if (pushToken && authToken) {
+        fetch('/api/push/register', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify({ token: pushToken })
+        }).catch(() => {})
+      }
+      localStorage.removeItem('tripti_push_token')
+    } catch {}
+
     localStorage.removeItem('tripti_token')
     localStorage.removeItem('tripti_user')
     document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'

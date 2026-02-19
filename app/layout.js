@@ -2,6 +2,7 @@ import './globals.css'
 import { Toaster } from 'sonner'
 import { Inter } from 'next/font/google'
 import { SessionProvider } from '@/components/providers/SessionProvider'
+import { PushHandler } from '@/components/common/PushHandler'
 import * as Sentry from '@sentry/nextjs'
 
 const inter = Inter({
@@ -59,6 +60,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-screen bg-background font-sans antialiased">
         <SessionProvider>
           {children}
+          <PushHandler />
         </SessionProvider>
         <Toaster position="top-right" />
       </body>
