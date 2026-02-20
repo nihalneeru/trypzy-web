@@ -311,9 +311,9 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   const hasActiveOverlay = activeOverlay !== null
 
   return (
-    <div className="flex flex-col h-full bg-gray-100">
-      {/* Centered column container - constrains all content to max-w-3xl */}
-      <div className="flex-1 flex flex-col h-full max-w-5xl mx-auto bg-white relative shadow-sm">
+    <div className="flex flex-col h-full bg-gray-100 overflow-x-hidden">
+      {/* Centered column container - constrains all content to max-w-5xl */}
+      <div className="flex-1 flex flex-col h-full w-full max-w-5xl mx-auto bg-white relative shadow-sm overflow-x-hidden">
         {/* Top section: Cancelled/removed banner + ProgressStrip (measured for overlay offset) */}
         <div ref={stripRef} className="shrink-0 z-10">
           {isCancelled && (
