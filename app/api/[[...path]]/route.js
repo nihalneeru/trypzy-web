@@ -1767,7 +1767,8 @@ async function handleRoute(request, { params }) {
       let userDatePicks = null
       let pickProgress = undefined
 
-      if (trip.schedulingMode === 'top3_heatmap') {
+      // Old trips without schedulingMode field default to top3_heatmap behavior
+      if (trip.schedulingMode === 'top3_heatmap' || (trip.type === 'collaborative' && !trip.schedulingMode)) {
         // Get all date picks for this trip
         const allPicks = await db.collection('trip_date_picks')
           .find({ tripId })
@@ -1867,9 +1868,10 @@ async function handleRoute(request, { params }) {
       }
 
       // Scheduling summary for date_windows mode (status card in chat)
+      // Only for trips that explicitly have schedulingMode === 'date_windows' in DB
+      // (avoids running date_windows logic for old trips without schedulingMode set)
       let schedulingSummary = null
-      const schedulingMode = trip.schedulingMode || (trip.type === 'collaborative' ? 'date_windows' : null)
-      if (schedulingMode === 'date_windows' && !['locked', 'completed', 'canceled'].includes(tripStatus)) {
+      if (trip.schedulingMode === 'date_windows' && !['locked', 'completed', 'canceled'].includes(tripStatus)) {
         try {
           const { computeProposalReady, getSchedulingPhase } = await import('@/lib/trips/proposalReady.js')
           const phase = getSchedulingPhase(trip)

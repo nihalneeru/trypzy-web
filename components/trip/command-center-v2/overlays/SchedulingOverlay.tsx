@@ -101,8 +101,10 @@ export function SchedulingOverlay({
   const [locking, setLocking] = useState(false)
 
   // Trip scheduling parameters
-  const startBound = trip.startBound || trip.startDate
-  const endBound = trip.endBound || trip.endDate
+  // Normalize to YYYY-MM-DD (handles both "2026-03-15" and "2026-03-15T00:00:00.000Z")
+  const normalizeDate = (d: string | undefined | null) => d ? d.split('T')[0] : undefined
+  const startBound = normalizeDate(trip.startBound || trip.startDate)
+  const endBound = normalizeDate(trip.endBound || trip.endDate)
   const tripLengthDays = trip.tripLengthDays || trip.duration || 3
   const isLocked = trip.status === 'locked'
   const isVoting = trip.status === 'voting'
