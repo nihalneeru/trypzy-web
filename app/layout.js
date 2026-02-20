@@ -22,6 +22,15 @@ export function generateMetadata() {
   return {
     title: 'Tripti.ai — Nifty plans. Happy circles.',
     description: 'Private, trust-based trip planning for friend groups',
+    icons: {
+      icon: [
+        { url: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+        { url: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+      ],
+      apple: [
+        { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      ],
+    },
     openGraph: {
       title: 'Tripti.ai — Nifty plans. Happy circles.',
       description: 'Private, trust-based trip planning for friend groups',
@@ -29,9 +38,9 @@ export function generateMetadata() {
       siteName: 'Tripti.ai',
       images: [
         {
-          url: 'https://tripti.ai/brand/logomark-png/tripti.ai-lm-primary-white-on-red1024x1024.png',
-          width: 1024,
-          height: 1024,
+          url: '/icon-512x512.png',
+          width: 512,
+          height: 512,
           alt: 'Tripti.ai logo',
         },
       ],
@@ -41,7 +50,7 @@ export function generateMetadata() {
       card: 'summary',
       title: 'Tripti.ai — Nifty plans. Happy circles.',
       description: 'Private, trust-based trip planning for friend groups',
-      images: ['https://tripti.ai/brand/logomark-png/tripti.ai-lm-primary-white-on-red1024x1024.png'],
+      images: ['/icon-512x512.png'],
     },
     other: {
       ...Sentry.getTraceData()
