@@ -66,7 +66,7 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 safe-top">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-50 safe-top">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Left: Logo + Navigation */}
@@ -101,13 +101,13 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
             <div className="flex items-center shrink-0">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-xs sm:text-sm gap-1 px-2 h-8">
+                  <Button variant="ghost" size="sm" className="text-xs sm:text-sm gap-1 px-2 h-11">
                     {loggingOut ? (
                       <BrandedSpinner size="sm" />
                     ) : (
                       <>
                         <span className="max-w-[100px] sm:max-w-[140px] truncate">
-                          {userName || 'Account'}
+                          {userName?.split(' ')[0] || 'Account'}
                         </span>
                         <ChevronDown className="h-3 w-3 opacity-60" />
                       </>

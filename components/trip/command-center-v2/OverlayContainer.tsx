@@ -41,10 +41,10 @@ interface OverlayContainerProps {
 }
 
 /**
- * Slide-in drawer overlay container
+ * Drawer overlay container
  *
  * Features:
- * - Slides in from right side or bottom with smooth animation
+ * - Instant show/hide (no animation) to prevent horizontal scroll artifacts
  * - Can be offset from right edge to not cover sidebar
  * - Chat remains visible (dimmed) behind
  * - Unsaved changes protection with confirmation dialog
@@ -66,30 +66,7 @@ export function OverlayContainer({
   accentColor = '#00334D'
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
-  const [isVisible, setIsVisible] = useState(false)
-  const [isAnimating, setIsAnimating] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
-
-  // Handle open/close animation
-  useEffect(() => {
-    if (isOpen) {
-      // Opening: first make visible, then animate in
-      setIsVisible(true)
-      // Small delay to ensure DOM is ready for animation
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setIsAnimating(true)
-        })
-      })
-    } else {
-      // Closing: animate out first, then hide
-      setIsAnimating(false)
-      const timer = setTimeout(() => {
-        setIsVisible(false)
-      }, 300) // Match animation duration
-      return () => clearTimeout(timer)
-    }
-  }, [isOpen])
 
   // Handle close attempt - check for unsaved changes
   const handleCloseAttempt = useCallback(() => {
@@ -130,13 +107,13 @@ export function OverlayContainer({
 
   // Focus trap - focus overlay when opened
   useEffect(() => {
-    if (isOpen && isAnimating && overlayRef.current) {
+    if (isOpen && overlayRef.current) {
       overlayRef.current.focus()
     }
-  }, [isOpen, isAnimating])
+  }, [isOpen])
 
-  // Don't render anything if not visible
-  if (!isVisible) return null
+  // Don't render anything if not open
+  if (!isOpen) return null
 
   const isBottomSlide = slideFrom === 'bottom'
   const positionClass = useAbsolutePosition ? 'absolute' : 'fixed'
@@ -146,8 +123,7 @@ export function OverlayContainer({
       {/* Backdrop - semi-transparent overlay, constrained to chat area */}
       <div
         className={cn(
-          positionClass, 'z-40 bg-black/30 transition-opacity duration-300',
-          isAnimating ? 'opacity-100' : 'opacity-0'
+          positionClass, 'z-40 bg-black/30'
         )}
         style={
           useAbsolutePosition
@@ -169,16 +145,10 @@ export function OverlayContainer({
         tabIndex={-1}
         className={cn(
           positionClass, 'z-50 bg-white shadow-2xl',
-          'flex flex-col transition-transform duration-300 ease-out',
-          isBottomSlide ? [
-            // Bottom slide: compact sheet anchored to bottom-left (near trigger buttons)
-            'rounded-t-xl overflow-hidden',
-            isAnimating ? 'translate-y-0' : 'translate-y-full'
-          ] : [
-            // Right slide: constrained to chat area, never covers chevron bar or bottom bar
-            'rounded-lg overflow-hidden',
-            isAnimating ? 'translate-x-0' : 'translate-x-full'
-          ]
+          'flex flex-col',
+          isBottomSlide
+            ? 'rounded-t-xl overflow-hidden'
+            : 'rounded-lg overflow-hidden'
         )}
         style={
           useAbsolutePosition && isBottomSlide
