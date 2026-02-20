@@ -105,7 +105,7 @@ export function SchedulingOverlay({
   const normalizeDate = (d: string | undefined | null) => d ? d.split('T')[0] : undefined
   const startBound = normalizeDate(trip.startBound || trip.startDate)
   const endBound = normalizeDate(trip.endBound || trip.endDate)
-  const tripLengthDays = trip.tripLengthDays || trip.duration || 3
+  const tripLengthDays = Number(trip.tripLengthDays) || 3
   const isLocked = trip.status === 'locked'
   const isVoting = trip.status === 'voting'
   const canParticipate = trip?.viewer?.isActiveParticipant === true
