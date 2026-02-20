@@ -93,6 +93,14 @@ interface ItineraryVersion {
     }
     days?: ItineraryDay[]
   }
+  llmMeta?: {
+    ideaCount?: number
+    feedbackCount?: number
+    reactionCount?: number
+    chatMessageCount?: number
+    chatBriefEnabled?: boolean
+    chatBriefSucceeded?: boolean
+  }
 }
 
 interface ItineraryDay {
@@ -308,6 +316,8 @@ export function ItineraryOverlay({
   // ----------------------------------------------------------------------------
   // Itinerary State
   // ----------------------------------------------------------------------------
+  const [allVersions, setAllVersions] = useState<ItineraryVersion[]>([])
+  const [selectedVersionIdx, setSelectedVersionIdx] = useState<number>(-1)
   const [latestVersion, setLatestVersion] = useState<ItineraryVersion | null>(null)
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -397,6 +407,14 @@ export function ItineraryOverlay({
     if (!ideas || !user?.id) return 0
     return ideas.filter((idea) => getAuthorId(idea) === user.id).length
   }, [ideas, user?.id])
+
+  // Selected version for viewing (defaults to latest)
+  const selectedVersion = useMemo(() => {
+    if (selectedVersionIdx < 0 || selectedVersionIdx >= allVersions.length) return latestVersion
+    return allVersions[selectedVersionIdx]
+  }, [allVersions, selectedVersionIdx, latestVersion])
+
+  const isViewingLatest = selectedVersion?.version === latestVersion?.version
 
   const generateNeedsIdeas = ideas.length === 0
   const generateNeedsDestinationHint = destinationHint.length === 0
@@ -528,21 +546,22 @@ export function ItineraryOverlay({
     setLoadingVersions(true)
     try {
       const data = await api(`/trips/${trip.id}/itinerary/versions`, { method: 'GET' }, token)
-      const versions = data.versions || data || []
+      const versions = (data.versions || data || [])
+        .sort((a: ItineraryVersion, b: ItineraryVersion) => a.version - b.version)
 
       // Track version metadata from server (source of truth for version limit)
       setVersionCount(data.versionCount ?? versions.length)
       setMaxVersions(data.maxVersions ?? MAX_VERSIONS)
       setCanRevise(data.canRevise ?? versions.length < MAX_VERSIONS)
+      setAllVersions(versions)
 
       if (versions.length > 0) {
-        // Get the latest version (highest version number)
-        const latest = versions.reduce((a: ItineraryVersion, b: ItineraryVersion) =>
-          a.version > b.version ? a : b
-        )
+        const latest = versions[versions.length - 1]
         setLatestVersion(latest)
+        setSelectedVersionIdx(versions.length - 1)
       } else {
         setLatestVersion(null)
+        setSelectedVersionIdx(-1)
       }
     } catch (error: any) {
       console.error('Failed to load versions:', error)
@@ -1066,14 +1085,36 @@ export function ItineraryOverlay({
                 Itinerary
               </CardTitle>
               {latestVersion && (
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline">
-                    Version {latestVersion.version} of {maxVersions}
-                  </Badge>
-                  {!canRevise && (
-                    <Badge variant="secondary" className="text-xs bg-brand-sand text-brand-carbon">
-                      Final
+                <div className="flex flex-col gap-1.5 mt-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">
+                      Version {selectedVersion?.version || latestVersion.version} of {maxVersions}
                     </Badge>
+                    {!canRevise && isViewingLatest && (
+                      <Badge variant="secondary" className="text-xs bg-brand-sand text-brand-carbon">
+                        Final
+                      </Badge>
+                    )}
+                    {!isViewingLatest && (
+                      <Badge variant="secondary" className="text-xs">
+                        Viewing older version
+                      </Badge>
+                    )}
+                  </div>
+                  {/* llmMeta transparency — what inputs were used */}
+                  {selectedVersion?.llmMeta && (
+                    <p className="text-xs text-gray-500">
+                      Based on {selectedVersion.llmMeta.ideaCount || 0} idea{(selectedVersion.llmMeta.ideaCount || 0) !== 1 ? 's' : ''}
+                      {(selectedVersion.llmMeta.feedbackCount || 0) > 0 && (
+                        <>, {selectedVersion.llmMeta.feedbackCount} feedback</>
+                      )}
+                      {(selectedVersion.llmMeta.reactionCount || 0) > 0 && (
+                        <>, {selectedVersion.llmMeta.reactionCount} reaction{selectedVersion.llmMeta.reactionCount !== 1 ? 's' : ''}</>
+                      )}
+                      {selectedVersion.llmMeta.chatBriefSucceeded && (
+                        <> + chat context</>
+                      )}
+                    </p>
                   )}
                 </div>
               )}
@@ -1100,6 +1141,26 @@ export function ItineraryOverlay({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Version picker tabs */}
+          {allVersions.length > 1 && (
+            <div className="flex gap-1 mb-3 pb-3 border-b">
+              {allVersions.map((v, idx) => (
+                <button
+                  key={v.id}
+                  onClick={() => setSelectedVersionIdx(idx)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    selectedVersionIdx === idx
+                      ? 'bg-brand-blue text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  v{v.version}
+                  {idx === allVersions.length - 1 && ' (latest)'}
+                </button>
+              ))}
+            </div>
+          )}
+
           <ScrollArea className="h-[250px] md:h-[350px]">
             {loadingVersions ? (
               <div className="flex flex-col items-center justify-center py-8">
@@ -1107,65 +1168,97 @@ export function ItineraryOverlay({
                 <p className="text-sm text-gray-500">Loading itinerary...</p>
               </div>
             ) : !latestVersion ? (
-              <div className="text-center py-8">
-                <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-500 mb-2 text-sm">No itinerary generated yet</p>
+              <div className="py-6">
+                {/* "What Tripti will use" panel — pre-generate transparency */}
                 {isLeader ? (
-                  <p className="text-xs text-gray-400">
-                    {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} from{' '}
-                    {groupedIdeas.length} {groupedIdeas.length === 1 ? 'traveler' : 'travelers'}
-                  </p>
+                  <div className="space-y-3">
+                    <div className="text-center mb-4">
+                      <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500 text-sm">No itinerary generated yet</p>
+                    </div>
+                    <div className="rounded-lg border border-brand-sand bg-brand-sand/30 p-3">
+                      <p className="text-xs font-semibold text-brand-carbon mb-2">What Tripti will use to generate</p>
+                      <div className="space-y-1.5 text-xs text-brand-carbon/80">
+                        <div className="flex items-center justify-between">
+                          <span>Destination</span>
+                          <span className={`font-medium ${destinationHint ? 'text-brand-carbon' : 'text-gray-400 italic'}`}>
+                            {destinationHint || 'Not set'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Trip dates</span>
+                          <span className="font-medium">
+                            {trip?.lockedStartDate && trip?.lockedEndDate
+                              ? `${new Date(trip.lockedStartDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(trip.lockedEndDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                              : 'Not locked'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Ideas</span>
+                          <span className={`font-medium ${ideas.length > 0 ? 'text-brand-carbon' : 'text-gray-400 italic'}`}>
+                            {ideas.length > 0
+                              ? `${ideas.length} from ${groupedIdeas.length} traveler${groupedIdeas.length !== 1 ? 's' : ''}`
+                              : 'None yet'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Group size</span>
+                          <span className="font-medium">{trip?.activeTravelerCount || trip?.memberCount || '–'} travelers</span>
+                        </div>
+                      </div>
+                    </div>
+                    {llmDisabledMessage && (
+                      <div className="inline-flex items-center gap-2 text-xs text-amber-700">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        <span>{llmDisabledMessage}</span>
+                      </div>
+                    )}
+                    {generating && (
+                      <p className="text-xs text-gray-500 text-center">{GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}</p>
+                    )}
+                  </div>
                 ) : (
-                  <p className="text-xs text-gray-400">
-                    The leader will generate an itinerary once ideas are in.
-                  </p>
-                )}
-                {llmDisabledMessage && (
-                  <div className="mt-3 inline-flex items-center gap-2 text-xs text-amber-700">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    <span>{llmDisabledMessage}</span>
+                  <div className="text-center py-4">
+                    <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                    <p className="text-gray-500 mb-2 text-sm">No itinerary generated yet</p>
+                    <p className="text-xs text-gray-400">
+                      The leader will generate an itinerary once ideas are in.
+                    </p>
                   </div>
                 )}
-                {generating && (
-                  <p className="text-xs text-gray-500 mt-2">{GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}</p>
-                )}
               </div>
-            ) : (
+            ) : selectedVersion ? (
               <div className="space-y-4">
-                {/* Change log */}
-                {latestVersion.changeLog && (
-                  <Accordion type="single" collapsible>
-                    <AccordionItem value="changelog">
-                      <AccordionTrigger className="text-sm py-2">
-                        What changed in v{latestVersion.version}?
-                      </AccordionTrigger>
-                      <AccordionContent className="text-sm text-gray-600">
-                        {latestVersion.changeLog}
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
+                {/* Changelog — prominent banner for v2+ */}
+                {selectedVersion.changeLog && selectedVersion.version > 1 && (
+                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <p className="text-xs font-semibold text-amber-800 mb-1">
+                      What changed in v{selectedVersion.version}
+                    </p>
+                    <p className="text-sm text-amber-900/80">{selectedVersion.changeLog}</p>
+                  </div>
                 )}
 
                 {/* Overview */}
-                {latestVersion.content?.overview && (
+                {selectedVersion.content?.overview && (
                   <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-xs font-medium mb-1">Overview</p>
                     <p className="text-xs text-gray-600">
-                      Pace: {latestVersion.content.overview.pace} | Budget:{' '}
-                      {latestVersion.content.overview.budget}
+                      Pace: {selectedVersion.content.overview.pace} | Budget:{' '}
+                      {selectedVersion.content.overview.budget}
                     </p>
-                    {latestVersion.content.overview.notes && (
+                    {selectedVersion.content.overview.notes && (
                       <p className="text-xs text-gray-600 mt-1">
-                        {latestVersion.content.overview.notes}
+                        {selectedVersion.content.overview.notes}
                       </p>
                     )}
                   </div>
                 )}
 
                 {/* Days */}
-                {latestVersion.content?.days && (
+                {selectedVersion.content?.days && (
                   <Accordion type="multiple" className="w-full">
-                    {latestVersion.content.days.map((day, dayIdx) => (
+                    {selectedVersion.content.days.map((day, dayIdx) => (
                       <AccordionItem key={dayIdx} value={`day-${dayIdx}`}>
                         <AccordionTrigger className="hover:no-underline py-2">
                           <div className="flex items-center gap-2">
@@ -1234,7 +1327,7 @@ export function ItineraryOverlay({
                   </Accordion>
                 )}
               </div>
-            )}
+            ) : null}
           </ScrollArea>
         </CardContent>
       </Card>

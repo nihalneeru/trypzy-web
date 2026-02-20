@@ -1866,6 +1866,76 @@ async function handleRoute(request, { params }) {
         } // end if (startBound && endBound)
       }
 
+      // Scheduling summary for date_windows mode (status card in chat)
+      let schedulingSummary = null
+      const schedulingMode = trip.schedulingMode || (trip.type === 'collaborative' ? 'date_windows' : null)
+      if (schedulingMode === 'date_windows' && !['locked', 'completed', 'canceled'].includes(tripStatus)) {
+        try {
+          const { computeProposalReady, getSchedulingPhase } = await import('@/lib/trips/proposalReady.js')
+          const phase = getSchedulingPhase(trip)
+
+          if (phase !== 'LOCKED') {
+            const dwWindows = await db.collection('date_windows').find({ tripId }).sort({ createdAt: 1 }).toArray()
+            const dwSupports = await db.collection('window_supports').find({ tripId }).toArray()
+
+            const travelersForProposal = Array.from(effectiveActiveUserIds).map(uid => ({ id: uid }))
+            const proposalResult = computeProposalReady(trip, travelersForProposal, dwWindows, dwSupports)
+
+            // Responder count: unique users who supported at least one window
+            const responderIds = new Set(dwSupports.map(s => s.userId))
+            const responderCount = responderIds.size
+            const userHasResponded = responderIds.has(auth.user.id)
+
+            // Format leading window text
+            const formatWindowDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            const leadingWindow = proposalResult.leadingWindow
+            const leadingWindowText = leadingWindow
+              ? `${formatWindowDate(leadingWindow.startDate)} – ${formatWindowDate(leadingWindow.endDate)}`
+              : null
+
+            schedulingSummary = {
+              phase,
+              windowCount: dwWindows.length,
+              responderCount,
+              totalTravelers: effectiveActiveUserIds.size,
+              leadingWindowText,
+              leadingSupportCount: proposalResult.leaderCount || 0,
+              userHasResponded,
+              proposalReady: proposalResult.proposalReady
+            }
+
+            // PROPOSED phase: add proposal details
+            if (phase === 'PROPOSED' && trip.proposedWindowId) {
+              const proposedWindow = dwWindows.find(w => w.id === trip.proposedWindowId)
+              const reactions = trip.proposedWindowReactions || []
+              const approvals = reactions.filter(r => r.reactionType === 'WORKS').length
+              const requiredApprovals = Math.ceil(effectiveActiveUserIds.size / 2)
+              const userReaction = reactions.find(r => r.userId === auth.user.id)
+
+              schedulingSummary.proposedWindowText = proposedWindow
+                ? `${formatWindowDate(proposedWindow.startDate)} – ${formatWindowDate(proposedWindow.endDate)}`
+                : null
+              schedulingSummary.approvalCount = approvals
+              schedulingSummary.totalReactions = reactions.length
+              schedulingSummary.requiredApprovals = requiredApprovals
+              schedulingSummary.userReaction = userReaction?.reactionType || null
+            }
+
+            // Also populate pickProgress for date_windows mode (fixes blocking info pill)
+            if (!pickProgress) {
+              pickProgress = {
+                submitted: responderCount,
+                total: effectiveActiveUserIds.size,
+                respondedUserIds: Array.from(responderIds)
+              }
+            }
+          }
+        } catch (err) {
+          // Non-critical — card just won't render
+          console.error('schedulingSummary computation failed:', err)
+        }
+      }
+
       // Idea counts for CTA decisions (safe fallback: { totalCount: 0, userIdeaCount: 0 })
       let ideaSummary = { totalCount: 0, userIdeaCount: 0 }
       try {
@@ -1949,7 +2019,9 @@ async function handleRoute(request, { params }) {
         userDatePicks, // Current user's picks: [{rank:1|2|3, startDateISO}]
         heatmapScores, // { startDateISO: score }
         topCandidates, // Top 5: [{startDateISO, endDateISO, score, loveCount, canCount, mightCount}]
-        pickProgress, // { respondedCount, totalCount, respondedUserIds } - only for top3_heatmap
+        pickProgress, // { respondedCount/submitted, totalCount/total, respondedUserIds }
+        // Scheduling summary for status card (date_windows mode only)
+        schedulingSummary,
         // Itinerary status (for locked trips)
         itineraryStatus: trip.itineraryStatus || null,
         // Idea counts for CTA bar decisions

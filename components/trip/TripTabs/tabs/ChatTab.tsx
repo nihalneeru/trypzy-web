@@ -684,19 +684,19 @@ export function ChatTab({
   const chatContent = (
     <>
       <ScrollArea ref={scrollAreaRef} className={`flex-1 pr-4 ${isCommandCenter ? 'h-[300px] md:h-[400px]' : ''}`}>
-          <div className="space-y-4">
+          <div className="space-y-0 px-1">
             {/* Waiting on... clarity message (system style, at top) */}
             {blockingInfo && (blockingInfo.reasonCode !== 'initial_scheduling' || allowInitialBlocking) && (
-              <div className="flex justify-center">
+              <div className="flex justify-center mb-3">
                 <div className="bg-blue-50 border border-blue-200 rounded-full px-4 py-2 text-sm text-blue-700">
                   ⏳ {blockingInfo.message}
                 </div>
               </div>
             )}
-            
+
             {/* Voting status - only during voting stage */}
             {trip?.votingStatus?.isVotingStage && trip.votingStatus.leadingOption && (
-              <div className="flex justify-center">
+              <div className="flex justify-center mb-3">
                 <div className="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-700 flex items-center gap-3">
                   <span>{formatLeadingOption(trip.votingStatus)}</span>
                   <span className="text-xs text-gray-500">
@@ -708,7 +708,7 @@ export function ChatTab({
             
             {/* Ready to lock message - leaders only */}
             {trip?.votingStatus?.readyToLock && tripStatus === 'voting' && (
-              <div className="flex justify-center">
+              <div className="flex justify-center mb-3">
                 <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-800 flex items-center gap-3">
                   <span>
                     Ready to lock — {trip.votingStatus.isTie ? 'tie (you decide)' : `${trip.votingStatus.leadingOption?.name || 'winner'} is leading`}
@@ -745,39 +745,116 @@ export function ChatTab({
             {messages.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No messages yet. Share ideas, ask questions, or coordinate plans here.</p>
             ) : (
-              messages.map((msg: any) => {
+              messages.map((msg: any, idx: number) => {
                 // Determine if message is from current user (used for alignment and styling)
                 const isFromCurrentUser = !msg.isSystem && (msg.user?.id === user?.id || msg.userId === user?.id)
+                const msgSenderId = msg.isSystem ? '__system__' : (msg.user?.id || msg.userId)
+
+                // Date divider: show when day changes between consecutive messages
+                const msgDate = msg.createdAt ? new Date(msg.createdAt) : null
+                const prevMsg = idx > 0 ? messages[idx - 1] : null
+                const prevDate = prevMsg?.createdAt ? new Date(prevMsg.createdAt) : null
+                const showDateDivider = msgDate && (
+                  idx === 0 ||
+                  !prevDate ||
+                  msgDate.toDateString() !== prevDate.toDateString()
+                )
+
+                // Message grouping: consecutive messages from same user within 2 minutes
+                const prevSenderId = prevMsg ? (prevMsg.isSystem ? '__system__' : (prevMsg.user?.id || prevMsg.userId)) : null
+                const isSameGroup = !msg.isSystem && !prevMsg?.isSystem &&
+                  msgSenderId === prevSenderId &&
+                  !showDateDivider &&
+                  msgDate && prevDate &&
+                  (msgDate.getTime() - prevDate.getTime()) < 120000
+
+                // Timestamp formatting
+                const timeStr = msgDate
+                  ? msgDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                  : ''
+
+                const dateDividerLabel = msgDate ? (() => {
+                  const today = new Date()
+                  const yesterday = new Date(today)
+                  yesterday.setDate(yesterday.getDate() - 1)
+                  if (msgDate.toDateString() === today.toDateString()) return 'Today'
+                  if (msgDate.toDateString() === yesterday.toDateString()) return 'Yesterday'
+                  return msgDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                })() : ''
+
+                // Avatar initials for other users
+                const senderName = msg.user?.name || ''
+                const initials = senderName
+                  ? senderName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+                  : '?'
+
                 return (
-                  <div key={msg.id} className={`flex flex-col ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
-                    <div className={`flex ${msg.isSystem ? 'justify-center' : isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                  <div key={msg.id}>
+                    {/* Date divider */}
+                    {showDateDivider && dateDividerLabel && (
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="flex-1 h-px bg-gray-200" />
+                        <span className="text-xs font-medium text-gray-400 whitespace-nowrap">{dateDividerLabel}</span>
+                        <div className="flex-1 h-px bg-gray-200" />
+                      </div>
+                    )}
+
+                    <div className={`flex flex-col ${isSameGroup ? 'mt-0.5' : 'mt-3'} ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
                       {msg.isSystem ? (
-                        msg.subtype === 'nudge' || msg.metadata?.source === 'nudge_engine' ? (
-                          <div className="bg-brand-sand/60 border border-brand-sand rounded-lg px-4 py-2 text-sm text-brand-carbon max-w-[85%]">
-                            {msg.content}
-                          </div>
-                        ) : (
-                        <div
-                          className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
-                          onClick={msg.metadata?.href ? () => {
-                            // Navigate to the href if it's a relative path
-                            if (msg.metadata.href.startsWith('/')) {
-                              window.location.href = msg.metadata.href
-                            } else {
-                              window.open(msg.metadata.href, '_blank')
-                            }
-                          } : undefined}
-                        >
-                          {msg.content}
-                        </div>
-                        )
-                      ) : (
-                        <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isFromCurrentUser ? 'bg-brand-blue/10 border border-brand-blue/20' : 'bg-gray-100'}`}>
-                          {!isFromCurrentUser && (
-                            <p className="text-xs font-medium mb-1 text-gray-600">{msg.user?.name}</p>
+                        // System messages — unchanged
+                        <div className="flex justify-center">
+                          {msg.subtype === 'nudge' || msg.metadata?.source === 'nudge_engine' ? (
+                            <div className="bg-brand-sand/60 border border-brand-sand rounded-lg px-4 py-2 text-sm text-brand-carbon max-w-[85%]">
+                              {msg.content}
+                            </div>
+                          ) : (
+                            <div
+                              className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
+                              onClick={msg.metadata?.href ? () => {
+                                if (msg.metadata.href.startsWith('/')) {
+                                  window.location.href = msg.metadata.href
+                                } else {
+                                  window.open(msg.metadata.href, '_blank')
+                                }
+                              } : undefined}
+                            >
+                              {msg.content}
+                            </div>
                           )}
-                          <p className={isFromCurrentUser ? 'text-brand-carbon' : 'text-gray-900'}>{msg.content}</p>
                         </div>
+                      ) : isFromCurrentUser ? (
+                        // Current user — right-aligned bubble
+                        <div className="flex items-end gap-1.5 max-w-[75%]">
+                          <div className="bg-brand-blue text-white rounded-2xl rounded-br-md px-3.5 py-2">
+                            <p className="text-sm">{msg.content}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        // Other user — left-aligned bubble with avatar
+                        <div className="flex items-end gap-2 max-w-[75%]">
+                          {/* Avatar — show only for first message in a group */}
+                          {!isSameGroup ? (
+                            <div className="w-7 h-7 rounded-full bg-brand-carbon/10 flex items-center justify-center shrink-0">
+                              <span className="text-[10px] font-semibold text-brand-carbon/60">{initials}</span>
+                            </div>
+                          ) : (
+                            <div className="w-7 shrink-0" /> // spacer for alignment
+                          )}
+                          <div>
+                            {!isSameGroup && (
+                              <p className="text-xs font-medium text-gray-500 mb-0.5 ml-1">{senderName}</p>
+                            )}
+                            <div className="bg-gray-100 rounded-2xl rounded-bl-md px-3.5 py-2">
+                              <p className="text-sm text-gray-900">{msg.content}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {/* Timestamp — show for first in group or standalone */}
+                      {!msg.isSystem && !isSameGroup && timeStr && (
+                        <p className={`text-[10px] text-gray-400 mt-0.5 ${isFromCurrentUser ? 'mr-1' : 'ml-10'}`}>
+                          {timeStr}
+                        </p>
                       )}
                     </div>
                   </div>
