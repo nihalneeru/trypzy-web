@@ -55,6 +55,10 @@ const TripInfoOverlay = dynamic(
   { loading: () => overlayLoadingFallback }
 )
 
+// Status cards (pinned above chat)
+import { SchedulingStatusCard } from './SchedulingStatusCard'
+import { ItineraryStatusCard } from './ItineraryStatusCard'
+
 // Chat component
 import { ChatTab } from '@/components/trip/TripTabs/tabs/ChatTab'
 
@@ -356,6 +360,22 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
         {/* Main content area - chat + input + CTA bar */}
         {/* Uses min-h-0 for proper flex child scrolling, dvh for mobile keyboard handling */}
         <div className="flex-1 flex flex-col min-h-0">
+          {/* Status cards — pinned above chat, contextual to current trip phase */}
+          {!isCancelled && !isCompleted && !isReadOnly && (
+            <div className="shrink-0">
+              <SchedulingStatusCard
+                trip={trip}
+                user={user}
+                onOpenScheduling={() => openOverlay('scheduling')}
+              />
+              <ItineraryStatusCard
+                trip={trip}
+                user={user}
+                onOpenItinerary={() => openOverlay('itinerary')}
+              />
+            </div>
+          )}
+
           {/* Chat area - now constrained by outer max-w-3xl container */}
           <div className="flex-1 min-h-0 flex flex-col px-0 sm:px-4">
             <ChatTab
