@@ -151,8 +151,8 @@ export function ProgressStrip({
     <div className="border-b border-gray-200 bg-gray-50 shrink-0 safe-top">
       {/* Row 1: Trip name + dates + participation meter */}
       <div className="flex items-center justify-between px-3 md:px-4 pt-2 pb-1 gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <h1 className="text-sm md:text-base font-semibold text-brand-carbon truncate">
+        <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
+          <h1 className="text-sm md:text-base font-semibold text-brand-carbon break-words min-w-0">
             {tripName}
           </h1>
           {isLeader && (
