@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * AI Council — Multi-model review orchestrator (3 members)
+ * AI Council — Multi-model review orchestrator (4 members)
  *
  * Council members:
  *   1. Gemini (via API)  — called by this script
  *   2. OpenAI (via API)  — called by this script
- *   3. Claude (you)      — reads the output and adds its own take in conversation
+ *   3. Grok (via API)    — called by this script
+ *   4. Claude (you)      — reads the output and adds its own take in conversation
  *
- * This script fetches Gemini and OpenAI reviews, then Claude Code (the one
- * running this script) acts as the 3rd council member — synthesizing all
- * perspectives and contributing its own analysis directly to the user.
+ * This script fetches Gemini, OpenAI, and Grok reviews in parallel, then
+ * Claude Code (the one running this script) acts as the 4th council member —
+ * synthesizing all perspectives and contributing its own analysis directly.
  *
  * Usage:
  *   node scripts/ai-council.mjs --prompt "Review this spec" --context-file docs/SPEC.md
@@ -20,15 +21,17 @@
  * Environment:
  *   GEMINI_API_KEY       — Google AI Studio API key
  *   OPENAI_API_KEY       — OpenAI API key
+ *   XAI_API_KEY          — xAI (Grok) API key
  *   GEMINI_MODEL         — Model ID (default: gemini-3-pro-preview, fallback: gemini-2.5-flash)
  *   OPENAI_MODEL_COUNCIL — Model ID (default: gpt-5.2)
+ *   GROK_MODEL_COUNCIL   — Model ID (default: grok-3)
  *
  * Options:
  *   --prompt           — The review prompt / question
  *   --context          — Inline context string
  *   --context-file     — Path to file(s) to include as context (comma-separated)
  *   --system           — Custom system prompt (default: senior reviewer persona)
- *   --round2           — Enable second feedback round (each model sees the other's feedback)
+ *   --round2           — Enable second feedback round (each model sees the others' feedback)
  *   --json             — Output raw JSON instead of formatted text
  */
 
@@ -62,10 +65,12 @@ if (existsSync(envPath)) {
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY
 const OPENAI_KEY = process.env.OPENAI_API_KEY
+const XAI_KEY = process.env.XAI_API_KEY
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-pro-preview'
 const GEMINI_FALLBACK = 'gemini-2.5-flash'
 const OPENAI_MODEL = process.env.OPENAI_MODEL_COUNCIL || 'gpt-5.2'
+const GROK_MODEL = process.env.GROK_MODEL_COUNCIL || 'grok-3'
 
 const DEFAULT_SYSTEM = `You are a senior software architect and UX reviewer for Tripti.ai, a group travel coordination app.
 
@@ -214,38 +219,93 @@ async function callOpenAI(userPrompt, systemText) {
   }
 }
 
+async function callGrok(userPrompt, systemText) {
+  if (!XAI_KEY) return { model: 'grok (skipped)', response: 'XAI_API_KEY not set', error: true }
+
+  // xAI API is OpenAI-compatible
+  const url = 'https://api.x.ai/v1/chat/completions'
+  const body = {
+    model: GROK_MODEL,
+    messages: [
+      { role: 'system', content: systemText },
+      { role: 'user', content: userPrompt },
+    ],
+    max_tokens: 4096,
+    temperature: 0.3,
+  }
+
+  try {
+    const res = await httpsPost(url, { Authorization: `Bearer ${XAI_KEY}` }, body)
+    if (res.status !== 200) {
+      const errMsg = res.body?.error?.message || JSON.stringify(res.body).slice(0, 200)
+      return { model: GROK_MODEL, response: `API error ${res.status}: ${errMsg}`, error: true }
+    }
+    const text = res.body?.choices?.[0]?.message?.content || ''
+    return { model: GROK_MODEL, response: text, error: false }
+  } catch (err) {
+    return { model: GROK_MODEL, response: `Network error: ${err.message}`, error: true }
+  }
+}
+
 // ============ Orchestration ============
 
 async function runCouncil() {
   console.error('[council] Starting Round 1 — parallel review...')
   console.error(`[council] Gemini: ${GEMINI_KEY ? GEMINI_MODEL : 'skipped (no key)'} (fallback: ${GEMINI_FALLBACK})`)
   console.error(`[council] OpenAI: ${OPENAI_KEY ? OPENAI_MODEL : 'skipped (no key)'}`)
+  console.error(`[council] Grok:   ${XAI_KEY ? GROK_MODEL : 'skipped (no key)'}`)
   console.error('[council] Claude: reads output and adds own take in conversation')
 
-  // Round 1: Both API models review in parallel
-  const [gemini1, openai1] = await Promise.all([
+  // Round 1: All API models review in parallel
+  const [gemini1, openai1, grok1] = await Promise.all([
     callGemini(fullPrompt, systemPrompt, GEMINI_MODEL),
     callOpenAI(fullPrompt, systemPrompt),
+    callGrok(fullPrompt, systemPrompt),
   ])
 
-  console.error(`[council] Round 1 complete — Gemini: ${gemini1.error ? 'ERROR' : 'OK'}, OpenAI: ${openai1.error ? 'ERROR' : 'OK'}`)
+  const r1Results = { Gemini: gemini1, OpenAI: openai1, Grok: grok1 }
+  const r1Status = Object.entries(r1Results).map(([k, v]) => `${k}: ${v.error ? 'ERROR' : 'OK'}`).join(', ')
+  console.error(`[council] Round 1 complete — ${r1Status}`)
 
   let gemini2 = null
   let openai2 = null
+  let grok2 = null
 
-  // Round 2 (optional): Each model sees the other's feedback
-  if (enableRound2 && !gemini1.error && !openai1.error) {
+  // Round 2 (optional): Each model sees the others' feedback
+  const successfulR1 = Object.entries(r1Results).filter(([_, v]) => !v.error)
+  if (enableRound2 && successfulR1.length >= 2) {
     console.error('[council] Starting Round 2 — cross-review...')
 
-    const round2Prompt = (ownReview, otherModel, otherReview) =>
-      `You previously reviewed this:\n\n${fullPrompt}\n\nYour review was:\n${ownReview}\n\n${otherModel} also reviewed it and said:\n${otherReview}\n\nConsidering ${otherModel}'s feedback, are there any points you want to change, add, or push back on? Be specific. If you agree with everything, say "No changes to my review."`
+    const buildRound2Prompt = (ownReview, others) => {
+      const othersText = others
+        .map(({ name, response }) => `**${name}** said:\n${response}`)
+        .join('\n\n---\n\n')
+      return `You previously reviewed this:\n\n${fullPrompt}\n\nYour review was:\n${ownReview}\n\nThe other council members also reviewed it:\n\n${othersText}\n\nConsidering their feedback, are there any points you want to change, add, or push back on? Be specific. If you agree with everything, say "No changes to my review."`
+    }
 
-    ;[gemini2, openai2] = await Promise.all([
-      callGemini(round2Prompt(gemini1.response, `OpenAI (${OPENAI_MODEL})`, openai1.response), systemPrompt, GEMINI_MODEL),
-      callOpenAI(round2Prompt(openai1.response, `Gemini (${gemini1.model})`, gemini1.response), systemPrompt),
-    ])
+    const round2Calls = []
 
-    console.error(`[council] Round 2 complete — Gemini: ${gemini2.error ? 'ERROR' : 'OK'}, OpenAI: ${openai2.error ? 'ERROR' : 'OK'}`)
+    if (!gemini1.error) {
+      const others = successfulR1.filter(([k]) => k !== 'Gemini').map(([k, v]) => ({ name: `${k} (${v.model})`, response: v.response }))
+      round2Calls.push(callGemini(buildRound2Prompt(gemini1.response, others), systemPrompt, GEMINI_MODEL).then(r => { gemini2 = r }))
+    }
+    if (!openai1.error) {
+      const others = successfulR1.filter(([k]) => k !== 'OpenAI').map(([k, v]) => ({ name: `${k} (${v.model})`, response: v.response }))
+      round2Calls.push(callOpenAI(buildRound2Prompt(openai1.response, others), systemPrompt).then(r => { openai2 = r }))
+    }
+    if (!grok1.error) {
+      const others = successfulR1.filter(([k]) => k !== 'Grok').map(([k, v]) => ({ name: `${k} (${v.model})`, response: v.response }))
+      round2Calls.push(callGrok(buildRound2Prompt(grok1.response, others), systemPrompt).then(r => { grok2 = r }))
+    }
+
+    await Promise.all(round2Calls)
+
+    const r2Status = [
+      gemini2 ? `Gemini: ${gemini2.error ? 'ERROR' : 'OK'}` : null,
+      openai2 ? `OpenAI: ${openai2.error ? 'ERROR' : 'OK'}` : null,
+      grok2 ? `Grok: ${grok2.error ? 'ERROR' : 'OK'}` : null,
+    ].filter(Boolean).join(', ')
+    console.error(`[council] Round 2 complete — ${r2Status}`)
   }
 
   // Build output
@@ -254,10 +314,12 @@ async function runCouncil() {
     models: {
       gemini: { model: gemini1.model, round1: gemini1.response, round2: gemini2?.response || null },
       openai: { model: openai1.model, round1: openai1.response, round2: openai2?.response || null },
+      grok: { model: grok1.model, round1: grok1.response, round2: grok2?.response || null },
     },
     errors: [
       ...(gemini1.error ? [`Gemini: ${gemini1.response}`] : []),
       ...(openai1.error ? [`OpenAI: ${openai1.response}`] : []),
+      ...(grok1.error ? [`Grok: ${grok1.response}`] : []),
     ],
   }
 
@@ -268,7 +330,7 @@ async function runCouncil() {
     const divider = '───────────────────────────────────────────────────'
     console.log(separator)
     console.log('  AI COUNCIL REVIEW')
-    console.log('  Gemini + OpenAI via API | Claude adds own take in conversation')
+    console.log('  Gemini + OpenAI + Grok via API | Claude adds own take in conversation')
     console.log(separator)
 
     // Gemini
@@ -278,7 +340,7 @@ async function runCouncil() {
     console.log(gemini1.response)
     if (gemini2 && !gemini2.error) {
       console.log()
-      console.log('  [Round 2 — after seeing OpenAI feedback]')
+      console.log('  [Round 2 — after seeing OpenAI + Grok feedback]')
       console.log(gemini2.response)
     }
 
@@ -289,13 +351,24 @@ async function runCouncil() {
     console.log(openai1.response)
     if (openai2 && !openai2.error) {
       console.log()
-      console.log('  [Round 2 — after seeing Gemini feedback]')
+      console.log('  [Round 2 — after seeing Gemini + Grok feedback]')
       console.log(openai2.response)
+    }
+
+    // Grok
+    console.log()
+    console.log(`Grok (${grok1.model})`)
+    console.log(divider)
+    console.log(grok1.response)
+    if (grok2 && !grok2.error) {
+      console.log()
+      console.log('  [Round 2 — after seeing Gemini + OpenAI feedback]')
+      console.log(grok2.response)
     }
 
     console.log()
     console.log(separator)
-    console.log('  Claude (3rd member): Add your own take after reading the above.')
+    console.log('  Claude (4th member): Add your own take after reading the above.')
     console.log(separator)
     if (result.errors.length > 0) {
       console.log('ERRORS:', result.errors.join('; '))
