@@ -1,8 +1,8 @@
 # Tripti Revenue Model Spec
 
-> Status: APPROVED (Claude + Codex, 2 review rounds, final rating 4.2/5)
+> Status: REVISED (AI Council review 2026-02-20 — Gemini 2.5 Pro + GPT-5.2, 2 rounds)
 > Target: March 2026 public launch from private beta
-> Last updated: 2026-02-18
+> Last updated: 2026-02-20
 
 ## Executive Summary
 
@@ -53,20 +53,18 @@ Trip Boost upsells go active once we see:
 
 **Who can buy**: Any traveler in the trip (not just the leader). Framed as a gift/contribution, not a leader tax.
 
-**What it unlocks**:
+**What it unlocks** (the "Leader's Sanity Kit" — see `TRIP_BOOST_FEATURES_SPEC.md` for full details):
 | Feature | Free | Boosted |
 |---------|------|---------|
-| Itinerary versions | 1 | 3 |
-| Packing suggestions | Manual only | AI-powered (LLM) |
-| Expense splitting | Basic tracking | Settlement suggestions |
-| Trip memories | View only | Photo album export |
-| Trip branding | Default | Custom cover photo |
+| Decision Cards | Unlimited simple polls | + Deadlines, auto-close, tie-break, nudge non-voters |
+| Trip Brief | Full in-app brief + shareable link (growth) | + Export/print, address privacy toggle |
+| Settle Up | Basic expense tracking + balances | + Minimum payment plan, send reminders, mark settled |
 
 **Where upsells surface (friction-point triggers)**:
-- Leader taps "Generate Itinerary" and has already used 1 free version → inline card: "Want another version? Boost this trip for $4.99"
-- User taps "AI Packing Suggestions" → inline card explaining the feature + boost CTA
-- User tries "Settlement Suggestions" in expenses → same pattern
-- After trip completion → "Export your memories as a photo album — Boost to unlock"
+- User creates a decision and adds a deadline → inline card: "Deadlines are part of Trip Boost"
+- Leader taps "Share" on the trip brief → inline card explaining shareable link + boost CTA
+- Any user taps "Settle Up" in expenses → inline card explaining the feature + boost CTA
+- Creditor taps "Send Reminder" in Settle Up → same pattern
 
 **Where upsells NEVER surface (protected moments)**:
 - Right after dates lock (celebration moment)
@@ -102,7 +100,7 @@ The gate should feel like discovery, not a blocker:
 
 ### Refund policy
 
-**All sales are final.** Stated clearly at checkout. At $4.99, the support cost of evaluating and processing refunds exceeds the revenue. No refund infrastructure needed (no time-window checks, no feature-usage tracking, no Stripe refund API integration).
+**Generally non-refundable.** Stated clearly at checkout: "Purchases are generally non-refundable. If something went wrong, contact support." At $4.99, routine refunds aren't economical — but we need minimal infrastructure to handle Stripe disputes/chargebacks (which cost $15-20 each and threaten account health). Admin-only refund endpoint for exceptional cases. `boost_purchases.status` tracks `completed | refunded | disputed | chargeback`.
 
 ### Cost-sharing option (opt-in)
 
@@ -185,7 +183,8 @@ If click-through was negligible, deprioritize affiliate permanently.
 - Domain + misc: $5/month
 - **Total**: ~$50-80/month
 
-**Break-even**: 15-20 boost purchases/month → achievable in Phase 2.
+**Net revenue per boost** (after Stripe 2.9% + $0.30): ~$4.55
+**Break-even**: 11-18 boost purchases/month (at $4.55 net) → achievable in Phase 2.
 
 ---
 
@@ -216,15 +215,18 @@ If click-through was negligible, deprioritize affiliate permanently.
 | 1d | Trip `boostStatus` field + feature gating helpers | 1 day | — |
 | 1e | Soft gate UI pattern (inline card component) | 1 day | 1d |
 | 1f | Affiliate link components (Accommodation + Itinerary overlays) | 2 days | Partner applications |
-| 2a | Active upsell triggers at friction points | 2 days | 1e |
-| 2b | Boost social notification in chat | 0.5 day | 1c |
-| 2c | "Boost at tripti.ai" deep link in native apps | 0.5 day | 1b |
+| 2a | Decision Cards (collection, CRUD, voting, chat card) | 5 days | 1e |
+| 2b | Trip Brief (aggregation endpoint, overlay, public page) | 5 days | 1e |
+| 2c | Settle Up (server-side computation, UI, reminders) | 4 days | 1e |
+| 2d | Gating + polish (gate helper, inline cards, Stripe) | 2 days | 2a-2c |
+| 2e | Boost social notification in chat | 0.5 day | 1c |
+| 2f | "Boost at tripti.ai" deep link in native apps | 0.5 day | 1b |
 | 3a | 3-pack bundle (Stripe product + redemption logic) | 2 days | Phase 2 |
 | 3b | PPP pricing tiers (Stripe pricing tables) | 1-2 days | Phase 2 |
 | 3c | IAP integration (if needed) | 2-3 weeks | Volume justification |
 | 3d | Admin dashboard: boost metrics, revenue tracking | 2 days | Phase 2 |
 
-**Total Phase 1+2**: ~10-12 days of engineering
+**Total Phase 1+2**: ~20-22 days of engineering (16 days for Boost features + 4-6 days for Stripe/gating infra)
 **Total Phase 3 (excluding IAP)**: ~5-6 days
 **IAP (if ever)**: 2-3 weeks (Apple/Google review process adds calendar time)
 
@@ -256,7 +258,7 @@ If click-through was negligible, deprioritize affiliate permanently.
   currency: String,             // 'usd'
   stripeSessionId: String,
   stripePaymentIntentId: String,
-  status: 'completed',                // all sales final, no refund states
+  status: 'completed' | 'refunded' | 'disputed' | 'chargeback',
   createdAt: Date,
 }
 ```
@@ -298,6 +300,13 @@ If click-through was negligible, deprioritize affiliate permanently.
 | Inline soft-gate (not modal) | Brand-consistent, discovery-driven, not coercive | Codex R2 |
 | 3-pack bundle (not 5-pack) | Maps to 2-4 trips/year reality | Codex R2 |
 | Anonymous boost notification for non-leaders | Avoids social awkwardness | Codex R2 |
+| Replace vitamin features with painkiller bundle | Original features (extra itineraries, AI packing, photo export) are "vitamins" not worth $5 | AI Council (Gemini 2.5 Pro + GPT-5.2), 2026-02-20 |
+| Decision Cards + Trip Brief + Settle Up bundle | Solves arguments, repetitive questions, and money — the 3 biggest post-lock pains | AI Council brainstorm + stress test |
+| Kill ranked-choice voting | High complexity, low usage, confusing UX; simple majority + deadline/closure is the real value | AI Council unanimous |
+| Kill task assignments | PM vibes, social friction of "assigning" friends, violates brand; groups aren't projects | AI Council (Gemini strong, GPT concurred) |
+| Gate shareability not freshness | Stale data is trust poison; free brief must always be correct | AI Council (GPT strong, Gemini concurred R2) |
+| Add dispute/chargeback states | "All sales final" creates Stripe account risk; need minimal dispute handling | AI Council (GPT MF-3, Gemini concurred R2) |
+| Net revenue in projections | Break-even math must use $4.55 net (after Stripe fees), not gross $4.99 | AI Council (GPT MF-2) |
 
 ---
 
