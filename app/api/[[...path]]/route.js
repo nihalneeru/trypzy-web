@@ -11359,6 +11359,86 @@ async function handleRoute(request, { params }) {
           .toArray()).length
 
         // =====================================================================
+        // IQ-4: Accommodation context
+        // =====================================================================
+        let accommodationContext = null
+        try {
+          const selectedAccom = await db.collection('accommodation_options')
+            .findOne({ tripId, status: 'selected' })
+          if (selectedAccom) {
+            accommodationContext = {
+              name: selectedAccom.title || selectedAccom.name || 'Selected stay',
+              location: selectedAccom.notes || selectedAccom.location || null,
+              priceRange: selectedAccom.priceRange || null
+            }
+          }
+        } catch (accomErr) {
+          // Graceful degradation — continue without accommodation context
+          console.warn('[generateItinerary] Could not fetch accommodation:', accomErr.message)
+        }
+
+        // =====================================================================
+        // IQ-7: Occasion from proposed window
+        // =====================================================================
+        let occasion = null
+        try {
+          if (trip.proposedWindowId) {
+            const proposedWindow = await db.collection('date_windows')
+              .findOne({ id: trip.proposedWindowId })
+            if (proposedWindow?.sourceText) {
+              occasion = proposedWindow.sourceText
+            }
+          }
+        } catch (occasionErr) {
+          console.warn('[generateItinerary] Could not fetch occasion:', occasionErr.message)
+        }
+
+        // =====================================================================
+        // IQ-8: Duration preferences
+        // =====================================================================
+        let durationPreferences = null
+        try {
+          const durPrefs = await db.collection('duration_preferences')
+            .find({ tripId })
+            .toArray()
+          if (durPrefs.length > 0) {
+            const breakdown = {}
+            durPrefs.forEach(dp => {
+              const pref = dp.preference || dp.duration
+              if (pref) {
+                breakdown[pref] = (breakdown[pref] || 0) + 1
+              }
+            })
+            const sorted = Object.entries(breakdown).sort((a, b) => b[1] - a[1])
+            durationPreferences = {
+              dominant: sorted[0]?.[0] || null,
+              breakdown,
+              totalResponses: durPrefs.length
+            }
+          }
+        } catch (durErr) {
+          console.warn('[generateItinerary] Could not fetch duration preferences:', durErr.message)
+        }
+
+        // =====================================================================
+        // IQ-15: Traveler interests (from idea categories)
+        // =====================================================================
+        let travelerInterests = null
+        const categoryCounts = {}
+        ideas.forEach(idea => {
+          const cat = idea.category
+          if (cat) {
+            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1
+          }
+        })
+        if (Object.keys(categoryCounts).length > 0) {
+          travelerInterests = Object.entries(categoryCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat, count]) => `${cat} (${count})`)
+            .join(', ')
+        }
+
+        // =====================================================================
         // CHAT BRIEF FEATURE (feature-flagged)
         // Summarize planning chat into structured brief for initial generation
         // =====================================================================
@@ -11438,22 +11518,31 @@ async function handleRoute(request, { params }) {
         }
 
         // Generate itinerary using LLM
+        // IQ-2: Map ideas with likeCount, sort by popularity
+        const mappedIdeas = ideas.map(idea => ({
+          id: idea.id,
+          title: idea.title || idea.text,
+          details: idea.details,
+          category: idea.category,
+          constraints: idea.constraints || [],
+          location: idea.location,
+          likeCount: Array.isArray(idea.likes) ? idea.likes.length : 0
+        })).sort((a, b) => b.likeCount - a.likeCount)
+
         const itineraryResult = await generateItinerary({
           destination: destinationHint || trip.description || trip.name,
           startDate: lockedStartDate,
           endDate: lockedEndDate,
-          dateList, // Pass canonical date list
+          dateList,
           groupSize,
-          ideas: ideas.map(idea => ({
-            id: idea.id,
-            title: idea.title,
-            details: idea.details,
-            category: idea.category,
-            constraints: idea.constraints || [],
-            location: idea.location
-          })),
+          ideas: mappedIdeas,
           constraints: [...new Set(allConstraints)],
-          chatBrief // Pass chat brief (null if disabled or failed)
+          chatBrief,
+          accommodation: accommodationContext,
+          occasion,
+          durationPreferences,
+          tripType: trip.type || 'collaborative',
+          travelerInterests
         })
 
         // Extract _meta for observability, remove from content
@@ -11482,7 +11571,13 @@ async function handleRoute(request, { params }) {
             chatBriefEnabled,
             chatBriefMessageCount,
             chatBriefCharCount,
-            chatBriefSucceeded
+            chatBriefSucceeded,
+            // IQ enrichment observability
+            hasAccommodationContext: !!accommodationContext,
+            hasOccasion: !!occasion,
+            hasDurationPreferences: !!durationPreferences,
+            tripType: trip.type || 'collaborative',
+            hasTravelerInterests: !!travelerInterests
           }
         }
 
@@ -12167,6 +12262,24 @@ async function handleRoute(request, { params }) {
         }
       }
 
+      // =====================================================================
+      // IQ-4 (revise): Accommodation context
+      // =====================================================================
+      let accommodationContext = null
+      try {
+        const selectedAccom = await db.collection('accommodation_options')
+          .findOne({ tripId, status: 'selected' })
+        if (selectedAccom) {
+          accommodationContext = {
+            name: selectedAccom.title || selectedAccom.name || 'Selected stay',
+            location: selectedAccom.notes || selectedAccom.location || null,
+            priceRange: selectedAccom.priceRange || null
+          }
+        }
+      } catch (accomErr) {
+        console.warn('[reviseItinerary] Could not fetch accommodation:', accomErr.message)
+      }
+
       // Update status to revising
       await db.collection('trips').updateOne(
         { id: tripId },
@@ -12193,18 +12306,20 @@ async function handleRoute(request, { params }) {
           feedbackSummary,
           newIdeas: newIdeas.map(idea => ({
             id: idea.id,
-            title: idea.title,
+            title: idea.title || idea.text,
             details: idea.details,
             category: idea.category,
             location: idea.location
           })),
           chatMessages: chatBuckets
             ? [...chatBuckets.relevant, ...chatBuckets.other]
-            : recentChatMessages, // Pass for truncation tracking
+            : recentChatMessages,
           destination: trip.description || trip.name,
           startDate: lockedStartDate,
           endDate: lockedEndDate,
-          dateList // Pass canonical date list to preserve exact date range
+          dateList,
+          accommodation: accommodationContext,
+          tripType: trip.type || 'collaborative'
         })
 
         // Create next version

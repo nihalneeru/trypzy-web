@@ -107,6 +107,8 @@ interface ItineraryDay {
   date: string
   title?: string
   blocks?: ItineraryBlock[]
+  areaFocus?: string
+  groupFit?: string
 }
 
 interface ItineraryBlock {
@@ -117,6 +119,7 @@ interface ItineraryBlock {
   estCost?: string
   transitNotes?: string
   tags?: string[]
+  reservation?: { needed?: boolean; notes?: string }
 }
 
 interface Reaction {
@@ -1273,6 +1276,9 @@ export function ItineraryOverlay({
                             {day.title && (
                               <span className="text-xs text-gray-500">- {day.title}</span>
                             )}
+                            {day.areaFocus && (
+                              <span className="text-xs text-brand-blue ml-1">· {day.areaFocus}</span>
+                            )}
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
@@ -1313,6 +1319,11 @@ export function ItineraryOverlay({
                                   {block.transitNotes && (
                                     <p className="text-xs text-gray-500 mt-0.5 italic">
                                       Transit: {block.transitNotes}
+                                    </p>
+                                  )}
+                                  {block.reservation?.needed && (
+                                    <p className="text-xs text-amber-600 mt-0.5">
+                                      Reservation{block.reservation.notes ? `: ${block.reservation.notes}` : ' recommended'}
                                     </p>
                                   )}
                                 </div>
