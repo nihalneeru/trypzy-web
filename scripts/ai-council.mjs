@@ -3,9 +3,14 @@
 /**
  * AI Council — Multi-model review orchestrator (3 members)
  *
- * Sends a prompt + context to Gemini, OpenAI, and Claude in parallel,
- * collects structured feedback, and optionally runs a second round where
- * each model sees the other two's feedback before refining.
+ * Council members:
+ *   1. Gemini (via API)  — called by this script
+ *   2. OpenAI (via API)  — called by this script
+ *   3. Claude (you)      — reads the output and adds its own take in conversation
+ *
+ * This script fetches Gemini and OpenAI reviews, then Claude Code (the one
+ * running this script) acts as the 3rd council member — synthesizing all
+ * perspectives and contributing its own analysis directly to the user.
  *
  * Usage:
  *   node scripts/ai-council.mjs --prompt "Review this spec" --context-file docs/SPEC.md
@@ -15,17 +20,15 @@
  * Environment:
  *   GEMINI_API_KEY       — Google AI Studio API key
  *   OPENAI_API_KEY       — OpenAI API key
- *   ANTHROPIC_API_KEY    — Anthropic API key
  *   GEMINI_MODEL         — Model ID (default: gemini-3-pro-preview, fallback: gemini-2.5-flash)
  *   OPENAI_MODEL_COUNCIL — Model ID (default: gpt-5.2)
- *   CLAUDE_MODEL_COUNCIL — Model ID (default: claude-sonnet-4-6)
  *
  * Options:
  *   --prompt           — The review prompt / question
  *   --context          — Inline context string
  *   --context-file     — Path to file(s) to include as context (comma-separated)
  *   --system           — Custom system prompt (default: senior reviewer persona)
- *   --round2           — Enable second feedback round (each model sees the other two's feedback)
+ *   --round2           — Enable second feedback round (each model sees the other's feedback)
  *   --json             — Output raw JSON instead of formatted text
  */
 
@@ -59,12 +62,10 @@ if (existsSync(envPath)) {
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY
 const OPENAI_KEY = process.env.OPENAI_API_KEY
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-pro-preview'
 const GEMINI_FALLBACK = 'gemini-2.5-flash'
 const OPENAI_MODEL = process.env.OPENAI_MODEL_COUNCIL || 'gpt-5.2'
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL_COUNCIL || 'claude-sonnet-4-6'
 
 const DEFAULT_SYSTEM = `You are a senior software architect and UX reviewer for Tripti.ai, a group travel coordination app.
 
@@ -213,98 +214,38 @@ async function callOpenAI(userPrompt, systemText) {
   }
 }
 
-async function callClaude(userPrompt, systemText) {
-  if (!ANTHROPIC_KEY) return { model: 'claude (skipped)', response: 'ANTHROPIC_API_KEY not set', error: true }
-
-  const url = 'https://api.anthropic.com/v1/messages'
-  const body = {
-    model: CLAUDE_MODEL,
-    max_tokens: 4096,
-    system: systemText,
-    messages: [
-      { role: 'user', content: userPrompt },
-    ],
-  }
-
-  try {
-    const res = await httpsPost(url, {
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-    }, body)
-    if (res.status !== 200) {
-      const errMsg = res.body?.error?.message || JSON.stringify(res.body).slice(0, 200)
-      return { model: CLAUDE_MODEL, response: `API error ${res.status}: ${errMsg}`, error: true }
-    }
-    const text = res.body?.content?.[0]?.text || ''
-    return { model: CLAUDE_MODEL, response: text, error: false }
-  } catch (err) {
-    return { model: CLAUDE_MODEL, response: `Network error: ${err.message}`, error: true }
-  }
-}
-
 // ============ Orchestration ============
 
 async function runCouncil() {
-  const activeModels = [
-    GEMINI_KEY ? `Gemini (${GEMINI_MODEL})` : 'Gemini (skipped — no key)',
-    OPENAI_KEY ? `OpenAI (${OPENAI_MODEL})` : 'OpenAI (skipped — no key)',
-    ANTHROPIC_KEY ? `Claude (${CLAUDE_MODEL})` : 'Claude (skipped — no key)',
-  ]
-
   console.error('[council] Starting Round 1 — parallel review...')
-  console.error(`[council] ${activeModels.join(' | ')}`)
+  console.error(`[council] Gemini: ${GEMINI_KEY ? GEMINI_MODEL : 'skipped (no key)'} (fallback: ${GEMINI_FALLBACK})`)
+  console.error(`[council] OpenAI: ${OPENAI_KEY ? OPENAI_MODEL : 'skipped (no key)'}`)
+  console.error('[council] Claude: reads output and adds own take in conversation')
 
-  // Round 1: All three models review in parallel
-  const [gemini1, openai1, claude1] = await Promise.all([
+  // Round 1: Both API models review in parallel
+  const [gemini1, openai1] = await Promise.all([
     callGemini(fullPrompt, systemPrompt, GEMINI_MODEL),
     callOpenAI(fullPrompt, systemPrompt),
-    callClaude(fullPrompt, systemPrompt),
   ])
 
-  console.error(`[council] Round 1 complete — Gemini: ${gemini1.error ? 'ERROR' : 'OK'}, OpenAI: ${openai1.error ? 'ERROR' : 'OK'}, Claude: ${claude1.error ? 'ERROR' : 'OK'}`)
+  console.error(`[council] Round 1 complete — Gemini: ${gemini1.error ? 'ERROR' : 'OK'}, OpenAI: ${openai1.error ? 'ERROR' : 'OK'}`)
 
   let gemini2 = null
   let openai2 = null
-  let claude2 = null
 
-  // Round 2 (optional): Each model sees the other two's feedback
-  const successfulR1 = [gemini1, openai1, claude1].filter(r => !r.error)
-  if (enableRound2 && successfulR1.length >= 2) {
+  // Round 2 (optional): Each model sees the other's feedback
+  if (enableRound2 && !gemini1.error && !openai1.error) {
     console.error('[council] Starting Round 2 — cross-review...')
 
-    const buildRound2Prompt = (ownReview, otherReviews) => {
-      const othersText = otherReviews
-        .map(({ name, response }) => `**${name}** said:\n${response}`)
-        .join('\n\n---\n\n')
-      return `You previously reviewed this:\n\n${fullPrompt}\n\nYour review was:\n${ownReview}\n\nThe other council members also reviewed it:\n\n${othersText}\n\nConsidering their feedback, are there any points you want to change, add, or push back on? Be specific. If you agree with everything, say "No changes to my review."`
-    }
+    const round2Prompt = (ownReview, otherModel, otherReview) =>
+      `You previously reviewed this:\n\n${fullPrompt}\n\nYour review was:\n${ownReview}\n\n${otherModel} also reviewed it and said:\n${otherReview}\n\nConsidering ${otherModel}'s feedback, are there any points you want to change, add, or push back on? Be specific. If you agree with everything, say "No changes to my review."`
 
-    const round2Calls = []
+    ;[gemini2, openai2] = await Promise.all([
+      callGemini(round2Prompt(gemini1.response, `OpenAI (${OPENAI_MODEL})`, openai1.response), systemPrompt, GEMINI_MODEL),
+      callOpenAI(round2Prompt(openai1.response, `Gemini (${gemini1.model})`, gemini1.response), systemPrompt),
+    ])
 
-    if (!gemini1.error) {
-      const others = []
-      if (!openai1.error) others.push({ name: `OpenAI (${openai1.model})`, response: openai1.response })
-      if (!claude1.error) others.push({ name: `Claude (${claude1.model})`, response: claude1.response })
-      round2Calls.push(callGemini(buildRound2Prompt(gemini1.response, others), systemPrompt, GEMINI_MODEL).then(r => { gemini2 = r }))
-    }
-
-    if (!openai1.error) {
-      const others = []
-      if (!gemini1.error) others.push({ name: `Gemini (${gemini1.model})`, response: gemini1.response })
-      if (!claude1.error) others.push({ name: `Claude (${claude1.model})`, response: claude1.response })
-      round2Calls.push(callOpenAI(buildRound2Prompt(openai1.response, others), systemPrompt).then(r => { openai2 = r }))
-    }
-
-    if (!claude1.error) {
-      const others = []
-      if (!gemini1.error) others.push({ name: `Gemini (${gemini1.model})`, response: gemini1.response })
-      if (!openai1.error) others.push({ name: `OpenAI (${openai1.model})`, response: openai1.response })
-      round2Calls.push(callClaude(buildRound2Prompt(claude1.response, others), systemPrompt).then(r => { claude2 = r }))
-    }
-
-    await Promise.all(round2Calls)
-
-    console.error(`[council] Round 2 complete — Gemini: ${gemini2?.error === false ? 'OK' : gemini2 ? 'ERROR' : 'N/A'}, OpenAI: ${openai2?.error === false ? 'OK' : openai2 ? 'ERROR' : 'N/A'}, Claude: ${claude2?.error === false ? 'OK' : claude2 ? 'ERROR' : 'N/A'}`)
+    console.error(`[council] Round 2 complete — Gemini: ${gemini2.error ? 'ERROR' : 'OK'}, OpenAI: ${openai2.error ? 'ERROR' : 'OK'}`)
   }
 
   // Build output
@@ -313,12 +254,10 @@ async function runCouncil() {
     models: {
       gemini: { model: gemini1.model, round1: gemini1.response, round2: gemini2?.response || null },
       openai: { model: openai1.model, round1: openai1.response, round2: openai2?.response || null },
-      claude: { model: claude1.model, round1: claude1.response, round2: claude2?.response || null },
     },
     errors: [
       ...(gemini1.error ? [`Gemini: ${gemini1.response}`] : []),
       ...(openai1.error ? [`OpenAI: ${openai1.response}`] : []),
-      ...(claude1.error ? [`Claude: ${claude1.response}`] : []),
     ],
   }
 
@@ -328,7 +267,8 @@ async function runCouncil() {
     const separator = '═══════════════════════════════════════════════════'
     const divider = '───────────────────────────────────────────────────'
     console.log(separator)
-    console.log('  AI COUNCIL REVIEW (3 members)')
+    console.log('  AI COUNCIL REVIEW')
+    console.log('  Gemini + OpenAI via API | Claude adds own take in conversation')
     console.log(separator)
 
     // Gemini
@@ -338,7 +278,7 @@ async function runCouncil() {
     console.log(gemini1.response)
     if (gemini2 && !gemini2.error) {
       console.log()
-      console.log('  [Round 2 — after seeing OpenAI + Claude feedback]')
+      console.log('  [Round 2 — after seeing OpenAI feedback]')
       console.log(gemini2.response)
     }
 
@@ -349,27 +289,17 @@ async function runCouncil() {
     console.log(openai1.response)
     if (openai2 && !openai2.error) {
       console.log()
-      console.log('  [Round 2 — after seeing Gemini + Claude feedback]')
+      console.log('  [Round 2 — after seeing Gemini feedback]')
       console.log(openai2.response)
-    }
-
-    // Claude
-    console.log()
-    console.log(`Claude (${claude1.model})`)
-    console.log(divider)
-    console.log(claude1.response)
-    if (claude2 && !claude2.error) {
-      console.log()
-      console.log('  [Round 2 — after seeing Gemini + OpenAI feedback]')
-      console.log(claude2.response)
     }
 
     console.log()
     console.log(separator)
+    console.log('  Claude (3rd member): Add your own take after reading the above.')
+    console.log(separator)
     if (result.errors.length > 0) {
       console.log('ERRORS:', result.errors.join('; '))
     }
-    console.log(`Council members: ${successfulR1.length} of 3 responded`)
   }
 }
 
