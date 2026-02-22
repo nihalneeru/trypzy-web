@@ -29,6 +29,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle, Send, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
 interface TravelersOverlayProps {
   trip: any
@@ -62,16 +64,6 @@ const api = async (endpoint: string, options: any = {}, token: string | null = n
   }
 
   return data
-}
-
-// Helper to check if trip is completed
-function isTripCompleted(trip: any) {
-  if (!trip) return false
-  if (trip.status === 'completed') return true
-
-  const today = new Date().toISOString().split('T')[0]
-  const endDate = trip.lockedEndDate || trip.endDate
-  return endDate && endDate < today
 }
 
 // Get initials from name
@@ -687,12 +679,22 @@ export function TravelersOverlay({
             Join Requests
           </h3>
           {loadingRequests ? (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <BrandedSpinner size="sm" className="mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Loading requests...</p>
-              </CardContent>
-            </Card>
+            <div className="space-y-2">
+              {[1, 2].map(i => (
+                <Card key={i}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-20" />
+                      </div>
+                      <Skeleton className="h-8 w-16 rounded-md" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           ) : joinRequests.length === 0 ? (
             <Card>
               <CardContent className="py-6 text-center">

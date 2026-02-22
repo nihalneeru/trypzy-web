@@ -30,6 +30,7 @@ import { Plus, DollarSign, Trash2, Calendar, ArrowRight, AlertTriangle } from 'l
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface ExpensesOverlayProps {
   trip: any
@@ -385,9 +386,28 @@ export function ExpensesOverlay({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <BrandedSpinner size="md" className="mb-4" />
-        <p className="text-gray-500">Loading expenses...</p>
+      <div className="space-y-4 p-4">
+        {/* Summary card skeleton */}
+        <Card>
+          <CardContent className="py-4 space-y-3">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-3 w-full rounded-full" />
+          </CardContent>
+        </Card>
+        {/* Expense row skeletons */}
+        {[1, 2, 3].map(i => (
+          <Card key={i}>
+            <CardContent className="py-3 flex items-center gap-3">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <Skeleton className="h-5 w-16" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
     )
   }

@@ -29,6 +29,7 @@ import {
 import { Plus, Camera, Trash2, X, Image as ImageIcon, Upload, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface MemoriesOverlayProps {
   trip: any
@@ -219,9 +220,12 @@ export function MemoriesOverlay({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <BrandedSpinner size="md" className="mb-4" />
-        <p className="text-gray-500">Loading memories...</p>
+      <div className="p-4">
+        <div className="grid grid-cols-2 gap-3">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <Skeleton key={i} className="aspect-square w-full rounded-md" />
+          ))}
+        </div>
       </div>
     )
   }
