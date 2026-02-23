@@ -4,84 +4,44 @@
 
 **What Tripti is**: A group travel coordination platform that reduces decision paralysis through progressive scheduling. Friend groups propose trips, share availability, vote on date windows, and lock dates—all without requiring unanimous participation.
 
-**Who it's for**: Friend groups (typically 4-30 people) planning trips together. Designed for both small groups (where everyone's input matters) and large/flaky groups (where partial participation is expected). Adults roughly 21-55 who are already socially connected.
+**Who it's for**: Friend groups (typically 4-30 people) planning trips together. Adults roughly 21-55 who are already socially connected.
 
-**MVP success definition**: A user should be able to say: "Planning this trip felt calmer and clearer than our usual group chat." If that is true, MVP is successful—even if not everyone participated equally.
+**MVP success definition**: A user should be able to say: "Planning this trip felt calmer and clearer than our usual group chat."
 
 **Core principle**: Availability ≠ Commitment. Only locking dates represents commitment. The system can progress without unanimous participation.
 
 ### 0.5) Product philosophy, business model & brand guardrails
 
-**Product philosophy (founder intent)**
-
-Tripti exists to reduce coordination friction, not to enforce participation.
-
-Most group trips fail or become stressful not because people don't care, but because:
-- participation is uneven
-- decisions require too much synchronous effort
-- social pressure creates avoidance
-
-Tripti is intentionally designed around the belief that:
-- Uneven participation is normal and acceptable
-- A small number of motivated planners should be able to move the group forward
-- Others should be able to stay informed and join later without guilt or friction
-
-We optimize for momentum, clarity, and psychological safety—not maximum engagement.
+**Product philosophy**: Tripti reduces coordination friction, not enforce participation. Uneven participation is normal. A few motivated planners move the group forward. Others stay informed and join later without guilt. If a flow trades simplicity for control, simplicity wins.
 
 **Key principles**:
 - Low-pressure participation: users can observe without acting
-- Commitment only when necessary: hard decisions happen only at explicit lock points
-- Chat-first coordination: decisions live where conversation already happens
-- Progress over perfection: partial clarity is better than stalled consensus
+- Commitment only at explicit lock points
+- Chat-first coordination: decisions live where conversation happens
+- Progress over perfection: partial clarity beats stalled consensus
 
-**What we explicitly do NOT optimize for (MVP)**:
-- Forcing everyone to vote, respond, or confirm
-- Real-time collaboration or synchronous scheduling
-- Power-user planning depth (spreadsheets, granular constraints)
-- Heavy analytics or participation scoring
-- "Social pressure" mechanics (nagging, streaks, guilt-driven nudges)
+**Target users**: Friend groups/families (3–10 people), 1–3 natural leaders, groups that find chat-based planning chaotic. NOT for corporate travel, large tours, or power planners.
 
-If a flow trades simplicity for control, simplicity wins.
+**Business model**: MVP proves friction reduction. Monetization paths (future): hosted trips, premium features, partner integrations.
 
-**Target users (MVP)**:
-- **Primary**: Friend groups, families, or small circles (3–10 people). Trips where 1–3 people naturally take the lead. Groups that already coordinate via chat apps and feel planning is "chaotic"
-- **Not for (yet)**: Corporate travel, large-scale tours, users who expect rigid task assignment or full participation enforcement, power planners who want deep constraint modeling
+**Metrics that matter**: % trips reaching "locked", time to lock, drop-off by stage, planner satisfaction.
 
-**Business model (current + near-term)**:
-- **MVP goal**: Prove that Tripti reduces planning friction and gets trips locked faster than chat-only coordination
-- **Value creation (pre-monetization)**: Faster commitment, fewer abandoned trips, less back-and-forth confusion, clear "what's decided vs not" visibility
-- **Likely monetization paths (future, not MVP blockers)**: Hosted or guided trips, premium planning features (advanced itinerary versions, exports, templates), partner integrations (stays, activities), white-label group travel planning
-
-**Metrics that matter now**:
-- % of trips that reach "locked"
-- Time from trip creation → lock
-- Drop-off by stage
-- Planner satisfaction (not total engagement)
-
-**Brand & voice guardrails**:
+**Brand & voice**:
 - **Tagline**: "Nifty plans. Happy circles."
-- **Tone**: Calm, friendly, non-preachy. Never scolding or guilt-inducing. Confident but not corporate. Helpful, not controlling
-- **Language we like**: "Plan together", "Move forward", "When you're ready", "Next step"
-- **Language we avoid**: "You must", "Everyone needs to…", "Required", "Incomplete" (for people)
+- **Tone**: Calm, friendly, non-preachy. Helpful, not controlling
+- **Use**: "Plan together", "Move forward", "When you're ready"
+- **Avoid**: "You must", "Everyone needs to…", "Required", "Incomplete" (for people)
 
-The product should feel like a helpful organizer, not a manager.
-
-**UX guardrails (important for engineering decisions)**:
+**UX guardrails** (important for engineering decisions):
 - CTAs should feel inviting, not demanding
 - Read-only states are acceptable and intentional
-- Leadership should emerge naturally, not be over-emphasized
 - Progress indicators should clarify, not pressure
-- Removing redundant UI is preferable to adding more explanation
 - If a UI element creates anxiety or obligation, it's probably wrong
+- Removing redundant UI is preferable to adding more explanation
 
-**Non-goals for MVP (hard constraints)**:
-- No complex role hierarchies beyond what's required for safety
-- No required onboarding tours
-- No AI-first experiences that replace user intent
-- No multi-product surface area (Trips first, everything else later)
+**Non-goals for MVP**: No complex role hierarchies, no required onboarding tours, no AI-first experiences replacing user intent, no multi-product surface area (Trips first).
 
-**Important: This repo is JavaScript-only.**
-Use `.jsx` (not `.tsx`) and do not include TypeScript syntax or types. The codebase is stable at MVP and we avoid TypeScript migration to prevent drift.
+**Language note**: The build chain is JavaScript-based (SWC strips TS automatically, `ignoreBuildErrors: true`). The codebase has both `.js/.jsx` and `.ts/.tsx` files. Either is fine for new code — follow the conventions of nearby files. Do not introduce strict typing or `tsc`-based compilation.
 
 ## 1) Tripti Brand Colors
 
@@ -104,193 +64,128 @@ Use `.jsx` (not `.tsx`) and do not include TypeScript syntax or types. The codeb
 ## 2) Current MVP Funnel (as implemented)
 
 **Trip stages** (from `lib/trips/stage.js`):
-1. **PROPOSED** - Trip created, dates not locked
-2. **DATES_LOCKED** - Dates finalized, itinerary not finalized
-3. **ITINERARY** - Itinerary finalized, accommodation not chosen
-4. **STAY** - Accommodation chosen, prep not started
-5. **PREP** - Prep started, trip not ongoing
-6. **ONGOING** - Trip dates are active (today within range)
-7. **COMPLETED** - Trip end date has passed
+1. **PROPOSED** → 2. **DATES_LOCKED** → 3. **ITINERARY** → 4. **STAY** → 5. **PREP** → 6. **ONGOING** → 7. **COMPLETED**
 
 **Status field** (`trip.status`): `'proposed'` → `'scheduling'` → `'voting'` → `'locked'` → `'completed'` | `'canceled'`
 
 **Stage transitions**:
 - `proposed` → `scheduling`: Auto on first date window suggestion (date_windows mode) or first availability submission (legacy top3_heatmap mode)
 - `scheduling` → `locked`: Leader proposes a window → travelers react → leader locks via `POST /api/trips/:id/lock-proposed` (date_windows mode, default)
-- `scheduling` → `voting` → `locked`: Legacy path (top3_heatmap mode only) via `POST /api/trips/:id/open-voting` then `POST /api/trips/:id/lock`
+- `scheduling` → `voting` → `locked`: Legacy path (top3_heatmap mode only)
 - `locked` → `completed`: Auto when `endDate < today`
 
-**Current scheduling flow (date_windows mode)**:
-Three phases managed by `DateWindowsFunnel`:
-1. **COLLECTING** — Travelers suggest date windows via free-form text (e.g. "Feb 7-9", "first week of April"). Text is parsed deterministically by `normalizeWindow()` (no LLM). Travelers can support each other's suggestions. Overlap detection nudges users toward existing similar windows. Leader sees a response-rate insight card (see below).
-2. **PROPOSED** — Leader selects a window to propose. Travelers react: Works / Maybe / Can't. Approval threshold = `ceil(memberCount / 2)`.
-3. **LOCKED** — Leader locks dates (can override if threshold not met). Trip moves to itinerary planning.
-
-**Leader response-rate insight** (COLLECTING phase, `DateWindowsFunnel.tsx`):
-When the proposal threshold isn't met, the leader sees a contextual insight card based on group response rate (`responderCount / totalTravelers`):
-- **>=80%**: Blue card — "X of Y travelers have weighed in. [leading option] leads. You can propose any option when ready."
-- **>=50%**: Lighter blue card — "Over half the group has responded. [leading option] leads with N supporters."
-- **<50%**: No card shown (still collecting, too early for guidance).
-Once threshold IS met, the existing red CTA card ("Propose [dates]") takes over. Response rate counts distinct users who have suggested or supported any window (auto-support on creation ensures suggesters are counted).
+**Current scheduling flow (date_windows mode)** — three phases via `DateWindowsFunnel`:
+1. **COLLECTING** — Travelers suggest date windows via free-form text, parsed by `normalizeWindow()` (no LLM). Support/overlap detection. Leader sees response-rate insight card (>=80%: blue card with leading option; >=50%: lighter blue; <50%: no card).
+2. **PROPOSED** — Leader selects a window. Travelers react: Works / Maybe / Can't. Threshold = `ceil(memberCount / 2)`.
+3. **LOCKED** — Leader locks dates (can override threshold). Trip moves to itinerary planning.
 
 **Key guardrails**:
-- **Role-based permissions**: Trip leader (`trip.createdBy === userId`) can lock dates, open voting, cancel trip, transfer leadership. Enforced server-side in `app/api/[[...path]]/route.js` via `validateStageAction()` (`lib/trips/validateStageAction.js`)
-- **Participation minimums**: None enforced. System can progress with partial participation
-- **Post-lock read-only behavior**: Once dates are locked, availability/voting actions are blocked. Canceled trips are read-only. Left travelers cannot send messages (ChatTab checks `viewer.isActiveParticipant`)
+- **Role-based permissions**: Leader = `trip.createdBy`. Enforced server-side via `validateStageAction()` (`lib/trips/validateStageAction.js`)
+- **Participation minimums**: None. System progresses with partial participation
+- **Post-lock read-only**: Availability/voting blocked. Canceled trips read-only. Left travelers cannot send messages
 
 ## 3) Architecture snapshot
 
 **Frameworks/libraries**:
-- Next.js 14.2.3 (App Router)
-- React 18.x
-- MongoDB 6.6.0 (native driver, no ORM)
-- Tailwind CSS 3.4.1 + shadcn/ui (48 components)
-- JWT authentication (jsonwebtoken 9.0.3)
+- Next.js 14.2.3 (App Router), React 18.x, MongoDB 6.6.0 (native driver, no ORM)
+- Tailwind CSS 3.4.1 + shadcn/ui, JWT authentication (jsonwebtoken 9.0.3)
 - Vitest 4.0.16 (unit tests), Playwright 1.57.0 (E2E tests)
 
-**Data model overview**:
+**Collections** (core — 40 total in MongoDB):
+- `users`, `circles`, `memberships` — Identity & groups
+- `trips`, `trip_participants`, `trip_join_requests`, `trip_invitations` — Trip core
+- `date_windows`, `window_supports`, `duration_preferences` — Date scheduling (current)
+- `trip_date_picks`, `availabilities`, `votes` — Legacy scheduling (top3_heatmap)
+- `trip_messages` — Chat
+- `itinerary_ideas`, `itinerary_versions`, `itinerary_feedback`, `itinerary_reactions` — Itinerary
+- `accommodation_options`, `accommodation_votes`, `stay_requirements` — Accommodation
+- `prep_items`, `transport_items`, `prep_suggestions_cache` — Trip prep
+- `trip_events`, `nudge_events`, `trip_coordination_snapshots`, `circle_coordination_profiles` — Events/analytics
+- `push_tokens`, `push_events` — Push notifications
+- `posts`, `reports`, `friendships` — Social/discover
 
-**Collections**:
-- `users`: `{ id, email, name, password (hashed), avatarUrl, privacy: { profileVisibility, tripsVisibility, allowTripJoinRequests, showTripDetailsLevel }, createdAt, updatedAt }`
-- `circles`: `{ id, name, description, ownerId, inviteCode, createdAt }`
-- `trips`: `{ id, name, description, circleId, createdBy, type: 'collaborative'|'hosted', status: 'proposed'|'scheduling'|'voting'|'locked'|'completed'|'canceled', schedulingMode: 'date_windows' (default for collaborative) | 'top3_heatmap' (legacy), startDate, endDate, lockedStartDate, lockedEndDate, destinationHint, itineraryStatus: 'collecting_ideas'|'drafting'|'selected'|'published'|'revising'|null, canceledAt, canceledBy, createdAt, updatedAt }`
-- `memberships`: `{ userId, circleId, role: 'owner'|'member', joinedAt }`
-- `trip_participants`: `{ tripId, userId, status: 'active'|'left'|'removed', joinedAt, createdAt, updatedAt }`
-- `date_windows`: `{ id, tripId, proposedBy, startDate, endDate, sourceText, normalizedStart, normalizedEnd, precision: 'exact'|'approx'|'unstructured', createdAt }` (date_windows mode, current default)
-- `window_supports`: `{ id, windowId, tripId, userId, createdAt }` (date_windows mode)
-- `trip_date_picks`: `{ tripId, userId, picks: [{ rank, startDateISO, endDateISO }], createdAt, updatedAt }` (legacy top3_heatmap mode)
-- `availabilities`: `{ tripId, userId, day (YYYY-MM-DD) | isBroad: true | isWeekly: true, status: 'available'|'maybe'|'unavailable', createdAt }` (legacy)
-- `votes`: `{ tripId, userId, selectedWindow: { startDate, endDate }, createdAt }`
-- `trip_messages`: `{ tripId, userId, content, createdAt }`
-- `itinerary_ideas`: `{ tripId, userId, title, description, createdAt }`
-- `trip_join_requests`: `{ tripId, userId, message, status, createdAt }`
-- `trip_events`: `{ tripId, circleId, eventType, actorId, actorRole, timestamp, tripAgeMs, payload, context, schemaVersion, idempotencyKey }` (event log)
-- `nudge_events`: `{ tripId, userId, nudgeType, status, createdAt }` (TTL 7 days, correlation cache)
-- `trip_coordination_snapshots`: `{ tripId, circleId, outcome, timeToOutcomeHours, windowsSuggested, participationRate, computedAt }` (daily aggregates)
-- `circle_coordination_profiles`: `{ circleId, tripCount, completionRate, medianTimeToLockDays, leaderConcentration, updatedAt }` (daily aggregates)
+**Traveler determination**: Collaborative trips = all circle members (unless `trip_participants.status === 'left'/'removed'`). Hosted trips = explicit `trip_participants` with `status='active'`. See `isActiveTraveler()`.
 
-**Traveler determination**:
-- **Collaborative trips**: All circle members are travelers unless `trip_participants.status === 'left'/'removed'` (see `isActiveTraveler()` in `app/api/[[...path]]/route.js:67`)
-- **Hosted trips**: Only explicit `trip_participants` with `status='active'` are travelers
+**State enforcement**:
+- **Server**: `requireAuth()`, leader checks (`trip.createdBy === userId`), `validateStageAction()`, `canViewerSeeTrip()`, `isActiveTraveler()` for write endpoints, input length limits
+- **Client**: Buttons disabled by role, CTAs via `getUserActionRequired()`, removed travelers see read-only banner
 
-**Where state is enforced**:
-- **Server-side (API routes)**: All authenticated endpoints check `requireAuth()` (`app/api/[[...path]]/route.js:53`). Trip actions check `trip.createdBy === userId` for leader-only operations. Stage transitions validated via `validateStageAction()` (`lib/trips/validateStageAction.js`). Privacy filtering applied via `canViewerSeeTrip()` (`lib/trips/canViewerSeeTrip.js`). **Write endpoints** (availability, date-windows, reactions, prep) enforce `isActiveTraveler()` to block left/removed participants. **Join requests** enforce leader's `privacy.allowTripJoinRequests` server-side.
-- **Client-side (UI)**: Buttons disabled/hidden based on role (leader vs traveler). CTAs shown/hidden based on `getUserActionRequired()` (`lib/trips/getUserActionRequired.js`). Privacy settings affect UI visibility (but server is source of truth). Removed travelers see "You left this trip (view only)" banner via `viewer.isRemovedTraveler` flag.
-
-**Source of truth**:
-- **Trip stage**: Computed client-side via `deriveTripPrimaryStage()` (`lib/trips/stage.js:129`) but validated server-side via `validateStageAction()`
-- **Progress steps**: Computed server-side via `computeTripProgressSnapshot()` (`lib/trips/progressSnapshot.ts`) and passed via `trip.progress` field
-- **Traveler status**: Server-side via `isActiveTraveler()` function
-- **Privacy**: Server-side via `canViewerSeeTrip()` and `applyProfileTripPrivacy()` (`lib/trips/applyProfileTripPrivacy.js`)
+**Source of truth**: Trip stage computed client-side (`deriveTripPrimaryStage()`) but validated server-side. Progress steps computed server-side (`computeTripProgressSnapshot()`). Traveler status and privacy always server-side.
 
 ## 4) Key file map (high-signal only)
 
 **Routes/pages** (all standalone Next.js App Router routes):
-- `app/page.js` - Root page (wraps WelcomePageWrapper)
-- `app/WelcomePageWrapper.jsx` - Auth gate: authenticated → `/dashboard` (or legacy `/?tripId=` / `/?circleId=` / `/?view=discover` redirect); unauthenticated → WelcomePage
-- `app/HomeClient.jsx` - Legacy re-export shim (re-exports `BrandedSpinner` from `components/common/BrandedSpinner.jsx`)
-- `app/dashboard/page.js` - Dashboard (primary authenticated landing page, fetches via `getDashboardData()`)
-- `app/trips/[tripId]/page.js` - Trip detail page (Command Center V2)
-- `app/circles/[circleId]/page.js` - Circle detail page (Members, Trips, Updates tabs)
-- `app/discover/page.js` - Discover feed page
-- `app/members/[userId]/page.js` - Member profile page
-- `app/login/page.jsx` - Login page
-- `app/signup/page.jsx` - Signup page
-- `app/settings/privacy/page.js` - Privacy settings page
+- `app/page.js` → `app/WelcomePageWrapper.jsx` — Auth gate (authenticated → `/dashboard`)
+- `app/dashboard/page.js` — Primary authenticated landing
+- `app/trips/[tripId]/page.js` — Trip detail (Command Center V3)
+- `app/circles/[circleId]/page.js` — Circle detail
+- `app/discover/page.js`, `app/members/[userId]/page.js`, `app/settings/privacy/page.js`
+- `app/login/page.jsx`, `app/signup/page.jsx`
 
-**Command Center V3 Components** (current default trip view):
+**Command Center V3** (inside `components/trip/command-center-v2/` directory):
 ```
-components/trip/command-center-v2/
-├── CommandCenterV3.tsx          # Main orchestrator (~420 lines)
-├── ProgressStrip.tsx            # Top strip: trip name/dates + horizontal chevrons
-├── ContextCTABar.tsx            # Bottom bar: travelers/expenses/memories + priority CTA
-├── OverlayContainer.tsx         # Slide-in drawer wrapper (right or bottom)
-├── types.ts                     # Shared types (OverlayType, OverlayParams)
-├── index.ts                     # Exports
-└── overlays/
-    ├── SchedulingOverlay.tsx    # Date picking, voting, lock (~950 lines)
-    ├── ItineraryOverlay.tsx     # Ideas, generation, feedback (~1250 lines)
-    ├── AccommodationOverlay.tsx # Stays, options, Airbnb search (~800 lines)
-    ├── TravelersOverlay.tsx     # Join requests, leave, transfer (~600 lines)
-    ├── PrepOverlay.tsx          # Transport, packing, inline forms (~830 lines)
-    ├── ExpensesOverlay.tsx      # Add expense, balances (~700 lines)
-    ├── MemoriesOverlay.tsx      # Gallery, add memory (~480 lines)
-    ├── MemberProfileOverlay.tsx # Profile card, shared circles, trips (~540 lines)
-    ├── TripInfoOverlay.tsx      # Trip name, destination, type, invite code (~360 lines)
-    └── index.ts                 # Exports
+CommandCenterV3.tsx          # Main orchestrator
+ProgressStrip.tsx            # Top strip: trip name/dates + horizontal chevrons
+ContextCTABar.tsx            # Bottom bar: travelers/expenses/memories + priority CTA
+OverlayContainer.tsx         # Slide-in drawer wrapper (right or bottom)
+overlays/
+  SchedulingOverlay.tsx, ItineraryOverlay.tsx, AccommodationOverlay.tsx,
+  TravelersOverlay.tsx, PrepOverlay.tsx, ExpensesOverlay.tsx,
+  MemoriesOverlay.tsx, MemberProfileOverlay.tsx, TripInfoOverlay.tsx
 ```
 
-**Scheduling Components**:
-- `components/trip/scheduling/DateWindowsFunnel.tsx` - Current default scheduling UI (COLLECTING → PROPOSED → LOCKED phases)
-- `components/trip/scheduling/SchedulingFunnelCard.tsx` - Legacy funnel mode scheduling UI
-
-**Shared Components**:
-- `components/common/BrandedSpinner.jsx` - Branded loading spinner (used across 15+ files)
-- `components/trip/TripTabs/tabs/ChatTab.tsx` - Chat surface (used by Command Center V3)
-- `components/trip/chat/ActionCard.tsx` - CTA card component for ChatTab
-- `components/trip/TransferLeadershipDialog.tsx` - Leadership transfer dialog
-- `components/trip/CancelTripDialog.tsx` - Trip cancellation dialog
-- `components/dashboard/TripCard.jsx` - Trip card component
-- `components/dashboard/TripProgressMini.jsx` - Progress indicator component
-- `components/circles/PostCard.tsx` - Discover/circle post card
-- `components/marketing/WelcomePage.tsx` - Public welcome page
-
-**Hooks**:
-- `hooks/use-trip-chat.ts` - Chat message management with 5-second polling
-- `hooks/use-trip-intelligence.ts` - LLM-powered blocker detection, nudges, consensus
+**Key components**:
+- `components/trip/scheduling/DateWindowsFunnel.tsx` — Current scheduling UI
+- `components/common/BrandedSpinner.jsx` — Loading spinner (used 15+ places)
+- `components/trip/TripTabs/tabs/ChatTab.tsx` — Chat surface
+- `components/trip/chat/ActionCard.tsx` — CTA cards in chat
+- `components/dashboard/TripCard.jsx`, `TripProgressMini.jsx`
 
 **API**:
-- `app/api/[[...path]]/route.js` - Centralized API handler (~7100 lines, pattern matching)
-- `app/api/trips/[tripId]/expenses/route.js` - Dedicated expenses API routes
-- `app/api/discover/posts/route.js` - Discover posts API
-- `app/api/seed/discover/route.js` - Dev seed endpoint
+- `app/api/[[...path]]/route.js` — Centralized API handler (~13,000 lines, pattern matching)
+- `app/api/trips/[tripId]/expenses/route.js` — Expenses API
+- `app/api/discover/posts/route.js` — Discover posts API
 
-**Lib/utils**:
-- `lib/trips/stage.js` - Stage computation (`deriveTripPrimaryStage()`, `getPrimaryTabForStage()`, `computeProgressFlags()`)
-- `lib/trips/validateStageAction.js` - Server-side stage transition validator
-- `lib/trips/progress.js` - Progress step definitions (`TRIP_PROGRESS_STEPS`)
-- `lib/trips/progressSnapshot.ts` - Server-side progress computation
-- `lib/trips/nextAction.ts` - CTA computation (`getNextAction()`)
-- `lib/trips/getUserActionRequired.js` - Action requirement computation
-- `lib/trips/canViewerSeeTrip.js` - Privacy filtering logic
-- `lib/trips/applyProfileTripPrivacy.js` - Profile view privacy filtering
-- `lib/trips/buildTripCardData.js` - Trip card data builder
-- `lib/trips/normalizeWindow.js` - Deterministic free-form date text parser (no LLM), used by date_windows mode
-- `lib/trips/windowOverlap.js` - Date window similarity/overlap detection (0.6 threshold)
-- `lib/trips/getVotingStatus.js` - Voting aggregation logic (legacy top3_heatmap mode)
-- `lib/trips/getBlockingUsers.js` - Blocking users computation
-- `lib/dashboard/getDashboardData.js` - Dashboard data fetcher (server-side)
-- `lib/navigation/routes.js` - Route helpers (`tripHref()`, `circlePageHref()`) — canonical URL generators for all navigation
-- `lib/server/db.js` - MongoDB connection singleton
-- `lib/server/auth.js` - JWT auth helpers
-- `lib/server/llm.js` - OpenAI integration
+**Core lib**:
+- `lib/trips/stage.js` — `deriveTripPrimaryStage()`, `computeProgressFlags()`
+- `lib/trips/validateStageAction.js` — Server-side stage validation
+- `lib/trips/normalizeWindow.js` — Deterministic date text parser (no LLM)
+- `lib/trips/progressSnapshot.ts` — Server-side progress computation
+- `lib/trips/nextAction.ts` — CTA computation (`getNextAction()`)
+- `lib/trips/getUserActionRequired.js` — Action requirement computation
+- `lib/trips/canViewerSeeTrip.js` — Privacy filtering
+- `lib/navigation/routes.js` — `tripHref()`, `circlePageHref()` (canonical URL generators)
+- `lib/server/db.js` — MongoDB singleton
+- `lib/server/auth.js` — JWT helpers
+- `lib/server/llm.js` — OpenAI integration
 
-**Nudge Engine**:
-- `lib/nudges/NudgeEngine.ts` - Pure nudge evaluation (`computeNudges()`)
-- `lib/nudges/store.ts` - Dedupe, cooldown, chat message persistence
-- `lib/nudges/metrics.ts` - Trip metrics computation for nudge evaluation
-- `lib/nudges/copy.ts` - User-facing nudge text and emoji helpers
+**Internal systems** (see [`docs/INTERNAL_SYSTEMS.md`](docs/INTERNAL_SYSTEMS.md) for details):
+| System | Key entry point | Purpose |
+|--------|----------------|---------|
+| Nudge Engine | `lib/nudges/NudgeEngine.ts` | Informational chat nudges (8 types, role-aware) |
+| Event System | `lib/events/emit.js` | Immutable event log (data moat) |
+| Admin Debug | `app/api/admin/events/route.js` | Beta investigation endpoints |
+| Itinerary LLM | `lib/server/llm.js` | Generation, revision, chat briefs |
 
 **Tests**:
-- `tests/api/` - API unit tests (stage enforcement, privacy, expenses, etc.)
-- `tests/trips/` - Trip utility tests (voting status, blocking users)
-- `tests/nudges/` - Nudge engine tests (engine, store, overlap, surfacing)
-- `tests/events/` - Event emitter tests
-- `tests/admin/` - Admin endpoint tests (auth gating, health checks)
-- `e2e/` - Playwright E2E tests (navigation, discover flow)
+- `tests/api/` — API tests (stage, privacy, expenses, etc.)
+- `tests/trips/` — Trip utility tests
+- `tests/nudges/` — Nudge engine tests
+- `tests/events/` — Event emitter tests
+- `tests/itinerary/` — Itinerary pipeline tests
+- `tests/push/` — Push notification tests
+- `tests/admin/` — Admin endpoint tests
+- `tests/circles/`, `tests/navigation/` — Additional unit tests
+- `e2e/` — Playwright E2E tests
 
-## 5) Command Center V3 - Current Implementation
+## 5) Command Center V3 - Layout
 
-**Layout Structure**:
 ```
 ┌───────────────────────────────────────────────┐
 │  ProgressStrip: Trip Name + Dates             │
 │  [▶Proposed][▶Dates][▶Itinerary][▶Stay][▶Prep]│ ← Horizontal chevrons
 ├───────────────────────────────────────────────┤
-│                                               │
-│              CHAT FEED                        │
-│            (scrollable)                       │
-│                                               │
+│              CHAT FEED (scrollable)           │
 ├───────────────────────────────────────────────┤
 │  [  Type a message...              ] [➤]      │
 ├───────────────────────────────────────────────┤
@@ -298,80 +193,23 @@ components/trip/command-center-v2/
 └───────────────────────────────────────────────┘
 ```
 
-**Key Features**:
-- **Progress Strip**: Horizontal strip at top with trip info + chevrons
-  - Row 1: Trip name, dates, participation meter
-  - Row 2: Horizontal chevron arrows (Proposed → On Trip)
-  - Blue (`brand-blue`) = completed/active, Red (`brand-red`) = blocker, Gray = future
-  - Blocker/active chevrons point DOWN, others point RIGHT
-  - Auto-scrolls to active chevron on mobile
-- **Slide-in Overlays**: Drawer from right or bottom
-  - Right overlays: scheduling, itinerary, accommodation, prep, member profile (max-width 448px)
-  - Bottom overlays: travelers, expenses, memories
-  - Backdrop click or Escape to close
-  - Unsaved changes protection with confirmation dialog
-- **Context CTA Bar**: Bottom bar with two sections
-  - Left: Travelers count, Expenses, Memories quick-action buttons
-  - Right: Priority-based CTA button (red background)
-
-**CTA Priority Algorithm** (in `ContextCTABar.tsx`):
-1. Lock dates (leader only, when `canLockDates` and status is `voting`)
-2. Vote on dates (if voting open and user hasn't voted) — legacy top3_heatmap mode
-3. Suggest dates (if user hasn't submitted date windows) — date_windows mode
-4. Pick dates (if user hasn't submitted availability) — legacy top3_heatmap mode
-5. Add ideas (if collecting ideas and user has < 3 ideas)
-6. Generate itinerary (leader only, when dates locked and no itinerary)
-7. Choose stay (when dates locked and accommodation not selected)
-
-**Overlay Triggers**:
-| Trigger | Opens | Slide Direction |
-|---------|-------|-----------------|
-| Progress chevron | Corresponding stage overlay | Right |
-| CTA bar button | Context-sensitive overlay | Right |
-| Travelers button (left of CTA) | Travelers overlay | Bottom |
-| Expenses button | Expenses overlay | Bottom |
-| Memories button | Memories overlay | Bottom |
-| Traveler avatar | Member profile overlay | Right |
-
-**State Management**:
-```typescript
-type OverlayType =
-  | 'proposed' | 'scheduling' | 'itinerary' | 'accommodation'
-  | 'travelers' | 'prep' | 'expenses' | 'memories' | 'member' | null
-
-const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
-const [overlayParams, setOverlayParams] = useState<{ memberId?: string }>({})
-```
-
-**Blocker Detection** (drives chevron highlighting):
-```typescript
-// Priority: DATES (if not locked) → ITINERARY (if no itinerary) → ACCOMMODATION → READY
-function deriveBlockerStageKey(trip): 'scheduling' | 'itinerary' | 'accommodation' | null
-```
+- **Chevrons**: Blue = completed/active, Red = blocker, Gray = future. Blocker/active point DOWN, others RIGHT
+- **Overlays**: Right-slide (scheduling, itinerary, accommodation, prep, member profile, trip info). Bottom-slide (travelers, expenses, memories). Backdrop/Escape to close. Unsaved changes protection
+- **CTA Bar**: Left = quick-action buttons (travelers, expenses, memories). Right = priority CTA (role/state-aware, algorithm in `ContextCTABar.tsx`)
+- **Blocker detection**: `deriveBlockerStageKey()` — dates → itinerary → accommodation → null
 
 ## 6) API Routes Reference
 
-**Itinerary endpoints** (updated namespace):
-- `GET /api/trips/:tripId/itinerary/ideas` - List ideas
-- `POST /api/trips/:tripId/itinerary/ideas` - Add idea
-- `POST /api/trips/:tripId/itinerary/ideas/:ideaId/like` - Like idea
-- `POST /api/trips/:tripId/itinerary/generate` - Generate itinerary (leader only)
+**Itinerary**:
+- `GET/POST /api/trips/:tripId/itinerary/ideas` — List/add ideas
+- `POST /api/trips/:tripId/itinerary/ideas/:ideaId/like` — Like idea
+- `POST /api/trips/:tripId/itinerary/generate` — Generate itinerary (leader only)
 
-**Duration preference endpoints** (added Round 3):
-- `POST /api/trips/:tripId/duration-preference` - Set user's duration preference (weekend/extended/week/week_plus/flexible)
-- `GET /api/trips/:tripId/duration-preferences` - Get aggregated preferences for all travelers
+**Duration preferences**:
+- `POST /api/trips/:tripId/duration-preference` — Set preference (weekend/extended/week/week_plus/flexible)
+- `GET /api/trips/:tripId/duration-preferences` — Aggregated preferences
 
-**Circle updates** (activity feed):
-- `circle_created` - When circle owner creates circle
-- `circle_member_joined` - When members join circle
-- Updates derived from `memberships` collection with `joinedAt` timestamps
-
-**Admin/Debug endpoints** (protected by `x-admin-debug-token` header):
-- `GET /api/admin/events` - Query trip_events (requires tripId or circleId)
-- `GET /api/admin/events/trips/:tripId/health` - Trip instrumentation health check
-
-**Jobs endpoints** (protected by `CRON_SECRET` bearer token):
-- `POST /api/jobs/aggregates` - Run daily aggregation job
+**Admin/Jobs**: See [`docs/INTERNAL_SYSTEMS.md`](docs/INTERNAL_SYSTEMS.md)
 
 ## 7) Progress Step Icons
 
@@ -388,15 +226,9 @@ function deriveBlockerStageKey(trip): 'scheduling' | 'itinerary' | 'accommodatio
 
 ## 8) How to run locally
 
-**Prerequisites**:
-- Node.js 18+
-- MongoDB (local or remote)
-- npm
+**Prerequisites**: Node.js 18+, MongoDB, npm
 
-**Installation**:
-```bash
-npm install
-```
+**Installation**: `npm install`
 
 **Environment variables** (`.env.local`):
 ```env
@@ -405,47 +237,29 @@ DB_NAME=tripti
 JWT_SECRET=your-secret-key
 CORS_ORIGINS=http://localhost:3000
 OPENAI_API_KEY=your-openai-key
-# Admin/Debug (required in all environments):
-ADMIN_DEBUG_TOKEN=your-admin-token    # For /api/admin/* endpoints
-# Storage (required for production image uploads):
-BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxx  # Vercel Blob storage token
-# Optional:
-# CRON_SECRET=your-cron-secret        # For /api/jobs/aggregates
-# OPENAI_API_URL=https://api.openai.com/v1/chat/completions
-# OPENAI_MODEL=gpt-4o-mini
-# ITINERARY_MAX_VERSIONS=3
-# NEXT_PUBLIC_NUDGES_ENABLED=false    # Set to 'false' to disable nudge system messages
+ADMIN_DEBUG_TOKEN=your-admin-token
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxx
+# Optional: CRON_SECRET, OPENAI_MODEL, ITINERARY_MAX_VERSIONS=3
+# NEXT_PUBLIC_NUDGES_ENABLED=false
 ```
 
-**Development**:
+**Commands**:
 ```bash
-npm run dev
-```
-
-**Testing**:
-```bash
+npm run dev           # Development server
 npm run test          # Unit tests
 npm run test:e2e      # E2E tests
 npm run build         # Production build
+npm run seed          # Seed data (alex.traveler@example.com / password123)
 ```
-
-**Seed data**:
-```bash
-npm run seed
-```
-Creates test users: alex.traveler@example.com / password123
 
 **GOLDEN RULE: Never work directly on main branch.**
-- Always create a feature branch (e.g., `feat/feature-name`, `fix/bug-name`)
-- Work on the feature branch
-- Create PR to merge into main
-- This is a hard rule with no exceptions
+Always create a feature branch (`feat/`, `fix/`), work there, create PR to merge into main.
 
 ## 9) "If you only read 5 things" (for Claude)
 
-1. **All pages are standalone App Router routes**: `/dashboard`, `/trips/[tripId]`, `/circles/[circleId]`, `/discover`, `/members/[userId]`. No SPA monolith. `HomeClient.jsx` is a 2-line re-export shim. Use `tripHref()` and `circlePageHref()` from `lib/navigation/routes.js` for all navigation URLs.
+1. **All pages are standalone App Router routes**: `/dashboard`, `/trips/[tripId]`, `/circles/[circleId]`, `/discover`, `/members/[userId]`. Use `tripHref()` and `circlePageHref()` from `lib/navigation/routes.js` for all navigation URLs.
 
-2. **Command Center V2 is the only trip view**: Chat-centric with slide-in overlays. Progress chevrons on right sidebar (72px), overlays slide from right or bottom depending on type.
+2. **Command Center V3 is the only trip view**: Chat-centric with slide-in overlays. Lives in `components/trip/command-center-v2/` (V3 code inside a v2 directory — historical naming).
 
 3. **Blocker-driven UI**: The red chevron shows what's blocking the trip (dates → itinerary → accommodation). CTA bar shows the priority action based on user role and trip state.
 
@@ -453,355 +267,8 @@ Creates test users: alex.traveler@example.com / password123
 
 5. **Brand colors are enforced**: Use `brand-red` for CTAs/blockers, `brand-blue` for secondary actions/links, `brand-sand` for highlights. Never use generic Tailwind colors (red-600, blue-500).
 
-## 10) Recent MVP Hardening (2026-01-29)
+## 10) Deferred until public launch
 
-**Round 1 (feat/mvp-hardening branch)**:
-- Chat-first ActionCards for post-lock stages
-- Post-mutation state refresh in all overlays
-- Progress snapshot wiring for CTA decisions
-- Prep item DELETE endpoints
-- Transfer leadership endpoint
-- Brand color enforcement (partial)
-- Mobile responsiveness (44px touch targets)
-- E2E and unit test coverage
-
-**Round 2 (Private Beta Hardening)**:
-- `ErrorBoundary` component (`components/common/ErrorBoundary.tsx`) - catches React errors gracefully
-- Expense fixes: division by zero protection, race condition fix using atomic `$pull`
-- JWT secret: fails in production if not set (no more hardcoded fallback)
-- Overlay error states: all overlays now show error UI with retry button
-- `useTripChat` hook: exposes `error` state, stops polling after 3 failures
-- Join request actor fix: shows "Leader approved X's request" instead of "X joined"
-
-**Round 3 (feat/enhancements-round3 branch, 2026-01-29)**:
-- AppHeader responsiveness: tighter gaps, truncated usernames, smaller text on mobile
-- CORS wildcard fix: removed `|| '*'` fallback, logs error if CORS_ORIGINS not set in production
-- Regex sanitization: added `escapeRegex()` for discover search to prevent ReDoS
-- Generic Tailwind colors: fixed `PostCard.tsx` (red-600 → brand-red)
-- Color contrast fixes: improved contrast in `ChatTab.tsx`, `PrepOverlay.tsx`
-- **Duration preference collection**: new feature - travelers can indicate preferred trip length during COLLECTING phase, aggregated for leader
-
-**Round 4 (fix/usability-audit-round1 branch, 2026-01-29)**:
-- **DateWindowsFunnel**: Removed propose confirmation dialog — action now immediate on button click
-- **ContextCTABar**: Fixed `xs:` → `sm:` breakpoint bug (labels were always truncated)
-- **ContextCTABar**: Added `isBlocking` field to distinguish urgent vs informational CTAs visually (white/red vs muted/blue)
-- **CommandCenterV3**: Constrained trip view to centered `max-w-5xl` column with gray gutters
-- **ProgressStrip**: Added "Leader" badge next to trip name for role clarity
-- **Dashboard**: Improved empty state with explanatory text about circles (what they are, when to create vs join)
-
-**Round 5 (fix/usability-audit-round2 branch, 2026-01-30)**:
-- **Terminology**: Friendlier language in date window flow ("Add your dates" instead of "Suggest dates", "Leader's Pick" badge)
-- **Reassurance copy**: Added "you can change until locked" messaging to reduce commitment anxiety
-- **Empty states**: Improved Discover feed, Chat, Accommodation, Itinerary, Expenses, Prep, Memories overlays
-- **Touch targets**: 44px minimum on mobile (WCAG) for OverlayContainer, ChatBottomCTA, TripCard
-- **Tooltips**: Leader badge explains role; reaction buttons (Works/Maybe/Can't) have descriptive tooltips
-- **Trip type help text**: Dynamic explanation below select ("Your group suggests and votes..." vs "You set the dates...")
-- **Aria-labels**: Delete buttons in Memories, Prep, Expenses, Accommodation overlays
-- **Loading spinners**: Context text ("Loading scheduling/ideas/itinerary/feedback...")
-- **Toast messages**: Friendlier error messages ("Could not X — please try again" instead of "Failed to X")
-
-**Round 6 (fix/codex-security-gaps branch, 2026-01-30)**:
-- **Availability endpoint security**: Added `isActiveTraveler()` check to `POST /api/trips/:id/availability` — left/removed travelers can no longer submit availability even if still circle members
-- **Removed traveler read-only access**: Added `viewer.isRemovedTraveler` flag to GET `/api/trips/:id` response; UI shows amber "You left this trip (view only)" banner in CommandCenterV3
-- **Join request privacy enforcement**: `POST /api/trips/:id/join-requests` now enforces trip leader's `privacy.allowTripJoinRequests` setting server-side (returns 403 if disabled)
-- **Standardized participant checks**: Replaced inline participant check in `POST /api/trips/:id/proposed-window/react` with `isActiveTraveler()` helper for consistency
-- **Input length validation**: Added max length limits to prevent abuse — chat messages (2000 chars), join request messages (500 chars), date window text (100 chars)
-- **Sentry monitoring**: Critical event emission failures now reported to Sentry with context tags
-- **Test maintenance**: Enabled skipped `/join-requests/me` and availability participant enforcement tests, updated expectations
-- **Bug fix**: Renamed shadowed variable in `/join-requests/me` endpoint (`request` → `joinRequest`)
-
-**Round 7 (feat/misc-enhancements branch, 2026-01-30)**:
-- **TripInfoOverlay**: New overlay for "Proposed" chevron — displays trip name, destination, type badge, circle link, participant count, invite code. Leader can edit name/description/destination.
-- **Duration label**: Changed from "Roughly how long are you imagining..." to "How long would you like this trip to be?"
-- **Overlay title font**: Changed from `text-gray-900` to `text-brand-carbon` for brand consistency
-- **Enter key login**: Added `onKeyDown` handler to beta secret input on login/signup pages
-- **Case-insensitive beta secret**: Beta phrase validation now case-insensitive (handles mobile auto-capitalize)
-- **Select button visibility**: Added `text-white` to accommodation Select button for contrast on green background
-- **Auto-vote for submitter**: Accommodation options and itinerary ideas now auto-vote/like for the submitter (matches date windows auto-support pattern)
-- **PrepOverlay refactor**: Converted from Dialog modals to inline forms — existing items remain visible while adding new ones
-- **Discover upload error**: Added specific error handling for Vercel's read-only filesystem (returns 503 with user-friendly message). **Note**: Full fix requires cloud storage integration (S3/Cloudinary/Vercel Blob).
-- **AlertDialog z-index fix**: Added `overlayStyle` prop to AlertDialogContent; OverlayContainer now uses inline styles (z-index 9998/9999) to ensure discard confirmation dialog appears above drawer
-
-**Deferred until public launch**:
 - Rate limiting (needs Redis/Upstash infrastructure)
-- Remaining generic Tailwind colors (20+ files - low priority)
-- Skeleton loaders
+- Remaining generic Tailwind color cleanup (20+ files, low priority)
 - Accessibility polish (aria-hidden, aria-live)
-
-**Reference**: See `MVP_HARDENING_PLAN_V2.md` for full audit findings.
-
-## 10.5) Nudge Engine (INTERNAL)
-
-A nudge engine exists and is **active** in the current codebase.
-
-**How it works**:
-- The engine evaluates trip state (metrics, viewer context) and produces nudges via `computeNudges()` in `lib/nudges/NudgeEngine.ts`
-- Nudges are surfaced as **system messages in trip chat** (channel: `chat_card`) with distinct `bg-brand-sand` styling
-- Nudges are **informational, non-blocking, and role-aware** — they celebrate progress (e.g. "first availability submitted") and clarify next steps without pressuring
-- Dedupe is handled server-side via the `nudge_events` collection (cooldown-based) and `metadata.eventKey` on chat messages
-- The client triggers nudge evaluation via `GET /api/trips/:tripId/nudges` on trip load (fire-and-forget in `CommandCenterV3.tsx`)
-- Feature flag: `NEXT_PUBLIC_NUDGES_ENABLED` (set to `'false'` to disable)
-
-**Key files**:
-- `lib/nudges/NudgeEngine.ts` — Pure function engine, 8 nudge types
-- `lib/nudges/types.ts` — Type definitions (NudgeType, NudgeChannel, NudgeAudience)
-- `lib/nudges/copy.ts` — User-facing text templates and emoji helpers
-- `lib/nudges/metrics.ts` — `computeTripMetrics()` from trip + windows + participants
-- `lib/nudges/store.ts` — Dedupe, cooldown, chat message persistence
-- `docs/NUDGE_ENGINE_SURFACING.md` — Discovery notes and architecture
-
-**Do NOT** document exact rules, thresholds, or cooldown durations in user-facing docs. The engine is intentionally opaque to users.
-
-## 10.6) Event System (Data Moat)
-
-An event logging system for capturing group coordination behavior. This is the foundation of Tripti's data moat — unique behavioral data that compounds over time.
-
-**Core concept**: Log state-changing actions as immutable events. Learn how groups coordinate without adding new UX flows.
-
-**Architecture**:
-- **Critical events** (trip created, dates locked, canceled): `await` the write
-- **Non-critical events** (window suggested, reaction): fire-and-forget
-- **Idempotency**: Duplicate events are silently skipped via unique index on `idempotencyKey`
-
-**Key files**:
-```
-lib/events/
-├── index.ts              # Public API exports
-├── types.ts              # EVENT_TYPES enum (source of truth)
-├── emit.ts               # emitTripEvent(), emitCriticalEvent(), emitNonCriticalEvent()
-├── instrumentation.ts    # High-level helpers (emitTripCreated, emitWindowSuggested, etc.)
-├── firstAction.ts        # First-action tracking per traveler
-├── nudgeCorrelation.ts   # Links nudges to subsequent actions (30min window)
-├── aggregates.ts         # Daily aggregation jobs
-└── indexes.ts            # Index management
-```
-
-**Instrumented endpoints** (all emit events automatically):
-- Trip creation, status changes, cancellation
-- Date window suggested, supported, proposed, withdrawn
-- Reaction submitted (works/maybe/cant)
-- Dates locked
-- Traveler joined, left
-- Leader changed
-
-**High-value signals**:
-- `traveler.participation.first_action` — early engagement predicts completion
-- `scheduling.reaction.submitted` with `reaction: 'cant'` — conflict signal
-- `nudge.system.correlated_action` — measures nudge effectiveness
-- Silence (absence of events) — the strongest negative signal
-
-**Collections**:
-- `trip_events` — Append-only event log (indexes: `tripId+timestamp`, `circleId+eventType+timestamp`, `idempotencyKey`)
-- `nudge_events` — Short-lived correlation cache (TTL 7 days)
-- `trip_coordination_snapshots` — Per-trip aggregates (outcome, time-to-lock, participation rate)
-- `circle_coordination_profiles` — Per-circle longitudinal behavior (completion rate, median lock time)
-
-**Daily aggregation job**:
-```bash
-# Run manually or via cron
-curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
-  https://tripti.ai/api/jobs/aggregates
-```
-
-**Reference**: See `docs/EVENTS_SPEC.md` for full schema, taxonomy, and implementation checklist.
-
-## 10.7) Admin Debug Endpoints (INTERNAL)
-
-Internal endpoints for investigating user issues during beta. Protected by `x-admin-debug-token` header.
-
-**Authentication**: All admin endpoints return 404 (not 401) if token is missing or invalid. This prevents endpoint discovery.
-
-**Endpoint A: Event Query**
-```
-GET /api/admin/events?tripId=abc123&limit=100
-```
-- Query params: `tripId`, `circleId`, `actorId`, `eventType`, `since`, `until`, `limit`
-- Requires at least `tripId` or `circleId` (prevents full collection scan)
-- Default limit 200, max 1000
-- Sort: ASC for tripId (timeline), DESC otherwise
-
-**Endpoint B: Trip Health Check**
-```
-GET /api/admin/events/trips/:tripId/health
-```
-Returns instrumentation integrity report:
-- `totalEvents`, `lastEventAt`
-- `hasTripCreated`, `hasAnySchedulingActivity`, `hasAnyFirstAction`
-- `isTripLocked`, `hasDatesLockedEvent`
-- `warnings[]` — e.g., "Trip locked but no scheduling.dates.locked event"
-
-**Example curl commands**:
-```bash
-# Query events for a trip
-curl -H "x-admin-debug-token: $ADMIN_DEBUG_TOKEN" \
-  "https://tripti.ai/api/admin/events?tripId=abc123"
-
-# Check trip health
-curl -H "x-admin-debug-token: $ADMIN_DEBUG_TOKEN" \
-  "https://tripti.ai/api/admin/events/trips/abc123/health"
-```
-
-**Key files**:
-- `app/api/admin/events/route.ts` — Event query endpoint
-- `app/api/admin/events/trips/[tripId]/health/route.ts` — Health check endpoint
-
-## 10.8) Itinerary LLM Pipeline
-
-The itinerary system uses LLM calls for generation and revision. Key infrastructure in `lib/server/llm.js`.
-
-**Key files**:
-- `lib/server/llm.js` — LLM functions (generateItinerary, reviseItinerary, summarizeFeedback, summarizePlanningChat)
-- `lib/server/fetchWithRetry.js` — Retry wrapper with exponential backoff for LLM API calls
-- `lib/server/tokenEstimate.js` — Token estimation and prompt size guards
-- `docs/ITINERARY_LLM_PIPELINE.md` — Full pipeline documentation
-
-**Core functions**:
-| Function | Purpose |
-|----------|---------|
-| `generateItinerary()` | Create v1 from ideas + trip metadata |
-| `reviseItinerary()` | Apply feedback/reactions to create v2+ |
-| `summarizeFeedback()` | Structure feedback + reactions + chat for revision |
-| `summarizePlanningChat()` | Derive structured brief from planning chat (v1 only, flagged) |
-
-**Retry logic** (`fetchWithRetry`):
-- Exponential backoff: 500ms base, 2 retries max
-- Retries on: HTTP 429, 5xx, network errors (ECONNRESET, ETIMEDOUT)
-- All LLM functions use this wrapper
-
-**Token guards** (`tokenEstimate.js`):
-- Estimation: `ceil(text.length / 4)` (conservative for English)
-- Default max: 12000 tokens (configurable via `ITINERARY_MAX_PROMPT_TOKENS`)
-- Truncation strategy for generation: ideas 10 → 5 → 3
-- Truncation strategy for revision: newIdeas → feedback arrays
-
-**Reaction aggregation** (in `summarizeFeedback`):
-- Vote counting per category with tie detection
-- Exclusive categories (pace, budget): majority wins or "SPLIT" on tie
-- Non-exclusive categories (focus, logistics): aggregated with counts
-- Reactions are HARD CONSTRAINTS in revision prompts
-
-**Observability** (`llmMeta` on `itinerary_versions`):
-```javascript
-{
-  model: 'gpt-4o-mini',
-  generatedAt: '2026-02-01T...',
-  promptTokenEstimate: 8500,
-  ideaCount: 7,
-  feedbackCount: 3,      // v2+ only
-  reactionCount: 5,      // v2+ only
-  chatMessageCount: 12,  // v2+ only
-  // Chat brief fields (v1 with flag ON):
-  chatBriefEnabled: true,
-  chatBriefMessageCount: 45,
-  chatBriefCharCount: 4200,
-  chatBriefSucceeded: true,
-  // Chat bucketing fields (v2+ with flag ON):
-  chatBucketingEnabled: true,
-  chatRelevantCount: 15,
-  chatOtherCount: 8
-}
-```
-
-**Feature flags**:
-| Flag | Default | Purpose |
-|------|---------|---------|
-| `ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE` | **ON** | Enable chat brief for v1 generation (set `0` to disable) |
-| `ITINERARY_CHAT_BRIEF_LOOKBACK_DAYS` | 14 | Chat lookback window for brief |
-| `ITINERARY_CHAT_BRIEF_MAX_MESSAGES` | 200 | Max messages to fetch for brief |
-| `ITINERARY_CHAT_BRIEF_MAX_CHARS` | 6000 | Max chars after formatting for brief |
-| `ITINERARY_CHAT_BRIEF_MODEL` | (uses OPENAI_MODEL) | Optional model override for summarization |
-| `ITINERARY_CHAT_BUCKETING` | **ON** | Enable relevance bucketing for revision chat (set `0` to disable) |
-| `ITINERARY_MAX_PROMPT_TOKENS` | 12000 | Max estimated prompt tokens before truncation |
-
-**Chat brief for v1** (enabled by default; set `ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE=0` to disable):
-- Pre-generation step summarizes planning chat into structured brief
-- Extracts: mustDos, avoid, preferences (pace/budget/focus/logistics), constraints, openQuestions
-- Brief injected into prompt under "PLANNING CHAT BRIEF" section
-- Fallback: on failure, continues without brief (no blocking)
-
-**Chat bucketing for revision** (enabled by default; set `ITINERARY_CHAT_BUCKETING=0` to disable):
-- Separates chat into "Relevant chat feedback" and "Other recent chat context"
-- Relevance heuristic: keyword matching OR message length > 20 chars
-- Limits: 20 relevant + 10 other messages
-- Fetches 50 messages (vs 30 when off) for better selection
-
-**Revise button enablement**:
-- Enabled when: feedback form entries exist OR reactions exist for latest version
-- Server `canRevise` checks version limit only; UI combines with feedback/reaction check
-- UI shows: "X feedback, Y reactions since vN" or "Waiting for feedback or reactions"
-
-**Version rules**:
-- Max 3 versions per trip (configurable via `ITINERARY_CONFIG.MAX_VERSIONS`)
-- Latest version (highest number) is always active
-- Previous versions retained but not editable
-
-**What is NOT stored in llmMeta**:
-- Raw prompts sent to LLM
-- Raw chat message content
-- LLM chain-of-thought or reasoning
-- User PII beyond counts
-
-## 11) Key Component APIs
-
-**CommandCenterV3 Props**:
-```typescript
-interface CommandCenterV3Props {
-  trip: Trip
-  token: string
-  user: User
-  onRefresh: (updatedTrip?: Trip) => void
-}
-```
-
-**ProgressStrip Props**:
-```typescript
-interface ProgressStripProps {
-  tripName: string
-  startDate?: string | null
-  endDate?: string | null
-  lockedStartDate?: string | null
-  lockedEndDate?: string | null
-  progressSteps: Record<string, boolean>
-  blockerStageKey: string | null
-  activeOverlay: OverlayType
-  onStepClick: (overlayType: OverlayType) => void
-  participationMeter?: { responded: number; total: number; label: string } | null
-  /** Whether the current user is the trip leader (shows "Leader" badge) */
-  isLeader?: boolean
-}
-```
-
-**OverlayContainer Props**:
-```typescript
-interface OverlayContainerProps {
-  isOpen: boolean
-  onClose: () => void
-  title: string
-  children: React.ReactNode
-  hasUnsavedChanges?: boolean
-  slideFrom?: 'right' | 'bottom'  // default: 'right'
-}
-```
-
-**ContextCTABar Props**:
-```typescript
-interface ContextCTABarProps {
-  trip: any
-  user: any
-  travelerCount: number
-  onOpenOverlay: (overlayType: string) => void
-}
-```
-
-**Overlay Pattern** (all overlays follow this):
-```typescript
-interface XxxOverlayProps {
-  trip: Trip
-  token: string
-  user: User
-  onRefresh: (updatedTrip?: Trip) => void
-  onClose: () => void
-  setHasUnsavedChanges: (has: boolean) => void
-  // Optional: onMemberClick for navigation to member profile
-}
-```

@@ -1,6 +1,6 @@
 # Itinerary LLM Pipeline
 
-> **Last verified against code:** 2026-02-01
+> **Last verified against code:** 2026-02-23
 > **This document is a snapshot; code remains source of truth.**
 > **Suggested review trigger:** when modifying `lib/server/llm.js` or itinerary routes in `app/api/[[...path]]/route.js`.
 

@@ -1,7 +1,7 @@
 # Tripti Event System Specification
 
 > **Status:** MVP Implementation Spec
-> **Last Updated:** 2026-01-29
+> **Last Updated:** 2026-02-23
 > **Schema Version:** 1
 
 ## 1. Purpose
@@ -165,6 +165,12 @@ Examples:
 | `itinerary.idea.added` | User adds idea | `{ ideaId }` |
 | `itinerary.idea.liked` | User likes idea | `{ ideaId }` |
 
+#### Onboarding
+
+| Event | Trigger | Payload |
+|-------|---------|---------|
+| `onboarding.trip_first.completed` | Trip-first onboarding flow finishes | `{ tripId }` |
+
 ---
 
 ## 4. Database Setup
@@ -276,10 +282,12 @@ db.circle_coordination_profiles.createIndex({ circleId: 1 }, { unique: true })
 
 ## 6. Implementation
 
+> **Note:** Code examples below use TypeScript syntax for clarity. The actual implementation files are `.js` (plain JavaScript). SWC strips types at build time.
+
 ### Event Emitter
 
 ```typescript
-// lib/events/emit.ts
+// lib/events/emit.js
 
 import { ObjectId } from 'mongodb';
 import { getDb } from '@/lib/server/db';
@@ -343,7 +351,7 @@ export async function emitTripEvent(
 ### Event Types Enum
 
 ```typescript
-// lib/events/types.ts
+// lib/events/types.js
 
 export const EVENT_TYPES = {
   // Trip lifecycle
@@ -421,7 +429,7 @@ try {
 } catch (err) {
   // Log prominently but don't break user flow
   console.error('[events] CRITICAL event failed:', err, { tripId, eventType: 'scheduling.dates.locked' });
-  // TODO: Add Sentry/monitoring alert here in production
+  // Sentry monitoring is active — critical failures are reported with context tags
   // Continue with API response — UX stability > event durability
 }
 ```
