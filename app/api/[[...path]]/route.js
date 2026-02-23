@@ -9,6 +9,7 @@ import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 import { ITINERARY_CONFIG, SCHEDULING_CONFIG } from '@/lib/itinerary/config.js'
 import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
+import { checkRateLimit, getTierForRoute } from '@/lib/server/rateLimit.js'
 
 // Event instrumentation (data moat)
 import {
@@ -26,36 +27,6 @@ import {
   emitLeaderChanged,
   emitTripFirstFlowCompleted,
 } from '@/lib/events/instrumentation'
-
-// In-memory rate limiter for sensitive endpoints
-const rateLimitStore = new Map()
-const RATE_LIMIT_WINDOW_MS = 60 * 1000 // 1 minute
-const RATE_LIMIT_MAX_ATTEMPTS = 5 // max attempts per window
-
-function checkRateLimit(key) {
-  const now = Date.now()
-  const entry = rateLimitStore.get(key)
-
-  // Clean up expired entries periodically (every 100 checks)
-  if (Math.random() < 0.01) {
-    for (const [k, v] of rateLimitStore) {
-      if (now - v.windowStart > RATE_LIMIT_WINDOW_MS) rateLimitStore.delete(k)
-    }
-  }
-
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    rateLimitStore.set(key, { windowStart: now, count: 1 })
-    return { allowed: true }
-  }
-
-  entry.count++
-  if (entry.count > RATE_LIMIT_MAX_ATTEMPTS) {
-    const retryAfter = Math.ceil((entry.windowStart + RATE_LIMIT_WINDOW_MS - now) / 1000)
-    return { allowed: false, retryAfter }
-  }
-
-  return { allowed: true }
-}
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET
@@ -389,6 +360,56 @@ async function handleRoute(request, { params }) {
   const route = `/${path.join('/')}`
   const method = request.method
 
+  // --- Rate limiting ---
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const tier = getTierForRoute(route, method)
+
+  // For auth-tier and unauthenticated requests, use IP. For authenticated, getUserFromToken
+  // is called later — so use IP-based global check first, then user-based check is done
+  // inside the auth tier. For non-auth tiers, we do a quick IP-based global check here,
+  // and a user-based tier check after auth is resolved (deferred to avoid double DB call).
+  // Auth-tier endpoints get checked by IP immediately.
+  if (tier === 'auth') {
+    const rl = await checkRateLimit(`ip:${ip}`, 'auth')
+    if (!rl.success) {
+      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
+      return handleCORS(NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      ))
+    }
+  } else {
+    // Global IP-based catch-all for all non-auth requests
+    const rl = await checkRateLimit(`ip:${ip}`, 'global')
+    if (!rl.success) {
+      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
+      return handleCORS(NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      ))
+    }
+
+    // User-based tier check (extract userId from JWT without DB call)
+    const authHeader = request.headers.get('Authorization')
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.verify(authHeader.split(' ')[1], jwtSecret)
+        if (decoded.userId) {
+          const userRl = await checkRateLimit(`user:${decoded.userId}`, tier)
+          if (!userRl.success) {
+            const retryAfter = Math.ceil(Math.max(0, userRl.reset - Date.now()) / 1000) || 60
+            return handleCORS(NextResponse.json(
+              { error: 'Too many requests. Please try again later.' },
+              { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+            ))
+          }
+        }
+      } catch (_) {
+        // Invalid token — auth will fail later, skip user-based rate limit
+      }
+    }
+  }
+
   try {
     const db = await connectToMongo()
 
@@ -491,17 +512,8 @@ async function handleRoute(request, { params }) {
     }
 
     // Validate private beta secret - POST /api/auth/validate-beta-secret
+    // (Rate limiting handled by auth-tier check above)
     if (route === '/auth/validate-beta-secret' && method === 'POST') {
-      // Rate limit by IP
-      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-      const rl = checkRateLimit(`beta-secret:${ip}`)
-      if (!rl.allowed) {
-        return handleCORS(NextResponse.json(
-          { error: 'Too many attempts. Please try again shortly.' },
-          { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } }
-        ))
-      }
-
       const body = await request.json()
       const { secret } = body
       const VALID_BETA_PHRASES = [
