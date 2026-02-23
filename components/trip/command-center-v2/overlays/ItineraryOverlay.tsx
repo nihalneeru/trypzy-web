@@ -1263,7 +1263,7 @@ export function ItineraryOverlay({
 
                 {/* Overview */}
                 {selectedVersion.content?.overview && (
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="p-3 bg-brand-blue/5 rounded-lg border border-brand-blue/20">
                     <p className="text-xs font-medium mb-1">Overview</p>
                     <p className="text-xs text-gray-600">
                       Pace: {selectedVersion.content.overview.pace} | Budget:{' '}
@@ -1325,7 +1325,7 @@ export function ItineraryOverlay({
                                     </p>
                                   )}
                                   {block.location && (
-                                    <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                                    <p className="text-xs text-brand-blue mt-1 flex items-center gap-1">
                                       <MapPin className="h-3 w-3" />
                                       {block.location}
                                     </p>

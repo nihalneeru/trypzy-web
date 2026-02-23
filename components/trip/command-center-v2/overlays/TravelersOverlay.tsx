@@ -785,7 +785,7 @@ export function TravelersOverlay({
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
             Your Invitation
           </h3>
-          <Card className="border-brand-blue/30 bg-blue-50/50">
+          <Card className="border-brand-blue/30 bg-brand-blue/5">
             <CardContent className="py-4 px-4">
               <div className="space-y-3">
                 <p className="text-sm text-brand-carbon">
@@ -822,7 +822,7 @@ export function TravelersOverlay({
       {viewer.isActiveParticipant && !isCancelled && (
         <Button
           variant="outline"
-          className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-blue-50"
+          className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
           onClick={handleInvite}
         >
           <Share2 className="h-4 w-4 mr-2" />

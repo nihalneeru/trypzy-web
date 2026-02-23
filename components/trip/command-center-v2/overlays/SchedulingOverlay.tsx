@@ -549,9 +549,9 @@ export function SchedulingOverlay({
     return (
       <div className="space-y-4">
         {/* Voting Phase Info */}
-        <Card className="border-blue-200 bg-blue-50/50">
+        <Card className="border-brand-blue/20 bg-brand-blue/5">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-blue-800">
+            <CardTitle className="flex items-center gap-2 text-brand-blue">
               <Vote className="h-5 w-5" />
               Which dates work best?
             </CardTitle>
@@ -599,7 +599,7 @@ export function SchedulingOverlay({
                                 {displayVoters.map((voter) => (
                                   <span
                                     key={voter.id}
-                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800 font-medium"
+                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-brand-blue/10 text-brand-blue font-medium"
                                     title={voter.name}
                                   >
                                     {getInitials(voter.name)}
@@ -729,7 +729,7 @@ export function SchedulingOverlay({
                     key={pick.startDateISO}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
                       activeRank === pick.rank
-                        ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
+                        ? 'bg-brand-blue/5 border-brand-blue/30 ring-2 ring-brand-blue/20'
                         : 'bg-gray-50 border-gray-200'
                     } ${canParticipate ? 'cursor-pointer hover:bg-gray-100' : ''}`}
                     onClick={() => canParticipate && editPick(pick.rank)}
@@ -747,7 +747,7 @@ export function SchedulingOverlay({
                         })()}
                         <span className="font-medium">{formatDateRange(pick.startDateISO)}</span>
                         {activeRank === pick.rank && (
-                          <span className="text-xs text-blue-600">(editing)</span>
+                          <span className="text-xs text-brand-blue">(editing)</span>
                         )}
                       </div>
                     </div>
@@ -812,7 +812,7 @@ export function SchedulingOverlay({
                         onClick={() => setActiveRank(rank as 1 | 2 | 3)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                           isActive
-                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400'
+                            ? 'bg-brand-blue/10 text-brand-blue ring-2 ring-brand-blue/40'
                             : existingPick
                             ? 'bg-green-50 text-green-700 border border-green-200'
                             : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
@@ -826,7 +826,7 @@ export function SchedulingOverlay({
                   })}
                 </div>
                 {activeRank && (
-                  <p className="text-xs text-blue-600 mt-2">
+                  <p className="text-xs text-brand-blue mt-2">
                     Now click a date on the calendar to set your "{getRankLabel(activeRank)}" pick
                   </p>
                 )}
@@ -891,15 +891,15 @@ export function SchedulingOverlay({
                           disabled={isDisabled}
                           className={`h-10 md:h-9 w-full rounded text-[11px] font-medium border transition-all relative flex items-center justify-center ${
                             day.isValidStart && day.isInBounds && canParticipate
-                              ? 'cursor-pointer hover:ring-2 hover:ring-blue-300'
+                              ? 'cursor-pointer hover:ring-2 hover:ring-brand-blue/30'
                               : 'cursor-not-allowed opacity-40'
                           } ${
                             isInPreviewWindow
                               ? 'ring-2 ring-yellow-400 ring-offset-0 shadow-md z-10'
                               : isInSelectedWindow
-                              ? 'ring-2 ring-blue-300 ring-offset-0'
+                              ? 'ring-2 ring-brand-blue/30 ring-offset-0'
                               : userPick
-                              ? 'ring-2 ring-blue-500 ring-offset-0'
+                              ? 'ring-2 ring-brand-blue ring-offset-0'
                               : ''
                           } ${bgColor} ${bgColor.startsWith('bg-green') ? 'text-white' : 'text-gray-600'}`}
                           title={
@@ -930,7 +930,7 @@ export function SchedulingOverlay({
                             <div className="absolute inset-0 bg-yellow-200 bg-opacity-30 rounded pointer-events-none" />
                           )}
                           {isInSelectedWindow && !isInPreviewWindow && (
-                            <div className="absolute inset-0 bg-blue-200 bg-opacity-20 rounded pointer-events-none" />
+                            <div className="absolute inset-0 bg-brand-blue/10 rounded pointer-events-none" />
                           )}
                         </button>
                       )

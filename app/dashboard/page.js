@@ -210,7 +210,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card>
           <CardContent className="py-8 px-6 text-center">
-            <p className="text-red-600 mb-4">Could not load dashboard — please try again.</p>
+            <p className="text-brand-red mb-4">Could not load dashboard — please try again.</p>
             <Button
               onClick={() => {
                 setError(null)

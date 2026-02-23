@@ -32,7 +32,7 @@ export function ActionCard({
   actionRequired?: boolean
 }) {
   return (
-    <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg flex flex-col gap-3">
+    <div className="mb-4 p-4 bg-brand-sand/40 border border-brand-blue/20 rounded-lg flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-brand-carbon mb-1">

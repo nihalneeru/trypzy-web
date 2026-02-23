@@ -1351,7 +1351,7 @@ export function DateWindowsFunnel({
             return (
               <Card
                 key={window.id}
-                className={`transition-all ${isLeading ? 'border-brand-blue/50 bg-blue-50/30' : ''}`}
+                className={`transition-all ${isLeading ? 'border-brand-blue/50 bg-brand-blue/5' : ''}`}
               >
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center justify-between">
@@ -1469,7 +1469,7 @@ export function DateWindowsFunnel({
 
           if (responseRate >= 0.8) {
             return (
-              <Card className="border-brand-blue/30 bg-blue-50/30">
+              <Card className="border-brand-blue/30 bg-brand-blue/5">
                 <CardContent className="py-4">
                   <p className="text-sm text-brand-carbon text-center">
                     {stats.responderCount} of {stats.totalTravelers} travelers have weighed in.
@@ -1486,7 +1486,7 @@ export function DateWindowsFunnel({
 
           if (responseRate >= 0.5) {
             return (
-              <Card className="border-brand-blue/20 bg-blue-50/20">
+              <Card className="border-brand-blue/20 bg-brand-blue/5">
                 <CardContent className="py-4">
                   <p className="text-sm text-muted-foreground text-center">
                     Over half the group has weighed in ({stats.responderCount} of {stats.totalTravelers}).
@@ -1669,7 +1669,7 @@ export function DateWindowsFunnel({
 
       {/* Leader CTA when proposal ready */}
       {isLeader && proposalStatus?.proposalReady && proposalStatus.leadingWindow && phase === 'COLLECTING' && (
-        <Card className="border-brand-red/30 bg-red-50/30">
+        <Card className="border-brand-red/30 bg-brand-red/5">
           <CardContent className="py-4">
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-2">
