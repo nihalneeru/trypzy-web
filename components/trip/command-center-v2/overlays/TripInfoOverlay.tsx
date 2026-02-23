@@ -9,6 +9,16 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Users,
   Calendar,
   MapPin,
@@ -49,6 +59,16 @@ export function TripInfoOverlay({
     destinationHint: trip?.destinationHint || '',
     description: trip?.description || ''
   })
+
+  // Share toggle state
+  const [shareEnabled, setShareEnabled] = useState(trip?.shareVisibility === 'link_only')
+  const [shareUrl, setShareUrl] = useState(
+    trip?.shareId ? `${typeof window !== 'undefined' ? window.location.origin : ''}/p/${trip.shareId}` : ''
+  )
+  const [sharingLoading, setSharingLoading] = useState(false)
+  const [privacyBlocked, setPrivacyBlocked] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
+  const [showShareConfirm, setShowShareConfirm] = useState(false)
 
   const isLeader = trip?.createdBy === user?.id
   const isLocked = trip?.status === 'locked'
@@ -97,6 +117,86 @@ export function TripInfoOverlay({
       toast.success('Invite link copied!')
     } else if (result === 'failed') {
       toast.error('Could not copy invite link')
+    }
+  }
+
+  // Share toggle handlers
+  const handleToggleSharing = async () => {
+    if (sharingLoading || privacyBlocked) return
+
+    // If enabling, show confirmation dialog first
+    if (!shareEnabled) {
+      setShowShareConfirm(true)
+      return
+    }
+
+    // Disabling sharing
+    await updateShareSettings('private')
+  }
+
+  const handleConfirmEnableSharing = async () => {
+    setShowShareConfirm(false)
+    await updateShareSettings('link_only')
+  }
+
+  const updateShareSettings = async (visibility: string) => {
+    setSharingLoading(true)
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/share-settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ shareVisibility: visibility })
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        if (response.status === 403 && err.error?.includes('private trip visibility')) {
+          setPrivacyBlocked(true)
+          toast.error('A traveler\'s privacy settings prevent sharing')
+          return
+        }
+        throw new Error(err.error || 'Could not update share settings')
+      }
+
+      const result = await response.json()
+      const isEnabled = result.shareVisibility === 'link_only'
+      setShareEnabled(isEnabled)
+
+      if (isEnabled && result.shareUrl) {
+        setShareUrl(`${window.location.origin}${result.shareUrl}`)
+      }
+
+      toast.success(isEnabled ? 'Trip sharing enabled' : 'Trip sharing disabled')
+    } catch (err: any) {
+      toast.error(err.message || 'Could not update share settings')
+    } finally {
+      setSharingLoading(false)
+    }
+  }
+
+  const handleCopyShareLink = async () => {
+    if (!shareUrl) return
+    const result = await copyToClipboard(shareUrl)
+    if (result === 'copied') {
+      setShareCopied(true)
+      toast.success('Share link copied')
+      setTimeout(() => setShareCopied(false), 2000)
+    } else {
+      toast.error('Could not copy share link')
+    }
+  }
+
+  const handleShareTrip = async () => {
+    if (!shareUrl) return
+    const shareText = `Check out "${trip.name}" on Tripti.ai!`
+    const result = await nativeShare({ title: 'Tripti.ai Trip Preview', text: shareText, url: shareUrl })
+    if (result === 'copied') {
+      toast.success('Share link copied!')
+    } else if (result === 'failed') {
+      toast.error('Could not share link')
     }
   }
 
@@ -372,12 +472,115 @@ export function TripInfoOverlay({
         </Card>
       )}
 
+      {/* Share Trip Section — leader only, locked trips */}
+      {isLeader && isLocked && (
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-brand-carbon">Share trip preview</p>
+                <p className="text-xs text-gray-500">Let anyone view the itinerary via link</p>
+              </div>
+              <button
+                onClick={handleToggleSharing}
+                disabled={privacyBlocked || sharingLoading}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  shareEnabled ? 'bg-brand-red' : 'bg-gray-300'
+                } ${(privacyBlocked || sharingLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                aria-label={shareEnabled ? 'Disable trip sharing' : 'Enable trip sharing'}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  shareEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+
+            {privacyBlocked && (
+              <p className="text-xs text-gray-500">
+                A traveler&apos;s privacy settings prevent sharing this trip.
+              </p>
+            )}
+
+            {shareEnabled && shareUrl && (
+              <>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={shareUrl}
+                    className="flex-1 text-xs bg-gray-50 border rounded px-2 py-1.5 text-brand-carbon font-mono"
+                  />
+                  <Button variant="outline" size="sm" onClick={handleCopyShareLink}>
+                    {shareCopied ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1 text-green-600" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4 mr-1" />
+                        Copy
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleShareTrip}
+                  className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share trip preview
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Locked status note */}
       {isLocked && isLeader && (
         <p className="text-xs text-gray-500 text-center">
           Trip name and description cannot be edited after dates are locked. Destination hint can still be updated.
         </p>
       )}
+
+      {/* Share confirmation dialog */}
+      <AlertDialog open={showShareConfirm} onOpenChange={setShowShareConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enable trip sharing?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Anyone with the link will be able to see:</p>
+                <ul className="text-sm text-gray-600 list-disc pl-5 space-y-1">
+                  <li>Trip name and destination</li>
+                  <li>Trip dates</li>
+                  <li>Itinerary</li>
+                  <li>Number of travelers</li>
+                </ul>
+                <p>Hidden from public view:</p>
+                <ul className="text-sm text-gray-600 list-disc pl-5 space-y-1">
+                  <li>Traveler names and profiles</li>
+                  <li>Chat messages</li>
+                  <li>Accommodation details</li>
+                  <li>Expenses</li>
+                  <li>Personal notes</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmEnableSharing}
+              className="bg-brand-red hover:bg-brand-red/90"
+            >
+              Enable sharing
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
