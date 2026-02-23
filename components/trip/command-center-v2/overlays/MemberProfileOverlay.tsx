@@ -306,7 +306,7 @@ export function MemberProfileOverlay({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Shield className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Profile Private</h3>
+        <h3 className="text-lg font-semibold text-brand-carbon mb-2">Profile Private</h3>
         <p className="text-gray-600 max-w-sm">{profileError}</p>
       </div>
     )
@@ -331,7 +331,7 @@ export function MemberProfileOverlay({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-xl font-bold text-gray-900 truncate">{profile.name}</h2>
+            <h2 className="text-xl font-bold text-brand-carbon truncate">{profile.name}</h2>
             {isViewingOwnProfile && (
               <Badge variant="secondary" className="shrink-0">
                 <User className="h-3 w-3 mr-1" />

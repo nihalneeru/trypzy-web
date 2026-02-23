@@ -374,7 +374,7 @@ export function PrepOverlay({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Lock className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Prep Not Available</h3>
+        <h3 className="text-lg font-medium text-brand-carbon mb-2">Prep Not Available</h3>
         <p className="text-gray-500">Prep opens up once your dates are confirmed.</p>
       </div>
     )
@@ -719,7 +719,7 @@ export function PrepOverlay({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
                         onClick={() => handleDeleteTransport(item.id)}
                         disabled={deletingTransport === item.id}
                         aria-label="Delete transport"
@@ -901,7 +901,7 @@ export function PrepOverlay({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
                     onClick={() => handleDeleteChecklist(item.id)}
                     disabled={deletingChecklist === item.id}
                     aria-label="Delete packing item"
@@ -1061,7 +1061,7 @@ export function PrepOverlay({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
                     onClick={() => handleDeleteChecklist(item.id)}
                     disabled={deletingChecklist === item.id}
                     aria-label="Delete group item"

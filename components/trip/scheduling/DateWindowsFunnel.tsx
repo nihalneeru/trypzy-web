@@ -962,7 +962,7 @@ export function DateWindowsFunnel({
                     variant={userReaction === 'CANT' ? 'default' : 'outline'}
                     onClick={() => handleReact('CANT')}
                     disabled={submitting}
-                    className={userReaction === 'CANT' ? 'bg-red-600 hover:bg-red-700' : 'border-red-200 text-red-700 hover:bg-red-50'}
+                    className={userReaction === 'CANT' ? 'bg-brand-red hover:bg-brand-red/90' : 'border-brand-red/30 text-brand-red hover:bg-brand-red/5'}
                   >
                     <ThumbsDown className="h-4 w-4 mr-1" />
                     Can't
@@ -993,7 +993,7 @@ export function DateWindowsFunnel({
                   </span>
                 )}
                 {approvalSummary.cants > 0 && (
-                  <span className="flex items-center text-red-600">
+                  <span className="flex items-center text-brand-red">
                     <ThumbsDown className="h-3 w-3 mr-1" />
                     {approvalSummary.cants}
                   </span>
@@ -1015,7 +1015,7 @@ export function DateWindowsFunnel({
                               className={`text-xs px-2 py-0.5 rounded-full ${
                                 r.reactionType === 'WORKS' ? 'bg-green-100 text-green-700' :
                                 r.reactionType === 'CAVEAT' ? 'bg-amber-100 text-amber-700' :
-                                'bg-red-100 text-red-700'
+                                'bg-brand-red/10 text-brand-red'
                               }`}
                             >
                               {r.userName.split(' ')[0]}
@@ -1418,7 +1418,7 @@ export function DateWindowsFunnel({
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => handleDeleteWindow(window.id)}
-                                className="text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                                className="text-muted-foreground hover:text-brand-red hover:bg-brand-red/5"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

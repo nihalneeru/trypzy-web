@@ -505,7 +505,7 @@ export function AccommodationOverlay({
                     className="flex items-center justify-between gap-3 p-2 bg-white rounded-md border"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 capitalize truncate">
+                      <p className="text-sm font-medium text-brand-carbon capitalize truncate">
                         {stay.locationName}
                       </p>
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
@@ -600,7 +600,7 @@ export function AccommodationOverlay({
             <Check className="h-5 w-5" />
             <span className="font-medium">Stay confirmed</span>
           </div>
-          <h4 className="font-medium text-gray-900">{selectedOption.title}</h4>
+          <h4 className="font-medium text-brand-carbon">{selectedOption.title}</h4>
           {selectedOption.priceRange && (
             <p className="text-sm text-gray-600 mt-1">{selectedOption.priceRange}</p>
           )}
@@ -759,7 +759,7 @@ export function AccommodationOverlay({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-gray-400 hover:text-red-600"
+                              className="text-gray-400 hover:text-brand-red"
                               onClick={() => handleDelete(option.id)}
                               disabled={deleting === option.id}
                               aria-label="Delete accommodation option"

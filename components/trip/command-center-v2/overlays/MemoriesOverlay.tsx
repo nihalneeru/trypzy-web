@@ -267,7 +267,7 @@ export function MemoriesOverlay({
       {memories.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Camera className="h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Memories Yet</h3>
+          <h3 className="text-lg font-medium text-brand-carbon mb-2">No Memories Yet</h3>
           <p className="text-gray-500 mb-4">Capture and share your travel moments</p>
           {!isReadOnly && (
             <Button onClick={() => setShowCreateDialog(true)}>
@@ -297,7 +297,7 @@ export function MemoriesOverlay({
                   {!isReadOnly && memory.createdBy === user?.id && (
                     <button
                       onClick={() => setDeletingMemoryId(memory.id)}
-                      className="absolute top-2 left-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 left-2 bg-brand-red text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                       aria-label="Delete memory"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -378,7 +378,7 @@ export function MemoriesOverlay({
                           />
                           <button
                             onClick={() => removeImage(idx)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow"
+                            className="absolute -top-2 -right-2 bg-brand-red text-white p-1 rounded-full shadow"
                             aria-label="Remove image"
                           >
                             <X className="h-3 w-3" />

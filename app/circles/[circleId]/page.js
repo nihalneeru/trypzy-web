@@ -237,7 +237,7 @@ export default function CircleDetailPage() {
               <Card className="text-center py-12">
                 <CardContent>
                   <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No trips yet</h3>
+                  <h3 className="text-lg font-medium text-brand-carbon mb-2">No trips yet</h3>
                   <p className="text-gray-500 mb-4">Create a trip to start planning with your circle</p>
                   <Button onClick={() => setShowCreateTrip(true)}>
                     <Plus className="h-4 w-4 mr-1" />
@@ -286,7 +286,7 @@ export default function CircleDetailPage() {
               <Card className="text-center py-12">
                 <CardContent>
                   <Camera className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No memories yet</h3>
+                  <h3 className="text-lg font-medium text-brand-carbon mb-2">No memories yet</h3>
                   <p className="text-gray-500 mb-4">Share photos and moments from your trips</p>
                   <Button onClick={() => setShowCreatePost(true)}>
                     <Camera className="h-4 w-4 mr-1" />

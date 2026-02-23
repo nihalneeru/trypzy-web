@@ -320,7 +320,7 @@ export function SchedulingFunnelCard({
         <Card className="bg-green-50 border-green-200">
           <CardContent className="py-8 text-center">
             <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Dates Locked</h3>
+            <h3 className="text-lg font-semibold text-brand-carbon mb-2">Dates Locked</h3>
             <p className="text-gray-600 mb-4">
               {funnelState === SchedulingFunnelState.HOSTED_LOCKED
                 ? 'This is a hosted trip with fixed dates.'
@@ -349,7 +349,7 @@ export function SchedulingFunnelCard({
           <CardContent className="py-6">
             <div className="text-center mb-4">
               <CheckCircle2 className="h-10 w-10 text-green-600 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-gray-900">Ready to Lock!</h3>
+              <h3 className="text-lg font-semibold text-brand-carbon">Ready to Lock!</h3>
               <p className="text-gray-600">
                 {approvalStats.approvals} of {memberCount} members approved ({approvalStats.required} needed)
               </p>
@@ -429,7 +429,7 @@ export function SchedulingFunnelCard({
                 <HelpCircle className="h-4 w-4 inline mr-1" />
                 {approvalStats.caveats} Caveat
               </span>
-              <span className="text-red-600 font-medium">
+              <span className="text-brand-red font-medium">
                 <ThumbsDown className="h-4 w-4 inline mr-1" />
                 {approvalStats.cant} Can't
               </span>
@@ -449,7 +449,7 @@ export function SchedulingFunnelCard({
                   const colors = {
                     WORKS: isSelected ? 'bg-green-600 text-white' : 'border-green-600 text-green-600 hover:bg-green-50',
                     CAVEAT: isSelected ? 'bg-yellow-600 text-white' : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50',
-                    CANT: isSelected ? 'bg-red-600 text-white' : 'border-red-600 text-red-600 hover:bg-red-50'
+                    CANT: isSelected ? 'bg-brand-red text-white' : 'border-brand-red text-brand-red hover:bg-brand-red/5'
                   }
                   const labels = { WORKS: 'Works!', CAVEAT: 'Caveat', CANT: "Can't" }
                   const icons = {
@@ -597,13 +597,13 @@ export function SchedulingFunnelCard({
                   <div key={window.id} className="p-3 bg-gray-50 rounded-lg border">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="font-medium text-gray-900">{window.description}</p>
+                        <p className="font-medium text-brand-carbon">{window.description}</p>
                         <p className="text-xs text-gray-500">Suggested by {window.userName}</p>
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-green-600">{stats.works} Works</span>
                         <span className="text-yellow-600">{stats.maybe} Maybe</span>
-                        <span className="text-red-600">{stats.no} No</span>
+                        <span className="text-brand-red">{stats.no} No</span>
                       </div>
                     </div>
 
@@ -615,7 +615,7 @@ export function SchedulingFunnelCard({
                           const colors = {
                             WORKS: isSelected ? 'bg-green-600 text-white' : 'border-green-300 text-green-700 hover:bg-green-50',
                             MAYBE: isSelected ? 'bg-yellow-600 text-white' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50',
-                            NO: isSelected ? 'bg-red-600 text-white' : 'border-red-300 text-red-700 hover:bg-red-50'
+                            NO: isSelected ? 'bg-brand-red text-white' : 'border-brand-red/30 text-brand-red hover:bg-brand-red/5'
                           }
 
                           return (

@@ -35,7 +35,7 @@ export function ActionCard({
     <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 mb-1">
+          <h3 className="text-sm font-semibold text-brand-carbon mb-1">
             {action.title}
           </h3>
           <p className="text-sm text-gray-700">
@@ -55,7 +55,7 @@ export function ActionCard({
         <Button
           onClick={onAction}
           size="sm"
-          className={`flex-shrink-0 h-10 md:h-9 ${actionRequired ? 'bg-red-600 hover:bg-red-700' : ''}`}
+          className={`flex-shrink-0 h-10 md:h-9 ${actionRequired ? 'bg-brand-red hover:bg-brand-red/90' : ''}`}
         >
           {action.ctaLabel}
         </Button>

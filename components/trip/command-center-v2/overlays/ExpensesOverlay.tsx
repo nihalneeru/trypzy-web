@@ -454,7 +454,7 @@ export function ExpensesOverlay({
       {expenses.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <DollarSign className="h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Expenses Yet</h3>
+          <h3 className="text-lg font-medium text-brand-carbon mb-2">No Expenses Yet</h3>
           <p className="text-gray-500 mb-4">Track shared costs for this trip</p>
           {!isReadOnly && (
             <Button onClick={() => setShowAddDialog(true)}>
@@ -491,7 +491,7 @@ export function ExpensesOverlay({
                           <ArrowRight className="h-4 w-4 text-gray-400" />
                           <span className="font-medium">{getTravelerName(s.to)}</span>
                         </div>
-                        <span className="font-semibold text-red-600">{formatCurrency(s.amount)}</span>
+                        <span className="font-semibold text-brand-red">{formatCurrency(s.amount)}</span>
                       </div>
                     ))}
                   </div>
@@ -509,7 +509,7 @@ export function ExpensesOverlay({
                       return (
                         <div key={userId} className="flex justify-between text-sm">
                           <span>{getTravelerName(userId)}</span>
-                          <span className={`font-medium ${isZero ? 'text-gray-500' : isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className={`font-medium ${isZero ? 'text-gray-500' : isPositive ? 'text-green-600' : 'text-brand-red'}`}>
                             {isZero ? 'Settled' : isPositive ? `+${formatCurrency(balance)}` : formatCurrency(balance)}
                           </span>
                         </div>
@@ -563,7 +563,7 @@ export function ExpensesOverlay({
                           onClick={() => setDeletingExpenseId(expense._id || expense.id)}
                           aria-label="Delete expense"
                         >
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-brand-red" />
                         </Button>
                       )}
                     </div>
@@ -600,7 +600,7 @@ export function ExpensesOverlay({
                 }}
                 placeholder="e.g., Dinner at restaurant"
               />
-              {formErrors.title && <p className="text-sm text-red-500 mt-1">{formErrors.title}</p>}
+              {formErrors.title && <p className="text-sm text-brand-red mt-1">{formErrors.title}</p>}
             </div>
 
             <div>
@@ -617,7 +617,7 @@ export function ExpensesOverlay({
                 }}
                 placeholder="e.g., 50.00"
               />
-              {formErrors.amount && <p className="text-sm text-red-500 mt-1">{formErrors.amount}</p>}
+              {formErrors.amount && <p className="text-sm text-brand-red mt-1">{formErrors.amount}</p>}
             </div>
 
             <div>
@@ -644,7 +644,7 @@ export function ExpensesOverlay({
                   </SelectContent>
                 </Select>
               )}
-              {formErrors.paidByUserId && <p className="text-sm text-red-500 mt-1">{formErrors.paidByUserId}</p>}
+              {formErrors.paidByUserId && <p className="text-sm text-brand-red mt-1">{formErrors.paidByUserId}</p>}
             </div>
 
             <div>
@@ -678,7 +678,7 @@ export function ExpensesOverlay({
                   })}
                 </div>
               )}
-              {formErrors.splitBetweenUserIds && <p className="text-sm text-red-500 mt-1">{formErrors.splitBetweenUserIds}</p>}
+              {formErrors.splitBetweenUserIds && <p className="text-sm text-brand-red mt-1">{formErrors.splitBetweenUserIds}</p>}
             </div>
 
             <div>

@@ -110,7 +110,7 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
     return (
       <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg mx-1 mb-2">
         <Mail className="h-4 w-4 text-brand-blue shrink-0" />
-        <p className="text-sm text-gray-800 flex-1 min-w-0">
+        <p className="text-sm text-brand-carbon flex-1 min-w-0">
           You've been invited to join this trip
         </p>
         <div className="flex gap-2 shrink-0">
@@ -141,7 +141,7 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
     return (
       <div className="flex items-center gap-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg mx-1 mb-2">
         <ArrowRightLeft className="h-4 w-4 text-amber-600 shrink-0" />
-        <p className="text-sm text-gray-800 flex-1 min-w-0">
+        <p className="text-sm text-brand-carbon flex-1 min-w-0">
           Leadership transfer requested
         </p>
         <div className="flex gap-2 shrink-0">

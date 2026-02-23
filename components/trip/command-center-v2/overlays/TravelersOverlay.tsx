@@ -552,7 +552,7 @@ export function TravelersOverlay({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Users className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No circle found</h3>
+        <h3 className="text-lg font-medium text-brand-carbon mb-2">No circle found</h3>
         <p className="text-gray-500">This trip is not associated with a circle.</p>
       </div>
     )
@@ -596,7 +596,7 @@ export function TravelersOverlay({
                   <div className="flex items-start gap-3">
                     <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="font-medium text-sm text-gray-900">
+                      <p className="font-medium text-sm text-brand-carbon">
                         You've been asked to lead this trip
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
@@ -632,7 +632,7 @@ export function TravelersOverlay({
                   <div className="flex items-start gap-3">
                     <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="font-medium text-sm text-gray-900">
+                      <p className="font-medium text-sm text-brand-carbon">
                         Waiting for {pendingRecipientName} to accept leadership
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
@@ -658,7 +658,7 @@ export function TravelersOverlay({
                 <div className="flex items-start gap-3">
                   <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="font-medium text-sm text-gray-900">
+                    <p className="font-medium text-sm text-brand-carbon">
                       Leadership transfer pending
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
@@ -729,7 +729,7 @@ export function TravelersOverlay({
                           onClick={() => handleRequestAction(request.id, 'reject')}
                           disabled={processingRequest === request.id}
                         >
-                          <X className="h-4 w-4 text-red-500" />
+                          <X className="h-4 w-4 text-brand-red" />
                         </Button>
                         <Button
                           size="sm"
@@ -788,7 +788,7 @@ export function TravelersOverlay({
           <Card className="border-brand-blue/30 bg-blue-50/50">
             <CardContent className="py-4 px-4">
               <div className="space-y-3">
-                <p className="text-sm text-gray-900">
+                <p className="text-sm text-brand-carbon">
                   <strong>{myInvitation.inviterName}</strong> invited you to join this trip.
                 </p>
                 <div className="flex gap-2">
@@ -967,7 +967,7 @@ export function TravelersOverlay({
         {canLeaveNonLeader && (
           <Button
             variant="outline"
-            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="w-full text-brand-red hover:text-brand-red hover:bg-brand-red/5"
             onClick={() => setShowLeaveDialog(true)}
           >
             <LogOut className="h-4 w-4 mr-2" />
@@ -977,7 +977,7 @@ export function TravelersOverlay({
         {canLeaveLeader && !hasPendingTransfer && (
           <Button
             variant="outline"
-            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="w-full text-brand-red hover:text-brand-red hover:bg-brand-red/5"
             onClick={() => setShowCancelDialog(true)}
           >
             <XCircle className="h-4 w-4 mr-2" />
@@ -1044,7 +1044,7 @@ export function TravelersOverlay({
               </SelectContent>
             </Select>
             {validationError && (
-              <p className="text-xs text-red-500 mt-2">{validationError}</p>
+              <p className="text-xs text-brand-red mt-2">{validationError}</p>
             )}
           </div>
           <DialogFooter>
@@ -1124,7 +1124,7 @@ export function TravelersOverlay({
               </SelectContent>
             </Select>
             {validationError && (
-              <p className="text-xs text-red-500 mt-2">{validationError}</p>
+              <p className="text-xs text-brand-red mt-2">{validationError}</p>
             )}
           </div>
           <DialogFooter>

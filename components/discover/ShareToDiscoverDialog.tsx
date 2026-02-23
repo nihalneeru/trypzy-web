@@ -256,7 +256,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
                   <img src={url} alt="" className="w-full h-full object-cover" />
                   <button
                     onClick={() => removeImage(idx)}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                    className="absolute top-1 right-1 bg-brand-red text-white rounded-full p-1 hover:bg-brand-red/90"
                   >
                     <X className="h-3 w-3" />
                   </button>

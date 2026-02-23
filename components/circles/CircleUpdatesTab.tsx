@@ -191,7 +191,7 @@ export function CircleUpdatesTab({ circleId, token }: CircleUpdatesTabProps) {
                     {getUpdateIcon(update.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${isStageTransition ? 'text-brand-blue' : 'text-gray-900'}`}>
+                    <p className={`text-sm font-medium ${isStageTransition ? 'text-brand-blue' : 'text-brand-carbon'}`}>
                       {getActionText(update)}
                     </p>
                     {contextLabel && (

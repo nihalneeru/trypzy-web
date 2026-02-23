@@ -68,7 +68,7 @@ export function WelcomePage() {
         {/* Hero Section */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12 lg:py-20">
           <div className="text-center">
-            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6 sm:mb-10">
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-brand-carbon mb-6 sm:mb-10">
               Plan trips together — without the chaos.
             </h1>
 
@@ -101,7 +101,7 @@ export function WelcomePage() {
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <Card className="border border-primary/20">
                   <CardContent className="py-3 px-3 sm:py-4 sm:px-5">
-                    <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-2">Great for</h3>
+                    <h3 className="text-sm sm:text-base font-semibold text-brand-carbon mb-2">Great for</h3>
                     <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-gray-600 text-left">
                       <li>• Friend groups</li>
                       <li>• Up to ~15 people</li>
@@ -112,7 +112,7 @@ export function WelcomePage() {
 
                 <Card className="border border-gray-200">
                   <CardContent className="py-3 px-3 sm:py-4 sm:px-5">
-                    <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-2">Not for (yet)</h3>
+                    <h3 className="text-sm sm:text-base font-semibold text-brand-carbon mb-2">Not for (yet)</h3>
                     <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-gray-600 text-left">
                       <li>• Flights & hotels</li>
                       <li>• Rigid checklists</li>
@@ -129,7 +129,7 @@ export function WelcomePage() {
       {/* Bottom CTA Section - always visible */}
       <section className="bg-primary/5 py-4 sm:py-6 shrink-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">
+          <h2 className="text-lg sm:text-2xl font-bold text-brand-carbon mb-3 sm:mb-4">
             Ready to try it with your group?
           </h2>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-center">

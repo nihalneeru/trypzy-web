@@ -1067,7 +1067,7 @@ export function ItineraryOverlay({
                                   />
                                 </Button>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-gray-900">{idea.text}</p>
+                                  <p className="text-sm text-brand-carbon">{idea.text}</p>
                                   {(idea.likeCount || 0) > 0 && (
                                     <p className="text-xs text-gray-500 mt-0.5">
                                       {idea.likeCount} {idea.likeCount === 1 ? 'like' : 'likes'}
@@ -1487,7 +1487,7 @@ export function ItineraryOverlay({
 
               <button
                 onClick={() => setShowAdvancedPreferences(!showAdvancedPreferences)}
-                className="text-xs text-gray-600 hover:text-gray-900 underline"
+                className="text-xs text-gray-600 hover:text-brand-carbon underline"
               >
                 {showAdvancedPreferences ? 'Fewer preferences' : 'More preferences'}
               </button>

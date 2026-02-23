@@ -845,7 +845,7 @@ export function ChatTab({
                               <p className="text-xs font-medium text-gray-500 mb-0.5 ml-1">{senderName}</p>
                             )}
                             <div className="bg-gray-100 rounded-2xl rounded-bl-md px-3.5 py-2">
-                              <p className="text-sm text-gray-900">{msg.content}</p>
+                              <p className="text-sm text-brand-carbon">{msg.content}</p>
                             </div>
                           </div>
                         </div>
@@ -877,7 +877,7 @@ export function ChatTab({
                   >
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                        <h3 className="text-sm font-semibold text-brand-carbon mb-1">
                           {request.requesterName} requested to join this trip
                         </h3>
                         {request.message && (
@@ -919,7 +919,7 @@ export function ChatTab({
                   <div className="p-4 bg-white border border-gray-200 rounded-lg">
                     {nextAction.id === 'quick-note' && (
                       <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-gray-900">
+                        <h4 className="text-sm font-semibold text-brand-carbon">
                           Add a quick note
                         </h4>
                         <Textarea
