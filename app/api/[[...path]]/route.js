@@ -9271,6 +9271,104 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // Update share settings - PATCH /api/trips/:id/share-settings
+    if (route.match(/^\/trips\/[^/]+\/share-settings$/) && method === 'PATCH') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Leader-only
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip leader can update share settings' },
+          { status: 403 }
+        ))
+      }
+
+      const body = await request.json()
+      const { shareVisibility } = body
+
+      if (!shareVisibility || !['private', 'link_only'].includes(shareVisibility)) {
+        return handleCORS(NextResponse.json(
+          { error: 'shareVisibility must be "private" or "link_only"' },
+          { status: 400 }
+        ))
+      }
+
+      // Privacy gate: if enabling sharing, check that no active traveler has tripsVisibility=private
+      if (shareVisibility === 'link_only') {
+        const participants = await db.collection('trip_participants')
+          .find({ tripId, status: 'active' })
+          .toArray()
+
+        const participantUserIds = participants.map(p => p.userId)
+
+        // For collaborative trips, also include circle members without explicit records
+        if (trip.type === 'collaborative' && trip.circleId) {
+          const memberships = await db.collection('memberships')
+            .find({ circleId: trip.circleId, status: { $ne: 'left' } })
+            .toArray()
+          for (const m of memberships) {
+            if (!participantUserIds.includes(m.userId)) {
+              participantUserIds.push(m.userId)
+            }
+          }
+        }
+
+        if (participantUserIds.length > 0) {
+          const usersWithPrivateTrips = await db.collection('users')
+            .find({
+              id: { $in: participantUserIds },
+              'privacy.tripsVisibility': 'private'
+            })
+            .limit(1)
+            .toArray()
+
+          if (usersWithPrivateTrips.length > 0) {
+            return handleCORS(NextResponse.json(
+              { error: 'Cannot enable sharing: one or more travelers have private trip visibility' },
+              { status: 403 }
+            ))
+          }
+        }
+
+        // Generate shareId on first enable, reuse on re-enable
+        const shareId = trip.shareId || crypto.randomUUID()
+        const sharedAt = trip.sharedAt || new Date().toISOString()
+
+        await db.collection('trips').updateOne(
+          { id: tripId },
+          { $set: { shareVisibility, shareId, sharedAt, updatedAt: new Date().toISOString() } }
+        )
+
+        return handleCORS(NextResponse.json({
+          shareId,
+          shareUrl: '/p/' + shareId,
+          shareVisibility
+        }))
+      }
+
+      // Disabling sharing (private)
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: { shareVisibility, updatedAt: new Date().toISOString() } }
+      )
+
+      return handleCORS(NextResponse.json({
+        shareId: trip.shareId || null,
+        shareUrl: trip.shareId ? '/p/' + trip.shareId : null,
+        shareVisibility
+      }))
+    }
+
     // Update itinerary items - PATCH /api/trips/:tripId/itineraries/:itineraryId/items
     if (route.match(/^\/trips\/[^/]+\/itineraries\/[^/]+\/items$/) && method === 'PATCH') {
       const auth = await requireAuth(request)
