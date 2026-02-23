@@ -52,6 +52,8 @@ function SignupPageContent() {
   const [initialized, setInitialized] = useState(false)
   const [isOAuthReturn, setIsOAuthReturn] = useState(false)
   const loadingTimeoutRef = useRef(null)
+  const [remixTripName, setRemixTripName] = useState(null)
+  const remixShareId = searchParams.get('remix') || (typeof window !== 'undefined' ? sessionStorage.getItem('tripti_pending_remix') : null)
 
   // Detect OAuth return vs fresh visit (client-only, avoids hydration mismatch)
   useEffect(() => {
@@ -66,6 +68,29 @@ function SignupPageContent() {
       localStorage.setItem('tripti_pending_return_to', returnTo)
     }
   }, [searchParams])
+
+  // Persist remix and ref params for conversion tracking
+  useEffect(() => {
+    const remix = searchParams.get('remix')
+    const ref = searchParams.get('ref')
+    if (remix) {
+      sessionStorage.setItem('tripti_pending_remix', remix)
+    }
+    if (ref) {
+      sessionStorage.setItem('tripti_pending_ref', ref)
+    }
+  }, [searchParams])
+
+  // Fetch remix trip name for context banner
+  useEffect(() => {
+    if (!remixShareId) return
+    fetch(`/api/public/trips/${remixShareId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.trip?.name) setRemixTripName(data.trip.name)
+      })
+      .catch(() => {}) // silently fail — banner is optional
+  }, [remixShareId])
 
   // Handle error query params from auth callbacks
   useEffect(() => {
@@ -122,6 +147,20 @@ function SignupPageContent() {
       const storedReturnTo = localStorage.getItem('tripti_pending_return_to')
       const returnTo = urlReturnTo || storedReturnTo
       const destination = returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard'
+
+      // After signup, check for remix context (only if no explicit returnTo)
+      const pendingRemix = sessionStorage.getItem('tripti_pending_remix')
+      if (pendingRemix && !returnTo) {
+        sessionStorage.removeItem('tripti_pending_remix')
+        sessionStorage.removeItem('tripti_pending_ref')
+        if (storedSecret) {
+          sessionStorage.removeItem('signup_beta_secret')
+          document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        }
+        toast.success('Welcome! Trip remix feature coming soon.')
+        router.replace('/dashboard')
+        return
+      }
 
       if (storedSecret) {
         sessionStorage.removeItem('signup_beta_secret')
@@ -225,11 +264,15 @@ function SignupPageContent() {
 
       // Initiate Google OAuth sign-in
       // NextAuth will handle the redirect and callback
-      // Include returnTo in callbackUrl so it survives the OAuth round-trip in the URL itself
+      // Include returnTo/remix/ref in callbackUrl so they survive the OAuth round-trip
       const pendingReturnTo = localStorage.getItem('tripti_pending_return_to')
-      const callbackUrl = pendingReturnTo
-        ? `/signup?returnTo=${encodeURIComponent(pendingReturnTo)}`
-        : '/signup'
+      let callbackUrl = '/signup'
+      const callbackParams = new URLSearchParams()
+      if (pendingReturnTo) callbackParams.set('returnTo', pendingReturnTo)
+      if (remixShareId) callbackParams.set('remix', remixShareId)
+      const ref = searchParams.get('ref')
+      if (ref) callbackParams.set('ref', ref)
+      if (callbackParams.toString()) callbackUrl += '?' + callbackParams.toString()
       await signIn('google', {
         callbackUrl,
         redirect: true,
@@ -270,6 +313,14 @@ function SignupPageContent() {
           </div>
           <p className="text-[#6B7280]">Nifty plans. Happy circles.</p>
         </div>
+
+        {remixTripName && (
+          <div className="w-full max-w-md mb-4 p-3 bg-brand-sand rounded-lg text-center">
+            <p className="text-sm text-brand-carbon">
+              Sign up to plan a trip like <span className="font-semibold">{remixTripName}</span>
+            </p>
+          </div>
+        )}
 
         <Card className="shadow-xl border-0">
           <CardHeader>
