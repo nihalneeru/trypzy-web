@@ -145,6 +145,8 @@ function getOverlayTitle(overlayType: OverlayType): string {
       return 'Memories'
     case 'member':
       return 'Traveler Profile'
+    case 'brief':
+      return 'Trip Brief'
     default:
       return ''
   }

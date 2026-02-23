@@ -27,6 +27,7 @@ import {
   Vote,
   MapPin,
   Calendar as CalendarIcon,
+  CalendarPlus,
   Sparkles,
   RefreshCw,
   Edit2,
@@ -729,6 +730,37 @@ export function ItineraryOverlay({
     }
   }
 
+  const handleExportICS = async () => {
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/export/ics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const filename = `${(trip.name || 'trip').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}.ics`
+
+      if (navigator.share) {
+        const file = new File([blob], filename, { type: 'text/calendar' })
+        await navigator.share({ files: [file] }).catch(() => {
+          downloadFile(url, filename)
+        })
+      } else {
+        downloadFile(url, filename)
+      }
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Failed to export calendar')
+    }
+  }
+
+  const downloadFile = (url: string, filename: string) => {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+  }
+
   const handleGenerateClick = () => {
     if (!isLeader || generating || llmDisabled) return
     if (generateNeedsIdeas || generateNeedsDestinationHint) {
@@ -1132,25 +1164,38 @@ export function ItineraryOverlay({
                 </div>
               )}
             </div>
-            {isLeader && !latestVersion && (
-              <Button
-                onClick={handleGenerateClick}
-                disabled={generating || llmDisabled}
-                size="sm"
-              >
-                {generating ? (
-                  <>
-                    <BrandedSpinner size="sm" className="mr-2" />
-                    {GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Generate
-                  </>
-                )}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedVersion && trip?.lockedStartDate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportICS}
+                  className="text-brand-blue border-brand-blue hover:bg-brand-blue/5"
+                >
+                  <CalendarPlus className="h-4 w-4 mr-1" />
+                  Export
+                </Button>
+              )}
+              {isLeader && !latestVersion && (
+                <Button
+                  onClick={handleGenerateClick}
+                  disabled={generating || llmDisabled}
+                  size="sm"
+                >
+                  {generating ? (
+                    <>
+                      <BrandedSpinner size="sm" className="mr-2" />
+                      {GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
