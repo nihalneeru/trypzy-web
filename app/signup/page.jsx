@@ -343,6 +343,12 @@ function SignupPageContent() {
                   </div>
                 )}
               </Button>
+              <p className="text-xs text-center text-muted-foreground mt-2">
+                By signing up, you agree to our{' '}
+                <a href="/terms" className="underline">Terms of Use</a>
+                {' '}and{' '}
+                <a href="/privacy" className="underline">Privacy Policy</a>.
+              </p>
             </div>
           </CardContent>
           <CardFooter>

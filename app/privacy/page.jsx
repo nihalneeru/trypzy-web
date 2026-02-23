@@ -47,8 +47,10 @@ export default function PrivacyPolicyPage() {
             We do not sell personal data to third parties.
           </p>
           <p>
-            Trip content is visible only to members of your selected group. We aim to collect only the
-            information necessary to operate and improve the Service.
+            Trip content is private to members of your selected group by default. If you or your
+            trip leader choose to mark itineraries or posts as &ldquo;discoverable,&rdquo; that
+            content may be visible to other Tripti users through the Discover feature. We aim to
+            collect only the information necessary to operate and improve the Service.
           </p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">1. Information We Collect</h2>

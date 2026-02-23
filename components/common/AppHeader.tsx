@@ -119,6 +119,10 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/terms')}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Terms of Use
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => router.push('/privacy')}>
                     <FileText className="h-4 w-4 mr-2" />
                     Privacy Policy

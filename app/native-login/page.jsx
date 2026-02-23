@@ -344,7 +344,10 @@ export default function NativeLoginPage() {
         )}
 
         <p className="text-xs text-[#6B7280] mt-6">
-          By continuing, you agree to Tripti.ai&apos;s terms of service.
+          By continuing, you agree to Tripti.ai&apos;s{' '}
+          <a href="/terms" className="underline">Terms of Use</a>
+          {' '}and{' '}
+          <a href="/privacy" className="underline">Privacy Policy</a>.
         </p>
       </div>
     </div>
