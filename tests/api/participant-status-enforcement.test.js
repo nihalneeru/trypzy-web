@@ -254,8 +254,7 @@ describe('Participant Status Enforcement', () => {
     })
 
     describe('can add ideas', () => {
-      // TODO: itinerary-ideas endpoint returns 404 - not implemented yet
-      it.skip('should allow active participant to add itinerary idea', async () => {
+      it('should allow active participant to add itinerary idea', async () => {
         const userId = 'test-active-idea-1'
         const circleId = 'circle-test-active-idea-1'
         const tripId = 'trip-test-active-idea-1'
@@ -267,7 +266,7 @@ describe('Participant Status Enforcement', () => {
         await addParticipant({ tripId, userId, status: 'active' })
 
         const token = createToken(userId)
-        const url = new URL(`http://localhost:3000/api/trips/${tripId}/itinerary-ideas`)
+        const url = new URL(`http://localhost:3000/api/trips/${tripId}/itinerary/ideas`)
         const request = new NextRequest(url, {
           method: 'POST',
           headers: {
@@ -275,12 +274,11 @@ describe('Participant Status Enforcement', () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            title: 'Visit the beach',
-            description: 'A fun day at the beach'
+            text: 'Visit the beach'
           })
         })
 
-        const response = await POST(request, { params: { path: ['trips', tripId, 'itinerary-ideas'] } })
+        const response = await POST(request, { params: { path: ['trips', tripId, 'itinerary', 'ideas'] } })
 
         // Should succeed (200 or 201)
         expect([200, 201]).toContain(response.status)
@@ -365,8 +363,7 @@ describe('Participant Status Enforcement', () => {
     })
 
     describe('can access trip chat', () => {
-      // TODO: messages endpoint returns 400 - not fully implemented
-      it.skip('should allow active participant to send chat message', async () => {
+      it('should allow active participant to send chat message', async () => {
         const userId = 'test-active-chat-1'
         const circleId = 'circle-test-active-chat-1'
         const tripId = 'trip-test-active-chat-1'
@@ -386,7 +383,7 @@ describe('Participant Status Enforcement', () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            text: 'Hello everyone!'
+            content: 'Hello everyone!'
           })
         })
 
@@ -511,8 +508,7 @@ describe('Participant Status Enforcement', () => {
     })
 
     describe('cannot add ideas or content', () => {
-      // TODO: API returns 404 for itinerary-ideas endpoint, participant status not enforced
-      it.skip('should reject left participant from adding itinerary idea', async () => {
+      it('should reject left participant from adding itinerary idea', async () => {
         const leaderId = 'test-leader-left-idea-1'
         const leftUserId = 'test-left-idea-1'
         const circleId = 'circle-test-left-idea-1'
@@ -528,7 +524,7 @@ describe('Participant Status Enforcement', () => {
         await addParticipant({ tripId, userId: leftUserId, status: 'left' })
 
         const token = createToken(leftUserId)
-        const url = new URL(`http://localhost:3000/api/trips/${tripId}/itinerary-ideas`)
+        const url = new URL(`http://localhost:3000/api/trips/${tripId}/itinerary/ideas`)
         const request = new NextRequest(url, {
           method: 'POST',
           headers: {
@@ -536,14 +532,52 @@ describe('Participant Status Enforcement', () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            title: 'Visit the beach',
-            description: 'A fun day at the beach'
+            text: 'Visit the beach'
           })
         })
 
-        const response = await POST(request, { params: { path: ['trips', tripId, 'itinerary-ideas'] } })
+        const response = await POST(request, { params: { path: ['trips', tripId, 'itinerary', 'ideas'] } })
 
         expect(response.status).toBe(403)
+        const data = await response.json()
+        expect(data.error).toMatch(/not an active traveler/i)
+      })
+    })
+
+    describe('cannot send messages', () => {
+      it('should reject left participant from sending chat message', async () => {
+        const leaderId = 'test-leader-left-msg-1'
+        const leftUserId = 'test-left-msg-1'
+        const circleId = 'circle-test-left-msg-1'
+        const tripId = 'trip-test-left-msg-1'
+
+        await createTestUser({ id: leaderId, name: 'Leader', email: 'leader@test.com' })
+        await createTestUser({ id: leftUserId, name: 'Left User', email: 'left@test.com' })
+        await createTestCircle({ id: circleId, ownerId: leaderId })
+        await addMembership({ userId: leaderId, circleId, role: 'owner' })
+        await addMembership({ userId: leftUserId, circleId, role: 'member' })
+        await createTestTrip({ id: tripId, ownerId: leaderId, circleId, status: 'locked' })
+        await addParticipant({ tripId, userId: leaderId, status: 'active' })
+        await addParticipant({ tripId, userId: leftUserId, status: 'left' })
+
+        const token = createToken(leftUserId)
+        const url = new URL(`http://localhost:3000/api/trips/${tripId}/messages`)
+        const request = new NextRequest(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            content: 'I left but still trying to send'
+          })
+        })
+
+        const response = await POST(request, { params: { path: ['trips', tripId, 'messages'] } })
+
+        expect(response.status).toBe(403)
+        const data = await response.json()
+        expect(data.error).toMatch(/not an active traveler/i)
       })
     })
 
@@ -877,8 +911,7 @@ describe('Participant Status Enforcement', () => {
         expect(response.status).toBe(403)
       })
 
-      // TODO: API returns 404 for itinerary-ideas endpoint, pending status not enforced
-      it.skip('should reject pending participant from adding itinerary ideas', async () => {
+      it('should reject pending participant from adding itinerary ideas', async () => {
         const leaderId = 'test-leader-pending-idea-1'
         const pendingUserId = 'test-pending-idea-1'
         const circleId = 'circle-test-pending-idea-1'
@@ -894,7 +927,7 @@ describe('Participant Status Enforcement', () => {
         await addParticipant({ tripId, userId: pendingUserId, status: 'pending' })
 
         const token = createToken(pendingUserId)
-        const url = new URL(`http://localhost:3000/api/trips/${tripId}/itinerary-ideas`)
+        const url = new URL(`http://localhost:3000/api/trips/${tripId}/itinerary/ideas`)
         const request = new NextRequest(url, {
           method: 'POST',
           headers: {
@@ -902,12 +935,11 @@ describe('Participant Status Enforcement', () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            title: 'Visit the beach',
-            description: 'A fun day at the beach'
+            text: 'Visit the beach'
           })
         })
 
-        const response = await POST(request, { params: { path: ['trips', tripId, 'itinerary-ideas'] } })
+        const response = await POST(request, { params: { path: ['trips', tripId, 'itinerary', 'ideas'] } })
 
         expect(response.status).toBe(403)
       })
