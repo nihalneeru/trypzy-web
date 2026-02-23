@@ -29,6 +29,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle, Send, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
 interface TravelersOverlayProps {
   trip: any
@@ -62,16 +64,6 @@ const api = async (endpoint: string, options: any = {}, token: string | null = n
   }
 
   return data
-}
-
-// Helper to check if trip is completed
-function isTripCompleted(trip: any) {
-  if (!trip) return false
-  if (trip.status === 'completed') return true
-
-  const today = new Date().toISOString().split('T')[0]
-  const endDate = trip.lockedEndDate || trip.endDate
-  return endDate && endDate < today
 }
 
 // Get initials from name
@@ -560,7 +552,7 @@ export function TravelersOverlay({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Users className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No circle found</h3>
+        <h3 className="text-lg font-medium text-brand-carbon mb-2">No circle found</h3>
         <p className="text-gray-500">This trip is not associated with a circle.</p>
       </div>
     )
@@ -604,7 +596,7 @@ export function TravelersOverlay({
                   <div className="flex items-start gap-3">
                     <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="font-medium text-sm text-gray-900">
+                      <p className="font-medium text-sm text-brand-carbon">
                         You've been asked to lead this trip
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
@@ -640,7 +632,7 @@ export function TravelersOverlay({
                   <div className="flex items-start gap-3">
                     <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="font-medium text-sm text-gray-900">
+                      <p className="font-medium text-sm text-brand-carbon">
                         Waiting for {pendingRecipientName} to accept leadership
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
@@ -666,7 +658,7 @@ export function TravelersOverlay({
                 <div className="flex items-start gap-3">
                   <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="font-medium text-sm text-gray-900">
+                    <p className="font-medium text-sm text-brand-carbon">
                       Leadership transfer pending
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
@@ -687,12 +679,22 @@ export function TravelersOverlay({
             Join Requests
           </h3>
           {loadingRequests ? (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <BrandedSpinner size="sm" className="mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Loading requests...</p>
-              </CardContent>
-            </Card>
+            <div className="space-y-2">
+              {[1, 2].map(i => (
+                <Card key={i}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-20" />
+                      </div>
+                      <Skeleton className="h-8 w-16 rounded-md" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           ) : joinRequests.length === 0 ? (
             <Card>
               <CardContent className="py-6 text-center">
@@ -727,7 +729,7 @@ export function TravelersOverlay({
                           onClick={() => handleRequestAction(request.id, 'reject')}
                           disabled={processingRequest === request.id}
                         >
-                          <X className="h-4 w-4 text-red-500" />
+                          <X className="h-4 w-4 text-brand-red" />
                         </Button>
                         <Button
                           size="sm"
@@ -786,7 +788,7 @@ export function TravelersOverlay({
           <Card className="border-brand-blue/30 bg-blue-50/50">
             <CardContent className="py-4 px-4">
               <div className="space-y-3">
-                <p className="text-sm text-gray-900">
+                <p className="text-sm text-brand-carbon">
                   <strong>{myInvitation.inviterName}</strong> invited you to join this trip.
                 </p>
                 <div className="flex gap-2">
@@ -965,7 +967,7 @@ export function TravelersOverlay({
         {canLeaveNonLeader && (
           <Button
             variant="outline"
-            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="w-full text-brand-red hover:text-brand-red hover:bg-brand-red/5"
             onClick={() => setShowLeaveDialog(true)}
           >
             <LogOut className="h-4 w-4 mr-2" />
@@ -975,7 +977,7 @@ export function TravelersOverlay({
         {canLeaveLeader && !hasPendingTransfer && (
           <Button
             variant="outline"
-            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="w-full text-brand-red hover:text-brand-red hover:bg-brand-red/5"
             onClick={() => setShowCancelDialog(true)}
           >
             <XCircle className="h-4 w-4 mr-2" />
@@ -1042,7 +1044,7 @@ export function TravelersOverlay({
               </SelectContent>
             </Select>
             {validationError && (
-              <p className="text-xs text-red-500 mt-2">{validationError}</p>
+              <p className="text-xs text-brand-red mt-2">{validationError}</p>
             )}
           </div>
           <DialogFooter>
@@ -1122,7 +1124,7 @@ export function TravelersOverlay({
               </SelectContent>
             </Select>
             {validationError && (
-              <p className="text-xs text-red-500 mt-2">{validationError}</p>
+              <p className="text-xs text-brand-red mt-2">{validationError}</p>
             )}
           </div>
           <DialogFooter>

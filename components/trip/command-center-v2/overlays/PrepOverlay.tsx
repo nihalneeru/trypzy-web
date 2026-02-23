@@ -31,6 +31,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
 interface PrepOverlayProps {
   trip: any
@@ -112,7 +114,7 @@ export function PrepOverlay({
   })
 
   const isTripLeader = trip?.createdBy === user?.id
-  const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
+  const isReadOnly = !trip?.viewer?.isActiveParticipant || trip?.viewer?.participantStatus === 'left' || trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled' || isTripCompleted(trip)
 
   useEffect(() => {
     if (trip?.id && trip.status === 'locked') {
@@ -372,7 +374,7 @@ export function PrepOverlay({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Lock className="h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Prep Not Available</h3>
+        <h3 className="text-lg font-medium text-brand-carbon mb-2">Prep Not Available</h3>
         <p className="text-gray-500">Prep opens up once your dates are confirmed.</p>
       </div>
     )
@@ -380,9 +382,30 @@ export function PrepOverlay({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <BrandedSpinner size="md" className="mb-4" />
-        <p className="text-gray-500">Loading prep data...</p>
+      <div className="space-y-6 p-4">
+        {/* Transport section skeleton */}
+        <div className="space-y-3">
+          <Skeleton className="h-5 w-24" />
+          {[1, 2, 3].map(i => (
+            <div key={`t${i}`} className="flex items-center gap-3">
+              <Skeleton className="h-8 w-8 rounded" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Packing section skeleton */}
+        <div className="space-y-3">
+          <Skeleton className="h-5 w-28" />
+          {[1, 2, 3].map(i => (
+            <div key={`p${i}`} className="flex items-center gap-3">
+              <Skeleton className="h-4 w-4 rounded-sm" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -696,7 +719,7 @@ export function PrepOverlay({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
                         onClick={() => handleDeleteTransport(item.id)}
                         disabled={deletingTransport === item.id}
                         aria-label="Delete transport"
@@ -878,7 +901,7 @@ export function PrepOverlay({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
                     onClick={() => handleDeleteChecklist(item.id)}
                     disabled={deletingChecklist === item.id}
                     aria-label="Delete packing item"
@@ -1038,7 +1061,7 @@ export function PrepOverlay({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
                     onClick={() => handleDeleteChecklist(item.id)}
                     disabled={deletingChecklist === item.id}
                     aria-label="Delete group item"

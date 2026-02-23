@@ -238,7 +238,7 @@ export default function DashboardPage() {
       <AppHeader userName={user?.name} activePage="circles" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-brand-carbon mb-6">Dashboard</h1>
 
         {/* Global Notifications */}
         <GlobalNotifications notifications={dashboardData.globalNotifications || []} />
@@ -247,7 +247,7 @@ export default function DashboardPage() {
         {dashboardData.circles && dashboardData.circles.length > 0 && (
           <div className="flex items-center justify-between mb-6 mt-2 flex-wrap gap-3">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">
+              <h2 className="text-2xl font-semibold text-brand-carbon">
                 {isTripFirst && dashboardData.circles.length === 1 ? 'Your Trips' : 'Your Circles'}
               </h2>
               {isTripFirst && dashboardData.circles.length === 1 && (
@@ -285,7 +285,7 @@ export default function DashboardPage() {
             <Card>
               <CardContent className="py-12 text-center">
                 <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h2 className="text-lg font-medium text-gray-900 mb-2">Plan your first trip</h2>
+                <h2 className="text-lg font-medium text-brand-carbon mb-2">Plan your first trip</h2>
                 <p className="text-gray-500 mb-2 max-w-md mx-auto">
                   You've got something in mind — let's get it started.
                 </p>
@@ -313,7 +313,7 @@ export default function DashboardPage() {
             <Card>
               <CardContent className="py-12 text-center">
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h2 className="text-lg font-medium text-gray-900 mb-2">No circles yet</h2>
+                <h2 className="text-lg font-medium text-brand-carbon mb-2">No circles yet</h2>
                 <p className="text-gray-500 mb-6 max-w-md mx-auto">
                   A circle is your travel group — friends, family, or any crew you plan trips with.
                   Everyone in a circle can propose and join trips together.

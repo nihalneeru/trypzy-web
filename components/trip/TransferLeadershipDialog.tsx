@@ -93,7 +93,7 @@ export function TransferLeadershipDialog({
             </p>
           )}
           {validationError && (
-            <p className="text-xs text-red-500 mt-2">
+            <p className="text-xs text-brand-red mt-2">
               {validationError}
             </p>
           )}

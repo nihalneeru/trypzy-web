@@ -11442,7 +11442,7 @@ async function handleRoute(request, { params }) {
         // CHAT BRIEF FEATURE (feature-flagged)
         // Summarize planning chat into structured brief for initial generation
         // =====================================================================
-        const chatBriefEnabled = process.env.ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE === '1'
+        const chatBriefEnabled = process.env.ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE !== '0'
         let chatBrief = null
         let chatBriefMessageCount = 0
         let chatBriefCharCount = 0
@@ -12213,7 +12213,7 @@ async function handleRoute(request, { params }) {
       // CHAT MESSAGE BUCKETING (feature-flagged)
       // When enabled, separates messages into "relevant" and "other" buckets
       // =====================================================================
-      const chatBucketingEnabled = process.env.ITINERARY_CHAT_BUCKETING === '1'
+      const chatBucketingEnabled = process.env.ITINERARY_CHAT_BUCKETING !== '0'
       const chatFetchLimit = chatBucketingEnabled ? 50 : 30
 
       // Get recent chat messages since last version (for context in revision)

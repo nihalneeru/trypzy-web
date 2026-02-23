@@ -705,21 +705,21 @@ The itinerary system uses LLM calls for generation and revision. Key infrastruct
 **Feature flags**:
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE` | OFF | Enable chat brief for v1 generation |
+| `ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE` | **ON** | Enable chat brief for v1 generation (set `0` to disable) |
 | `ITINERARY_CHAT_BRIEF_LOOKBACK_DAYS` | 14 | Chat lookback window for brief |
 | `ITINERARY_CHAT_BRIEF_MAX_MESSAGES` | 200 | Max messages to fetch for brief |
 | `ITINERARY_CHAT_BRIEF_MAX_CHARS` | 6000 | Max chars after formatting for brief |
 | `ITINERARY_CHAT_BRIEF_MODEL` | (uses OPENAI_MODEL) | Optional model override for summarization |
-| `ITINERARY_CHAT_BUCKETING` | OFF | Enable relevance bucketing for revision chat |
+| `ITINERARY_CHAT_BUCKETING` | **ON** | Enable relevance bucketing for revision chat (set `0` to disable) |
 | `ITINERARY_MAX_PROMPT_TOKENS` | 12000 | Max estimated prompt tokens before truncation |
 
-**Chat brief for v1** (when `ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE=1`):
+**Chat brief for v1** (enabled by default; set `ITINERARY_INCLUDE_CHAT_BRIEF_ON_GENERATE=0` to disable):
 - Pre-generation step summarizes planning chat into structured brief
 - Extracts: mustDos, avoid, preferences (pace/budget/focus/logistics), constraints, openQuestions
 - Brief injected into prompt under "PLANNING CHAT BRIEF" section
 - Fallback: on failure, continues without brief (no blocking)
 
-**Chat bucketing for revision** (when `ITINERARY_CHAT_BUCKETING=1`):
+**Chat bucketing for revision** (enabled by default; set `ITINERARY_CHAT_BUCKETING=0` to disable):
 - Separates chat into "Relevant chat feedback" and "Other recent chat context"
 - Relevance heuristic: keyword matching OR message length > 20 chars
 - Limits: 20 relevant + 10 other messages

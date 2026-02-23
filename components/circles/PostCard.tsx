@@ -196,7 +196,7 @@ export function PostCard({
             >
               <div className="flex items-center gap-2">
                 <ListTodo className="h-4 w-4 text-gray-500" />
-                <span className="font-medium text-sm text-gray-900">Itinerary Snapshot</span>
+                <span className="font-medium text-sm text-brand-carbon">Itinerary Snapshot</span>
                 <Badge variant="secondary" className="text-xs">
                   {post.itinerarySnapshot.tripLength} days &bull; {post.itinerarySnapshot.style}
                 </Badge>

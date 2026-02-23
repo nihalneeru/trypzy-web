@@ -34,14 +34,14 @@ function NotificationRow({ notification, compact = false }) {
     <div className={`flex items-center justify-between gap-4 ${compact ? 'py-1.5' : 'py-2'} hover:bg-gray-50/50 transition-colors`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900 leading-tight">{notification.title}</span>
+          <span className="text-sm font-medium text-brand-carbon leading-tight">{notification.title}</span>
           <span className="text-sm text-gray-500 leading-tight" aria-hidden="true">—</span>
           <span className="text-sm text-gray-600 leading-tight">{notification.ctaLabel}</span>
         </div>
       </div>
       <Link 
         href={notification.href}
-        className="text-sm text-blue-600 hover:text-blue-700 hover:underline whitespace-nowrap leading-tight"
+        className="text-sm text-brand-blue hover:text-brand-blue hover:underline whitespace-nowrap leading-tight"
       >
         {notification.ctaLabel}
       </Link>
@@ -65,7 +65,7 @@ export function GlobalNotifications({ notifications }) {
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-gray-600" aria-hidden="true" />
-            <span className="text-sm font-medium text-gray-900 leading-tight">Notifications</span>
+            <span className="text-sm font-medium text-brand-carbon leading-tight">Notifications</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500 leading-tight">
@@ -74,7 +74,7 @@ export function GlobalNotifications({ notifications }) {
             {notifications.length > 0 && (
               <button
                 onClick={() => setSheetOpen(true)}
-                className="text-sm text-blue-600 hover:text-blue-700 hover:underline leading-tight"
+                className="text-sm text-brand-blue hover:text-brand-blue hover:underline leading-tight"
               >
                 View all
               </button>

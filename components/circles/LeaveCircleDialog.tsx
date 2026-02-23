@@ -93,7 +93,7 @@ export function LeaveCircleDialog({
                   key={trip.id}
                   className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2"
                 >
-                  <span className="text-sm font-medium text-gray-900">{trip.name}</span>
+                  <span className="text-sm font-medium text-brand-carbon">{trip.name}</span>
                   <span className="text-xs text-gray-500 capitalize">{trip.status}</span>
                 </li>
               ))}

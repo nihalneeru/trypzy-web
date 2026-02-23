@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { computeTripProgressSnapshot } from '@/lib/trips/progressSnapshot'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
 interface CTAConfig {
   label: string
@@ -67,6 +68,9 @@ export function ContextCTABar({
   // Determine the current CTA based on progress snapshot and user context
   const ctaConfig = useMemo((): CTAConfig | null => {
     if (!trip || !user) return null
+
+    // Completed trips show no action CTAs
+    if (isTripCompleted(trip)) return null
 
     const isLeader = progressSnapshot.isTripLeader
     const userId = user.id

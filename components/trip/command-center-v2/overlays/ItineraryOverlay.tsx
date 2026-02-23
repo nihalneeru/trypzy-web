@@ -38,8 +38,10 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
 // ============================================================================
 // Types
@@ -381,7 +383,8 @@ export function ItineraryOverlay({
   const viewerIsReadOnly =
     !viewer.isActiveParticipant ||
     viewer.participantStatus === 'left' ||
-    isCancelled
+    isCancelled ||
+    isTripCompleted(trip)
   const readOnlyReason =
     isCancelled
       ? 'Trip is canceled'
@@ -995,9 +998,16 @@ export function ItineraryOverlay({
             <p className="text-xs font-medium text-gray-500 mb-2">All Ideas</p>
             <ScrollArea className="h-[180px] md:h-[250px]">
               {loadingIdeas ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <BrandedSpinner size="md" className="mb-2" />
-                  <p className="text-sm text-gray-500">Loading ideas...</p>
+                <div className="space-y-3 py-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="flex items-start gap-3 px-2">
+                      <Skeleton className="h-6 w-6 rounded-full shrink-0 mt-0.5" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : ideasError ? (
                 <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -1057,7 +1067,7 @@ export function ItineraryOverlay({
                                   />
                                 </Button>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-gray-900">{idea.text}</p>
+                                  <p className="text-sm text-brand-carbon">{idea.text}</p>
                                   {(idea.likeCount || 0) > 0 && (
                                     <p className="text-xs text-gray-500 mt-0.5">
                                       {idea.likeCount} {idea.likeCount === 1 ? 'like' : 'likes'}
@@ -1166,9 +1176,18 @@ export function ItineraryOverlay({
 
           <ScrollArea className="h-[250px] md:h-[350px]">
             {loadingVersions ? (
-              <div className="flex flex-col items-center justify-center py-8">
-                <BrandedSpinner size="md" className="mb-2" />
-                <p className="text-sm text-gray-500">Loading itinerary...</p>
+              <div className="space-y-4 py-2 px-2">
+                {[1, 2].map(day => (
+                  <div key={day} className="space-y-2">
+                    <Skeleton className="h-5 w-20" />
+                    {[1, 2, 3].map(item => (
+                      <div key={item} className="flex items-center gap-3 pl-2">
+                        <Skeleton className="h-4 w-4 rounded shrink-0" />
+                        <Skeleton className="h-4 w-full max-w-[200px]" />
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
             ) : !latestVersion ? (
               <div className="py-6">
@@ -1468,7 +1487,7 @@ export function ItineraryOverlay({
 
               <button
                 onClick={() => setShowAdvancedPreferences(!showAdvancedPreferences)}
-                className="text-xs text-gray-600 hover:text-gray-900 underline"
+                className="text-xs text-gray-600 hover:text-brand-carbon underline"
               >
                 {showAdvancedPreferences ? 'Fewer preferences' : 'More preferences'}
               </button>
@@ -1485,9 +1504,16 @@ export function ItineraryOverlay({
               <p className="text-xs font-medium text-gray-500 mb-2">Feedback History</p>
               <ScrollArea className="h-[150px] md:h-[200px]">
                 {loadingFeedback ? (
-                  <div className="flex flex-col items-center justify-center py-6">
-                    <BrandedSpinner size="md" className="mb-2" />
-                    <p className="text-sm text-gray-500">Loading feedback...</p>
+                  <div className="space-y-3 py-2">
+                    {[1, 2].map(i => (
+                      <div key={i} className="flex items-start gap-3 px-2">
+                        <Skeleton className="h-6 w-6 rounded-full shrink-0 mt-0.5" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-4 w-full" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : feedback.length === 0 ? (
                   <p className="text-center text-gray-500 py-6 text-sm">

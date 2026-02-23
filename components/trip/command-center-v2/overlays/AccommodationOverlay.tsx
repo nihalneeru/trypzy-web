@@ -34,6 +34,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
 // Constants
 const MAX_OPTIONS_PER_USER = 2
@@ -193,7 +195,8 @@ export function AccommodationOverlay({
   const viewerIsReadOnly =
     !viewer.isActiveParticipant ||
     viewer.participantStatus === 'left' ||
-    isCancelled
+    isCancelled ||
+    isTripCompleted(trip)
 
   // Track unsaved changes for inline form
   useEffect(() => {
@@ -368,9 +371,23 @@ export function AccommodationOverlay({
   // Loading state
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <BrandedSpinner size="md" className="mb-4" />
-        <p className="text-gray-500">Loading stay options...</p>
+      <div className="space-y-4 p-4">
+        {/* Header skeleton */}
+        <Skeleton className="h-5 w-32" />
+        {/* Option card skeletons */}
+        {[1, 2].map(i => (
+          <Card key={i}>
+            <CardContent className="py-4 space-y-3">
+              <Skeleton className="h-32 w-full rounded-md" />
+              <Skeleton className="h-5 w-48" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <Skeleton className="h-8 w-24 rounded-md" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
     )
   }
@@ -488,7 +505,7 @@ export function AccommodationOverlay({
                     className="flex items-center justify-between gap-3 p-2 bg-white rounded-md border"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 capitalize truncate">
+                      <p className="text-sm font-medium text-brand-carbon capitalize truncate">
                         {stay.locationName}
                       </p>
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
@@ -583,7 +600,7 @@ export function AccommodationOverlay({
             <Check className="h-5 w-5" />
             <span className="font-medium">Stay confirmed</span>
           </div>
-          <h4 className="font-medium text-gray-900">{selectedOption.title}</h4>
+          <h4 className="font-medium text-brand-carbon">{selectedOption.title}</h4>
           {selectedOption.priceRange && (
             <p className="text-sm text-gray-600 mt-1">{selectedOption.priceRange}</p>
           )}
@@ -742,7 +759,7 @@ export function AccommodationOverlay({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-gray-400 hover:text-red-600"
+                              className="text-gray-400 hover:text-brand-red"
                               onClick={() => handleDelete(option.id)}
                               disabled={deleting === option.id}
                               aria-label="Delete accommodation option"

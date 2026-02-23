@@ -72,6 +72,7 @@ import { useTripChat } from '@/hooks/use-trip-chat'
 import { computeProgressSteps } from '@/lib/trips/progress'
 import { deriveTripPrimaryStage } from '@/lib/trips/stage'
 import { computeTripProgressSnapshot, TripProgressSnapshot } from '@/lib/trips/progressSnapshot'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
 // ─────────────────────────────────────────────────
 // Types
@@ -304,7 +305,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   // Read-only
   const viewer = trip?.viewer || {}
   const isCancelled = trip?.tripStatus === 'CANCELLED' || trip?.status === 'canceled'
-  const isCompleted = trip?.status === 'completed'
+  const isCompleted = isTripCompleted(trip)
   const isReadOnly = !viewer.isActiveParticipant || viewer.participantStatus === 'left' || isCancelled || isCompleted
 
   // Check if any overlay is open
@@ -333,6 +334,19 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
             <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-center gap-2">
               <span className="text-amber-800 text-sm font-medium">You left this trip</span>
               <span className="text-amber-600 text-xs">(view only)</span>
+              <Link
+                href="/dashboard"
+                className="ml-2 text-sm font-medium text-brand-blue hover:underline"
+              >
+                Back to dashboard
+              </Link>
+            </div>
+          )}
+
+          {!isCancelled && !viewer.isRemovedTraveler && isCompleted && (
+            <div className="bg-blue-50 border-b border-blue-200 px-4 py-3 flex items-center justify-center gap-2">
+              <span className="text-brand-blue text-sm font-medium">This trip has ended</span>
+              <span className="text-blue-400 text-xs">(view only)</span>
               <Link
                 href="/dashboard"
                 className="ml-2 text-sm font-medium text-brand-blue hover:underline"
