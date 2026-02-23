@@ -210,7 +210,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card>
           <CardContent className="py-8 px-6 text-center">
-            <p className="text-red-600 mb-4">Could not load dashboard — please try again.</p>
+            <p className="text-brand-red mb-4">Could not load dashboard — please try again.</p>
             <Button
               onClick={() => {
                 setError(null)
@@ -237,7 +237,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-50" data-testid="dashboard-page">
       <AppHeader userName={user?.name} activePage="circles" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-brand-carbon mb-6">Dashboard</h1>
 
         {/* Global Notifications */}
@@ -265,14 +265,14 @@ export default function DashboardPage() {
                 size="sm"
                 onClick={() => setShowJoinCircle(true)}
               >
-                <UserPlus className="h-4 w-4 mr-2" />
+                <UserPlus className="h-4 w-4 mr-2" aria-hidden="true" />
                 Join Circle
               </Button>
               <Button
                 size="sm"
                 onClick={() => setShowCreateCircle(true)}
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
                 Create Circle
               </Button>
             </div>
@@ -284,7 +284,7 @@ export default function DashboardPage() {
           isTripFirst ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" aria-hidden="true" />
                 <h2 className="text-lg font-medium text-brand-carbon mb-2">Plan your first trip</h2>
                 <p className="text-gray-500 mb-2 max-w-md mx-auto">
                   You've got something in mind — let's get it started.
@@ -295,14 +295,14 @@ export default function DashboardPage() {
                 <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
                   <div className="text-center">
                     <Button onClick={() => setShowTripFirst(true)}>
-                      <Calendar className="h-4 w-4 mr-2" />
+                      <Calendar className="h-4 w-4 mr-2" aria-hidden="true" />
                       Plan a trip
                     </Button>
                   </div>
                   <span className="text-gray-300 hidden sm:inline">or</span>
                   <div className="text-center">
                     <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
-                      <UserPlus className="h-4 w-4 mr-2" />
+                      <UserPlus className="h-4 w-4 mr-2" aria-hidden="true" />
                       Join a friend's trip
                     </Button>
                   </div>
@@ -312,7 +312,7 @@ export default function DashboardPage() {
           ) : (
             <Card>
               <CardContent className="py-12 text-center">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" aria-hidden="true" />
                 <h2 className="text-lg font-medium text-brand-carbon mb-2">No circles yet</h2>
                 <p className="text-gray-500 mb-6 max-w-md mx-auto">
                   A circle is your travel group — friends, family, or any crew you plan trips with.
@@ -321,7 +321,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
                   <div className="text-center">
                     <Button onClick={() => setShowCreateCircle(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
                       Create circle
                     </Button>
                     <p className="text-xs text-gray-400 mt-1">Start a new group</p>
@@ -329,7 +329,7 @@ export default function DashboardPage() {
                   <span className="text-gray-300 hidden sm:inline">or</span>
                   <div className="text-center">
                     <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
-                      <UserPlus className="h-4 w-4 mr-2" />
+                      <UserPlus className="h-4 w-4 mr-2" aria-hidden="true" />
                       Join circle
                     </Button>
                     <p className="text-xs text-gray-400 mt-1">Got an invite code?</p>
@@ -349,7 +349,7 @@ export default function DashboardPage() {
             />
           ))
         )}
-      </div>
+      </main>
 
       {/* Dialogs */}
       {token && (

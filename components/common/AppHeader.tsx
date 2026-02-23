@@ -75,14 +75,14 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
                 <TriptiLogo variant="full" className="h-6 sm:h-8 w-auto" />
                 <span className="sr-only">Tripti.ai</span>
               </Link>
-              <nav className="flex items-center ml-2 sm:ml-4">
+              <nav aria-label="Main navigation" className="flex items-center ml-2 sm:ml-4">
                 <Button
                   variant={activePage === 'circles' ? 'secondary' : 'ghost'}
                   size="sm"
                   className="text-xs sm:text-sm px-1.5 sm:px-2 h-7 sm:h-8"
                   onClick={() => router.push('/dashboard')}
                 >
-                  <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                  <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1" aria-hidden="true" />
                   Circles
                 </Button>
                 <Button
@@ -91,7 +91,7 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
                   className="text-xs sm:text-sm px-1.5 sm:px-2 h-7 sm:h-8"
                   onClick={() => router.push('/discover')}
                 >
-                  <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                  <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 mr-1" aria-hidden="true" />
                   Discover
                 </Button>
               </nav>
@@ -109,27 +109,27 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
                         <span className="max-w-[100px] sm:max-w-[140px] truncate">
                           {userName?.split(' ')[0] || 'Account'}
                         </span>
-                        <ChevronDown className="h-3 w-3 opacity-60" />
+                        <ChevronDown className="h-3 w-3 opacity-60" aria-hidden="true" />
                       </>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={() => router.push('/settings')}>
-                    <Settings className="h-4 w-4 mr-2" />
+                    <Settings className="h-4 w-4 mr-2" aria-hidden="true" />
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => router.push('/terms')}>
-                    <FileText className="h-4 w-4 mr-2" />
+                    <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
                     Terms of Use
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => router.push('/privacy')}>
-                    <FileText className="h-4 w-4 mr-2" />
+                    <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
                     Privacy Policy
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
-                    <LogOut className="h-4 w-4 mr-2" />
+                    <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
                     Log out
                   </DropdownMenuItem>
                 </DropdownMenuContent>

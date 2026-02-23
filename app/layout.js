@@ -67,6 +67,12 @@ export default function RootLayout({ children }) {
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Georgia&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-[9999] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-brand-blue focus:text-white focus:rounded focus:text-sm focus:font-medium"
+        >
+          Skip to main content
+        </a>
         <SessionProvider>
           {children}
           <PushHandler />

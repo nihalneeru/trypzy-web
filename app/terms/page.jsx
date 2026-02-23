@@ -18,7 +18,7 @@ export default function TermsOfUsePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader userName={userName} />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-3 mb-6">
           <FileText className="h-6 w-6 text-brand-blue" aria-hidden="true" />
           <h1 className="text-3xl font-bold text-brand-carbon">Terms of Use</h1>
@@ -401,7 +401,7 @@ export default function TermsOfUsePage() {
             Privacy Policy
           </Link>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

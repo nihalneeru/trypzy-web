@@ -18,9 +18,9 @@ export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader userName={userName} />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-3 mb-6">
-          <Shield className="h-6 w-6 text-brand-blue" />
+          <Shield className="h-6 w-6 text-brand-blue" aria-hidden="true" />
           <h1 className="text-3xl font-bold text-brand-carbon">Privacy Policy</h1>
         </div>
 
@@ -236,7 +236,7 @@ export default function PrivacyPolicyPage() {
             Back to Privacy Settings
           </Link>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
