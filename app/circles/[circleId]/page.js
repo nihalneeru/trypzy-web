@@ -192,22 +192,22 @@ export default function CircleDetailPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="updates">
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Circle Updates
+          <TabsList className="mb-6 w-full sm:w-auto h-auto sm:h-9">
+            <TabsTrigger value="updates" className="flex-1 sm:flex-none flex-col sm:flex-row gap-0.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-1">
+              <MessageCircle className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight">Updates</span>
             </TabsTrigger>
-            <TabsTrigger value="members">
-              <Users className="h-4 w-4 mr-2" />
-              Members
+            <TabsTrigger value="members" className="flex-1 sm:flex-none flex-col sm:flex-row gap-0.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-1">
+              <Users className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight">Members</span>
             </TabsTrigger>
-            <TabsTrigger value="trips">
-              <MapPin className="h-4 w-4 mr-2" />
-              Trips
+            <TabsTrigger value="trips" className="flex-1 sm:flex-none flex-col sm:flex-row gap-0.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-1">
+              <MapPin className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight">Trips</span>
             </TabsTrigger>
-            <TabsTrigger value="memories">
-              <Camera className="h-4 w-4 mr-2" />
-              Memories
+            <TabsTrigger value="memories" className="flex-1 sm:flex-none flex-col sm:flex-row gap-0.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-1">
+              <Camera className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight">Memories</span>
             </TabsTrigger>
           </TabsList>
 
