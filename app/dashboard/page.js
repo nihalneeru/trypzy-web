@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { GlobalNotifications } from '@/components/dashboard/GlobalNotifications'
 import { CircleSection } from '@/components/dashboard/CircleSection'
 import { CreateCircleDialog } from '@/components/dashboard/CreateCircleDialog'
 import { JoinCircleDialog } from '@/components/dashboard/JoinCircleDialog'
@@ -235,13 +234,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50" data-testid="dashboard-page">
-      <AppHeader userName={user?.name} activePage="circles" />
+      <AppHeader userName={user?.name} activePage="circles" notifications={dashboardData.globalNotifications || []} />
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-brand-carbon mb-6">Dashboard</h1>
-
-        {/* Global Notifications */}
-        <GlobalNotifications notifications={dashboardData.globalNotifications || []} />
 
         {/* Your Circles / Trips Heading */}
         {dashboardData.circles && dashboardData.circles.length > 0 && (
