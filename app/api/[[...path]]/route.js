@@ -7084,28 +7084,11 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Check membership
-      const membership = await db.collection('memberships').findOne({
-        userId: auth.user.id,
-        circleId: trip.circleId,
-        status: { $ne: 'left' }
-      })
-
-      if (!membership) {
+      // Check if user is an active traveler (handles both collaborative and hosted trips)
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
         return handleCORS(NextResponse.json(
-          { error: 'You are not a member of this circle' },
-          { status: 403 }
-        ))
-      }
-
-      // Block messages from users who have left or been removed
-      const msgParticipant = await db.collection('trip_participants').findOne({
-        tripId,
-        userId: auth.user.id
-      })
-      if (msgParticipant && (msgParticipant.status === 'left' || msgParticipant.status === 'removed')) {
-        return handleCORS(NextResponse.json(
-          { error: 'You have left this trip and cannot send messages' },
+          { error: 'You are not an active traveler for this trip' },
           { status: 403 }
         ))
       }
@@ -10893,36 +10876,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Check membership
-      const membership = await db.collection('memberships').findOne({
-        userId: auth.user.id,
-        circleId: trip.circleId,
-        status: { $ne: 'left' }
-      })
-
-      if (!membership) {
+      // Check if user is an active traveler (handles both collaborative and hosted trips)
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
         return handleCORS(NextResponse.json(
-          { error: 'You are not a member of this circle' },
+          { error: 'You are not an active traveler for this trip' },
           { status: 403 }
         ))
       }
-
-      // Check if user is active participant (hasn't left)
-      const userParticipant = await db.collection('trip_participants').findOne({
-        tripId,
-        userId: auth.user.id
-      })
-
-      if (userParticipant) {
-        const status = userParticipant.status || 'active'
-        if (status !== 'active') {
-          return handleCORS(NextResponse.json(
-            { error: 'You have left this trip.' },
-            { status: 403 }
-          ))
-        }
-      }
-      // If no participant record exists for collaborative trips, user is implicitly active (backward compatibility)
 
       // Enforce max 3 ideas per user per trip
       const existingIdeas = await db.collection('itinerary_ideas')
@@ -11076,16 +11037,11 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Check membership
-      const membership = await db.collection('memberships').findOne({
-        userId: auth.user.id,
-        circleId: trip.circleId,
-        status: { $ne: 'left' }
-      })
-
-      if (!membership) {
+      // Check if user is an active traveler (handles both collaborative and hosted trips)
+      const userIsActiveTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!userIsActiveTraveler) {
         return handleCORS(NextResponse.json(
-          { error: 'You are not a member of this circle' },
+          { error: 'You are not an active traveler for this trip' },
           { status: 403 }
         ))
       }
