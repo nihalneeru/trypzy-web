@@ -67,8 +67,8 @@ export default function DiscoverPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center" aria-live="polite">
+        <div className="text-center" role="status">
           <BrandedSpinner size="lg" className="mx-auto mb-4" />
           <p className="text-brand-carbon/60">Loading Discover...</p>
         </div>
@@ -82,9 +82,9 @@ export default function DiscoverPage() {
     <div className="min-h-screen bg-gray-50" data-testid="discover-page">
       <AppHeader userName={user?.name} activePage="discover" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <DiscoverFeed token={token} circles={circles} />
-      </div>
+      </main>
     </div>
   )
 }

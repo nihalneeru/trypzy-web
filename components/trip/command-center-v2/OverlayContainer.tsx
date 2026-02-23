@@ -67,6 +67,7 @@ export function OverlayContainer({
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   // Handle close attempt - check for unsaved changes
   const handleCloseAttempt = useCallback(() => {
@@ -105,11 +106,43 @@ export function OverlayContainer({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, handleCloseAttempt])
 
-  // Focus trap - focus overlay when opened
+  // Focus management - save previous focus, focus overlay when opened, restore on close
   useEffect(() => {
-    if (isOpen && overlayRef.current) {
-      overlayRef.current.focus()
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement
+      overlayRef.current?.focus()
+    } else if (previousFocusRef.current) {
+      previousFocusRef.current.focus()
+      previousFocusRef.current = null
     }
+  }, [isOpen])
+
+  // Focus trap - keep Tab cycling within the overlay
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleTabKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !overlayRef.current) return
+
+      const focusable = overlayRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
+      )
+      if (focusable.length === 0) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleTabKey)
+    return () => document.removeEventListener('keydown', handleTabKey)
   }, [isOpen])
 
   // Don't render anything if not open
@@ -200,7 +233,7 @@ export function OverlayContainer({
             className="h-14 w-14 md:h-12 md:w-12 p-0 text-white hover:bg-white/20 hover:text-white [&_svg]:size-auto"
             aria-label="Close overlay"
           >
-            <X className="h-10 w-10 md:h-9 md:w-9" strokeWidth={2.5} />
+            <X className="h-10 w-10 md:h-9 md:w-9" strokeWidth={2.5} aria-hidden="true" />
           </Button>
         </div>
 
