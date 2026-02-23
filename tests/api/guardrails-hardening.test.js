@@ -128,7 +128,7 @@ describe('MVP Guardrails', () => {
       expect(response.status).toBe(403)
 
       const body = await response.json()
-      expect(body.error).toContain('left')
+      expect(body.error).toMatch(/not an active traveler/i)
 
       await cleanup({ tripId, circleId, userIds: [leaderId, leftUserId] })
     })
@@ -171,7 +171,7 @@ describe('MVP Guardrails', () => {
       expect(response.status).toBe(403)
 
       const body = await response.json()
-      expect(body.error).toContain('left')
+      expect(body.error).toMatch(/not an active traveler/i)
 
       await cleanup({ tripId, circleId, userIds: [leaderId, removedUserId] })
     })
