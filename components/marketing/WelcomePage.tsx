@@ -64,7 +64,7 @@ export function WelcomePage() {
       </header>
 
       {/* Main Content - fills remaining space */}
-      <main className="flex-1 flex flex-col justify-center overflow-y-auto">
+      <main id="main-content" className="flex-1 flex flex-col justify-center overflow-y-auto">
         {/* Hero Section */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12 lg:py-20">
           <div className="text-center">
@@ -81,14 +81,14 @@ export function WelcomePage() {
                     <div key={milestone.label} className="flex items-center">
                       <div className="flex flex-col items-center gap-1 sm:gap-2">
                         <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Icon className="h-4 w-4 sm:h-6 sm:w-6 text-primary" />
+                          <Icon className="h-4 w-4 sm:h-6 sm:w-6 text-primary" aria-hidden="true" />
                         </div>
                         <span className="text-[10px] sm:text-xs font-medium text-gray-700">
                           {milestone.label}
                         </span>
                       </div>
                       {index < milestones.length - 1 && (
-                        <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 mx-1 sm:mx-2 hidden sm:block" />
+                        <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 mx-1 sm:mx-2 hidden sm:block" aria-hidden="true" />
                       )}
                     </div>
                   )
@@ -142,7 +142,7 @@ export function WelcomePage() {
           </div>
           {/* Inline footer */}
           <div className="mt-4 pt-3 border-t border-gray-200/50">
-            <TriptiLogo variant="full" className="h-5 w-auto mx-auto opacity-60" />
+            <TriptiLogo variant="full" className="h-5 w-auto mx-auto opacity-60" aria-hidden="true" />
           </div>
         </div>
       </section>

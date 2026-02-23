@@ -231,8 +231,8 @@ function LoginPageContent() {
   // After useEffect: OAuth return → keep spinner until redirect; fresh visit → show form.
   if (!initialized || (isOAuthReturn && status !== 'unauthenticated')) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="text-center">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4" aria-live="polite">
+        <div className="text-center" role="status">
           <div className="flex items-center justify-center mb-4">
             <TriptiLogo variant="full" className="h-10 w-auto" />
           </div>
@@ -244,7 +244,7 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <main id="main-content" className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
@@ -303,7 +303,7 @@ function LoginPageContent() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <svg className="h-5 w-5" viewBox="0 0 24 24">
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
                       <path
                         fill="currentColor"
                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -344,7 +344,7 @@ function LoginPageContent() {
           </CardFooter>
         </Card>
       </div>
-    </div>
+    </main>
   )
 }
 
