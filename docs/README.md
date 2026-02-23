@@ -26,6 +26,7 @@ These docs are reference material for developers and AI agents working on Tripti
 | [ITINERARY_LLM_ENHANCEMENT_IDEAS.md](./ITINERARY_LLM_ENHANCEMENT_IDEAS.md) | Itinerary pipeline enhancement ideas | Draft |
 | [GROWTH_TIER0_SPEC.md](./GROWTH_TIER0_SPEC.md) | Viral sharing: public previews, OG images, conversion funnel | Spec |
 | [OPEN_TRIPS_SPEC.md](./OPEN_TRIPS_SPEC.md) | Discoverable hosted trips for micro-influencers (join requests, system circles) | Spec |
+| [ROADMAP.md](./ROADMAP.md) | Phased product roadmap (council-reviewed, gate-driven) | Active |
 
 ## API Docs
 
