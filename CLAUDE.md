@@ -239,6 +239,8 @@ CORS_ORIGINS=http://localhost:3000
 OPENAI_API_KEY=your-openai-key
 ADMIN_DEBUG_TOKEN=your-admin-token
 BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxx
+UPSTASH_REDIS_REST_URL=your-upstash-redis-url
+UPSTASH_REDIS_REST_TOKEN=your-upstash-redis-token
 # Optional: CRON_SECRET, OPENAI_MODEL, ITINERARY_MAX_VERSIONS=3
 # NEXT_PUBLIC_NUDGES_ENABLED=false
 ```

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToMongo } from '@/lib/server/db.js'
 import { requireAuth } from '@/lib/server/auth.js'
 import { handleCORS } from '@/lib/server/cors.js'
+import { checkRateLimit } from '@/lib/server/rateLimit.js'
 import { ObjectId } from 'mongodb'
 import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
 
@@ -50,9 +51,19 @@ async function isActiveTraveler(db, trip, userId) {
 // GET /api/trips/:tripId/expenses
 export async function GET(request, { params }) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rl = await checkRateLimit(`ip:${ip}`, 'global')
+    if (!rl.success) {
+      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
+      return handleCORS(NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      ))
+    }
+
     const { tripId } = params
     const db = await connectToMongo()
-    
+
     const auth = await requireAuth(request)
     if (auth.error) {
       return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
@@ -90,9 +101,19 @@ export async function GET(request, { params }) {
 // POST /api/trips/:tripId/expenses
 export async function POST(request, { params }) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rl = await checkRateLimit(`ip:${ip}`, 'global')
+    if (!rl.success) {
+      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
+      return handleCORS(NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      ))
+    }
+
     const { tripId } = params
     const db = await connectToMongo()
-    
+
     const auth = await requireAuth(request)
     if (auth.error) {
       return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
@@ -306,9 +327,19 @@ export async function POST(request, { params }) {
 // DELETE /api/trips/:tripId/expenses?expenseId=...
 export async function DELETE(request, { params }) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rl = await checkRateLimit(`ip:${ip}`, 'global')
+    if (!rl.success) {
+      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
+      return handleCORS(NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      ))
+    }
+
     const { tripId } = params
     const db = await connectToMongo()
-    
+
     const auth = await requireAuth(request)
     if (auth.error) {
       return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))

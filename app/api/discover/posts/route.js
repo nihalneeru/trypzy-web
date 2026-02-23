@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToMongo } from '@/lib/server/db.js'
 import { requireAuth, getUserFromToken } from '@/lib/server/auth.js'
 import { handleCORS, OPTIONS as handleOPTIONS } from '@/lib/server/cors.js'
+import { checkRateLimit } from '@/lib/server/rateLimit.js'
 import { v4 as uuidv4 } from 'uuid'
 import { writeFile, mkdir, access } from 'fs/promises'
 import { join } from 'path'
@@ -17,6 +18,16 @@ export { handleOPTIONS as OPTIONS }
 // GET /api/discover/posts - Get discoverable posts with scope-based filtering
 export async function GET(request) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rl = await checkRateLimit(`ip:${ip}`, 'global')
+    if (!rl.success) {
+      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
+      return handleCORS(NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      ))
+    }
+
     const url = new URL(request.url)
     const scope = url.searchParams.get('scope') || 'global' // default to global
     const circleId = url.searchParams.get('circleId')
@@ -217,6 +228,16 @@ export async function GET(request) {
 // - FormData with scope, circleId?, tripId?, caption?, images[] (legacy server uploads)
 export async function POST(request) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rl = await checkRateLimit(`ip:${ip}`, 'global')
+    if (!rl.success) {
+      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
+      return handleCORS(NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      ))
+    }
+
     // Authentication check
     const auth = await requireAuth(request)
     if (auth.error) {
