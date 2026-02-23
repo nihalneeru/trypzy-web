@@ -224,7 +224,7 @@ export default function JoinCirclePage({ params }) {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-8 pb-8 text-center">
-            <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-6">
+            <div className="h-16 w-16 rounded-full bg-brand-red/10 flex items-center justify-center mx-auto mb-6">
               <AlertTriangle className="h-8 w-8 text-brand-red" />
             </div>
             <h1 className="text-2xl font-bold text-brand-carbon mb-2">

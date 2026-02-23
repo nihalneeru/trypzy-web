@@ -404,9 +404,9 @@ export function SchedulingFunnelCard({
   if (funnelState === SchedulingFunnelState.DATE_PROPOSED) {
     return (
       <div className="space-y-4">
-        <Card className="border-blue-200 bg-blue-50/50">
+        <Card className="border-brand-blue/20 bg-brand-blue/5">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-blue-800">
+            <CardTitle className="flex items-center gap-2 text-brand-blue">
               <CalendarIcon className="h-5 w-5" />
               Proposed Dates
             </CardTitle>
@@ -415,7 +415,7 @@ export function SchedulingFunnelCard({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-center text-blue-800 mb-4">
+            <div className="text-2xl font-bold text-center text-brand-blue mb-4">
               {formatDateRange(trip.dateProposal?.startDate, trip.dateProposal?.endDate)}
             </div>
 

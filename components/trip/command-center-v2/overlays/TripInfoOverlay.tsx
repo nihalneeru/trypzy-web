@@ -363,7 +363,7 @@ export function TripInfoOverlay({
               variant="outline"
               size="sm"
               onClick={handleInvite}
-              className="w-full mt-3 border-dashed border-brand-blue text-brand-blue hover:bg-blue-50"
+              className="w-full mt-3 border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
             >
               <Share2 className="h-4 w-4 mr-2" />
               Share invite link

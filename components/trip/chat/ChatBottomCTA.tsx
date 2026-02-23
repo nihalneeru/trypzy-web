@@ -108,7 +108,7 @@ export function ChatBottomCTA({ trip, token, user, onRefresh }: ChatBottomCTAPro
   // Priority 1: Hosted trip invitation
   if (invitation) {
     return (
-      <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg mx-1 mb-2">
+      <div className="flex items-center gap-3 px-3 py-2 bg-brand-blue/5 border border-brand-blue/20 rounded-lg mx-1 mb-2">
         <Mail className="h-4 w-4 text-brand-blue shrink-0" />
         <p className="text-sm text-brand-carbon flex-1 min-w-0">
           You've been invited to join this trip
