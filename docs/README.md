@@ -24,6 +24,8 @@ These docs are reference material for developers and AI agents working on Tripti
 | [APP_STORE_CONNECT.md](./APP_STORE_CONNECT.md) | iOS/Android app store submission notes | Active |
 | [IDEAS_SCHEDULING_LLM_ASSIST.md](./IDEAS_SCHEDULING_LLM_ASSIST.md) | LLM-assisted scheduling ideas (exploration) | Draft |
 | [ITINERARY_LLM_ENHANCEMENT_IDEAS.md](./ITINERARY_LLM_ENHANCEMENT_IDEAS.md) | Itinerary pipeline enhancement ideas | Draft |
+| [GROWTH_TIER0_SPEC.md](./GROWTH_TIER0_SPEC.md) | Viral sharing: public previews, OG images, conversion funnel | Spec |
+| [OPEN_TRIPS_SPEC.md](./OPEN_TRIPS_SPEC.md) | Discoverable hosted trips for micro-influencers (join requests, system circles) | Spec |
 
 ## API Docs
 
