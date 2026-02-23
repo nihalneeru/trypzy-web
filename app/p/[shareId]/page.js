@@ -94,13 +94,7 @@ export default async function PublicTripPreviewPage({ params }) {
             <h2 className="text-lg font-semibold text-brand-carbon mb-4">
               Itinerary
             </h2>
-            <div className="prose prose-sm max-w-none text-gray-700">
-              {itinerary.content.split('\n').map((line, i) => (
-                <p key={i} className={line.trim() === '' ? 'h-3' : 'mb-1.5'}>
-                  {line}
-                </p>
-              ))}
-            </div>
+            <ItineraryPreview content={itinerary.content} />
           </section>
         )}
 
@@ -148,6 +142,84 @@ export default async function PublicTripPreviewPage({ params }) {
         </footer>
       </div>
     </main>
+  )
+}
+
+function ItineraryPreview({ content }) {
+  // Handle plain string content
+  if (typeof content === 'string') {
+    return (
+      <div className="prose prose-sm max-w-none text-gray-700">
+        {content.split('\n').map((line, i) => (
+          <p key={i} className={line.trim() === '' ? 'h-3' : 'mb-1.5'}>
+            {line}
+          </p>
+        ))}
+      </div>
+    )
+  }
+
+  // Handle structured content: { overview, days: [{ date, title, blocks }] }
+  return (
+    <div className="space-y-4">
+      {content.overview && (
+        <div className="p-3 bg-brand-sand/50 rounded-lg text-sm text-gray-700">
+          {content.overview.pace && <span>Pace: {content.overview.pace}</span>}
+          {content.overview.pace && content.overview.budget && <span> · </span>}
+          {content.overview.budget && <span>Budget: {content.overview.budget}</span>}
+          {content.overview.notes && (
+            <p className="mt-1 text-gray-600">{content.overview.notes}</p>
+          )}
+        </div>
+      )}
+
+      {content.days?.map((day, dayIdx) => {
+        const dayDate = day.date ? (() => {
+          try {
+            return new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', {
+              weekday: 'short', month: 'short', day: 'numeric'
+            })
+          } catch { return null }
+        })() : null
+
+        return (
+          <div key={dayIdx} className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+              <span className="text-sm font-medium text-brand-carbon">
+                {dayDate || `Day ${dayIdx + 1}`}
+              </span>
+              {day.title && (
+                <span className="text-sm text-gray-500 ml-2">— {day.title}</span>
+              )}
+              {day.areaFocus && (
+                <span className="text-xs text-brand-blue ml-2">{day.areaFocus}</span>
+              )}
+            </div>
+            {day.blocks?.length > 0 && (
+              <div className="divide-y divide-gray-100">
+                {day.blocks.map((block, blockIdx) => (
+                  <div key={blockIdx} className="px-3 py-2">
+                    <div className="flex items-baseline gap-2">
+                      {block.timeRange && (
+                        <span className="text-xs font-medium text-brand-red shrink-0">
+                          {block.timeRange}
+                        </span>
+                      )}
+                      <span className="text-sm text-gray-700">
+                        {block.activity || block.title || block.label || ''}
+                      </span>
+                    </div>
+                    {block.notes && (
+                      <p className="text-xs text-gray-500 mt-0.5 ml-0">{block.notes}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
