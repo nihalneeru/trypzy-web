@@ -6405,6 +6405,162 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ success: true, status: 'declined' }))
     }
 
+    // ============ TRIP BRIEF ROUTES ============
+
+    // Get trip brief - GET /api/trips/:tripId/brief
+    // Aggregates all trip data into a single read-only response
+    if (route.match(/^\/trips\/[^/]+\/brief$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Must be an active traveler
+      const isActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isActive) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a traveler on this trip' },
+          { status: 403 }
+        ))
+      }
+
+      // Parallel queries for all brief data
+      const [
+        participantDocs,
+        membershipDocs,
+        accommodationOptions,
+        accommodationVotes,
+        itineraryVersions,
+        prepItems
+      ] = await Promise.all([
+        db.collection('trip_participants').find({ tripId }).toArray(),
+        trip.type === 'collaborative' && trip.circleId
+          ? db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
+          : Promise.resolve([]),
+        db.collection('accommodation_options').find({ tripId }).toArray(),
+        db.collection('accommodation_votes').find({ tripId }).toArray(),
+        db.collection('itinerary_versions').find({ tripId }).sort({ version: -1 }).limit(1).toArray(),
+        db.collection('prep_items').find({ tripId, category: 'packing', scope: 'group' }).toArray()
+      ])
+
+      // Compute traveler count
+      let travelerCount = 0
+      if (trip.type === 'collaborative') {
+        const leftUserIds = new Set(
+          participantDocs
+            .filter(p => p.status === 'left' || p.status === 'removed')
+            .map(p => p.userId)
+        )
+        travelerCount = membershipDocs.filter(m => !leftUserIds.has(m.userId)).length
+      } else {
+        travelerCount = participantDocs.filter(p => (p.status || 'active') === 'active').length
+      }
+
+      // Overview
+      const datesLocked = trip.status === 'locked' || !!(trip.lockedStartDate && trip.lockedEndDate)
+      const startDate = trip.lockedStartDate || trip.startDate
+      const endDate = trip.lockedEndDate || trip.endDate
+      let duration = null
+      if (startDate && endDate) {
+        const s = new Date(startDate + 'T12:00:00')
+        const e = new Date(endDate + 'T12:00:00')
+        duration = Math.round((e - s) / (1000 * 60 * 60 * 24))
+      }
+
+      const { deriveTripPrimaryStage } = await import('@/lib/trips/stage.js')
+      const stage = deriveTripPrimaryStage(trip)
+
+      const overview = {
+        name: trip.name || 'Untitled Trip',
+        destinationHint: trip.destinationHint || null,
+        lockedStartDate: trip.lockedStartDate || null,
+        lockedEndDate: trip.lockedEndDate || null,
+        duration,
+        travelerCount,
+        status: trip.status || 'proposed',
+        stage
+      }
+
+      // Accommodation
+      let accommodation = null
+      if (accommodationOptions.length > 0 || accommodationVotes.length > 0) {
+        const chosen = accommodationOptions.find(o => o.status === 'selected') || null
+        accommodation = {
+          chosen: chosen ? { name: chosen.title, location: chosen.source || null, priceRange: chosen.priceRange || null, url: chosen.url || null } : null,
+          optionCount: accommodationOptions.length,
+          voteCount: accommodationVotes.length
+        }
+      }
+
+      // Day-by-day (latest itinerary version)
+      let dayByDay = null
+      if (itineraryVersions.length > 0) {
+        const latest = itineraryVersions[0]
+        if (latest.content?.days && Array.isArray(latest.content.days)) {
+          dayByDay = latest.content.days.map(day => ({
+            date: day.date,
+            title: day.title || null,
+            blocks: (day.blocks || []).map(block => ({
+              timeRange: block.timeRange,
+              activity: block.title,
+              notes: block.description || null
+            }))
+          }))
+        }
+      }
+
+      // Decisions
+      const decisions = {
+        open: [],
+        closed: []
+      }
+      if (datesLocked && trip.lockedStartDate && trip.lockedEndDate) {
+        const s = new Date(trip.lockedStartDate + 'T12:00:00')
+        const e = new Date(trip.lockedEndDate + 'T12:00:00')
+        const summary = `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}–${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+        decisions.closed.push({
+          type: 'dates_locked',
+          summary,
+          decidedAt: trip.datesLockedAt || trip.updatedAt || null
+        })
+      }
+
+      // Packing reminders (group scope only)
+      const packingReminders = prepItems.map(item => ({
+        name: item.name || item.text || 'Unnamed item',
+        scope: 'group',
+        assignedTo: item.assignedTo || null
+      }))
+
+      // Expenses summary
+      let expensesSummary = null
+      const expenses = trip.expenses || []
+      if (expenses.length > 0) {
+        const totalCents = expenses.reduce((sum, e) => sum + (e.amountCents || 0), 0)
+        const currency = expenses[0]?.currency || trip.currency || 'USD'
+        expensesSummary = {
+          totalAmount: totalCents / 100,
+          currency,
+          itemCount: expenses.length
+        }
+      }
+
+      return handleCORS(NextResponse.json({
+        overview,
+        accommodation,
+        dayByDay,
+        decisions,
+        packingReminders,
+        expensesSummary
+      }))
+    }
+
     // ============ NUDGE ROUTES ============
 
     // Get nudges for trip - GET /api/trips/:tripId/nudges
