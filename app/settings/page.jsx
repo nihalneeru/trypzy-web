@@ -67,13 +67,15 @@ export default function SettingsPage() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.id)
-          }
+        // Pick the topmost section that's currently in the viewport
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible.length > 0) {
+          setActiveSection(visible[0].target.id)
         }
       },
-      { rootMargin: '-20% 0px -60% 0px', threshold: 0 }
+      { rootMargin: '-10% 0px -40% 0px', threshold: 0.1 }
     )
 
     sectionEls.forEach((el) => observer.observe(el))
@@ -153,6 +155,7 @@ export default function SettingsPage() {
   }
 
   const scrollToSection = (id) => {
+    setActiveSection(id)
     const el = document.getElementById(id)
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' })

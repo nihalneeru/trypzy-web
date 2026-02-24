@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle, Send, Share2 } from 'lucide-react'
+import { Users, LogOut, UserPlus, Check, X, Crown, AlertTriangle, ArrowRightLeft, Clock, XCircle, Send, Share2, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -101,6 +101,7 @@ export function TravelersOverlay({
   setHasUnsavedChanges,
   onMemberClick
 }: TravelersOverlayProps) {
+  const [manageOpen, setManageOpen] = useState(false)
   const [showLeaveDialog, setShowLeaveDialog] = useState(false)
   const [showTransferDialog, setShowTransferDialog] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
@@ -569,12 +570,16 @@ export function TravelersOverlay({
 
   const canAskToJoin = isNonTraveler && joinRequestStatus !== 'pending' && joinRequestStatus !== 'approved'
 
-  const hasFooterCTAs = !isCancelled && (
-    (canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer) ||
-    canLeaveNonLeader ||
-    canLeaveLeader ||
-    canAskToJoin ||
-    (isNonTraveler && joinRequestStatus === 'pending')
+  // Count pending items for the manage section badge
+  const managePendingCount = (isTripLeader ? joinRequests.length : 0) + (isTripLeader ? pendingInvitations.length : 0) + (hasPendingTransfer ? 1 : 0)
+
+  // Determine if manage section has any content to show
+  const hasManageContent = !isCancelled && (
+    hasPendingTransfer ||
+    isTripLeader || // join requests + invitations sections
+    (canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer) || // transfer leadership
+    canLeaveNonLeader || // leave trip
+    canLeaveLeader // cancel trip
   )
 
   return (
@@ -582,204 +587,8 @@ export function TravelersOverlay({
     {/* Scrollable content */}
     <div className="flex-1 overflow-y-auto min-h-0">
     <div className="space-y-6">
-      {/* Pending Leadership Transfer Section */}
-      {hasPendingTransfer && (
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-            Pending Leadership Transfer
-          </h3>
-          <Card className="border-amber-200 bg-amber-50">
-            <CardContent className="py-4 px-4">
-              {isPendingLeader ? (
-                // Show to pending recipient
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-sm text-brand-carbon">
-                        You've been asked to lead this trip
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        Accept to become the trip leader, or decline to keep the current leader.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-8">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleDeclineTransfer}
-                      disabled={decliningTransfer || acceptingTransfer}
-                      className="text-gray-600"
-                    >
-                      <X className="h-4 w-4 mr-1" />
-                      {decliningTransfer ? 'Declining...' : 'Decline'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleAcceptTransfer}
-                      disabled={acceptingTransfer || decliningTransfer}
-                      className="bg-brand-blue hover:opacity-90"
-                    >
-                      <Check className="h-4 w-4 mr-1" />
-                      {acceptingTransfer ? 'Accepting...' : 'Accept Leadership'}
-                    </Button>
-                  </div>
-                </div>
-              ) : isTripLeader ? (
-                // Show to current leader who initiated the transfer
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-sm text-brand-carbon">
-                        Waiting for {pendingRecipientName} to accept leadership
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        They need to accept before the transfer is complete.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="ml-8">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleCancelPendingTransfer}
-                      disabled={cancelingTransfer}
-                      className="text-gray-600"
-                    >
-                      <XCircle className="h-4 w-4 mr-1" />
-                      {cancelingTransfer ? 'Canceling...' : 'Cancel Transfer'}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                // Show to other members (read-only notice)
-                <div className="flex items-start gap-3">
-                  <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-sm text-brand-carbon">
-                      Leadership transfer pending
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {pendingRecipientName} has been asked to become the trip leader.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
-      {/* Join Requests Section (Trip Leader only) */}
-      {isTripLeader && (
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-            Join Requests
-          </h3>
-          {loadingRequests ? (
-            <div className="space-y-2">
-              {[1, 2].map(i => (
-                <Card key={i}>
-                  <CardContent className="py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <Skeleton className="h-8 w-8 rounded-full" />
-                      <div className="flex-1 space-y-1.5">
-                        <Skeleton className="h-4 w-28" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                      <Skeleton className="h-8 w-16 rounded-md" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : joinRequests.length === 0 ? (
-            <Card>
-              <CardContent className="py-6 text-center">
-                <UserPlus className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No pending requests</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {joinRequests.map((request: any) => (
-                <Card key={request.id}>
-                  <CardContent className="py-3 px-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className={getAvatarColor(request.requesterName || 'U')}>
-                            {getInitials(request.requesterName || 'U')}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{request.requesterName}</p>
-                          {request.message && (
-                            <p className="text-xs text-gray-600 truncate">{request.message}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handleRequestAction(request.id, 'reject')}
-                          disabled={processingRequest === request.id}
-                        >
-                          <X className="h-4 w-4 text-brand-red" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handleRequestAction(request.id, 'approve')}
-                          disabled={processingRequest === request.id}
-                        >
-                          <Check className="h-4 w-4 text-green-500" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Pending Invitations Section (Trip Leader only) */}
-      {isTripLeader && pendingInvitations.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-            Pending Invitations ({pendingInvitations.length})
-          </h3>
-          <div className="space-y-2">
-            {pendingInvitations.map((invitation: any) => (
-              <Card key={invitation.id}>
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className={getAvatarColor(invitation.invitedUserName || 'U')}>
-                        {getInitials(invitation.invitedUserName || 'U')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{invitation.invitedUserName}</p>
-                      <p className="text-xs text-gray-500">Awaiting response</p>
-                    </div>
-                    <Clock className="h-4 w-4 text-amber-500" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Your Invitation Section (for invited users) */}
+      {/* Your Invitation Section (for invited users) — personal action stays at top */}
       {!isTripLeader && myInvitation && (
         <div>
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
@@ -818,19 +627,7 @@ export function TravelersOverlay({
         </div>
       )}
 
-      {/* Invite Friends Button */}
-      {viewer.isActiveParticipant && !isCancelled && (
-        <Button
-          variant="outline"
-          className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
-          onClick={handleInvite}
-        >
-          <Share2 className="h-4 w-4 mr-2" />
-          Invite friends
-        </Button>
-      )}
-
-      {/* Active Travelers */}
+      {/* Active Travelers — always first */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
@@ -930,67 +727,301 @@ export function TravelersOverlay({
         </div>
       )}
 
+      {/* Invite Friends Button — visible, not inside Manage */}
+      {viewer.isActiveParticipant && !isCancelled && (
+        <Button
+          variant="outline"
+          className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
+          onClick={handleInvite}
+        >
+          <Share2 className="h-4 w-4 mr-2" />
+          Invite friends
+        </Button>
+      )}
+
+      {/* Ask to Join / Join Request Pending — visible for non-travelers */}
+      {canAskToJoin && (
+        <Button
+          className="w-full bg-brand-blue hover:opacity-90 text-white"
+          onClick={handleAskToJoin}
+          disabled={submittingJoinRequest}
+        >
+          <UserPlus className="h-4 w-4 mr-2" />
+          {submittingJoinRequest ? 'Sending...' : 'Ask to join'}
+        </Button>
+      )}
+      {isNonTraveler && joinRequestStatus === 'pending' && (
+        <div className="flex items-center justify-center gap-2 py-1">
+          <Clock className="h-4 w-4 text-amber-500" />
+          <p className="text-sm text-amber-600">Join request pending</p>
+        </div>
+      )}
+
+      {/* Collapsible Manage Trip Section */}
+      {hasManageContent && (
+        <div>
+          <button
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2"
+            onClick={() => setManageOpen(!manageOpen)}
+          >
+            {manageOpen ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <span>Manage trip</span>
+            {managePendingCount > 0 && (
+              <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                {managePendingCount}
+              </Badge>
+            )}
+          </button>
+
+          {manageOpen && (
+            <div className="space-y-4 mt-2">
+              {/* Pending Leadership Transfer */}
+              {hasPendingTransfer && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                    Pending Leadership Transfer
+                  </h3>
+                  <Card className="border-amber-200 bg-amber-50">
+                    <CardContent className="py-4 px-4">
+                      {isPendingLeader ? (
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="font-medium text-sm text-brand-carbon">
+                                You've been asked to lead this trip
+                              </p>
+                              <p className="text-xs text-gray-600 mt-1">
+                                Accept to become the trip leader, or decline to keep the current leader.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 ml-8">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleDeclineTransfer}
+                              disabled={decliningTransfer || acceptingTransfer}
+                              className="text-gray-600"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              {decliningTransfer ? 'Declining...' : 'Decline'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleAcceptTransfer}
+                              disabled={acceptingTransfer || decliningTransfer}
+                              className="bg-brand-blue hover:opacity-90"
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              {acceptingTransfer ? 'Accepting...' : 'Accept Leadership'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : isTripLeader ? (
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="font-medium text-sm text-brand-carbon">
+                                Waiting for {pendingRecipientName} to accept leadership
+                              </p>
+                              <p className="text-xs text-gray-600 mt-1">
+                                They need to accept before the transfer is complete.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="ml-8">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCancelPendingTransfer}
+                              disabled={cancelingTransfer}
+                              className="text-gray-600"
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              {cancelingTransfer ? 'Canceling...' : 'Cancel Transfer'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-3">
+                          <Clock className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="font-medium text-sm text-brand-carbon">
+                              Leadership transfer pending
+                            </p>
+                            <p className="text-xs text-gray-600 mt-1">
+                              {pendingRecipientName} has been asked to become the trip leader.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Join Requests Section (Trip Leader only) */}
+              {isTripLeader && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                    Join Requests
+                  </h3>
+                  {loadingRequests ? (
+                    <div className="space-y-2">
+                      {[1, 2].map(i => (
+                        <Card key={i}>
+                          <CardContent className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <Skeleton className="h-8 w-8 rounded-full" />
+                              <div className="flex-1 space-y-1.5">
+                                <Skeleton className="h-4 w-28" />
+                                <Skeleton className="h-3 w-20" />
+                              </div>
+                              <Skeleton className="h-8 w-16 rounded-md" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : joinRequests.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-6 text-center">
+                        <UserPlus className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No pending requests</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-2">
+                      {joinRequests.map((request: any) => (
+                        <Card key={request.id}>
+                          <CardContent className="py-3 px-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback className={getAvatarColor(request.requesterName || 'U')}>
+                                    {getInitials(request.requesterName || 'U')}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">{request.requesterName}</p>
+                                  {request.message && (
+                                    <p className="text-xs text-gray-600 truncate">{request.message}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => handleRequestAction(request.id, 'reject')}
+                                  disabled={processingRequest === request.id}
+                                >
+                                  <X className="h-4 w-4 text-brand-red" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => handleRequestAction(request.id, 'approve')}
+                                  disabled={processingRequest === request.id}
+                                >
+                                  <Check className="h-4 w-4 text-green-500" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Pending Invitations Section (Trip Leader only) */}
+              {isTripLeader && pendingInvitations.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                    Pending Invitations ({pendingInvitations.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {pendingInvitations.map((invitation: any) => (
+                      <Card key={invitation.id}>
+                        <CardContent className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback className={getAvatarColor(invitation.invitedUserName || 'U')}>
+                                {getInitials(invitation.invitedUserName || 'U')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{invitation.invitedUserName}</p>
+                              <p className="text-xs text-gray-500">Awaiting response</p>
+                            </div>
+                            <Clock className="h-4 w-4 text-amber-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Transfer Leadership */}
+              {!isCancelled && canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowStandaloneTransferDialog(true)}
+                >
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  Transfer Leadership
+                </Button>
+              )}
+
+              {/* Leave Trip (non-leader) */}
+              {canLeaveNonLeader && (
+                <Button
+                  variant="outline"
+                  className="w-full text-brand-red hover:text-brand-red hover:bg-brand-red/5"
+                  onClick={() => setShowLeaveDialog(true)}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Leave Trip
+                </Button>
+              )}
+
+              {/* Cancel Trip (leader) */}
+              {canLeaveLeader && !hasPendingTransfer && (
+                <Button
+                  variant="outline"
+                  className="w-full text-brand-red hover:text-brand-red hover:bg-brand-red/5"
+                  onClick={() => setShowCancelDialog(true)}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Cancel Trip
+                </Button>
+              )}
+              {canLeaveLeader && hasPendingTransfer && (
+                <p className="text-xs text-gray-500 text-center">
+                  Resolve the pending transfer before canceling.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
     {/* end space-y-6 */}
     </div>
     {/* end scrollable content */}
-
-    {/* Fixed Footer CTAs - always visible */}
-    {hasFooterCTAs && (
-      <div className="shrink-0 border-t bg-white px-4 py-3 space-y-2">
-        {canAskToJoin && (
-          <Button
-            className="w-full bg-brand-blue hover:opacity-90 text-white"
-            onClick={handleAskToJoin}
-            disabled={submittingJoinRequest}
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            {submittingJoinRequest ? 'Sending...' : 'Ask to join'}
-          </Button>
-        )}
-        {isNonTraveler && joinRequestStatus === 'pending' && (
-          <div className="flex items-center justify-center gap-2 py-1">
-            <Clock className="h-4 w-4 text-amber-500" />
-            <p className="text-sm text-amber-600">Join request pending</p>
-          </div>
-        )}
-        {!isCancelled && canLeaveLeader && hasEligibleSuccessors && !hasPendingTransfer && (
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => setShowStandaloneTransferDialog(true)}
-          >
-            <ArrowRightLeft className="h-4 w-4 mr-2" />
-            Transfer Leadership
-          </Button>
-        )}
-        {canLeaveNonLeader && (
-          <Button
-            variant="outline"
-            className="w-full text-brand-red hover:text-brand-red hover:bg-brand-red/5"
-            onClick={() => setShowLeaveDialog(true)}
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Leave Trip
-          </Button>
-        )}
-        {canLeaveLeader && !hasPendingTransfer && (
-          <Button
-            variant="outline"
-            className="w-full text-brand-red hover:text-brand-red hover:bg-brand-red/5"
-            onClick={() => setShowCancelDialog(true)}
-          >
-            <XCircle className="h-4 w-4 mr-2" />
-            Cancel Trip
-          </Button>
-        )}
-        {canLeaveLeader && hasPendingTransfer && (
-          <p className="text-xs text-gray-500 text-center">
-            Resolve the pending transfer before canceling.
-          </p>
-        )}
-      </div>
-    )}
 
       {/* Leave Trip Dialog (for non-leaders) */}
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>

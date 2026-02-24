@@ -280,7 +280,7 @@ export default function DashboardPage() {
           isTripFirst ? (
             <Card>
               <CardContent className="py-12 text-center">
-                {/* Breathing pulse circles (#300) */}
+                {/* Breathing pulse circles */}
                 <div className="flex justify-center gap-3 mb-6" aria-hidden="true">
                   {[0, 0.6, 1.2].map((delay, i) => (
                     <div
@@ -290,55 +290,46 @@ export default function DashboardPage() {
                     />
                   ))}
                 </div>
-                <h2 className="text-lg font-medium text-brand-carbon mb-2">Your circles are quiet right now</h2>
-                <p className="text-gray-500 mb-2 max-w-md mx-auto">
-                  Start a trip and shake things up.
+                <h2 className="text-lg font-medium text-brand-carbon mb-2">Nifty plans start here.</h2>
+                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                  Start a trip, and we{'\u2019'}ll help your group figure out the rest.
                 </p>
-                <p className="text-xs text-gray-500 mb-6 max-w-md mx-auto">
-                  Your travelers will be saved as a group for future trips.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                  <div className="text-center">
-                    <Button onClick={() => setShowTripFirst(true)}>
-                      <Calendar className="h-4 w-4 mr-2" aria-hidden="true" />
-                      Plan a trip
-                    </Button>
-                  </div>
-                  <span className="text-gray-300 hidden sm:inline">or</span>
-                  <div className="text-center">
-                    <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
-                      <UserPlus className="h-4 w-4 mr-2" aria-hidden="true" />
-                      Join a friend's trip
-                    </Button>
-                  </div>
+                <div className="flex flex-col items-center gap-3">
+                  <Button className="bg-brand-red hover:bg-brand-red/90 text-white" onClick={() => setShowTripFirst(true)}>
+                    <Calendar className="h-4 w-4 mr-2" aria-hidden="true" />
+                    Plan a trip
+                  </Button>
+                  <button onClick={() => setShowJoinCircle(true)} className="text-sm text-brand-blue hover:underline">
+                    Got an invite? Join a friend{'\u2019'}s trip
+                  </button>
                 </div>
               </CardContent>
             </Card>
           ) : (
             <Card>
               <CardContent className="py-12 text-center">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" aria-hidden="true" />
-                <h2 className="text-lg font-medium text-brand-carbon mb-2">No circles yet</h2>
+                {/* Breathing pulse circles */}
+                <div className="flex justify-center gap-3 mb-6" aria-hidden="true">
+                  {[0, 0.6, 1.2].map((delay, i) => (
+                    <div
+                      key={i}
+                      className="w-10 h-10 rounded-full bg-brand-sand animate-breathing-pulse"
+                      style={{ animationDelay: `${delay}s` }}
+                    />
+                  ))}
+                </div>
+                <h2 className="text-lg font-medium text-brand-carbon mb-2">Nifty plans start here.</h2>
                 <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                  A circle is your travel group — friends, family, or any crew you plan trips with.
-                  Everyone in a circle can propose and join trips together.
+                  A circle is your travel crew. Create one and start planning trips together.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                  <div className="text-center">
-                    <Button onClick={() => setShowCreateCircle(true)}>
-                      <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-                      Create circle
-                    </Button>
-                    <p className="text-xs text-gray-400 mt-1">Start a new group</p>
-                  </div>
-                  <span className="text-gray-300 hidden sm:inline">or</span>
-                  <div className="text-center">
-                    <Button variant="outline" onClick={() => setShowJoinCircle(true)}>
-                      <UserPlus className="h-4 w-4 mr-2" aria-hidden="true" />
-                      Join circle
-                    </Button>
-                    <p className="text-xs text-gray-400 mt-1">Got an invite code?</p>
-                  </div>
+                <div className="flex flex-col items-center gap-3">
+                  <Button className="bg-brand-red hover:bg-brand-red/90 text-white" onClick={() => setShowCreateCircle(true)}>
+                    <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                    Create circle
+                  </Button>
+                  <button onClick={() => setShowJoinCircle(true)} className="text-sm text-brand-blue hover:underline">
+                    Got an invite code? Join a circle
+                  </button>
                 </div>
               </CardContent>
             </Card>
