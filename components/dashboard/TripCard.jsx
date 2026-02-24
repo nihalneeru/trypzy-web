@@ -123,10 +123,17 @@ export function TripCard({ trip, circleId = null }) {
   
   // Get countdown label if dates are locked
   const countdownLabel = getTripCountdownLabel(trip, trip.name)
-  
+
+  // Stalled trip: no activity for 7+ days — subtle warmth tint (#296)
+  const isStalled = (() => {
+    const ts = trip.latestActivity?.createdAt
+    if (!ts) return false
+    return (Date.now() - new Date(ts).getTime()) > 7 * 24 * 60 * 60 * 1000
+  })()
+
   return (
     <Link href={tripUrl} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`} onClick={() => setNavigating(true)}>
-      <Card className="cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full min-w-0 relative">
+      <Card className={`cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full min-w-0 relative ${isStalled ? 'bg-brand-sand/20' : ''}`}>
         {navigating && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 rounded-lg">
             <BrandedSpinner size="md" />

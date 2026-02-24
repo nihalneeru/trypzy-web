@@ -11,7 +11,8 @@ import {
   AlertCircle,
   Heart,
   ThumbsUp,
-  HelpCircle
+  HelpCircle,
+  CalendarPlus
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -30,6 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { formatTripDateRange } from '@/lib/utils'
+import { generateICS } from '@/lib/trips/generateICS'
 import { SchedulingFunnelCard } from '@/components/trip/scheduling/SchedulingFunnelCard'
 import { DateWindowsFunnel } from '@/components/trip/scheduling/DateWindowsFunnel'
 
@@ -532,6 +534,26 @@ export function SchedulingOverlay({
             <p className="text-sm text-green-700">
               Dates are set — ready to plan the itinerary!
             </p>
+            <Button
+              variant="outline"
+              className="mt-4 border-green-300 text-green-700 hover:bg-green-100"
+              onClick={() => {
+                const ics = generateICS(trip, null)
+                const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${(trip.name || 'trip').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')}.ics`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+                toast.success('Calendar file downloaded')
+              }}
+            >
+              <CalendarPlus className="h-4 w-4 mr-2" />
+              Add to calendar
+            </Button>
           </CardContent>
         </Card>
 
