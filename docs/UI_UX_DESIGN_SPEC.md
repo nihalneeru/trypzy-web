@@ -225,9 +225,9 @@ System messages in chat for key events should be visually distinct:
 
 ### 4.3 Dates Decision (Convergence Mode)
 
-**Primary input**: Calendar date range picker (tap start date → end date). Text input as secondary fallback ("Can't find it? Type it").
+**Primary input**: Free-form text (handles vague availability: "early March", "first weekend of Feb", "last week of June", "March"). Parsed deterministically by `normalizeWindow.js`. Calendar date range picker as optional visual aid for users who know exact dates.
 
-> **UX expert consensus**: Free-form text as primary input creates unnecessary failure paths. A calendar picker completes in 2 taps vs 5-8 steps.
+> **Founder override**: Users express availability windows, not exact dates. Free-form text handles vagueness naturally ("sometime in March") — a calendar forces false precision. Calendar is a secondary visual aid, not a replacement.
 
 **Phase: COLLECTING**
 - Header: "When works for everyone?"
