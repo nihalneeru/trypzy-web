@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Sparkles, Globe, Search, Plus, Users, UserPlus
+  Globe, Search, Plus, Users, UserPlus
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -183,15 +183,14 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-brand-carbon flex items-center gap-2">
-            <Sparkles className="h-8 w-8 text-brand-red" />
+          <h1 className="text-3xl font-bold text-brand-carbon">
             Discover
           </h1>
-          <p className="text-gray-600 mt-1">Travel stories and inspiration from fellow explorers</p>
+          <p className="text-gray-500 mt-1">Trip stories and inspiration from your circles</p>
         </div>
         <Button onClick={() => setShowShareModal(true)} className="flex-shrink-0">
           <Plus className="h-4 w-4 mr-2" />
-          Share to Discover
+          Share a story
         </Button>
       </div>
 
@@ -292,25 +291,25 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
       ) : posts.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
-            <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <Globe className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-brand-carbon mb-2">
-              {search ? 'No stories found' : 'No stories yet'}
+              {search ? 'No stories found' : 'Nothing to discover yet'}
             </h3>
-            <p className="text-gray-500 mb-4 max-w-sm mx-auto">
+            <p className="text-gray-500 mb-6 max-w-sm mx-auto">
               {search
                 ? 'Try a different search term or browse all stories.'
-                : 'Discover is where travel stories from your circles appear. Share your adventures or start planning a trip!'}
+                : 'When your circle members share memories or complete trips, their stories show up here.'}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               {!search && (
                 <Button onClick={() => setShowShareModal(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Share Your Story
+                  Share a story
                 </Button>
               )}
               <Button variant="outline" asChild>
                 <Link href="/dashboard">
-                  Go to Dashboard
+                  Back to Dashboard
                 </Link>
               </Button>
             </div>

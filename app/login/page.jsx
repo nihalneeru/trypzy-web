@@ -41,10 +41,18 @@ function LoginPageContent() {
   const [initialized, setInitialized] = useState(false)
   const [isOAuthReturn, setIsOAuthReturn] = useState(false)
   const loadingTimeoutRef = useRef(null)
+  const [returningName, setReturningName] = useState(null)
 
-  // Detect OAuth return vs fresh visit (client-only, avoids hydration mismatch)
+  // Detect OAuth return vs fresh visit + check for returning user name
   useEffect(() => {
     setIsOAuthReturn(!!sessionStorage.getItem('login_beta_secret'))
+    try {
+      const stored = localStorage.getItem('tripti_user')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed?.name) setReturningName(parsed.name.split(' ')[0])
+      }
+    } catch {}
     setInitialized(true)
   }, [])
 
@@ -254,9 +262,11 @@ function LoginPageContent() {
         </div>
 
         <Card className="shadow-xl border-0">
-          <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-brand-carbon">
+              {returningName ? `Welcome back, ${returningName}` : 'Welcome back'}
+            </CardTitle>
+            <CardDescription className="text-sm">
               Sign in to continue planning
             </CardDescription>
           </CardHeader>
@@ -333,14 +343,16 @@ function LoginPageContent() {
               </p>
             </div>
           </CardContent>
-          <CardFooter>
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => router.push('/signup')}
-            >
-              Don't have an account? Sign up
-            </Button>
+          <CardFooter className="justify-center">
+            <p className="text-sm text-muted-foreground">
+              Don't have an account?{' '}
+              <button
+                onClick={() => router.push('/signup')}
+                className="text-brand-blue font-medium hover:underline"
+              >
+                Sign up
+              </button>
+            </p>
           </CardFooter>
         </Card>
       </div>

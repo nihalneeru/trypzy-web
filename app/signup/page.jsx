@@ -323,10 +323,10 @@ function SignupPageContent() {
         )}
 
         <Card className="shadow-xl border-0">
-          <CardHeader>
-            <CardTitle>Create account</CardTitle>
-            <CardDescription>
-              Start planning trips with friends
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-brand-carbon">Create your account</CardTitle>
+            <CardDescription className="text-sm">
+              You'll sign in with Google — no passwords to remember
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -402,14 +402,16 @@ function SignupPageContent() {
               </p>
             </div>
           </CardContent>
-          <CardFooter>
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => router.push('/login')}
-            >
-              Already have an account? Sign in
-            </Button>
+          <CardFooter className="justify-center">
+            <p className="text-sm text-muted-foreground">
+              Already have an account?{' '}
+              <button
+                onClick={() => router.push('/login')}
+                className="text-brand-blue font-medium hover:underline"
+              >
+                Sign in
+              </button>
+            </p>
           </CardFooter>
         </Card>
       </div>
