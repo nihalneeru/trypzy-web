@@ -270,18 +270,27 @@ export function ContextCTABar({
     return null
   }, [trip, user, progressSnapshot])
 
+  const isBarBlocking = !!ctaConfig?.isBlocking
+
   return (
-    <div className="flex items-center justify-between px-2 md:px-4 py-2" style={{ backgroundColor: 'var(--brand-red)' }}>
+    <div className={cn(
+      'flex items-center justify-between px-2 md:px-4 py-2 border-t',
+      isBarBlocking
+        ? 'bg-brand-red border-brand-red'
+        : 'bg-white border-gray-200'
+    )}>
       {/* Left section: Travelers, Expenses, Memories buttons */}
       <div className="flex items-center gap-1 md:gap-2">
         <Button
           onClick={() => onOpenOverlay('travelers')}
           variant="ghost"
           className={cn(
-            'flex items-center gap-1 md:gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'flex items-center gap-1 md:gap-1.5',
             'border-0 shadow-none',
-            // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
-            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]'
+            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
+            isBarBlocking
+              ? 'bg-white/10 hover:bg-white/20 text-white'
+              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
           )}
           aria-label={`View ${travelerCount} travelers`}
         >
@@ -298,10 +307,12 @@ export function ContextCTABar({
           onClick={() => onOpenOverlay('expenses')}
           variant="ghost"
           className={cn(
-            'flex items-center gap-1 md:gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'flex items-center gap-1 md:gap-1.5',
             'border-0 shadow-none',
-            // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
-            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]'
+            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
+            isBarBlocking
+              ? 'bg-white/10 hover:bg-white/20 text-white'
+              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
           )}
           aria-label="View expenses"
         >
@@ -313,10 +324,12 @@ export function ContextCTABar({
           onClick={() => onOpenOverlay('memories')}
           variant="ghost"
           className={cn(
-            'flex items-center gap-1 md:gap-1.5 bg-white/10 hover:bg-white/20 text-white',
+            'flex items-center gap-1 md:gap-1.5',
             'border-0 shadow-none',
-            // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
-            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]'
+            'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
+            isBarBlocking
+              ? 'bg-white/10 hover:bg-white/20 text-white'
+              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
           )}
           aria-label="View memories"
         >
@@ -331,12 +344,10 @@ export function ContextCTABar({
           onClick={() => onOpenOverlay(ctaConfig.overlayType)}
           className={cn(
             'font-semibold shadow-md',
-            // Responsive sizing: 44px min height on mobile (WCAG), smaller on desktop
             'h-11 md:h-9 px-3 md:px-4 min-w-[44px]',
-            // Color based on whether action is blocking (requires user action)
-            ctaConfig.isBlocking
-              ? 'bg-white text-brand-red hover:bg-white/90'  // Urgent - white on red bar
-              : 'bg-white/80 text-brand-blue hover:bg-white/70 border border-white/30'  // Informational - subtle
+            isBarBlocking
+              ? 'bg-white text-brand-red hover:bg-white/90'
+              : 'bg-brand-blue text-white hover:bg-brand-blue/90'
           )}
         >
           <ctaConfig.icon className="h-4 w-4 mr-1.5 shrink-0" aria-hidden="true" />

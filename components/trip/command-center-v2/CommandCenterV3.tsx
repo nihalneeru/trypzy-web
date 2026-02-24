@@ -153,6 +153,63 @@ function getOverlayTitle(overlayType: OverlayType): string {
 }
 
 // ─────────────────────────────────────────────────
+// Priority Status Card — renders max 1 card above chat
+// Priority: scheduling (COLLECTING/PROPOSED) > itinerary > general trip status
+// ─────────────────────────────────────────────────
+
+function PriorityStatusCard({
+  trip,
+  user,
+  statusSummary,
+  blocker,
+  onOpenOverlay
+}: {
+  trip: any
+  user: any
+  statusSummary: any
+  blocker: BlockerInfo
+  onOpenOverlay: (type: OverlayType, params?: OverlayParams) => void
+}) {
+  // 1. Scheduling card — highest priority when dates aren't locked
+  const schedulingSummary = trip?.schedulingSummary
+  const showScheduling = schedulingSummary && schedulingSummary.phase !== 'LOCKED'
+  if (showScheduling) {
+    return (
+      <SchedulingStatusCard
+        trip={trip}
+        user={user}
+        onOpenScheduling={() => onOpenOverlay('scheduling')}
+      />
+    )
+  }
+
+  // 2. Itinerary card — shows after dates locked, while itinerary is in progress
+  const datesLocked = trip?.status === 'locked' || !!(trip?.lockedStartDate && trip?.lockedEndDate)
+  const itineraryStatus = trip?.itineraryStatus
+  const showItinerary = datesLocked && itineraryStatus &&
+    trip?.status !== 'completed' && trip?.status !== 'canceled'
+  if (showItinerary) {
+    return (
+      <ItineraryStatusCard
+        trip={trip}
+        user={user}
+        onOpenItinerary={() => onOpenOverlay('itinerary')}
+      />
+    )
+  }
+
+  // 3. General trip status card — fallback (lowest priority)
+  return (
+    <TripStatusCard
+      tripId={trip?.id}
+      summary={statusSummary}
+      isLeader={trip?.createdBy === user?.id}
+      onActionClick={() => onOpenOverlay(blocker.overlayType)}
+    />
+  )
+}
+
+// ─────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────
 
@@ -410,24 +467,15 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
         {/* Main content area - chat + input + CTA bar */}
         {/* Uses min-h-0 for proper flex child scrolling, dvh for mobile keyboard handling */}
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Status cards — pinned above chat, contextual to current trip phase */}
+          {/* Status card — max 1 pinned above chat, priority: scheduling > itinerary > general */}
           {!isCancelled && !isCompleted && !isReadOnly && (
             <div className="shrink-0">
-              <TripStatusCard
-                tripId={trip?.id}
-                summary={statusSummary}
-                isLeader={trip?.createdBy === user?.id}
-                onActionClick={() => openOverlay(blocker.overlayType)}
-              />
-              <SchedulingStatusCard
+              <PriorityStatusCard
                 trip={trip}
                 user={user}
-                onOpenScheduling={() => openOverlay('scheduling')}
-              />
-              <ItineraryStatusCard
-                trip={trip}
-                user={user}
-                onOpenItinerary={() => openOverlay('itinerary')}
+                statusSummary={statusSummary}
+                blocker={blocker}
+                onOpenOverlay={openOverlay}
               />
             </div>
           )}
