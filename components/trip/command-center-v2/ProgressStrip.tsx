@@ -86,7 +86,11 @@ function StripCircle({
           <div className="w-9 h-9 rounded-full border-2 border-dashed border-brand-sand" />
         </div>
       )}
-      <div className={cn('w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200', getBgColor())}>
+      <div className={cn(
+        'w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200',
+        getBgColor(),
+        isBlocker && !isActiveOverlay && 'ring-2 ring-brand-red/30 ring-offset-1'
+      )}>
         <Icon className={cn('w-4 h-4', getIconColor())} />
       </div>
     </div>
@@ -222,6 +226,7 @@ export function ProgressStrip({
 
       {/* Row 2: Stage circles - horizontal scroll with snap on mobile */}
       {/* Only shows main stages (Proposed → On Trip). Memories/Expenses are in bottom CTA bar */}
+      <div className="relative">
       <div
         ref={scrollContainerRef}
         className={cn(
@@ -265,7 +270,7 @@ export function ProgressStrip({
                   showRingBurst={step.key === 'datesLocked' && showLockBurst}
                 />
                 <span className={cn(
-                  'text-[9px] md:text-[10px] font-medium leading-tight text-center whitespace-nowrap',
+                  'text-[11px] md:text-xs font-medium leading-tight text-center whitespace-nowrap',
                   isCurrent && 'underline underline-offset-2',
                   isActive
                     ? 'text-brand-blue'
@@ -280,6 +285,9 @@ export function ProgressStrip({
               </button>
             )
           })}
+      </div>
+      {/* Right-edge fade gradient to hint at scrollability on mobile */}
+      <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none md:hidden" />
       </div>
     </div>
   )

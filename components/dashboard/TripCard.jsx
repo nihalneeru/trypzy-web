@@ -2,19 +2,12 @@
 
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Users, Calendar, Clock, Info } from 'lucide-react'
+import { Users, Calendar, Check } from 'lucide-react'
 import Link from 'next/link'
 import { tripHref } from '@/lib/navigation/routes'
-import { TripProgressMini } from './TripProgressMini'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import { formatTripDateRange } from '@/lib/utils'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 /**
  * @typedef {Object} TripData
@@ -29,49 +22,25 @@ import {
  */
 
 /**
- * Format date range for display
- * @param {string|null} startDate
- * @param {string|null} endDate
- * @returns {string}
+ * Compute a single-line text status from trip data.
  */
-function formatDateRange(startDate, endDate) {
-  if (!startDate || !endDate) return 'Dates not set'
-  
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  
-  const startFormatted = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const endFormatted = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  
-  return `${startFormatted} - ${endFormatted}`
-}
-
-/**
- * Format relative time
- * @param {string} timestamp
- * @returns {string}
- */
-function formatRelativeTime(timestamp) {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now - date
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) {
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    if (hours === 0) {
-      const mins = Math.floor(diff / (1000 * 60))
-      return mins <= 1 ? 'Just now' : `${mins} min ago`
-    }
-    return hours === 1 ? '1 hour ago' : `${hours} hours ago`
+function getTripStatusDisplay(status) {
+  switch (status) {
+    case 'proposed':
+    case 'scheduling':
+      return { label: 'Picking dates', dotClass: 'bg-brand-red' }
+    case 'voting':
+      return { label: 'Voting on dates', dotClass: 'bg-brand-red' }
+    case 'locked':
+      return { label: 'Dates locked', dotClass: 'bg-brand-blue', showCheck: true }
+    case 'completed':
+      return { label: 'Completed', dotClass: 'bg-gray-400' }
+    case 'canceled':
+      return { label: 'Canceled', dotClass: 'bg-gray-400' }
+    default:
+      return { label: status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown', dotClass: 'bg-gray-400' }
   }
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
-
 
 /**
  * @param {Object} props
@@ -83,16 +52,16 @@ export function TripCard({ trip, circleId = null }) {
 
   // Ensure pendingActions exists (default to empty array)
   const pendingActions = trip.pendingActions || []
-  
+
   // Use tripHref without tab query - always land on Chat tab by default
   // Deep-links should be explicit via ?tab= query, not inferred from pending actions
   const tripUrl = tripHref(trip.id)
-  
+
   // CTA semantics: Use actionRequired as source of truth
   // If actionRequired = true: show red CTA with action-specific text
   // If actionRequired = false: show neutral "View trip"
   const actionRequired = trip.actionRequired === true
-  
+
   // Get CTA text based on actionRequired and trip status
   let primaryLabel = 'View trip'
   if (actionRequired) {
@@ -108,7 +77,7 @@ export function TripCard({ trip, circleId = null }) {
       }
       return false
     })
-    
+
     if (requiredAction) {
       primaryLabel = requiredAction.label
     } else {
@@ -120,7 +89,7 @@ export function TripCard({ trip, circleId = null }) {
       }
     }
   }
-  
+
   // Get countdown label if dates are locked
   const countdownLabel = getTripCountdownLabel(trip, trip.name)
 
@@ -131,6 +100,14 @@ export function TripCard({ trip, circleId = null }) {
     return (Date.now() - new Date(ts).getTime()) > 7 * 24 * 60 * 60 * 1000
   })()
 
+  // Single-line text status
+  const statusDisplay = getTripStatusDisplay(trip.status)
+
+  // Date display
+  const dateDisplay = trip.startDate && trip.endDate
+    ? formatTripDateRange(trip.startDate, trip.endDate)
+    : 'Dates not set'
+
   return (
     <Link href={tripUrl} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`} onClick={() => setNavigating(true)}>
       <Card className={`cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full min-w-0 relative ${isStalled ? 'bg-brand-sand/20' : ''}`}>
@@ -140,72 +117,44 @@ export function TripCard({ trip, circleId = null }) {
           </div>
         )}
         <CardContent className="p-4 flex flex-col h-full min-w-0 flex-1">
-          {/* Header with info icon */}
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-base mb-1 line-clamp-2">{trip.name}</h3>
-            </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex-shrink-0 ml-2">
-                    <Info className="h-4 w-4 text-gray-500" aria-hidden="true" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Open trip</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+          {/* Header — trip name only */}
+          <div className="mb-2">
+            <h3 className="font-semibold text-base mb-1 line-clamp-2">{trip.name}</h3>
           </div>
-          
-          {/* Progress indicator */}
-          <div className="mb-3">
-            <TripProgressMini trip={trip} />
+
+          {/* Single-line text status */}
+          <div className="flex items-center gap-1.5 text-sm text-brand-carbon mb-2">
+            {statusDisplay.showCheck ? (
+              <Check className="h-3 w-3 text-brand-blue shrink-0" aria-hidden="true" />
+            ) : (
+              <span className={`w-2 h-2 rounded-full shrink-0 ${statusDisplay.dotClass}`} aria-hidden="true" />
+            )}
+            <span>{statusDisplay.label}</span>
           </div>
-          
-          {/* Traveler count */}
-          <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
-            <Users className="h-3 w-3" aria-hidden="true" />
-            <span>{trip.travelerCount} {trip.travelerCount === 1 ? 'traveler' : 'travelers'}</span>
-          </div>
-          
-          {/* Date range */}
-          <div className="flex items-center gap-1 text-sm text-gray-600 mb-3">
-            <Calendar className="h-3 w-3" aria-hidden="true" />
-            <span className="line-clamp-1">
-              {trip.startDate && trip.endDate 
-                ? formatTripDateRange(trip.startDate, trip.endDate)
-                : 'Dates not set'}
+
+          {/* Traveler count + date range combined */}
+          <div className="flex items-center gap-3 text-sm text-gray-600 mb-3">
+            <span className="flex items-center gap-1">
+              <Users className="h-3 w-3" aria-hidden="true" /> {trip.travelerCount}
+            </span>
+            <span className="text-gray-300" aria-hidden="true">&middot;</span>
+            <span className="flex items-center gap-1 min-w-0">
+              <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{dateDisplay}</span>
             </span>
           </div>
-          
+
           {/* Countdown - shown when dates are locked */}
           {countdownLabel && (
             <div className="text-xs text-gray-500 mb-3">
               {countdownLabel}
             </div>
           )}
-          
-          {/* Latest activity */}
-          {trip.latestActivity && (
-            <div className="flex items-start gap-1 text-xs text-gray-500 mb-3 min-w-0">
-              <Clock className="h-3 w-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-2">{trip.latestActivity.text}</p>
-                {trip.latestActivity.createdAt && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formatRelativeTime(trip.latestActivity.createdAt)}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-          
+
           {/* Spacer to push CTA to bottom */}
           <div className="flex-1" />
-          
-          {/* Primary CTA - Use span styled as button since card is already a Link */}
+
+          {/* Primary CTA */}
           <div className="pt-2 space-y-2">
             {/* "Waiting on you" badge - shown when action required */}
             {trip.actionRequired && (

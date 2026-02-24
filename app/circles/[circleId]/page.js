@@ -6,7 +6,7 @@ import { TripCard } from '@/components/dashboard/TripCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, Users, MapPin, Camera, MessageCircle } from 'lucide-react'
+import { Plus, Users, MapPin, Camera, MessageCircle, ChevronLeft } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { CircleDetailSkeleton } from '@/components/circles/CircleDetailSkeleton'
 import { AppHeader } from '@/components/common/AppHeader'
@@ -36,6 +36,18 @@ export default function CircleDetailPage() {
 
   // Tab state — default to Circle Updates (matching old behavior)
   const [activeTab, setActiveTab] = useState('updates')
+
+  // Smart default: switch to 'trips' tab if updates are empty but trips exist
+  useEffect(() => {
+    if (circle && activeTab === 'updates') {
+      const hasTrips = Array.isArray(circle.trips) && circle.trips.length > 0
+      // Only auto-switch if user hasn't manually changed tabs
+      // We check if circle just loaded (loading just turned false)
+      if (hasTrips && (!circle.updates || circle.updates.length === 0)) {
+        setActiveTab('trips')
+      }
+    }
+  }, [circle]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Trips tab: create trip dialog
   const [showCreateTrip, setShowCreateTrip] = useState(false)
@@ -180,6 +192,15 @@ export default function CircleDetailPage() {
       <AppHeader userName={user?.name} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Back navigation */}
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="flex items-center gap-1 text-sm text-brand-blue hover:underline mb-4"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Dashboard
+        </button>
+
         {/* Circle Header (name, description, invite code, leave) */}
         <CircleHeader
           circle={circle}
@@ -195,19 +216,25 @@ export default function CircleDetailPage() {
           <TabsList className="mb-6 w-full sm:w-auto h-auto sm:h-9">
             <TabsTrigger value="updates" className="flex-1 sm:flex-none flex-col sm:flex-row gap-0.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-1">
               <MessageCircle className="h-4 w-4 shrink-0" />
-              <span className="text-[10px] sm:text-sm leading-tight">Updates</span>
+              <span className="text-[11px] sm:text-sm leading-tight">Updates</span>
             </TabsTrigger>
             <TabsTrigger value="members" className="flex-1 sm:flex-none flex-col sm:flex-row gap-0.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-1">
               <Users className="h-4 w-4 shrink-0" />
-              <span className="text-[10px] sm:text-sm leading-tight">Members</span>
+              <span className="text-[11px] sm:text-sm leading-tight">
+                Members{circle?.members?.length ? ` (${circle.members.length})` : ''}
+              </span>
             </TabsTrigger>
             <TabsTrigger value="trips" className="flex-1 sm:flex-none flex-col sm:flex-row gap-0.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-1">
               <MapPin className="h-4 w-4 shrink-0" />
-              <span className="text-[10px] sm:text-sm leading-tight">Trips</span>
+              <span className="text-[11px] sm:text-sm leading-tight">
+                Trips{sortedTrips.length ? ` (${sortedTrips.length})` : ''}
+              </span>
             </TabsTrigger>
             <TabsTrigger value="memories" className="flex-1 sm:flex-none flex-col sm:flex-row gap-0.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-1">
               <Camera className="h-4 w-4 shrink-0" />
-              <span className="text-[10px] sm:text-sm leading-tight">Memories</span>
+              <span className="text-[11px] sm:text-sm leading-tight">
+                Memories{posts.length ? ` (${posts.length})` : ''}
+              </span>
             </TabsTrigger>
           </TabsList>
 
@@ -236,12 +263,20 @@ export default function CircleDetailPage() {
             {sortedTrips.length === 0 ? (
               <Card className="text-center py-12">
                 <CardContent>
-                  <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <div className="flex justify-center gap-3 mb-4" aria-hidden="true">
+                    {[0, 0.6, 1.2].map((delay, i) => (
+                      <div
+                        key={i}
+                        className="w-8 h-8 rounded-full bg-brand-sand animate-breathing-pulse"
+                        style={{ animationDelay: `${delay}s` }}
+                      />
+                    ))}
+                  </div>
                   <h3 className="text-lg font-medium text-brand-carbon mb-2">No trips yet</h3>
-                  <p className="text-gray-500 mb-4">Create a trip to start planning with your circle</p>
-                  <Button onClick={() => setShowCreateTrip(true)}>
+                  <p className="text-gray-500 mb-4">Start one — your crew is ready.</p>
+                  <Button onClick={() => setShowCreateTrip(true)} className="bg-brand-red hover:bg-brand-red/90 text-white">
                     <Plus className="h-4 w-4 mr-1" />
-                    Create Trip
+                    Plan a trip
                   </Button>
                 </CardContent>
               </Card>
@@ -285,12 +320,12 @@ export default function CircleDetailPage() {
             ) : posts.length === 0 ? (
               <Card className="text-center py-12">
                 <CardContent>
-                  <Camera className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <Camera className="h-10 w-10 text-brand-sand mx-auto mb-4" aria-hidden="true" />
                   <h3 className="text-lg font-medium text-brand-carbon mb-2">No memories yet</h3>
-                  <p className="text-gray-500 mb-4">Share photos and moments from your trips</p>
-                  <Button onClick={() => setShowCreatePost(true)}>
+                  <p className="text-gray-500 mb-4">Photos and moments from your trips will show up here.</p>
+                  <Button onClick={() => setShowCreatePost(true)} variant="outline" className="border-brand-blue text-brand-blue">
                     <Camera className="h-4 w-4 mr-1" />
-                    Share your first memory
+                    Share a memory
                   </Button>
                 </CardContent>
               </Card>
