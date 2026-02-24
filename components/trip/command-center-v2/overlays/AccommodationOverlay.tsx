@@ -759,8 +759,8 @@ export function AccommodationOverlay({
                             </Button>
                           )}
 
-                          {/* Select button (leader only, hidden after confirmed) */}
-                          {!isSelected && isTripLeader && !accommodationConfirmed && (
+                          {/* Select button (leader only, hidden after confirmed or read-only) */}
+                          {!isSelected && isTripLeader && !viewerIsReadOnly && !accommodationConfirmed && (
                             <Button
                               size="sm"
                               variant="default"
