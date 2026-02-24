@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { nativeShare, copyToClipboard } from '@/lib/native/share'
+import { nativeShare } from '@/lib/native/share'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,9 +22,7 @@ import {
   Users,
   Calendar,
   MapPin,
-  Copy,
   Check,
-  Pencil,
   X,
   AlertTriangle,
   Share2
@@ -53,7 +51,6 @@ export function TripInfoOverlay({
 }: TripInfoOverlayProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [editForm, setEditForm] = useState({
     name: trip?.name || '',
     destinationHint: trip?.destinationHint || '',
@@ -67,7 +64,6 @@ export function TripInfoOverlay({
   )
   const [sharingLoading, setSharingLoading] = useState(false)
   const [privacyBlocked, setPrivacyBlocked] = useState(false)
-  const [shareCopied, setShareCopied] = useState(false)
   const [showShareConfirm, setShowShareConfirm] = useState(false)
 
   const isLeader = trip?.createdBy === user?.id
@@ -92,18 +88,6 @@ export function TripInfoOverlay({
   const participantCount = trip?.participantsWithStatus?.filter(
     (p: any) => (p.status || 'active') === 'active'
   )?.length || trip?.travelers?.length || 0
-
-  const handleCopyInviteCode = async () => {
-    if (!inviteCode) return
-    const result = await copyToClipboard(inviteCode)
-    if (result === 'copied') {
-      setCopied(true)
-      toast.success('Invite code copied')
-      setTimeout(() => setCopied(false), 2000)
-    } else {
-      toast.error('Couldn\'t copy invite code')
-    }
-  }
 
   // Share invite link via native share sheet, Web Share API, or clipboard fallback
   const handleInvite = async () => {
@@ -174,18 +158,6 @@ export function TripInfoOverlay({
       toast.error(err.message || 'Could not update share settings')
     } finally {
       setSharingLoading(false)
-    }
-  }
-
-  const handleCopyShareLink = async () => {
-    if (!shareUrl) return
-    const result = await copyToClipboard(shareUrl)
-    if (result === 'copied') {
-      setShareCopied(true)
-      toast.success('Share link copied')
-      setTimeout(() => setShareCopied(false), 2000)
-    } else {
-      toast.error('Could not copy share link')
     }
   }
 
@@ -280,14 +252,15 @@ export function TripInfoOverlay({
 
   return (
     <div className="p-4 space-y-4">
-      {/* Trip Info Card */}
+      {/* === Trip Details Section === */}
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Trip Details</h3>
       <Card>
         <CardContent className="pt-4 space-y-4">
           {/* Header with edit button */}
           <div className="flex items-start justify-between">
             <div className="flex-1">
               {isEditing && !isLocked ? (
-                <div className="space-y-2">
+                <div className={`bg-brand-sand/30 rounded-lg p-3 space-y-2`}>
                   <Label htmlFor="trip-name">Trip Name</Label>
                   <Input
                     id="trip-name"
@@ -304,14 +277,12 @@ export function TripInfoOverlay({
               )}
             </div>
             {isLeader && !isEditing && !isLocked && (
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
                 onClick={handleStartEdit}
-                className="text-gray-500 hover:text-brand-blue"
+                className="text-sm text-brand-blue hover:underline"
               >
-                <Pencil className="h-4 w-4" />
-              </Button>
+                Edit trip details
+              </button>
             )}
           </div>
 
@@ -336,20 +307,22 @@ export function TripInfoOverlay({
               {isLeader && isLocked && !isEditing && (
                 <button
                   onClick={handleStartEdit}
-                  className="text-brand-blue hover:text-brand-blue/80"
+                  className="text-sm text-brand-blue hover:underline"
                   aria-label="Edit destination"
                 >
-                  <Pencil className="h-3 w-3" />
+                  Edit
                 </button>
               )}
             </div>
             {isEditing ? (
-              <Input
-                value={editForm.destinationHint}
-                onChange={(e) => setEditForm({ ...editForm, destinationHint: e.target.value })}
-                placeholder="e.g., Paris, Beach vacation, Ski trip"
-                className="text-sm"
-              />
+              <div className="bg-brand-sand/30 rounded-lg p-3">
+                <Input
+                  value={editForm.destinationHint}
+                  onChange={(e) => setEditForm({ ...editForm, destinationHint: e.target.value })}
+                  placeholder="e.g., Paris, Beach vacation, Ski trip"
+                  className="text-sm"
+                />
+              </div>
             ) : (
               <p className="text-sm text-gray-700 pl-6">
                 {trip.destinationHint || <span className="text-gray-400 italic">Not specified</span>}
@@ -360,7 +333,7 @@ export function TripInfoOverlay({
           {/* Description */}
           <div className="space-y-1">
             {isEditing && !isLocked ? (
-              <div className="space-y-2">
+              <div className="bg-brand-sand/30 rounded-lg p-3 space-y-2">
                 <Label>Description</Label>
                 <Textarea
                   value={editForm.description}
@@ -410,7 +383,8 @@ export function TripInfoOverlay({
         </CardContent>
       </Card>
 
-      {/* Details Card */}
+      {/* === Circle & People Section === */}
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Circle &amp; People</h3>
       <Card>
         <CardContent className="pt-4 space-y-3">
           {/* Created date */}
@@ -444,111 +418,87 @@ export function TripInfoOverlay({
         </CardContent>
       </Card>
 
-      {/* Invite Code Card (if exists) */}
-      {inviteCode && (
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Invite Code</p>
-                <p className="text-lg font-mono text-brand-carbon">{inviteCode}</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopyInviteCode}
-                className="shrink-0"
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4 mr-1 text-green-600" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4 mr-1" />
-                    Copy
-                  </>
-                )}
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleInvite}
-              className="w-full mt-3 border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
-            >
-              <Share2 className="h-4 w-4 mr-2" />
-              Share invite link
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* === Sharing Section === */}
+      {(inviteCode || (isLeader && isLocked)) && (
+        <>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Sharing</h3>
 
-      {/* Share Trip Section — leader only, locked trips */}
-      {isLeader && isLocked && (
-        <Card>
-          <CardContent className="pt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-brand-carbon">Share trip preview</p>
-                <p className="text-xs text-gray-500">Let anyone view the itinerary via link</p>
-              </div>
-              <button
-                onClick={handleToggleSharing}
-                disabled={privacyBlocked || sharingLoading}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  shareEnabled ? 'bg-brand-red' : 'bg-gray-300'
-                } ${(privacyBlocked || sharingLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                aria-label={shareEnabled ? 'Disable trip sharing' : 'Enable trip sharing'}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  shareEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`} />
-              </button>
-            </div>
-
-            {privacyBlocked && (
-              <p className="text-xs text-gray-500">
-                A traveler&apos;s privacy settings prevent sharing this trip.
-              </p>
-            )}
-
-            {shareEnabled && shareUrl && (
-              <>
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={shareUrl}
-                    className="flex-1 text-xs bg-gray-50 border rounded px-2 py-1.5 text-brand-carbon font-mono"
-                  />
-                  <Button variant="outline" size="sm" onClick={handleCopyShareLink}>
-                    {shareCopied ? (
-                      <>
-                        <Check className="h-4 w-4 mr-1 text-green-600" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4 mr-1" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
+          {/* Invite Code Card (if exists) — single Share button */}
+          {inviteCode && (
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Invite Code</p>
+                    <p className="text-lg font-mono text-brand-carbon">{inviteCode}</p>
+                  </div>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleShareTrip}
-                  className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
+                  onClick={handleInvite}
+                  className="w-full mt-3 border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
                 >
                   <Share2 className="h-4 w-4 mr-2" />
-                  Share trip preview
+                  Share invite link
                 </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Share Trip Section — leader only, locked trips */}
+          {isLeader && isLocked && (
+            <Card>
+              <CardContent className="pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-brand-carbon">Share trip preview</p>
+                    <p className="text-xs text-gray-500">Let anyone view the itinerary via link</p>
+                  </div>
+                  <button
+                    onClick={handleToggleSharing}
+                    disabled={privacyBlocked || sharingLoading}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      shareEnabled ? 'bg-brand-red' : 'bg-gray-300'
+                    } ${(privacyBlocked || sharingLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    aria-label={shareEnabled ? 'Disable trip sharing' : 'Enable trip sharing'}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      shareEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+
+                {privacyBlocked && (
+                  <p className="text-xs text-gray-500">
+                    A traveler&apos;s privacy settings prevent sharing this trip.
+                  </p>
+                )}
+
+                {shareEnabled && shareUrl && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={shareUrl}
+                        className="flex-1 text-xs bg-gray-50 border rounded px-2 py-1.5 text-brand-carbon font-mono"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleShareTrip}
+                      className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
+                    >
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share trip preview
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Locked status note */}
