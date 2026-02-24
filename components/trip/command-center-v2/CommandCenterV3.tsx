@@ -54,10 +54,18 @@ const TripInfoOverlay = dynamic(
   () => import('./overlays/TripInfoOverlay').then(m => ({ default: m.TripInfoOverlay })),
   { loading: () => overlayLoadingFallback }
 )
+const BriefOverlay = dynamic(
+  () => import('./overlays/BriefOverlay').then(m => ({ default: m.BriefOverlay })),
+  { loading: () => overlayLoadingFallback }
+)
 
 // Status cards (pinned above chat)
 import { SchedulingStatusCard } from './SchedulingStatusCard'
 import { ItineraryStatusCard } from './ItineraryStatusCard'
+import { TripStatusCard } from '@/components/trip/TripStatusCard'
+
+// Status summary
+import { computeTripStatusSummary } from '@/lib/trips/computeTripStatusSummary'
 
 // Chat component
 import { ChatTab } from '@/components/trip/TripTabs/tabs/ChatTab'
@@ -137,6 +145,8 @@ function getOverlayTitle(overlayType: OverlayType): string {
       return 'Memories'
     case 'member':
       return 'Traveler Profile'
+    case 'brief':
+      return 'Trip Brief'
     default:
       return ''
   }
@@ -192,6 +202,32 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
       headers: { Authorization: `Bearer ${token}` }
     }).catch(() => {})
   }, [trip?.id, trip?.status, token])
+
+  // Visit tracking — record visit and get delta data
+  const [sinceLastVisit, setSinceLastVisit] = useState<any>(null)
+  const visitFetchedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!trip?.id || !token) return
+    if (visitFetchedRef.current === trip.id) return
+    visitFetchedRef.current = trip.id
+
+    fetch(`/api/trips/${trip.id}/visit`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.sinceLastVisit) {
+          setSinceLastVisit(data.sinceLastVisit)
+        }
+      })
+      .catch(() => {})
+  }, [trip?.id, token])
+
+  // Status summary for TripStatusCard
+  const statusSummary = useMemo(() => {
+    return computeTripStatusSummary(trip, travelers, sinceLastVisit, user?.id)
+  }, [trip, travelers, sinceLastVisit, user?.id])
 
   // Deep link: open overlay from ?overlay= URL param (push notification tap)
   const searchParams = useSearchParams()
@@ -377,6 +413,12 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
           {/* Status cards — pinned above chat, contextual to current trip phase */}
           {!isCancelled && !isCompleted && !isReadOnly && (
             <div className="shrink-0">
+              <TripStatusCard
+                tripId={trip?.id}
+                summary={statusSummary}
+                isLeader={trip?.createdBy === user?.id}
+                onActionClick={() => openOverlay(blocker.overlayType)}
+              />
               <SchedulingStatusCard
                 trip={trip}
                 user={user}

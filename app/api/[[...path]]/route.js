@@ -9,6 +9,7 @@ import { validateStageAction } from '@/lib/trips/validateStageAction.js'
 import { getVotingStatus } from '@/lib/trips/getVotingStatus.js'
 import { ITINERARY_CONFIG, SCHEDULING_CONFIG } from '@/lib/itinerary/config.js'
 import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
+import { generateICS } from '@/lib/trips/generateICS.js'
 import { checkRateLimit, getTierForRoute } from '@/lib/server/rateLimit.js'
 
 // Event instrumentation (data moat)
@@ -5640,6 +5641,73 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // Record visit - POST /api/trips/:tripId/visit
+    // Updates lastVisitedAt on trip_participants, returns delta since last visit
+    if (route.match(/^\/trips\/[^/]+\/visit$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      const isActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isActive) {
+        return handleCORS(NextResponse.json({ error: 'Not an active traveler' }, { status: 403 }))
+      }
+
+      const now = new Date()
+
+      // Get existing participant record (may not exist for collaborative trip members)
+      const existing = await db.collection('trip_participants').findOne({
+        tripId,
+        userId: auth.user.id
+      })
+
+      const lastVisitedAt = existing?.lastVisitedAt || null
+
+      // Upsert lastVisitedAt
+      await db.collection('trip_participants').updateOne(
+        { tripId, userId: auth.user.id },
+        { $set: { lastVisitedAt: now } },
+        { upsert: true }
+      )
+
+      // Compute delta data if last visit was 24h+ ago
+      let sinceLastVisit = null
+      if (lastVisitedAt && (now - new Date(lastVisitedAt)) >= 24 * 60 * 60 * 1000) {
+        const [newMessages, newWindows, newReactions] = await Promise.all([
+          db.collection('trip_messages').countDocuments({
+            tripId,
+            createdAt: { $gt: lastVisitedAt.toISOString ? lastVisitedAt.toISOString() : lastVisitedAt },
+            userId: { $ne: auth.user.id }
+          }),
+          db.collection('date_windows').countDocuments({
+            tripId,
+            createdAt: { $gt: lastVisitedAt }
+          }),
+          // Count new reactions on proposed window since last visit
+          (() => {
+            const reactions = trip.proposedWindowReactions || []
+            return reactions.filter(r =>
+              r.createdAt && new Date(r.createdAt) > new Date(lastVisitedAt) && r.userId !== auth.user.id
+            ).length
+          })()
+        ])
+
+        if (newMessages > 0 || newWindows > 0 || newReactions > 0) {
+          sinceLastVisit = { newMessages, newWindows, newReactions, lastVisitedAt }
+        }
+      }
+
+      return handleCORS(NextResponse.json({ lastVisitedAt: now, sinceLastVisit }))
+    }
+
     // Cancel trip - POST /api/trips/:tripId/cancel
     // Leader-only: cancels trip at any time (sets tripStatus = CANCELLED)
     if (route.match(/^\/trips\/[^/]+\/cancel$/) && method === 'POST') {
@@ -6403,6 +6471,163 @@ async function handleRoute(request, { params }) {
       })
 
       return handleCORS(NextResponse.json({ success: true, status: 'declined' }))
+    }
+
+    // ============ TRIP BRIEF ROUTES ============
+
+    // Get trip brief - GET /api/trips/:tripId/brief
+    // Aggregates all trip data into a single read-only response
+    if (route.match(/^\/trips\/[^/]+\/brief$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Must be an active traveler
+      const isActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isActive) {
+        return handleCORS(NextResponse.json(
+          { error: 'You are not a traveler on this trip' },
+          { status: 403 }
+        ))
+      }
+
+      // Parallel queries for all brief data
+      const [
+        participantDocs,
+        membershipDocs,
+        accommodationOptions,
+        accommodationVotes,
+        itineraryVersions,
+        prepItems
+      ] = await Promise.all([
+        db.collection('trip_participants').find({ tripId }).toArray(),
+        trip.type === 'collaborative' && trip.circleId
+          ? db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
+          : Promise.resolve([]),
+        db.collection('accommodation_options').find({ tripId }).toArray(),
+        db.collection('accommodation_votes').find({ tripId }).toArray(),
+        db.collection('itinerary_versions').find({ tripId }).sort({ version: -1 }).limit(1).toArray(),
+        db.collection('prep_items').find({ tripId, category: 'packing', scope: 'group' }).toArray()
+      ])
+
+      // Compute traveler count
+      let travelerCount = 0
+      if (trip.type === 'collaborative') {
+        // Circle members minus left/removed
+        const leftUserIds = new Set(
+          participantDocs
+            .filter(p => p.status === 'left' || p.status === 'removed')
+            .map(p => p.userId)
+        )
+        travelerCount = membershipDocs.filter(m => !leftUserIds.has(m.userId)).length
+      } else {
+        travelerCount = participantDocs.filter(p => (p.status || 'active') === 'active').length
+      }
+
+      // Overview
+      const datesLocked = trip.status === 'locked' || !!(trip.lockedStartDate && trip.lockedEndDate)
+      const startDate = trip.lockedStartDate || trip.startDate
+      const endDate = trip.lockedEndDate || trip.endDate
+      let duration = null
+      if (startDate && endDate) {
+        const s = new Date(startDate + 'T12:00:00')
+        const e = new Date(endDate + 'T12:00:00')
+        duration = Math.round((e - s) / (1000 * 60 * 60 * 24))
+      }
+
+      const { deriveTripPrimaryStage } = await import('@/lib/trips/stage.js')
+      const stage = deriveTripPrimaryStage(trip)
+
+      const overview = {
+        name: trip.name || 'Untitled Trip',
+        destinationHint: trip.destinationHint || null,
+        lockedStartDate: trip.lockedStartDate || null,
+        lockedEndDate: trip.lockedEndDate || null,
+        duration,
+        travelerCount,
+        status: trip.status || 'proposed',
+        stage
+      }
+
+      // Accommodation
+      let accommodation = null
+      if (accommodationOptions.length > 0 || accommodationVotes.length > 0) {
+        const chosen = accommodationOptions.find(o => o.status === 'selected') || null
+        accommodation = {
+          chosen: chosen ? { name: chosen.title, location: chosen.source || null, priceRange: chosen.priceRange || null, url: chosen.url || null } : null,
+          optionCount: accommodationOptions.length,
+          voteCount: accommodationVotes.length
+        }
+      }
+
+      // Day-by-day (latest itinerary version)
+      let dayByDay = null
+      if (itineraryVersions.length > 0) {
+        const latest = itineraryVersions[0]
+        if (latest.content?.days && Array.isArray(latest.content.days)) {
+          dayByDay = latest.content.days.map(day => ({
+            date: day.date,
+            title: day.title || null,
+            blocks: (day.blocks || []).map(block => ({
+              timeRange: block.timeRange,
+              activity: block.title,
+              notes: block.description || null
+            }))
+          }))
+        }
+      }
+
+      // Decisions
+      const decisions = {
+        open: [],
+        closed: []
+      }
+      if (datesLocked && trip.lockedStartDate && trip.lockedEndDate) {
+        const s = new Date(trip.lockedStartDate + 'T12:00:00')
+        const e = new Date(trip.lockedEndDate + 'T12:00:00')
+        const summary = `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}–${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+        decisions.closed.push({
+          type: 'dates_locked',
+          summary,
+          decidedAt: trip.datesLockedAt || trip.updatedAt || null
+        })
+      }
+
+      // Packing reminders (group scope only)
+      const packingReminders = prepItems.map(item => ({
+        name: item.name || item.text || 'Unnamed item',
+        scope: 'group',
+        assignedTo: item.assignedTo || null
+      }))
+
+      // Expenses summary
+      let expensesSummary = null
+      const expenses = trip.expenses || []
+      if (expenses.length > 0) {
+        const totalCents = expenses.reduce((sum, e) => sum + (e.amountCents || 0), 0)
+        const currency = expenses[0]?.currency || trip.currency || 'USD'
+        expensesSummary = {
+          totalAmount: totalCents / 100,
+          currency,
+          itemCount: expenses.length
+        }
+      }
+
+      return handleCORS(NextResponse.json({
+        overview,
+        accommodation,
+        dayByDay,
+        decisions,
+        packingReminders,
+        expensesSummary
+      }))
     }
 
     // ============ NUDGE ROUTES ============
@@ -13118,6 +13343,55 @@ async function handleRoute(request, { params }) {
       )
 
       return handleCORS(NextResponse.json({ success: true }))
+    }
+
+    // ============ ICS EXPORT ============
+
+    // Export trip as ICS calendar file - GET /api/trips/:tripId/export/ics
+    if (route.match(/^\/trips\/[^/]+\/export\/ics$/) && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Must be an active traveler
+      const isActive = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isActive) {
+        return handleCORS(NextResponse.json({ error: 'Not an active traveler' }, { status: 403 }))
+      }
+
+      // Trip must have locked dates
+      if (!trip.lockedStartDate || !trip.lockedEndDate) {
+        return handleCORS(NextResponse.json(
+          { error: 'Trip dates must be locked before exporting' },
+          { status: 400 }
+        ))
+      }
+
+      // Fetch latest itinerary version (if any)
+      const itinerary = await db.collection('itinerary_versions')
+        .findOne({ tripId }, { sort: { version: -1 } })
+
+      const icsContent = generateICS(trip, itinerary)
+
+      // Slugify trip name for filename
+      const slug = (trip.name || 'trip').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+      const response = new Response(icsContent, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/calendar; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${slug}.ics"`,
+        },
+      })
+      return handleCORS(response)
     }
 
     // ============ DEV/SEEDING ROUTES ============

@@ -14,14 +14,25 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { Users, Sparkles, ChevronDown, Settings, FileText, LogOut } from 'lucide-react'
+import { Users, Sparkles, ChevronDown, Settings, FileText, LogOut, Bell } from 'lucide-react'
+
+interface Notification {
+  id: string
+  title: string
+  context: string
+  ctaLabel: string
+  href: string
+  priority: number
+  timestamp: string
+}
 
 interface AppHeaderProps {
   userName?: string | null
   activePage?: 'circles' | 'discover'
+  notifications?: Notification[]
 }
 
-export function AppHeader({ userName, activePage }: AppHeaderProps) {
+export function AppHeader({ userName, activePage, notifications = [] }: AppHeaderProps) {
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -97,8 +108,35 @@ export function AppHeader({ userName, activePage }: AppHeaderProps) {
               </nav>
             </div>
 
-            {/* Right: User dropdown */}
-            <div className="flex items-center shrink-0">
+            {/* Right: Notifications + User dropdown */}
+            <div className="flex items-center shrink-0 gap-1">
+              {/* Notification bell */}
+              {notifications.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="relative px-2 h-11 [&_svg]:size-auto">
+                      <Bell className="h-4 w-4 text-brand-carbon" aria-hidden="true" />
+                      <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-red text-[10px] font-semibold text-white px-1">
+                        {notifications.length}
+                      </span>
+                      <span className="sr-only">{notifications.length} notification{notifications.length !== 1 ? 's' : ''}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72">
+                    <div className="px-3 py-2">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Activity</span>
+                    </div>
+                    <DropdownMenuSeparator />
+                    {notifications.slice(0, 5).map((n) => (
+                      <DropdownMenuItem key={n.id} onClick={() => router.push(n.href)} className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
+                        <span className="text-sm font-medium text-brand-carbon leading-tight">{n.title}</span>
+                        <span className="text-xs text-gray-500 leading-tight">{n.context || n.ctaLabel}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {/* User menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-xs sm:text-sm gap-1 px-2 h-11">

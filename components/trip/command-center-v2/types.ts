@@ -8,6 +8,7 @@ export type OverlayType =
   | 'expenses'
   | 'memories'
   | 'member'
+  | 'brief'
   | null
 
 export type OverlayParams = { memberId?: string; [key: string]: any }
