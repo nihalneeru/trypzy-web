@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -196,6 +196,9 @@ export function DateWindowsFunnel({
   // Viewer participation check — disable interactions for non-travelers
   const isActiveParticipant = trip?.viewer?.isActiveParticipant !== false
 
+  // Ref for auto-scrolling when "Add dates" opens
+  const addWindowRef = useRef<HTMLDivElement>(null)
+
   // Confirmation dialogs
   const [showLockConfirm, setShowLockConfirm] = useState(false)
   const [pendingProposeWindowId, setPendingProposeWindowId] = useState<string | null>(null)
@@ -211,6 +214,17 @@ export function DateWindowsFunnel({
   const [concreteDatesStart, setConcreteDatesStart] = useState('')
   const [concreteDatesEnd, setConcreteDatesEnd] = useState('')
   const [pendingUnstructuredWindow, setPendingUnstructuredWindow] = useState<DateWindow | null>(null)
+
+  // Auto-scroll to the add-dates area when it opens
+  useEffect(() => {
+    if (showAddWindow && addWindowRef.current) {
+      // Small delay to let the collapsible content render
+      const timer = setTimeout(() => {
+        addWindowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [showAddWindow])
 
   // Fetch windows data
   const fetchWindows = useCallback(async () => {
@@ -534,19 +548,8 @@ export function DateWindowsFunnel({
 
   // Handle calendar date range selection
   const handleCalendarSelect = useCallback(({ startDate, endDate }: { startDate: string; endDate: string }) => {
-    // Format dates as human-readable text for the normalizer
-    const fmt = (d: string) => {
-      try {
-        return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        })
-      } catch {
-        return d
-      }
-    }
-    const text = startDate === endDate ? fmt(startDate) : `${fmt(startDate)} - ${fmt(endDate)}`
+    // Use ISO format (YYYY-MM-DD) which normalizeWindow handles natively
+    const text = startDate === endDate ? startDate : `${startDate} - ${endDate}`
     setNewDateText(text)
   }, [])
 
@@ -1332,7 +1335,7 @@ export function DateWindowsFunnel({
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-3">
-          <Card>
+          <Card ref={addWindowRef}>
             <CardContent className="pt-4 space-y-4">
               {/* Similarity nudge */}
               {showSimilarNudge && similarWindow && (
