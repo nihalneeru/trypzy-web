@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { CircleSection } from '@/components/dashboard/CircleSection'
+import { CircleOverview } from '@/components/dashboard/CircleOverview'
 import { CreateCircleDialog } from '@/components/dashboard/CreateCircleDialog'
 import { JoinCircleDialog } from '@/components/dashboard/JoinCircleDialog'
 import { CircleOnboardingInterstitial } from '@/components/dashboard/CircleOnboardingInterstitial'
@@ -273,6 +274,11 @@ export default function DashboardPage() {
               </Button>
             </div>
           </div>
+        )}
+
+        {/* Circle Overview — visual bubbles (only when 2+ circles) */}
+        {dashboardData.circles && dashboardData.circles.length >= 2 && (
+          <CircleOverview circles={dashboardData.circles} />
         )}
 
         {/* Circle Sections */}

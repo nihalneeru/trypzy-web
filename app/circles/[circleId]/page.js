@@ -6,7 +6,8 @@ import { TripCard } from '@/components/dashboard/TripCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, Users, MapPin, Camera, MessageCircle, ChevronLeft } from 'lucide-react'
+import { Plus, Users, MapPin, Camera, MessageCircle, ChevronLeft, ChevronDown, ChevronRight, Crown, CheckCircle2, XCircle } from 'lucide-react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { CircleDetailSkeleton } from '@/components/circles/CircleDetailSkeleton'
 import { AppHeader } from '@/components/common/AppHeader'
@@ -51,6 +52,13 @@ export default function CircleDetailPage() {
 
   // Trips tab: create trip dialog
   const [showCreateTrip, setShowCreateTrip] = useState(false)
+
+  // Trips tab: collapsible bucket state (matches dashboard CircleSection)
+  const [showLeading, setShowLeading] = useState(true)
+  const [showTraveler, setShowTraveler] = useState(true)
+  const [showCompleted, setShowCompleted] = useState(true)
+  const [showOther, setShowOther] = useState(false)
+  const [showCancelled, setShowCancelled] = useState(false)
 
   // Memories tab state
   const [posts, setPosts] = useState([])
@@ -186,6 +194,24 @@ export default function CircleDetailPage() {
   }
 
   const sortedTrips = Array.isArray(circle.trips) ? circle.trips : []
+  const cancelledTrips = Array.isArray(circle.cancelledTrips) ? circle.cancelledTrips : []
+
+  // Bucket trips same as dashboard CircleSection
+  const now = new Date()
+  const isTripCompleted = (trip) =>
+    trip.status === 'completed' || (trip.endDate && new Date(trip.endDate) < now)
+
+  const completedTrips = sortedTrips.filter((t) => isTripCompleted(t))
+  const leaderTrips = sortedTrips.filter(
+    (t) => !isTripCompleted(t) && t.createdBy === user?.id
+  )
+  const travelerTrips = sortedTrips.filter(
+    (t) => !isTripCompleted(t) && t.createdBy !== user?.id && t.isCurrentUserTraveler
+  )
+  const otherTrips = sortedTrips.filter(
+    (t) => !isTripCompleted(t) && t.createdBy !== user?.id && !t.isCurrentUserTraveler
+  )
+  const totalTrips = sortedTrips.length + cancelledTrips.length
 
   return (
     <div className="min-h-screen bg-gray-50" data-testid="circle-page">
@@ -252,7 +278,7 @@ export default function CircleDetailPage() {
           <TabsContent value="trips">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-brand-carbon">
-                Circle Trips ({sortedTrips.length})
+                Circle Trips ({totalTrips})
               </h2>
               <Button onClick={() => setShowCreateTrip(true)}>
                 <Plus className="h-4 w-4 mr-1" />
@@ -260,7 +286,7 @@ export default function CircleDetailPage() {
               </Button>
             </div>
 
-            {sortedTrips.length === 0 ? (
+            {totalTrips === 0 ? (
               <Card className="text-center py-12">
                 <CardContent>
                   <div className="flex justify-center gap-3 mb-4" aria-hidden="true">
@@ -281,10 +307,95 @@ export default function CircleDetailPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch">
-                {sortedTrips.map((trip) => (
-                  <TripCard key={trip.id} trip={trip} circleId={circle.id} />
-                ))}
+              <div className="space-y-6">
+                {/* Trips you are leading */}
+                {leaderTrips.length > 0 && (
+                  <Collapsible open={showLeading} onOpenChange={setShowLeading}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                      {showLeading ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      <Crown className="h-4 w-4 text-amber-500" aria-hidden="true" />
+                      <span className="font-semibold text-gray-600 uppercase tracking-wide">Trips you are leading ({leaderTrips.length})</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch mt-2">
+                        {leaderTrips.map((trip) => (
+                          <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Trips you are a traveler on */}
+                {travelerTrips.length > 0 && (
+                  <Collapsible open={showTraveler} onOpenChange={setShowTraveler}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                      {showTraveler ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      <Users className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                      <span className="font-semibold text-gray-600 uppercase tracking-wide">Trips you are a traveler on ({travelerTrips.length})</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch mt-2">
+                        {travelerTrips.map((trip) => (
+                          <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Completed trips */}
+                {completedTrips.length > 0 && (
+                  <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                      {showCompleted ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Completed ({completedTrips.length})</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch mt-2 opacity-60">
+                        {completedTrips.map((trip) => (
+                          <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Other trips in this circle */}
+                {otherTrips.length > 0 && (
+                  <Collapsible open={showOther} onOpenChange={setShowOther}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                      {showOther ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      <span>Other trips in this circle ({otherTrips.length})</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch mt-2">
+                        {otherTrips.map((trip) => (
+                          <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Canceled trips */}
+                {cancelledTrips.length > 0 && (
+                  <Collapsible open={showCancelled} onOpenChange={setShowCancelled}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                      {showCancelled ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      <XCircle className="h-4 w-4" />
+                      <span>Canceled ({cancelledTrips.length})</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch mt-2 opacity-60">
+                        {cancelledTrips.map((trip) => (
+                          <TripCard key={trip.id} trip={trip} circleId={circle.id} />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
               </div>
             )}
 
