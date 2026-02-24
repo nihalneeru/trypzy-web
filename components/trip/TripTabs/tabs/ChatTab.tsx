@@ -64,11 +64,8 @@ export function ChatTab({
   stage,
   setActiveTab,
   isReadOnly = false,
-  mode = 'legacy' as 'legacy' | 'command-center',
   onOpenOverlay
 }: any) {
-  // In command-center mode, chat is the primary surface (no card wrapper, no header)
-  const isCommandCenter = mode === 'command-center'
   // Check if user is trip leader
   const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
   
@@ -628,9 +625,8 @@ export function ChatTab({
     }
   }
 
-  // Show action card if there's a next action and it's not dismissed
-  // In command-center mode, hide ActionCard since V2 has its own CTA bar
-  const showActionCard = nextAction && !isDismissed && !isCommandCenter
+  // ActionCard hidden — Command Center V3 has its own CTA bar
+  const showActionCard = false
 
   // Log when action is shown
   useEffect(() => {
@@ -684,7 +680,7 @@ export function ChatTab({
   // Chat content (shared between legacy and command-center modes)
   const chatContent = (
     <>
-      <ScrollArea ref={scrollAreaRef} className={`flex-1 pr-4 ${isCommandCenter ? 'h-[300px] md:h-[400px]' : ''}`}>
+      <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0 pr-4">
           <div className="space-y-0 px-1">
             {/* Waiting on... clarity message (system style, at top) */}
             {blockingInfo && (blockingInfo.reasonCode !== 'initial_scheduling' || allowInitialBlocking) && (
@@ -1182,30 +1178,9 @@ export function ChatTab({
     </>
   )
 
-  // Command Center mode: no card wrapper, just the content
-  if (isCommandCenter) {
-    return (
-      <div className="flex flex-col h-full">
-        {chatContent}
-      </div>
-    )
-  }
-
-  // Legacy mode: full card wrapper with header
   return (
-    <Card className="h-[500px] flex flex-col">
-      <CardHeader>
-        <CardTitle className="text-lg">Trip Chat</CardTitle>
-        <CardDescription>
-          Decisions and updates for this trip. System updates appear here.
-          {countdownLabel && (
-            <span className="ml-2 text-gray-500">• {countdownLabel}</span>
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex-1 flex flex-col">
-        {chatContent}
-      </CardContent>
-    </Card>
+    <div className="flex flex-col h-full">
+      {chatContent}
+    </div>
   )
 }
