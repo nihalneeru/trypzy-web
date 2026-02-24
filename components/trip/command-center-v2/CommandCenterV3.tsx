@@ -497,7 +497,6 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               stage={currentStage}
               setActiveTab={() => {}}
               isReadOnly={isReadOnly}
-              mode="command-center"
               collapseSystemMessages={true}
               onOpenOverlay={openOverlay}
             />
