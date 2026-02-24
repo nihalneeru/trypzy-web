@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, Calendar, MapPin, Shield, UserPlus } from 'lucide-react'
+import { Users, Calendar, MapPin, Shield, UserPlus, ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
@@ -274,176 +274,176 @@ export default function MemberProfilePage() {
     return null
   }
   
+  // Generate a consistent gradient from the profile name
+  const nameHash = (profile?.name || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  const gradientAngle = nameHash % 360
+  const hue = nameHash % 360
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader userName={userName} />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Profile Header */}
-        <Card className="mb-6">
-          <CardContent className="py-6">
-            <div className="flex items-start gap-4">
-              <Avatar className="h-16 w-16">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Back button */}
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-brand-carbon mb-4 transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back
+        </button>
+
+        {/* Profile Header with gradient banner */}
+        <Card className="mb-6 overflow-hidden">
+          <div
+            className="h-20 sm:h-24"
+            style={{
+              background: `linear-gradient(${gradientAngle}deg, hsl(${hue}, 40%, 85%), hsl(${(hue + 60) % 360}, 35%, 80%))`
+            }}
+          />
+          <CardContent className="relative pt-0 pb-5 px-5">
+            <div className="flex items-end gap-4 -mt-8">
+              <Avatar className="h-16 w-16 ring-4 ring-white shadow-sm">
                 {profile.avatarUrl && (
                   <AvatarImage src={profile.avatarUrl} alt={profile.name} />
                 )}
-                <AvatarFallback className="text-lg">
+                <AvatarFallback className="text-lg bg-brand-blue text-white">
                   {getInitials(profile.name)}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-brand-carbon mb-2">{profile.name}</h1>
-                
-                {/* Shared Circles */}
-                {profile.sharedCircles && profile.sharedCircles.length > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap mb-3">
-                    <Users className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-600">Shared circles:</span>
-                    {profile.sharedCircles.map((circle) => (
-                        <Link
-                          key={circle.id}
-                          href={circlePageHref(circle.id)}
-                          prefetch={false}
-                        >
-                          <Badge
-                            variant="secondary"
-                            className="cursor-pointer hover:bg-secondary/80 transition-colors"
-                          >
-                            {circle.name}
-                          </Badge>
-                        </Link>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Privacy Summary */}
-                {profile.privacySummary && (
-                  <div className="text-xs text-gray-500">
-                    Trips visibility: {profile.privacySummary.tripsVisibility === 'public' ? 'Public' : 
-                                      profile.privacySummary.tripsVisibility === 'circle' ? 'Circle members only' : 
-                                      'Private'}
-                  </div>
-                )}
+              <div className="flex-1 pb-1">
+                <h1 className="text-xl font-bold text-brand-carbon">{profile.name}</h1>
               </div>
             </div>
-          </CardContent>
-        </Card>
-        
-        {/* Upcoming Trips Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Upcoming Trips
-            </CardTitle>
-            <CardDescription>
-              Trips this member is actively participating in
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loadingTrips ? (
-              <div className="text-center py-8">
-                <BrandedSpinner size="md" className="mx-auto mb-2" />
-                <p className="text-sm text-gray-600">Loading trips...</p>
-              </div>
-            ) : tripsError ? (
-              <div className="text-center py-8">
-                <Shield className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">{tripsError}</p>
-              </div>
-            ) : trips.length === 0 ? (
-              <div className="text-center py-8">
-                <MapPin className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">No upcoming trips</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {trips.map((trip) => {
-                  // Use viewerIsTraveler from trip data (computed server-side)
-                  const viewerIsTraveler = trip.viewerIsTraveler === true
-                  const requestStatus = joinRequestStatuses[trip.id] || 'none'
-                  
-                  // Only show "Request to join" if:
-                  // - Not viewing own profile
-                  // - Viewer is NOT already a traveler
-                  // - Privacy allows join requests
-                  // - No pending request exists (or request was rejected)
-                  const showJoinButton = !isViewingOwnProfile && 
-                                         !viewerIsTraveler &&
-                                         profile?.privacySummary?.allowTripJoinRequests !== false &&
-                                         (requestStatus === 'none' || requestStatus === 'rejected')
-                  const showPending = requestStatus === 'pending'
-                  const showRejected = requestStatus === 'rejected' && !showJoinButton
-                  const showOnTrip = isViewingOwnProfile || viewerIsTraveler
-                  
-                  // Privacy: Only make trip card clickable if viewer is a traveler
-                  const isClickable = showOnTrip
-                  
-                  return (
-                    <Card 
-                      key={trip.id}
-                      className={isClickable ? "cursor-pointer hover:shadow-md transition-shadow" : "cursor-default"}
-                      onClick={isClickable ? (e) => handleTripClick(trip, e) : undefined}
+
+            {/* Stats row */}
+            <div className="flex items-center gap-4 mt-4 text-sm text-gray-600">
+              {profile.sharedCircles && profile.sharedCircles.length > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-brand-blue" />
+                  {profile.sharedCircles.length} shared {profile.sharedCircles.length === 1 ? 'circle' : 'circles'}
+                </span>
+              )}
+              {trips.length > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-brand-blue" />
+                  {trips.length} shared {trips.length === 1 ? 'trip' : 'trips'}
+                </span>
+              )}
+            </div>
+
+            {/* Shared Circles badges */}
+            {profile.sharedCircles && profile.sharedCircles.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-3">
+                {profile.sharedCircles.map((circle) => (
+                  <Link
+                    key={circle.id}
+                    href={circlePageHref(circle.id)}
+                    prefetch={false}
+                  >
+                    <Badge
+                      variant="secondary"
+                      className="cursor-pointer hover:bg-secondary/80 transition-colors text-xs"
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-base mb-1">{trip.name}</h3>
-                            <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
-                              <span className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                {trip.activeTravelerCount} {trip.activeTravelerCount === 1 ? 'person' : 'people'}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {trip.circleName}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatDateRange(trip.startDate, trip.endDate)}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {showJoinButton && (
-                              <div className="join-button-container">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleRequestJoin(trip)
-                                  }}
-                                >
-                                  <UserPlus className="h-3 w-3 mr-1" />
-                                  Request to join
-                                </Button>
-                              </div>
-                            )}
-                            {showPending && (
-                              <Badge variant="secondary">Request pending</Badge>
-                            )}
-                            {showRejected && (
-                              <Badge variant="outline" className="text-gray-500">Request declined</Badge>
-                            )}
-                            {isViewingOwnProfile && (
-                              <Badge variant="default">On this trip</Badge>
-                            )}
-                            <Badge variant={trip.status === 'locked' ? 'default' : 'secondary'}>
-                              {trip.status === 'locked' ? 'Finalized' : 
-                               trip.status === 'voting' ? 'Voting' :
-                               trip.status === 'scheduling' ? 'Scheduling' :
-                               trip.status === 'proposed' ? 'Proposed' : trip.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+                      {circle.name}
+                    </Badge>
+                  </Link>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
+        
+        {/* Upcoming Trips Section */}
+        <div>
+          <h2 className="text-base font-semibold text-brand-carbon mb-3 flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-brand-blue" />
+            Upcoming Trips
+          </h2>
+          {loadingTrips ? (
+            <div className="text-center py-8">
+              <BrandedSpinner size="md" className="mx-auto mb-2" />
+              <p className="text-sm text-gray-600">Loading trips...</p>
+            </div>
+          ) : tripsError ? (
+            <div className="text-center py-8">
+              <Shield className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-600">{tripsError}</p>
+            </div>
+          ) : trips.length === 0 ? (
+            <div className="text-center py-10">
+              <div className="relative mx-auto mb-4 w-12 h-12">
+                <div className="absolute inset-0 rounded-full bg-brand-sand animate-pulse" />
+                <MapPin className="absolute inset-0 m-auto h-5 w-5 text-brand-carbon/40" />
+              </div>
+              <p className="text-sm text-gray-500">No trips on the horizon yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {trips.map((trip) => {
+                const viewerIsTraveler = trip.viewerIsTraveler === true
+                const requestStatus = joinRequestStatuses[trip.id] || 'none'
+                const showJoinButton = !isViewingOwnProfile &&
+                                       !viewerIsTraveler &&
+                                       profile?.privacySummary?.allowTripJoinRequests !== false &&
+                                       (requestStatus === 'none' || requestStatus === 'rejected')
+                const showPending = requestStatus === 'pending'
+                const showOnTrip = isViewingOwnProfile || viewerIsTraveler
+                const isClickable = showOnTrip
+
+                const statusLabel = trip.status === 'locked' ? 'Finalized' :
+                                    trip.status === 'voting' ? 'Voting' :
+                                    trip.status === 'scheduling' ? 'Scheduling' :
+                                    trip.status === 'proposed' ? 'Proposed' : trip.status
+                const statusColor = trip.status === 'locked'
+                  ? 'bg-brand-blue/10 text-brand-blue'
+                  : 'bg-gray-100 text-gray-600'
+
+                return (
+                  <div
+                    key={trip.id}
+                    className={`rounded-lg border bg-white p-3.5 transition-all ${isClickable ? 'cursor-pointer hover:shadow-sm hover:border-brand-blue/20' : ''}`}
+                    onClick={isClickable ? (e) => handleTripClick(trip, e) : undefined}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm text-brand-carbon mb-1 truncate">{trip.name}</h3>
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>{trip.activeTravelerCount} {trip.activeTravelerCount === 1 ? 'person' : 'people'}</span>
+                          <span className="text-gray-300">·</span>
+                          <span>{formatDateRange(trip.startDate, trip.endDate)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {showJoinButton && (
+                          <div className="join-button-container">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs px-2"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRequestJoin(trip)
+                              }}
+                            >
+                              <UserPlus className="h-3 w-3 mr-1" />
+                              Join
+                            </Button>
+                          </div>
+                        )}
+                        {showPending && (
+                          <span className="text-xs text-gray-500">Pending</span>
+                        )}
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor}`}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
         
         {/* Join Request Dialog */}
         <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>

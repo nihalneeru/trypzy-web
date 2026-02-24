@@ -281,6 +281,14 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
       .catch(() => {})
   }, [trip?.id, token])
 
+  // Quote-to-chat: close overlay and pre-fill chat input with quoted context
+  const handleQuoteToChat = useCallback((quote: string) => {
+    setActiveOverlay(null)
+    setOverlayParams({})
+    setHasUnsavedChanges(false)
+    setNewMessage(quote)
+  }, [setNewMessage])
+
   // Deep link: open overlay from ?overlay= URL param (push notification tap)
   const searchParams = useSearchParams()
   const deepLinkHandledRef = useRef(false)
@@ -540,6 +548,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
                 onRefresh={onRefresh}
                 onClose={closeOverlay}
                 setHasUnsavedChanges={setHasUnsavedChanges}
+                onQuoteToChat={handleQuoteToChat}
               />
             )}
           {activeOverlay === 'itinerary' && (
@@ -550,6 +559,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               onRefresh={onRefresh}
               onClose={closeOverlay}
               setHasUnsavedChanges={setHasUnsavedChanges}
+              onQuoteToChat={handleQuoteToChat}
             />
           )}
           {activeOverlay === 'accommodation' && (
@@ -561,6 +571,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               onClose={closeOverlay}
               setHasUnsavedChanges={setHasUnsavedChanges}
               onOpenOverlay={(overlay) => setActiveOverlay(overlay)}
+              onQuoteToChat={handleQuoteToChat}
             />
           )}
           {activeOverlay === 'prep' && (

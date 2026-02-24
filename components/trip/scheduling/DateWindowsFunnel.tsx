@@ -16,7 +16,8 @@ import {
   HelpCircle,
   Trash2,
   Sparkles,
-  Copy
+  Copy,
+  MessageCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/native/share'
@@ -107,6 +108,7 @@ interface DateWindowsFunnelProps {
   onRefresh: (updatedTrip?: any) => void
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
+  onQuoteToChat?: (quote: string) => void
 }
 
 // Format date for display
@@ -145,7 +147,8 @@ export function DateWindowsFunnel({
   travelers,
   onRefresh,
   onClose,
-  setHasUnsavedChanges
+  setHasUnsavedChanges,
+  onQuoteToChat
 }: DateWindowsFunnelProps) {
   // State
   const [loading, setLoading] = useState(true)
@@ -1557,6 +1560,30 @@ export function DateWindowsFunnel({
                             I can make this
                           </Button>
                         )
+                      )}
+
+                      {/* Discuss button — quote this window into chat */}
+                      {onQuoteToChat && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  const label = window.precision === 'unstructured'
+                                    ? window.sourceText
+                                    : `${formatDate(window.startDate)} – ${formatDate(window.endDate)}`
+                                  onQuoteToChat(`Re: ${label} — `)
+                                }}
+                                className="text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/5"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Discuss in chat</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
 
                       {/* Delete button (own windows only, collecting phase) */}
