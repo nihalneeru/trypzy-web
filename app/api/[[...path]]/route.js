@@ -4814,6 +4814,97 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // Create Stripe Checkout session for Trip Boost - POST /api/trips/:id/boost
+    if (route.match(/^\/trips\/[^/]+\/boost$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      if (trip.tripStatus === 'CANCELLED' || trip.status === 'canceled') {
+        return handleCORS(NextResponse.json({ error: 'This trip has been canceled' }, { status: 400 }))
+      }
+
+      if (trip.boostStatus === 'boosted') {
+        return handleCORS(NextResponse.json({ error: 'This trip is already boosted' }, { status: 400 }))
+      }
+
+      // Any active traveler can boost (not just leader)
+      const isTraveler = await isActiveTraveler(db, trip, auth.user.id)
+      if (!isTraveler) {
+        return handleCORS(NextResponse.json({ error: 'Only active travelers can boost a trip' }, { status: 403 }))
+      }
+
+      if (!process.env.STRIPE_SECRET_KEY) {
+        return handleCORS(NextResponse.json({ error: 'Payment system not configured' }, { status: 503 }))
+      }
+
+      try {
+        const Stripe = (await import('stripe')).default
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-12-18.acacia' })
+
+        const { ensureBoostIndexes } = await import('@/lib/server/ensureIndexes.js')
+        await ensureBoostIndexes()
+
+        const origin = request.headers.get('origin') || process.env.NEXTAUTH_URL || 'https://preview.tripti.ai'
+
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [{
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `Trip Boost — "${trip.name}"`,
+                description: 'Unlock decision deadlines, trip brief export, and Settle Up',
+              },
+              unit_amount: 499,
+            },
+            quantity: 1,
+          }],
+          mode: 'payment',
+          success_url: `${origin}/trips/${tripId}?boost=success`,
+          cancel_url: `${origin}/trips/${tripId}`,
+          metadata: {
+            tripId,
+            userId: auth.user.id,
+            circleId: trip.circleId,
+          },
+        })
+
+        const { v4: uuidv4 } = await import('uuid')
+        await db.collection('boost_purchases').insertOne({
+          id: uuidv4(),
+          tripId,
+          userId: auth.user.id,
+          amount: 499,
+          currency: 'usd',
+          stripeSessionId: session.id,
+          stripePaymentIntentId: null,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        })
+
+        // Emit non-critical analytics event
+        try {
+          const { emitBoostPurchaseInitiated } = await import('@/lib/events/instrumentation.js')
+          emitBoostPurchaseInitiated(tripId, trip.circleId, auth.user.id, trip.createdBy === auth.user.id ? 'leader' : 'traveler', new Date(trip.createdAt))
+        } catch (e) {
+          // Non-critical — don't fail the request
+        }
+
+        return handleCORS(NextResponse.json({ sessionUrl: session.url }))
+      } catch (err) {
+        console.error('[Boost] Stripe Checkout error:', err)
+        return handleCORS(NextResponse.json({ error: 'Could not create checkout session' }, { status: 500 }))
+      }
+    }
+
     // Lock dates from proposed window - POST /api/trips/:id/lock-proposed
     // Locks the currently proposed window (new funnel flow)
     if (route.match(/^\/trips\/[^/]+\/lock-proposed$/) && method === 'POST') {
