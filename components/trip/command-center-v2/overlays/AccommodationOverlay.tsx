@@ -30,7 +30,8 @@ import {
   MapPin,
   Calendar,
   Search,
-  Lightbulb
+  Lightbulb,
+  MessageCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
@@ -48,6 +49,7 @@ interface AccommodationOverlayProps {
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
   onOpenOverlay?: (overlay: string) => void
+  onQuoteToChat?: (quote: string) => void
 }
 
 interface AccommodationOption {
@@ -164,7 +166,8 @@ export function AccommodationOverlay({
   onRefresh,
   onClose,
   setHasUnsavedChanges,
-  onOpenOverlay
+  onOpenOverlay,
+  onQuoteToChat
 }: AccommodationOverlayProps) {
   // Data state
   const [accommodations, setAccommodations] = useState<AccommodationOption[]>([])
@@ -788,6 +791,19 @@ export function AccommodationOverlay({
                               ) : (
                                 <Trash2 className="h-4 w-4" />
                               )}
+                            </Button>
+                          )}
+
+                          {/* Discuss button — quote into chat */}
+                          {onQuoteToChat && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-gray-400 hover:text-brand-blue"
+                              onClick={() => onQuoteToChat(`Re: "${option.title}" — `)}
+                              title="Discuss in chat"
+                            >
+                              <MessageCircle className="h-4 w-4" />
                             </Button>
                           )}
                         </div>

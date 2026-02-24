@@ -55,6 +55,7 @@ interface ItineraryOverlayProps {
   onRefresh: (updatedTrip?: any) => void
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
+  onQuoteToChat?: (quote: string) => void
 }
 
 interface Idea {
@@ -301,7 +302,8 @@ export function ItineraryOverlay({
   user,
   onRefresh,
   onClose,
-  setHasUnsavedChanges
+  setHasUnsavedChanges,
+  onQuoteToChat
 }: ItineraryOverlayProps) {
   // ----------------------------------------------------------------------------
   // Ideas State
@@ -1106,6 +1108,17 @@ export function ItineraryOverlay({
                                     </p>
                                   )}
                                 </div>
+                                {onQuoteToChat && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-brand-blue"
+                                    onClick={() => onQuoteToChat(`Re: "${idea.text}" — `)}
+                                    title="Discuss in chat"
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
                               </div>
                             ))}
                           </div>
