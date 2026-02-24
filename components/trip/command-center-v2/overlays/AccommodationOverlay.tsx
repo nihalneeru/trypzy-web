@@ -312,20 +312,38 @@ export function AccommodationOverlay({
   const handleVote = async (optionId: string) => {
     if (voting || viewerIsReadOnly) return
 
-    setVoting(optionId)
-    try {
-      await api(`/trips/${trip.id}/accommodations/${optionId}/vote`, {
-        method: 'POST'
-      }, token)
+    // Snapshot current state
+    const prevAccommodations = accommodations
 
+    // Optimistically update UI
+    setAccommodations(prev => prev.map(a =>
+      a.id === optionId
+        ? {
+            ...a,
+            userVoted: true,
+            voteCount: (a.voteCount || 0) + 1,
+            voters: [...(a.voters || []), { id: user.id, name: user.name || user.userName || 'You' }]
+          }
+        : a
+    ))
+
+    // Double-click prevention: set voting, clear after 500ms
+    setVoting(optionId)
+    setTimeout(() => setVoting(null), 500)
+
+    // Fire API call non-blocking
+    api(`/trips/${trip.id}/accommodations/${optionId}/vote`, {
+      method: 'POST'
+    }, token).then(() => {
       toast.success('Vote saved')
-      await loadData()
+      // Background sync
+      loadData()
       onRefresh?.()
-    } catch (err: any) {
-      toast.error(err.message || 'Could not save vote — please try again')
-    } finally {
-      setVoting(null)
-    }
+    }).catch((err: any) => {
+      // Revert to snapshot
+      setAccommodations(prevAccommodations)
+      toast.error(err.message || "Couldn't save — tap to retry")
+    })
   }
 
   // Handle select (leader only)
@@ -741,8 +759,8 @@ export function AccommodationOverlay({
                             </Button>
                           )}
 
-                          {/* Select button (leader only, hidden after confirmed) */}
-                          {!isSelected && isTripLeader && !accommodationConfirmed && (
+                          {/* Select button (leader only, hidden after confirmed or read-only) */}
+                          {!isSelected && isTripLeader && !viewerIsReadOnly && !accommodationConfirmed && (
                             <Button
                               size="sm"
                               variant="default"

@@ -72,6 +72,13 @@
         --brand-blue: #00334D;
         --brand-carbon: #2E303B;
         --brand-sand: #F2EDDA;
+
+        /* Semantic status colors */
+        --color-success: var(--brand-blue);
+        --color-warning: var(--brand-red);
+        --color-info: var(--brand-sand);
+        --color-danger: #DC2626;
+
         --brand-text: #111111;
         --brand-bg: #FFFFFF;
         --brand-muted: #6B7280;
@@ -180,6 +187,36 @@
   .scrollbar-none {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+  }
+
+  /* Pip entrance animation for ResponsePips */
+  @keyframes pip-pop {
+    0% { transform: scale(0.6); }
+    70% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  .animate-pip-pop {
+    animation: pip-pop 200ms ease-out;
+    animation-fill-mode: both;
+  }
+
+  /* Ring burst animation for lock celebration */
+  @keyframes ring-burst {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+  .animate-ring-burst {
+    animation: ring-burst 400ms ease-out forwards;
+  }
+
+  /* Accent seal animation for lock card */
+  @keyframes accent-seal {
+    0% { background-color: var(--brand-red); }
+    50% { background-color: var(--brand-sand); }
+    100% { background-color: var(--brand-blue); }
+  }
+  .animate-accent-seal {
+    animation: accent-seal 800ms ease-in-out forwards;
   }
 
   /* Horizontal fade mask for scroll containers */

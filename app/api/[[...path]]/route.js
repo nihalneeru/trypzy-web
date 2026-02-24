@@ -1905,7 +1905,11 @@ async function handleRoute(request, { params }) {
             const formatWindowDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
             const leadingWindow = proposalResult.leadingWindow
             const leadingWindowText = leadingWindow
-              ? `${formatWindowDate(leadingWindow.startDate)} – ${formatWindowDate(leadingWindow.endDate)}`
+              ? (leadingWindow.precision === 'unstructured' && leadingWindow.sourceText
+                ? `"${leadingWindow.sourceText}"`
+                : leadingWindow.startDate && leadingWindow.endDate
+                  ? `${formatWindowDate(leadingWindow.startDate)} – ${formatWindowDate(leadingWindow.endDate)}`
+                  : leadingWindow.sourceText || null)
               : null
 
             schedulingSummary = {
@@ -1928,7 +1932,11 @@ async function handleRoute(request, { params }) {
               const userReaction = reactions.find(r => r.userId === auth.user.id)
 
               schedulingSummary.proposedWindowText = proposedWindow
-                ? `${formatWindowDate(proposedWindow.startDate)} – ${formatWindowDate(proposedWindow.endDate)}`
+                ? (proposedWindow.precision === 'unstructured' && proposedWindow.sourceText
+                  ? `"${proposedWindow.sourceText}"`
+                  : proposedWindow.startDate && proposedWindow.endDate
+                    ? `${formatWindowDate(proposedWindow.startDate)} – ${formatWindowDate(proposedWindow.endDate)}`
+                    : proposedWindow.sourceText || null)
                 : null
               schedulingSummary.approvalCount = approvals
               schedulingSummary.totalReactions = reactions.length

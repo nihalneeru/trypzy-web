@@ -127,7 +127,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
   const handleFinish = () => {
     onOpenChange(false)
     if (result?.trip?.id) {
-      router.push(tripHref(result.trip.id))
+      router.push(`${tripHref(result.trip.id)}?overlay=scheduling`)
     }
     if (onSuccess) {
       onSuccess()

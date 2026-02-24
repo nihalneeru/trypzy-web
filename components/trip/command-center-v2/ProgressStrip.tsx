@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useEffect } from 'react'
+import { useMemo, useRef, useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
@@ -43,12 +43,14 @@ function StripCircle({
   isActiveOverlay,
   isClickable,
   icon: Icon,
+  showRingBurst = false,
 }: {
   isCompleted: boolean
   isBlocker: boolean
   isActiveOverlay: boolean
   isClickable: boolean
   icon: React.ComponentType<{ className?: string }>
+  showRingBurst?: boolean
 }) {
   const getBgColor = () => {
     if (isActiveOverlay) return 'bg-brand-blue'
@@ -71,6 +73,11 @@ function StripCircle({
       )}
       style={{ width: 44, height: 44, minWidth: 44, minHeight: 44 }}
     >
+      {showRingBurst && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-8 h-8 rounded-full border-2 border-brand-blue animate-ring-burst" />
+        </div>
+      )}
       <div className={cn('w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200', getBgColor())}>
         <Icon className={cn('w-4 h-4', getIconColor())} />
       </div>
@@ -113,6 +120,26 @@ export function ProgressStrip({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const effectiveStart = lockedStartDate || startDate
   const effectiveEnd = lockedEndDate || endDate
+
+  // Detect datesLocked transition for ring burst celebration
+  const prevDatesLockedRef = useRef(progressSteps.datesLocked)
+  const [showLockBurst, setShowLockBurst] = useState(false)
+
+  useEffect(() => {
+    if (progressSteps.datesLocked && !prevDatesLockedRef.current) {
+      setShowLockBurst(true)
+      // Trigger haptic feedback on native (safe if Capacitor not available)
+      if (typeof window !== 'undefined' && (window as any).Capacitor) {
+        import(/* webpackIgnore: true */ '@capacitor/haptics')
+          .then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Medium }))
+          .catch(() => {})
+      }
+      // Clear after animation
+      const timer = setTimeout(() => setShowLockBurst(false), 500)
+      return () => clearTimeout(timer)
+    }
+    prevDatesLockedRef.current = progressSteps.datesLocked
+  }, [progressSteps.datesLocked])
 
   const dateDisplay = useMemo(() => {
     if (!effectiveStart || !effectiveEnd) return null
@@ -223,6 +250,7 @@ export function ProgressStrip({
                   isActiveOverlay={isActive}
                   isClickable={isClickable}
                   icon={step.icon}
+                  showRingBurst={step.key === 'datesLocked' && showLockBurst}
                 />
                 <span className={cn(
                   'text-[9px] md:text-[10px] font-medium leading-tight text-center whitespace-nowrap',

@@ -228,24 +228,28 @@ export function TripInfoOverlay({
   }, [isEditing, editForm, trip?.name, trip?.destinationHint, trip?.description, setHasUnsavedChanges])
 
   const handleSave = async () => {
-    if (!editForm.name.trim()) {
+    if (!isLocked && !editForm.name.trim()) {
       toast.error('Trip name is required')
       return
     }
 
     setSaving(true)
     try {
+      const body = isLocked
+        ? { destinationHint: editForm.destinationHint.trim() || null }
+        : {
+            name: editForm.name.trim(),
+            destinationHint: editForm.destinationHint.trim() || null,
+            description: editForm.description.trim() || null
+          }
+
       const response = await fetch(`/api/trips/${trip.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name: editForm.name.trim(),
-          destinationHint: editForm.destinationHint.trim() || null,
-          description: editForm.description.trim() || null
-        })
+        body: JSON.stringify(body)
       })
 
       if (!response.ok) {
@@ -282,7 +286,7 @@ export function TripInfoOverlay({
           {/* Header with edit button */}
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              {isEditing ? (
+              {isEditing && !isLocked ? (
                 <div className="space-y-2">
                   <Label htmlFor="trip-name">Trip Name</Label>
                   <Input
@@ -299,7 +303,7 @@ export function TripInfoOverlay({
                 </h3>
               )}
             </div>
-            {isLeader && !isEditing && (
+            {isLeader && !isEditing && !isLocked && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -329,6 +333,15 @@ export function TripInfoOverlay({
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <MapPin className="h-4 w-4" />
               <span>Destination</span>
+              {isLeader && isLocked && !isEditing && (
+                <button
+                  onClick={handleStartEdit}
+                  className="text-brand-blue hover:text-brand-blue/80"
+                  aria-label="Edit destination"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
             </div>
             {isEditing ? (
               <Input
@@ -346,7 +359,7 @@ export function TripInfoOverlay({
 
           {/* Description */}
           <div className="space-y-1">
-            {isEditing ? (
+            {isEditing && !isLocked ? (
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea
@@ -541,7 +554,7 @@ export function TripInfoOverlay({
       {/* Locked status note */}
       {isLocked && isLeader && (
         <p className="text-xs text-gray-500 text-center">
-          Trip name and description cannot be edited after dates are locked. Destination hint can still be updated.
+          Only the destination can be updated after dates are locked.
         </p>
       )}
 
