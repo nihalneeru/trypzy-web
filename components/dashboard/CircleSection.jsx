@@ -98,6 +98,15 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
         <CardContent className="min-w-0 w-full">
           {allTrips.length === 0 && cancelledTrips.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
+              <div className="flex justify-center gap-2 mb-4" aria-hidden="true">
+                {[0, 0.6, 1.2].map((delay, i) => (
+                  <div
+                    key={i}
+                    className="w-6 h-6 rounded-full bg-brand-sand animate-breathing-pulse"
+                    style={{ animationDelay: `${delay}s` }}
+                  />
+                ))}
+              </div>
               <p className="text-sm mb-4">No trips planned yet. Ready for an adventure?</p>
               <Button variant="outline" size="sm" onClick={() => setShowCreateTrip(true)}>
                 <Plus className="h-4 w-4 mr-2" aria-hidden="true" />

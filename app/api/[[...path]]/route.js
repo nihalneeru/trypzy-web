@@ -13228,6 +13228,26 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // Get global notifications (lightweight, powers AppHeader bell) - GET /api/notifications
+    if (route === '/notifications' && method === 'GET') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      try {
+        const { getGlobalNotifications } = await import('@/lib/notifications/getGlobalNotifications.js')
+        const notifications = await getGlobalNotifications(auth.user.id)
+        return handleCORS(NextResponse.json({ notifications }))
+      } catch (error) {
+        console.error('Notifications error:', error)
+        return handleCORS(NextResponse.json(
+          { error: 'Failed to fetch notifications', details: error.message },
+          { status: 500 }
+        ))
+      }
+    }
+
     // ============ PUSH NOTIFICATION ROUTES ============
 
     // Register push token - POST /api/push/register

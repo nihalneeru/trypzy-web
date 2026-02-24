@@ -219,6 +219,48 @@
     animation: accent-seal 800ms ease-in-out forwards;
   }
 
+  /* Vote tap micro-interaction (#308) */
+  .vote-tap {
+    @apply transition-transform duration-75;
+  }
+  .vote-tap:active {
+    transform: scale(0.95);
+  }
+  @keyframes fill-from-center {
+    0% { clip-path: circle(0% at 50% 50%); }
+    100% { clip-path: circle(100% at 50% 50%); }
+  }
+  .animate-fill-select {
+    animation: fill-from-center 200ms ease-out forwards;
+  }
+
+  /* Overlay spring slide-in (#295) */
+  @keyframes slide-in-right {
+    0% { transform: translateX(100%); opacity: 0; }
+    85% { transform: translateX(-8px); opacity: 1; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  .animate-slide-in-right {
+    animation: slide-in-right 300ms ease-out forwards;
+  }
+  @keyframes slide-in-bottom {
+    0% { transform: translateY(100%); opacity: 0; }
+    85% { transform: translateY(-6px); opacity: 1; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .animate-slide-in-bottom {
+    animation: slide-in-bottom 300ms ease-out forwards;
+  }
+
+  /* Breathing pulse for empty state circles (#300) */
+  @keyframes breathing-pulse {
+    0%, 100% { transform: scale(0.9); opacity: 0.6; }
+    50% { transform: scale(1); opacity: 1; }
+  }
+  .animate-breathing-pulse {
+    animation: breathing-pulse 2s ease-in-out infinite;
+  }
+
   /* Horizontal fade mask for scroll containers */
   .mask-gradient-x {
     mask-image: linear-gradient(

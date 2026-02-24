@@ -180,8 +180,8 @@ export function OverlayContainer({
           positionClass, 'z-50 bg-white shadow-2xl',
           'flex flex-col',
           isBottomSlide
-            ? 'rounded-t-xl overflow-hidden'
-            : 'rounded-lg overflow-hidden'
+            ? 'rounded-t-xl overflow-hidden animate-slide-in-bottom'
+            : 'rounded-lg overflow-hidden animate-slide-in-right'
         )}
         style={
           useAbsolutePosition && isBottomSlide

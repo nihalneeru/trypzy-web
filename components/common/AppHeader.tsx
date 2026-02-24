@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
@@ -32,9 +32,34 @@ interface AppHeaderProps {
   notifications?: Notification[]
 }
 
-export function AppHeader({ userName, activePage, notifications = [] }: AppHeaderProps) {
+export function AppHeader({ userName, activePage, notifications: externalNotifications }: AppHeaderProps) {
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
+  const [selfNotifications, setSelfNotifications] = useState<Notification[]>([])
+  const fetchedRef = useRef(false)
+
+  // Self-fetch notifications if not provided via prop
+  useEffect(() => {
+    if (externalNotifications && externalNotifications.length > 0) return
+    if (fetchedRef.current) return
+    fetchedRef.current = true
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('tripti_token') : null
+    if (!token) return
+
+    fetch('/api/notifications', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.notifications) setSelfNotifications(data.notifications)
+      })
+      .catch(() => {}) // silent — bell just won't show
+  }, [externalNotifications])
+
+  const notifications = (externalNotifications && externalNotifications.length > 0)
+    ? externalNotifications
+    : selfNotifications
 
   const handleLogout = async () => {
     setLoggingOut(true)

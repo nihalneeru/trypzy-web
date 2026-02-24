@@ -46,7 +46,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-// ConvergenceTimeline removed — not intuitive for small window counts
+import { ConvergenceTimeline } from './ConvergenceTimeline'
 
 interface DateWindow {
   id: string
@@ -943,6 +943,29 @@ export function DateWindowsFunnel({
           <p className="text-sm text-muted-foreground mt-2">
             These dates are final. Time to plan the itinerary!
           </p>
+          {trip.lockedStartDate && trip.lockedEndDate && (
+            <button
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md border border-green-300 text-green-700 hover:bg-green-100 text-sm font-medium transition-colors"
+              onClick={() => {
+                import('@/lib/trips/generateICS').then(({ generateICS }) => {
+                  const ics = generateICS(trip, null)
+                  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `${(trip.name || 'trip').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')}.ics`
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
+                  URL.revokeObjectURL(url)
+                  toast.success('Calendar file downloaded')
+                })
+              }}
+            >
+              <CalendarIcon className="h-4 w-4" />
+              Add to calendar
+            </button>
+          )}
         </div>
       </div>
     )
@@ -1394,6 +1417,14 @@ export function DateWindowsFunnel({
         <p className="text-sm text-center text-muted-foreground">
           You've added {maxWindows} dates. See one that works? Tap "I can make this".
         </p>
+      )}
+
+      {/* Convergence Timeline — shows per-day availability heat strip */}
+      {sortedWindows.length >= 2 && (
+        <ConvergenceTimeline
+          windows={sortedWindows}
+          totalTravelers={stats?.totalTravelers || 0}
+        />
       )}
 
       {/* Windows list */}

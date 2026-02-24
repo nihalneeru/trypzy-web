@@ -280,10 +280,19 @@ export default function DashboardPage() {
           isTripFirst ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" aria-hidden="true" />
-                <h2 className="text-lg font-medium text-brand-carbon mb-2">Plan your first trip</h2>
+                {/* Breathing pulse circles (#300) */}
+                <div className="flex justify-center gap-3 mb-6" aria-hidden="true">
+                  {[0, 0.6, 1.2].map((delay, i) => (
+                    <div
+                      key={i}
+                      className="w-10 h-10 rounded-full bg-brand-sand animate-breathing-pulse"
+                      style={{ animationDelay: `${delay}s` }}
+                    />
+                  ))}
+                </div>
+                <h2 className="text-lg font-medium text-brand-carbon mb-2">Your circles are quiet right now</h2>
                 <p className="text-gray-500 mb-2 max-w-md mx-auto">
-                  You've got something in mind — let's get it started.
+                  Start a trip and shake things up.
                 </p>
                 <p className="text-xs text-gray-500 mb-6 max-w-md mx-auto">
                   Your travelers will be saved as a group for future trips.

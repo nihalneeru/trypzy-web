@@ -42,6 +42,7 @@ function StripCircle({
   isBlocker,
   isActiveOverlay,
   isClickable,
+  isNextStep = false,
   icon: Icon,
   showRingBurst = false,
 }: {
@@ -49,6 +50,7 @@ function StripCircle({
   isBlocker: boolean
   isActiveOverlay: boolean
   isClickable: boolean
+  isNextStep?: boolean
   icon: React.ComponentType<{ className?: string }>
   showRingBurst?: boolean
 }) {
@@ -61,6 +63,7 @@ function StripCircle({
 
   const getIconColor = () => {
     if (isActiveOverlay || isBlocker || isCompleted) return 'text-white'
+    if (isNextStep) return 'text-brand-carbon/60'
     return 'text-gray-500'
   }
 
@@ -76,6 +79,11 @@ function StripCircle({
       {showRingBurst && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-8 h-8 rounded-full border-2 border-brand-blue animate-ring-burst" />
+        </div>
+      )}
+      {isNextStep && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-9 h-9 rounded-full border-2 border-dashed border-brand-sand" />
         </div>
       )}
       <div className={cn('w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200', getBgColor())}>
@@ -224,12 +232,15 @@ export function ProgressStrip({
       >
         {TRIP_PROGRESS_STEPS
           .filter(step => STAGE_STEP_KEYS.includes(step.key))
-          .map((step) => {
+          .map((step, idx, arr) => {
             const isCompleted = progressSteps[step.key]
             const isBlocker = step.key === blockerStageKey
             const overlayType = STEP_TO_OVERLAY[step.key]
             const isActive = overlayType !== null && activeOverlay === overlayType
             const isClickable = overlayType !== null
+
+            // Next step after blocker gets a dashed sand ring ("in motion")
+            const isNextStep = !isCompleted && !isBlocker && idx > 0 && arr[idx - 1].key === blockerStageKey
 
             const isCurrent = isBlocker || isActive
 
@@ -249,6 +260,7 @@ export function ProgressStrip({
                   isBlocker={isBlocker}
                   isActiveOverlay={isActive}
                   isClickable={isClickable}
+                  isNextStep={isNextStep}
                   icon={step.icon}
                   showRingBurst={step.key === 'datesLocked' && showLockBurst}
                 />

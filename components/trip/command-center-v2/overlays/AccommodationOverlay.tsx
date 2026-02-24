@@ -745,6 +745,7 @@ export function AccommodationOverlay({
                             <Button
                               size="sm"
                               variant="outline"
+                              className="vote-tap"
                               onClick={() => handleVote(option.id)}
                               disabled={voting === option.id}
                             >

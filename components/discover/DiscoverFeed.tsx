@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Sparkles, Globe, Search, Plus, Users, Compass, UserPlus
+  Sparkles, Globe, Search, Plus, Users, UserPlus
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -330,17 +330,6 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
                   onDelete={post.isAuthor ? handleDeletePost : undefined}
                   onEdit={post.isAuthor ? handleEditPost : undefined}
                 />
-                {/* CTA for posts without itinerary */}
-                {!post.hasItinerary && (
-                  <Button
-                    variant="outline"
-                    className="w-full mt-2"
-                    onClick={() => router.push('/dashboard')}
-                  >
-                    <Compass className="h-4 w-4 mr-2" />
-                    Create a similar trip
-                  </Button>
-                )}
                 {/* CTA for posts with itinerary */}
                 {post.hasItinerary && (
                   <Button
