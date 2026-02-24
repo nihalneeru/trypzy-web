@@ -46,7 +46,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-// ConvergenceTimeline removed — not intuitive for small window counts
+import { ConvergenceTimeline } from './ConvergenceTimeline'
 
 interface DateWindow {
   id: string
@@ -1394,6 +1394,14 @@ export function DateWindowsFunnel({
         <p className="text-sm text-center text-muted-foreground">
           You've added {maxWindows} dates. See one that works? Tap "I can make this".
         </p>
+      )}
+
+      {/* Convergence Timeline — shows per-day availability heat strip */}
+      {sortedWindows.length >= 2 && (
+        <ConvergenceTimeline
+          windows={sortedWindows}
+          totalTravelers={stats?.totalTravelers || 0}
+        />
       )}
 
       {/* Windows list */}
