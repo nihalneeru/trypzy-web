@@ -6630,6 +6630,70 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // Share brief link - POST /api/trips/:tripId/brief/share
+    // Leader-only: generate briefToken (UUID v4), reuse if exists
+    if (route.match(/^\/trips\/[^/]+\/brief\/share$/) && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Leader-only
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip leader can share the brief' },
+          { status: 403 }
+        ))
+      }
+
+      // Reuse existing token or generate a new one
+      const briefToken = trip.briefToken || uuidv4()
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: { briefToken, briefTokenCreatedAt: new Date(), updatedAt: new Date().toISOString() } }
+      )
+
+      return handleCORS(NextResponse.json({
+        briefToken,
+        briefUrl: '/t/' + briefToken
+      }))
+    }
+
+    // Revoke brief link - DELETE /api/trips/:tripId/brief/share
+    if (route.match(/^\/trips\/[^/]+\/brief\/share$/) && method === 'DELETE') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const tripId = path[1]
+      const trip = await db.collection('trips').findOne({ id: tripId })
+      if (!trip) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found' }, { status: 404 }))
+      }
+
+      // Leader-only
+      if (trip.createdBy !== auth.user.id) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the trip leader can revoke the brief link' },
+          { status: 403 }
+        ))
+      }
+
+      await db.collection('trips').updateOne(
+        { id: tripId },
+        { $set: { briefToken: null, briefTokenCreatedAt: null, updatedAt: new Date().toISOString() } }
+      )
+
+      return handleCORS(NextResponse.json({ success: true }))
+    }
+
     // ============ NUDGE ROUTES ============
 
     // Get nudges for trip - GET /api/trips/:tripId/nudges

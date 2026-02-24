@@ -11,7 +11,11 @@ import {
   ClipboardList,
   DollarSign,
   CheckCircle2,
-  Package
+  Package,
+  Link2,
+  Share2,
+  Copy,
+  Check
 } from 'lucide-react'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -107,6 +111,12 @@ export function BriefOverlay({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Share brief state
+  const [briefToken, setBriefToken] = useState<string | null>(trip?.briefToken || null)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const isLeader = trip?.createdBy === user?.id
+
   useEffect(() => {
     if (!trip?.id || !token) return
 
@@ -182,9 +192,133 @@ export function BriefOverlay({
 
   const { overview, accommodation, dayByDay, decisions, packingReminders, expensesSummary } = brief
 
+  async function handleShareBrief() {
+    if (!trip?.id || !token) return
+    setShareLoading(true)
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/brief/share`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error('Failed to share brief')
+      const data = await res.json()
+      setBriefToken(data.briefToken)
+      onRefresh?.({ ...trip, briefToken: data.briefToken })
+    } catch {
+      // silent — user can retry
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  async function handleRevokeBrief() {
+    if (!trip?.id || !token) return
+    setShareLoading(true)
+    try {
+      const res = await fetch(`/api/trips/${trip.id}/brief/share`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error('Failed to revoke brief')
+      setBriefToken(null)
+      setCopied(false)
+      onRefresh?.({ ...trip, briefToken: null })
+    } catch {
+      // silent
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  function handleCopyLink() {
+    if (!briefToken) return
+    const url = `${window.location.origin}/t/${briefToken}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  function handleNativeShare() {
+    if (!briefToken) return
+    const url = `${window.location.origin}/t/${briefToken}`
+    navigator.share?.({
+      title: `${overview?.name || trip?.name || 'Trip'} — Brief`,
+      text: 'Check out our trip brief on Tripti',
+      url
+    }).catch(() => {})
+  }
+
   return (
     <ScrollArea className="h-full">
       <div className="space-y-4 pb-6">
+
+        {/* Share Brief — leader only */}
+        {isLeader && (
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Link2 className="h-4 w-4 text-brand-blue shrink-0" />
+                <h3 className="text-sm font-semibold text-brand-carbon">Share Brief</h3>
+              </div>
+
+              {briefToken ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-600">
+                    Anyone with this link can view a read-only summary of your trip. No personal details are shared.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 rounded-md bg-gray-100 px-3 py-1.5 text-xs text-gray-600 truncate font-mono">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/t/${briefToken}` : `/t/${briefToken}`}
+                    </div>
+                    <button
+                      onClick={handleCopyLink}
+                      className="shrink-0 p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                      title="Copy link"
+                    >
+                      {copied ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4 text-gray-500" />
+                      )}
+                    </button>
+                    {typeof navigator !== 'undefined' && navigator.share && (
+                      <button
+                        onClick={handleNativeShare}
+                        className="shrink-0 p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                        title="Share"
+                      >
+                        <Share2 className="h-4 w-4 text-brand-blue" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleRevokeBrief}
+                    disabled={shareLoading}
+                    className="text-xs text-brand-red hover:underline disabled:opacity-50"
+                  >
+                    {shareLoading ? 'Revoking...' : 'Revoke link'}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-600">
+                    Create a shareable link so anyone can view a read-only summary of this trip.
+                  </p>
+                  <button
+                    onClick={handleShareBrief}
+                    disabled={shareLoading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand-blue text-white text-xs font-medium hover:bg-brand-blue/90 transition-colors disabled:opacity-50"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    {shareLoading ? 'Creating...' : 'Create shareable link'}
+                  </button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Overview Card */}
         <Card>
           <CardContent className="pt-4">
@@ -369,6 +503,124 @@ export function BriefOverlay({
             )}
           </CardContent>
         </Card>
+
+        {/* Share Brief Card — leader only */}
+        {isLeader && (
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Link2 className="h-4 w-4 text-brand-blue shrink-0" />
+                <h3 className="text-sm font-semibold text-brand-carbon">Share Brief</h3>
+              </div>
+
+              {briefToken ? (
+                <div className="space-y-3">
+                  {/* URL display */}
+                  <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                    <span className="text-xs text-gray-600 truncate flex-1 font-mono">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/t/${briefToken}` : `/t/${briefToken}`}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {/* Copy button */}
+                    <button
+                      onClick={async () => {
+                        const url = `${window.location.origin}/t/${briefToken}`
+                        try {
+                          await navigator.clipboard.writeText(url)
+                          setCopied(true)
+                          setTimeout(() => setCopied(false), 2000)
+                        } catch {
+                          // Fallback: select the text
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-xs font-medium text-brand-carbon hover:bg-gray-50 transition-colors"
+                    >
+                      {copied ? (
+                        <><Check className="h-3.5 w-3.5 text-green-600" /> Copied</>
+                      ) : (
+                        <><Copy className="h-3.5 w-3.5" /> Copy link</>
+                      )}
+                    </button>
+
+                    {/* Share via navigator.share */}
+                    {typeof navigator !== 'undefined' && 'share' in navigator && (
+                      <button
+                        onClick={() => {
+                          navigator.share({
+                            title: `Trip Brief: ${overview.name}`,
+                            url: `${window.location.origin}/t/${briefToken}`
+                          }).catch(() => {})
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-xs font-medium text-brand-carbon hover:bg-gray-50 transition-colors"
+                      >
+                        <Share2 className="h-3.5 w-3.5" /> Share
+                      </button>
+                    )}
+
+                    {/* Revoke */}
+                    <button
+                      disabled={shareLoading}
+                      onClick={async () => {
+                        setShareLoading(true)
+                        try {
+                          const res = await fetch(`/api/trips/${trip.id}/brief/share`, {
+                            method: 'DELETE',
+                            headers: { Authorization: `Bearer ${token}` }
+                          })
+                          if (res.ok) {
+                            setBriefToken(null)
+                          }
+                        } catch {
+                          // ignore
+                        } finally {
+                          setShareLoading(false)
+                        }
+                      }}
+                      className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-gray-400 hover:text-brand-red hover:bg-red-50 transition-colors disabled:opacity-50"
+                    >
+                      {shareLoading ? '...' : 'Revoke'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Share a read-only link to your trip brief with anyone.
+                  </p>
+                  <button
+                    disabled={shareLoading}
+                    onClick={async () => {
+                      setShareLoading(true)
+                      try {
+                        const res = await fetch(`/api/trips/${trip.id}/brief/share`, {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}` }
+                        })
+                        if (res.ok) {
+                          const data = await res.json()
+                          setBriefToken(data.briefToken)
+                        }
+                      } catch {
+                        // ignore
+                      } finally {
+                        setShareLoading(false)
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-blue text-white text-xs font-semibold hover:bg-brand-blue/90 transition-colors disabled:opacity-50"
+                  >
+                    {shareLoading ? (
+                      'Generating...'
+                    ) : (
+                      <><Link2 className="h-3.5 w-3.5" /> Share brief link</>
+                    )}
+                  </button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </ScrollArea>
   )
