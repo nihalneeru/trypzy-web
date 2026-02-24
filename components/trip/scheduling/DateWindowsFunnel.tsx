@@ -46,6 +46,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+// ConvergenceTimeline removed — not intuitive for small window counts
 
 interface DateWindow {
   id: string
@@ -544,53 +545,81 @@ export function DateWindowsFunnel({
 
   // Handle supporting a window
   const handleSupport = async (windowId: string) => {
-    try {
-      const response = await fetch(`/api/trips/${trip.id}/date-windows/${windowId}/support`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+    // Snapshot current state
+    const prevWindows = windows
+    const prevSupportedIds = userSupportedWindowIds
 
+    // Optimistically update UI
+    setUserSupportedWindowIds(prev => [...prev, windowId])
+    setWindows(prev => prev.map(w =>
+      w.id === windowId
+        ? { ...w, supportCount: w.supportCount + 1, supporterIds: [...w.supporterIds, user.id] }
+        : w
+    ))
+
+    // Close similarity nudge if supporting the similar window
+    if (windowId === similarWindowId) {
+      setShowSimilarNudge(false)
+      setSimilarWindowId(null)
+      setNewDateText('')
+      setPendingWindowText('')
+      setShowAddWindow(false)
+    }
+
+    // Fire API call non-blocking
+    fetch(`/api/trips/${trip.id}/date-windows/${windowId}/support`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.error || 'Failed to add support')
       }
-
-      // Close similarity nudge if supporting the similar window
-      if (windowId === similarWindowId) {
-        setShowSimilarNudge(false)
-        setSimilarWindowId(null)
-        setNewDateText('')
-        setPendingWindowText('')
-        setShowAddWindow(false)
-      }
-
-      await fetchWindows()
-    } catch (err: any) {
-      toast.error(err.message)
-    }
+      // Background sync
+      fetchWindows()
+    }).catch((err: any) => {
+      // Revert to snapshot
+      setWindows(prevWindows)
+      setUserSupportedWindowIds(prevSupportedIds)
+      toast.error(err.message || "Couldn't save — tap to retry")
+    })
   }
 
   // Handle removing support
   const handleRemoveSupport = async (windowId: string) => {
-    try {
-      const response = await fetch(`/api/trips/${trip.id}/date-windows/${windowId}/support`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+    // Snapshot current state
+    const prevWindows = windows
+    const prevSupportedIds = userSupportedWindowIds
 
+    // Optimistically update UI
+    setUserSupportedWindowIds(prev => prev.filter(id => id !== windowId))
+    setWindows(prev => prev.map(w =>
+      w.id === windowId
+        ? { ...w, supportCount: Math.max(0, w.supportCount - 1), supporterIds: w.supporterIds.filter(id => id !== user.id) }
+        : w
+    ))
+
+    // Fire API call non-blocking
+    fetch(`/api/trips/${trip.id}/date-windows/${windowId}/support`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.error || 'Failed to remove support')
       }
-
-      await fetchWindows()
-    } catch (err: any) {
-      toast.error(err.message)
-    }
+      // Background sync
+      fetchWindows()
+    }).catch((err: any) => {
+      // Revert to snapshot
+      setWindows(prevWindows)
+      setUserSupportedWindowIds(prevSupportedIds)
+      toast.error(err.message || "Couldn't save — tap to retry")
+    })
   }
 
   // Handle deleting own window
@@ -810,37 +839,72 @@ export function DateWindowsFunnel({
 
   // Handle reacting to proposed dates
   const handleReact = async (reactionType: 'WORKS' | 'CAVEAT' | 'CANT') => {
-    try {
-      setSubmitting(true)
-      const response = await fetch(`/api/trips/${trip.id}/proposed-window/react`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reactionType })
+    // Snapshot current state
+    const prevApprovalSummary = approvalSummary
+
+    // Optimistically update UI
+    if (approvalSummary) {
+      const prevReaction = approvalSummary.userReaction
+      const updated = { ...approvalSummary }
+
+      // Decrement previous reaction count if user already reacted
+      if (prevReaction === 'WORKS') updated.approvals = Math.max(0, updated.approvals - 1)
+      else if (prevReaction === 'CAVEAT') updated.caveats = Math.max(0, updated.caveats - 1)
+      else if (prevReaction === 'CANT') updated.cants = Math.max(0, updated.cants - 1)
+
+      // Increment new reaction count
+      if (reactionType === 'WORKS') updated.approvals += 1
+      else if (reactionType === 'CAVEAT') updated.caveats += 1
+      else if (reactionType === 'CANT') updated.cants += 1
+
+      // Adjust totalReactions if this is a new reaction (no previous)
+      if (!prevReaction) updated.totalReactions += 1
+
+      updated.userReaction = reactionType
+      updated.readyToLock = updated.approvals >= updated.requiredApprovals
+
+      // Update reactions list
+      const userName = user.name || user.userName || 'You'
+      updated.reactions = updated.reactions.filter((r: Reaction) => r.userId !== user.id)
+      updated.reactions.push({
+        userId: user.id,
+        userName,
+        reactionType,
+        createdAt: new Date().toISOString()
       })
 
+      setApprovalSummary(updated)
+    }
+
+    const labels: Record<string, string> = {
+      WORKS: 'Works for me',
+      CAVEAT: 'Maybe with conditions',
+      CANT: "Can't make it"
+    }
+    toast.success(labels[reactionType])
+
+    // Fire API call non-blocking
+    fetch(`/api/trips/${trip.id}/proposed-window/react`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ reactionType })
+    }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.error || 'Failed to submit reaction')
       }
-
-      const data = await response.json()
-      setApprovalSummary(data.approvalSummary)
-
-      const labels: Record<string, string> = {
-        WORKS: 'Works for me',
-        CAVEAT: 'Maybe with conditions',
-        CANT: "Can't make it"
-      }
-      toast.success(labels[reactionType])
-      await fetchWindows()
-    } catch (err: any) {
-      toast.error(err.message)
-    } finally {
+      // Background sync
+      fetchWindows()
+    }).catch((err: any) => {
+      // Revert to snapshot
+      setApprovalSummary(prevApprovalSummary)
+      toast.error(err.message || "Couldn't save — tap to retry")
+    }).finally(() => {
       setSubmitting(false)
-    }
+    })
   }
 
   // Loading state
@@ -927,7 +991,6 @@ export function DateWindowsFunnel({
                     size="sm"
                     variant={userReaction === 'WORKS' ? 'default' : 'outline'}
                     onClick={() => handleReact('WORKS')}
-                    disabled={submitting}
                     className={userReaction === 'WORKS' ? 'bg-green-600 hover:bg-green-700' : 'border-green-200 text-green-700 hover:bg-green-50'}
                   >
                     <ThumbsUp className="h-4 w-4 mr-1" />
@@ -944,7 +1007,6 @@ export function DateWindowsFunnel({
                     size="sm"
                     variant={userReaction === 'CAVEAT' ? 'default' : 'outline'}
                     onClick={() => handleReact('CAVEAT')}
-                    disabled={submitting}
                     className={userReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
                   >
                     <HelpCircle className="h-4 w-4 mr-1" />
@@ -961,7 +1023,6 @@ export function DateWindowsFunnel({
                     size="sm"
                     variant={userReaction === 'CANT' ? 'default' : 'outline'}
                     onClick={() => handleReact('CANT')}
-                    disabled={submitting}
                     className={userReaction === 'CANT' ? 'bg-brand-red hover:bg-brand-red/90' : 'border-brand-red/30 text-brand-red hover:bg-brand-red/5'}
                   >
                     <ThumbsDown className="h-4 w-4 mr-1" />
@@ -1428,29 +1489,6 @@ export function DateWindowsFunnel({
                         </TooltipProvider>
                       )}
 
-                      {/* Propose button (leader only) */}
-                      {isLeader && phase === 'COLLECTING' && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handlePropose(window.id, !proposalStatus?.proposalReady)}
-                                disabled={submitting}
-                                className="text-brand-red hover:text-brand-red hover:bg-brand-red/10"
-                              >
-                                {submitting ? 'Suggesting...' : 'Suggest to group'}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {proposalStatus?.proposalReady
-                                ? 'Suggest these dates and get reactions'
-                                : 'Suggest to group — some travelers haven\'t weighed in yet'}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1460,46 +1498,24 @@ export function DateWindowsFunnel({
         </div>
       )}
 
-      {/* Leader insight when threshold not yet met */}
+      {/* Leader insight (collapsed into propose section) */}
       {isLeader && !proposalStatus?.proposalReady && phase === 'COLLECTING' && windows.length > 0 && stats && (
         (() => {
           const responseRate = stats.totalTravelers > 0 ? stats.responderCount / stats.totalTravelers : 0
           const leadingWindow = proposalStatus?.leadingWindow
           const leaderCount = stats.leaderCount || 0
 
-          if (responseRate >= 0.8) {
-            return (
-              <Card className="border-brand-blue/30 bg-brand-blue/5">
-                <CardContent className="py-4">
-                  <p className="text-sm text-brand-carbon text-center">
-                    {stats.responderCount} of {stats.totalTravelers} travelers have weighed in.
-                    {leadingWindow && leaderCount > 0
-                      ? <> <strong>{formatWindowDisplay(leadingWindow)}</strong> leads with {leaderCount}.</>
-                      : null
-                    }
-                    {' '}You can suggest any option when ready.
-                  </p>
-                </CardContent>
-              </Card>
-            )
-          }
-
           if (responseRate >= 0.5) {
             return (
-              <Card className="border-brand-blue/20 bg-brand-blue/5">
-                <CardContent className="py-4">
-                  <p className="text-sm text-muted-foreground text-center">
-                    Over half the group has weighed in ({stats.responderCount} of {stats.totalTravelers}).
-                    {leadingWindow && leaderCount > 0
-                      ? <> <strong>{formatWindowDisplay(leadingWindow)}</strong> leads with {leaderCount} supporter{leaderCount !== 1 ? 's' : ''}.</>
-                      : null
-                    }
-                  </p>
-                </CardContent>
-              </Card>
+              <p className="text-xs text-brand-carbon/60 text-center">
+                {stats.responderCount} of {stats.totalTravelers} weighed in
+                {leadingWindow && leaderCount > 0
+                  ? <> · <strong>{formatWindowDisplay(leadingWindow)}</strong> leads ({leaderCount})</>
+                  : null
+                }
+              </p>
             )
           }
-
           return null
         })()
       )}
@@ -1667,44 +1683,54 @@ export function DateWindowsFunnel({
         })()
       )}
 
-      {/* Leader CTA when proposal ready */}
-      {isLeader && proposalStatus?.proposalReady && proposalStatus.leadingWindow && phase === 'COLLECTING' && (
-        <Card className="border-brand-red/30 bg-brand-red/5">
-          <CardContent className="py-4">
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-2">
-                {proposalStatus.stats.leaderCount} of {proposalStatus.stats.totalTravelers} travelers can make the leading option
-              </p>
-              <Button
-                onClick={() => handlePropose(proposalStatus.leadingWindow!.id, false)}
-                disabled={submitting}
-                className="bg-brand-red hover:bg-brand-red/90"
-              >
-                {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(proposalStatus.leadingWindow)}`}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Unified leader propose section */}
+      {isLeader && phase === 'COLLECTING' && sortedWindows.length > 0 && (
+        <Card className="border-brand-blue/20">
+          <CardContent className="py-4 space-y-3">
+            {proposalStatus?.proposalReady && proposalStatus.leadingWindow ? (
+              <>
+                <p className="text-sm text-muted-foreground text-center">
+                  {proposalStatus.stats.leaderCount} of {proposalStatus.stats.totalTravelers} can make the leading option
+                </p>
+                <Button
+                  onClick={() => handlePropose(proposalStatus.leadingWindow!.id, false)}
+                  disabled={submitting}
+                  className="w-full bg-brand-red hover:bg-brand-red/90"
+                >
+                  {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(proposalStatus.leadingWindow)}`}
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-brand-carbon text-center">
+                  Pick a window to propose
+                </p>
+                <div className="space-y-1.5">
+                  {sortedWindows.map((w) => (
+                    <button
+                      key={w.id}
+                      onClick={() => handlePropose(w.id, !proposalStatus?.proposalReady)}
+                      disabled={submitting}
+                      className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-brand-red/40 hover:bg-brand-red/5 transition-colors text-sm flex items-center justify-between disabled:opacity-50"
+                    >
+                      <span className="text-brand-carbon">{formatWindowDisplay(w)}</span>
+                      <span className="text-xs text-muted-foreground">{w.supportCount} supporters</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
-      {/* Leader: Propose custom dates (not in the pool) */}
-      {isLeader && phase === 'COLLECTING' && (
-        <Collapsible open={showCustomProposal} onOpenChange={setShowCustomProposal}>
-          <CollapsibleTrigger asChild>
-            <Button
-              variant="outline"
-              className="w-full justify-between border-brand-blue/30 text-brand-blue hover:bg-brand-blue/5"
-            >
-              <span className="flex items-center">
-                <CalendarIcon className="h-4 w-4 mr-2" />
-                Propose different dates
-              </span>
-              {showCustomProposal ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-3">
-            <Card className="border-brand-blue/20">
-              <CardContent className="pt-4 space-y-4">
+            {/* Secondary: propose custom dates */}
+            {!showCustomProposal ? (
+              <button
+                onClick={() => setShowCustomProposal(true)}
+                className="w-full text-center text-xs text-brand-blue hover:underline"
+              >
+                Propose custom dates
+              </button>
+            ) : (
+              <div className="space-y-3 pt-2 border-t">
                 <p className="text-xs text-muted-foreground">
                   Propose dates that nobody has suggested yet.
                 </p>
@@ -1739,10 +1765,10 @@ export function DateWindowsFunnel({
                 >
                   {submitting ? 'Proposing...' : 'Propose these dates'}
                 </Button>
-              </CardContent>
-            </Card>
-          </CollapsibleContent>
-        </Collapsible>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Concrete dates dialog (for unstructured windows) */}

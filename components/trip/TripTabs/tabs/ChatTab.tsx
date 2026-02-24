@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
-import { MessageCircle, Send, X, Lock } from 'lucide-react'
+import { MessageCircle, Send, X, Lock, ShieldCheck } from 'lucide-react'
 import { ActionCard } from '@/components/trip/chat/ActionCard'
 import { ChatBottomCTA } from '@/components/trip/chat/ChatBottomCTA'
 import { toast } from 'sonner'
@@ -64,7 +64,8 @@ export function ChatTab({
   stage,
   setActiveTab,
   isReadOnly = false,
-  mode = 'legacy' as 'legacy' | 'command-center'
+  mode = 'legacy' as 'legacy' | 'command-center',
+  onOpenOverlay
 }: any) {
   // In command-center mode, chat is the primary surface (no card wrapper, no header)
   const isCommandCenter = mode === 'command-center'
@@ -801,11 +802,33 @@ export function ChatTab({
 
                     <div className={`flex flex-col ${isSameGroup ? 'mt-0.5' : 'mt-3'} ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
                       {msg.isSystem ? (
-                        // System messages — unchanged
+                        // System messages
                         <div className="flex justify-center">
-                          {msg.subtype === 'nudge' || msg.metadata?.source === 'nudge_engine' ? (
+                          {msg.metadata?.key === 'dates_locked' ? (
+                            // Lock celebration echo
+                            <div className="bg-brand-sand rounded-lg px-4 py-3 text-sm text-brand-carbon max-w-[85%]">
+                              <div className="flex items-start gap-2">
+                                <ShieldCheck className="h-4 w-4 text-brand-blue mt-0.5 shrink-0" />
+                                <div>
+                                  <p>{msg.content}</p>
+                                  {onOpenOverlay && (
+                                    <button
+                                      onClick={() => onOpenOverlay('itinerary')}
+                                      className="text-xs font-medium text-brand-blue hover:underline mt-1 inline-block"
+                                    >
+                                      Next: plan itinerary &rarr;
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ) : msg.subtype === 'nudge' || msg.metadata?.source === 'nudge_engine' ? (
+                            // Nudge messages with Planner Shield identity
                             <div className="bg-brand-sand/60 border border-brand-sand rounded-lg px-4 py-2 text-sm text-brand-carbon max-w-[85%]">
-                              {msg.content}
+                              <div className="flex items-start gap-2">
+                                <ShieldCheck className="h-4 w-4 text-brand-blue mt-0.5 shrink-0" />
+                                <span>{msg.content}</span>
+                              </div>
                             </div>
                           ) : (
                             <div

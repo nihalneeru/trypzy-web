@@ -29,6 +29,12 @@ module.exports = {
     				carbon: 'var(--brand-carbon)',
     				sand: 'var(--brand-sand)',
     			},
+    			status: {
+    				success: 'var(--color-success)',
+    				warning: 'var(--color-warning)',
+    				info: 'var(--color-info)',
+    				danger: 'var(--color-danger)',
+    			},
     			border: 'hsl(var(--border))',
     			input: 'hsl(var(--input))',
     			ring: 'hsl(var(--ring))',

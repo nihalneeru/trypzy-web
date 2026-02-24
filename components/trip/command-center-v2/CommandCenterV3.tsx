@@ -281,11 +281,6 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
       .catch(() => {})
   }, [trip?.id, token])
 
-  // Status summary for TripStatusCard
-  const statusSummary = useMemo(() => {
-    return computeTripStatusSummary(trip, travelers, sinceLastVisit, user?.id)
-  }, [trip, travelers, sinceLastVisit, user?.id])
-
   // Deep link: open overlay from ?overlay= URL param (push notification tap)
   const searchParams = useSearchParams()
   const deepLinkHandledRef = useRef(false)
@@ -295,7 +290,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
     if (!overlayParam) return
     const VALID_OVERLAYS: OverlayType[] = [
       'proposed', 'scheduling', 'itinerary', 'accommodation',
-      'travelers', 'prep', 'expenses', 'memories'
+      'travelers', 'prep', 'expenses', 'memories', 'brief'
     ]
     if (VALID_OVERLAYS.includes(overlayParam as OverlayType)) {
       deepLinkHandledRef.current = true
@@ -330,6 +325,11 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
         status: p.status || 'active'
       }))
   }, [trip?.participantsWithStatus, trip?.travelers])
+
+  // Status summary for TripStatusCard
+  const statusSummary = useMemo(() => {
+    return computeTripStatusSummary(trip, travelers, sinceLastVisit, user?.id)
+  }, [trip, travelers, sinceLastVisit, user?.id])
 
   // Participation meter for ProgressStrip
   const participationMeter = useMemo(() => {
@@ -499,6 +499,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               isReadOnly={isReadOnly}
               mode="command-center"
               collapseSystemMessages={true}
+              onOpenOverlay={openOverlay}
             />
           </div>
 
