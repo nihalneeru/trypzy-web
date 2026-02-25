@@ -116,7 +116,7 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
                   variant={activePage === 'circles' ? 'secondary' : 'ghost'}
                   size="sm"
                   className="text-xs sm:text-sm px-1.5 sm:px-2 h-7 sm:h-8"
-                  onClick={() => router.push('/dashboard')}
+                  onClick={() => router.push('/circles')}
                 >
                   <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1" aria-hidden="true" />
                   Circles
