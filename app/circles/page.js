@@ -59,7 +59,6 @@ export default function CirclesPage() {
 
     const loadData = async () => {
       try {
-        // Get token from localStorage or session
         let tokenValue = localStorage.getItem('tripti_token')
 
         if (!tokenValue && status === 'authenticated' && session?.accessToken) {
@@ -90,8 +89,6 @@ export default function CirclesPage() {
       }
     }
 
-    // If we have a localStorage token, load immediately.
-    // Only wait for useSession when no localStorage token.
     const hasLocalToken = typeof window !== 'undefined' && localStorage.getItem('tripti_token')
     if (hasLocalToken || status !== 'loading') {
       loadData()
@@ -109,7 +106,7 @@ export default function CirclesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-brand-sand/20">
         <AppHeader activePage="circles" />
         <div className="flex items-center justify-center py-20">
           <BrandedSpinner size="lg" />
@@ -119,7 +116,7 @@ export default function CirclesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-brand-sand/20">
       <AppHeader userName={user?.name} activePage="circles" />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
@@ -130,7 +127,7 @@ export default function CirclesPage() {
             variant="outline"
             size="sm"
             onClick={() => setShowJoinCircle(true)}
-            className="text-sm"
+            className="text-sm bg-white"
           >
             <Plus className="h-4 w-4 mr-1" />
             Join a circle
@@ -152,10 +149,15 @@ export default function CirclesPage() {
           </div>
         ) : (
           <div className="text-center py-16">
-            <div className="h-16 w-16 rounded-full bg-brand-sand flex items-center justify-center mx-auto mb-4">
-              <Users className="h-8 w-8 text-brand-blue" />
+            {/* Decorative circle illustration */}
+            <div className="relative w-24 h-24 mx-auto mb-6">
+              <div className="absolute inset-0 rounded-full border-2 border-dashed border-brand-sand animate-[spin_20s_linear_infinite]" />
+              <div className="absolute inset-3 rounded-full border-2 border-dashed border-brand-sand/60 animate-[spin_15s_linear_infinite_reverse]" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Users className="h-8 w-8 text-brand-blue" />
+              </div>
             </div>
-            <h2 className="text-lg font-semibold text-brand-carbon mb-2">No circles yet</h2>
+            <h2 className="text-lg font-semibold text-brand-carbon mb-2">Your circles are where trips begin</h2>
             <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
               Circles are your friend groups. Create a trip to start a circle, or join one with an invite code.
             </p>
@@ -169,6 +171,7 @@ export default function CirclesPage() {
               <Button
                 variant="outline"
                 onClick={() => setShowJoinCircle(true)}
+                className="bg-white"
               >
                 Join a circle
               </Button>

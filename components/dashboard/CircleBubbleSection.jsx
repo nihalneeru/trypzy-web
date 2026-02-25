@@ -2,13 +2,11 @@
 
 import { useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import { CreateTripDialog } from './CreateTripDialog'
 import { Plus, ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { tripHref, circlePageHref } from '@/lib/navigation/routes'
 import { formatTripDateRange } from '@/lib/utils'
-import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 
 function getInitials(name) {
   if (!name) return '?'
@@ -17,11 +15,35 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+/**
+ * Arrange avatars in a circular/arc pattern using absolute positioning.
+ * Returns an array of { x, y } offsets (percentage-based) for each avatar.
+ */
+function getAvatarRingPositions(count, maxVisible = 6) {
+  const n = Math.min(count, maxVisible)
+  if (n <= 0) return []
+  // For 1-2 members, just center them
+  if (n === 1) return [{ x: 50, y: 50 }]
+  if (n === 2) return [{ x: 32, y: 50 }, { x: 68, y: 50 }]
+
+  const positions = []
+  // Start from top (-90deg) and distribute evenly
+  for (let i = 0; i < n; i++) {
+    const angle = (-90 + (360 / n) * i) * (Math.PI / 180)
+    const radius = 38 // percentage from center
+    positions.push({
+      x: 50 + radius * Math.cos(angle),
+      y: 50 + radius * Math.sin(angle),
+    })
+  }
+  return positions
+}
+
 function TripChip({ trip }) {
   const actionRequired = trip.actionRequired === true
   const pendingActions = trip.pendingActions || []
 
-  let ctaLabel = 'View trip'
+  let ctaLabel = 'View'
   if (actionRequired) {
     const requiredAction = pendingActions.find(action => {
       if (trip.status === 'proposed' || trip.status === 'scheduling') {
@@ -35,9 +57,9 @@ function TripChip({ trip }) {
     if (requiredAction) {
       ctaLabel = requiredAction.label
     } else if (trip.status === 'proposed' || trip.status === 'scheduling') {
-      ctaLabel = trip.schedulingMode === 'top3_heatmap' ? 'Pick your dates' : 'Add your dates'
+      ctaLabel = 'Add dates'
     } else if (trip.status === 'voting') {
-      ctaLabel = 'Vote on dates'
+      ctaLabel = 'Vote'
     }
   }
 
@@ -51,8 +73,6 @@ function TripChip({ trip }) {
     return (Date.now() - new Date(ts).getTime()) > 7 * 24 * 60 * 60 * 1000
   })()
 
-  // Active pulse: activity within last 24 hours
-  // Only show on active trips — completed/canceled trips don't need attention
   const hasRecentActivity = (() => {
     if (trip.status === 'completed' || trip.status === 'canceled') return false
     const ts = trip.latestActivity?.createdAt
@@ -63,10 +83,13 @@ function TripChip({ trip }) {
   return (
     <Link
       href={tripHref(trip.id)}
-      className={`block rounded-xl bg-white shadow-sm p-3 hover:shadow-md transition-shadow ${isStalled ? 'opacity-60' : ''}`}
+      className={`block rounded-xl bg-white shadow-sm px-3 py-2.5 hover:shadow-md transition-shadow ${isStalled ? 'opacity-60' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-sm text-brand-carbon truncate flex items-center gap-1.5">
+        <span className="font-medium text-sm text-brand-carbon truncate flex items-center gap-1.5">
+          {actionRequired && (
+            <span className="inline-block w-2 h-2 rounded-full bg-brand-red flex-shrink-0" />
+          )}
           {trip.name}
           {hasRecentActivity && (
             <span className="relative flex h-2 w-2 shrink-0">
@@ -79,20 +102,10 @@ function TripChip({ trip }) {
           {dateText}
         </span>
       </div>
-      <div className="flex items-center justify-between gap-2 mt-1.5">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {actionRequired && (
-            <>
-              <span className="inline-block w-2 h-2 rounded-full bg-brand-red flex-shrink-0" />
-              <span className="text-xs text-brand-red font-medium truncate">Waiting on you</span>
-            </>
-          )}
-          {!actionRequired && (
-            <span className="text-xs text-gray-400 truncate">
-              {trip.travelerCount} {trip.travelerCount === 1 ? 'traveler' : 'travelers'}
-            </span>
-          )}
-        </div>
+      <div className="flex items-center justify-between gap-2 mt-1">
+        <span className="text-xs text-gray-500 truncate">
+          {actionRequired ? 'Waiting on you' : `${trip.travelerCount} ${trip.travelerCount === 1 ? 'traveler' : 'travelers'}`}
+        </span>
         <span className={`text-xs font-medium whitespace-nowrap ${actionRequired ? 'text-brand-red' : 'text-brand-blue'}`}>
           {ctaLabel} →
         </span>
@@ -125,81 +138,128 @@ export function CircleBubbleSection({ circle, token, currentUserId, onTripCreate
   })
 
   const archivedCount = completedTrips.length + cancelledTrips.length
+  const visibleTrips = sortedActive.slice(0, 3)
+  const overflowCount = sortedActive.length - visibleTrips.length
+
+  // Avatar ring layout
+  const maxRingAvatars = 6
+  const ringMembers = preview.slice(0, maxRingAvatars)
+  const ringPositions = getAvatarRingPositions(ringMembers.length, maxRingAvatars)
+  const hasOverflow = memberCount > maxRingAvatars
 
   return (
     <>
-      <div className="rounded-[2.5rem] bg-brand-sand/20 border-2 border-brand-sand/60 p-6 w-full max-w-[420px]">
-        <div className="text-center mb-4">
-          <Link
-            href={circlePageHref(circle.id)}
-            className="text-lg font-bold text-brand-carbon hover:text-brand-blue transition-colors"
-          >
-            {circle.name}
-          </Link>
-          <div className="flex items-center justify-center gap-1 mt-2">
-            {preview.slice(0, 4).map((member, i) => (
-              <Avatar key={i} className="h-6 w-6 ring-1 ring-white">
-                {member.image && <AvatarImage src={member.image} alt={member.name} />}
-                <AvatarFallback className="text-[8px] bg-brand-blue text-white font-medium">
-                  {getInitials(member.name)}
-                </AvatarFallback>
-              </Avatar>
-            ))}
-            {memberCount > 4 && (
-              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-blue text-[8px] font-bold text-white ring-1 ring-white">
-                +{memberCount - 4}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-400 mt-1">
-            {memberCount} {memberCount === 1 ? 'member' : 'members'}
-          </p>
-        </div>
-
-        {sortedActive.length === 0 && archivedCount === 0 ? (
-          <div className="text-center py-4">
-            <p className="text-sm text-gray-400">No trips yet</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {sortedActive.map((trip) => (
-              <TripChip key={trip.id} trip={trip} />
-            ))}
-          </div>
-        )}
-
-        {archivedCount > 0 && (
-          <div className="mt-3">
-            <button
-              onClick={() => setShowArchived(!showArchived)}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mx-auto"
-            >
-              {showArchived ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-              <span>{archivedCount} {archivedCount === 1 ? 'past trip' : 'past trips'}</span>
-            </button>
-            {showArchived && (
-              <div className="space-y-2 mt-2 opacity-50">
-                {completedTrips.map((trip) => (
-                  <TripChip key={trip.id} trip={trip} />
-                ))}
-                {cancelledTrips.map((trip) => (
-                  <TripChip key={trip.id} trip={trip} />
-                ))}
+      <div className="rounded-3xl bg-white shadow-sm border border-brand-sand/60 w-full max-w-[460px] overflow-hidden">
+        {/* Avatar ring hero */}
+        <div className="bg-brand-sand/30 pt-6 pb-4 px-6">
+          <div className="relative w-28 h-28 mx-auto mb-3">
+            {ringMembers.map((member, i) => {
+              const pos = ringPositions[i]
+              return (
+                <div
+                  key={i}
+                  className="absolute"
+                  style={{
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                >
+                  <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+                    {member.image && <AvatarImage src={member.image} alt={member.name} />}
+                    <AvatarFallback className="text-xs bg-brand-blue text-white font-medium">
+                      {getInitials(member.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              )
+            })}
+            {hasOverflow && (
+              <div
+                className="absolute"
+                style={{
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <span className="flex items-center justify-center h-8 w-8 rounded-full bg-brand-sand text-xs font-bold text-brand-carbon ring-2 ring-white shadow-sm">
+                  +{memberCount - maxRingAvatars}
+                </span>
               </div>
             )}
           </div>
-        )}
 
-        <div className="text-center mt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowCreateTrip(true)}
-            className="text-brand-blue hover:text-brand-blue/80 hover:bg-brand-sand/40"
+          <Link
+            href={circlePageHref(circle.id)}
+            className="block text-center"
           >
-            <Plus className="h-4 w-4 mr-1" />
-            Plan a trip
-          </Button>
+            <h3 className="text-lg font-bold text-brand-carbon hover:text-brand-blue transition-colors">
+              {circle.name}
+            </h3>
+          </Link>
+          <p className="text-xs text-gray-500 text-center mt-0.5">
+            {memberCount} {memberCount === 1 ? 'member' : 'members'}
+            {sortedActive.length > 0 && (
+              <> · {sortedActive.length} active {sortedActive.length === 1 ? 'trip' : 'trips'}</>
+            )}
+          </p>
+        </div>
+
+        {/* Trip list */}
+        <div className="px-4 py-4">
+          {visibleTrips.length === 0 && archivedCount === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-2">No trips yet</p>
+          ) : (
+            <div className="space-y-2">
+              {visibleTrips.map((trip) => (
+                <TripChip key={trip.id} trip={trip} />
+              ))}
+            </div>
+          )}
+
+          {overflowCount > 0 && (
+            <Link
+              href={circlePageHref(circle.id)}
+              className="block text-center text-xs text-brand-blue hover:underline mt-2"
+            >
+              +{overflowCount} more {overflowCount === 1 ? 'trip' : 'trips'}
+            </Link>
+          )}
+
+          {/* Archived toggle */}
+          {archivedCount > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <button
+                onClick={() => setShowArchived(!showArchived)}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mx-auto"
+              >
+                {showArchived ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                <span>{archivedCount} past {archivedCount === 1 ? 'trip' : 'trips'}</span>
+              </button>
+              {showArchived && (
+                <div className="space-y-2 mt-2 opacity-50">
+                  {completedTrips.map((trip) => (
+                    <TripChip key={trip.id} trip={trip} />
+                  ))}
+                  {cancelledTrips.map((trip) => (
+                    <TripChip key={trip.id} trip={trip} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Plan a trip */}
+          <div className="mt-3 pt-3 border-t border-gray-100 text-center">
+            <button
+              onClick={() => setShowCreateTrip(true)}
+              className="inline-flex items-center gap-1 text-sm text-brand-blue hover:text-brand-blue/80 font-medium"
+            >
+              <Plus className="h-4 w-4" />
+              Plan a trip
+            </button>
+          </div>
         </div>
       </div>
 
