@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/collapsible'
 import { ConvergenceTimeline } from './ConvergenceTimeline'
 import { DateRangePicker } from './DateRangePicker'
+import { ConfidenceMeter } from './ConfidenceMeter'
 import { normalizeWindow } from '@/lib/trips/normalizeWindow'
 
 interface DateWindow {
@@ -112,6 +113,8 @@ interface DateWindowsFunnelProps {
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
   onQuoteToChat?: (quote: string) => void
+  prefillStart?: string
+  prefillEnd?: string
 }
 
 // Generate smart date chips based on current date context
@@ -188,7 +191,9 @@ export function DateWindowsFunnel({
   onRefresh,
   onClose,
   setHasUnsavedChanges,
-  onQuoteToChat
+  onQuoteToChat,
+  prefillStart,
+  prefillEnd
 }: DateWindowsFunnelProps) {
   // State
   const [loading, setLoading] = useState(true)
@@ -240,6 +245,15 @@ export function DateWindowsFunnel({
   // Smart chip calendar pre-selection
   const [chipPreStart, setChipPreStart] = useState<string | null>(null)
   const [chipPreEnd, setChipPreEnd] = useState<string | null>(null)
+
+  // Chat-to-scheduling bridge: prefill calendar from chat date detection
+  useEffect(() => {
+    if (prefillStart && prefillEnd) {
+      setChipPreStart(prefillStart)
+      setChipPreEnd(prefillEnd)
+      setShowAddWindow(true)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Similarity nudge state
   const [similarWindowId, setSimilarWindowId] = useState<string | null>(null)
@@ -1969,18 +1983,11 @@ export function DateWindowsFunnel({
       {isLeader && !proposalStatus?.proposalReady && phase === 'COLLECTING' && windows.length > 0 && stats && (
         (() => {
           const responseRate = stats.totalTravelers > 0 ? stats.responderCount / stats.totalTravelers : 0
-          const leadingWindow = proposalStatus?.leadingWindow
           const leaderCount = stats.leaderCount || 0
 
           if (responseRate >= 0.5) {
             return (
-              <p className="text-xs text-brand-carbon/60 text-center">
-                {stats.responderCount} of {stats.totalTravelers} weighed in
-                {leadingWindow && leaderCount > 0
-                  ? <> · <strong>{formatWindowDisplay(leadingWindow)}</strong> leads ({leaderCount})</>
-                  : null
-                }
-              </p>
+              <ConfidenceMeter current={leaderCount} target={stats.thresholdNeeded} />
             )
           }
           return null
@@ -2155,11 +2162,16 @@ export function DateWindowsFunnel({
         <div className="sticky bottom-0 -mx-4 -mb-4 bg-white border-t shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 space-y-2">
           {/* Condensed AI recommendation one-liner */}
           {aiRecommendation && (
-            <p className="text-xs text-brand-carbon/70 text-center">
-              <Sparkles className="inline h-3 w-3 text-brand-red mr-1 align-text-bottom" />
-              Tripti recommends <strong>{formatWindowDisplay(aiRecommendation.window)}</strong>
-              {' '}({aiRecommendation.window.supporterIds.length}/{stats?.totalTravelers || travelers.length} confirmed)
-            </p>
+            <div className="space-y-1">
+              <p className="text-xs text-brand-carbon/70 text-center">
+                <Sparkles className="inline h-3 w-3 text-brand-red mr-1 align-text-bottom" />
+                Tripti recommends <strong>{formatWindowDisplay(aiRecommendation.window)}</strong>
+              </p>
+              <ConfidenceMeter
+                current={aiRecommendation.window.supporterIds.length}
+                target={stats?.thresholdNeeded || Math.ceil((stats?.totalTravelers || travelers.length) / 2)}
+              />
+            </div>
           )}
 
           {/* Primary propose button */}

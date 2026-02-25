@@ -563,6 +563,8 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
                 onClose={closeOverlay}
                 setHasUnsavedChanges={setHasUnsavedChanges}
                 onQuoteToChat={handleQuoteToChat}
+                prefillStart={overlayParams?.prefillStart}
+                prefillEnd={overlayParams?.prefillEnd}
               />
             )}
           {activeOverlay === 'itinerary' && (

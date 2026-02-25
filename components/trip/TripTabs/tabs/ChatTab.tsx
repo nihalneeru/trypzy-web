@@ -19,6 +19,8 @@ import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import { getBlockingUsers } from '@/lib/trips/getBlockingUsers'
 import { formatLeadingOption } from '@/lib/trips/getVotingStatus'
 import { computeTripProgressSnapshot } from '@/lib/trips/progressSnapshot'
+import { normalizeWindow } from '@/lib/trips/normalizeWindow'
+import { getSchedulingPhase } from '@/lib/trips/proposalReady'
 
 // API helper (local to this component)
 const api = async (endpoint, options = {}, token = null) => {
@@ -66,6 +68,25 @@ export function ChatTab({
   isReadOnly = false,
   onOpenOverlay
 }: any) {
+  // Chat-to-scheduling bridge: detect parseable dates in messages
+  const dateDetectionCache = useMemo(() => {
+    const cache = new Map()
+    if (!trip || getSchedulingPhase(trip) !== 'COLLECTING') return cache
+    if (!messages?.length) return cache
+    for (const msg of messages) {
+      if (msg.isSystem || !msg.content) continue
+      try {
+        const result = normalizeWindow(msg.content)
+        if (result && !result.error && result.startISO && result.endISO) {
+          cache.set(msg.id, { startISO: result.startISO, endISO: result.endISO })
+        }
+      } catch {
+        // normalizeWindow can throw on odd input — ignore
+      }
+    }
+    return cache
+  }, [messages, trip?.status, trip?.proposedWindowId])
+
   // Check if user is trip leader
   const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
   
@@ -843,17 +864,30 @@ export function ChatTab({
                         </div>
                       ) : isFromCurrentUser ? (
                         // Current user — right-aligned bubble
-                        <div className="flex items-end gap-1.5 max-w-[75%]">
-                          <div className="bg-brand-blue text-white rounded-2xl rounded-br-md px-3.5 py-2">
-                            <p className="text-sm">{msg.content}</p>
+                        <div className="max-w-[75%]">
+                          <div className="flex items-end gap-1.5">
+                            <div className="bg-brand-blue text-white rounded-2xl rounded-br-md px-3.5 py-2">
+                              <p className="text-sm">{msg.content}</p>
+                            </div>
                           </div>
+                          {dateDetectionCache.get(msg.id) && (
+                            <button
+                              onClick={() => {
+                                const d = dateDetectionCache.get(msg.id)
+                                onOpenOverlay?.('scheduling', { prefillStart: d.startISO, prefillEnd: d.endISO })
+                              }}
+                              className="text-xs text-brand-blue hover:underline mt-0.5 ml-auto block"
+                            >
+                              Add to dates?
+                            </button>
+                          )}
                         </div>
                       ) : (
                         // Other user — left-aligned bubble with avatar
-                        <div className="flex items-end gap-2 max-w-[75%]">
+                        <div className="flex items-start gap-2 max-w-[75%]">
                           {/* Avatar — show only for first message in a group */}
                           {!isSameGroup ? (
-                            <div className="w-7 h-7 rounded-full bg-brand-carbon/10 flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-brand-carbon/10 flex items-center justify-center shrink-0 mt-auto">
                               <span className="text-[10px] font-semibold text-brand-carbon/60">{initials}</span>
                             </div>
                           ) : (
@@ -866,6 +900,17 @@ export function ChatTab({
                             <div className="bg-gray-100 rounded-2xl rounded-bl-md px-3.5 py-2">
                               <p className="text-sm text-brand-carbon">{msg.content}</p>
                             </div>
+                            {dateDetectionCache.get(msg.id) && (
+                              <button
+                                onClick={() => {
+                                  const d = dateDetectionCache.get(msg.id)
+                                  onOpenOverlay?.('scheduling', { prefillStart: d.startISO, prefillEnd: d.endISO })
+                                }}
+                                className="text-xs text-brand-blue hover:underline mt-0.5"
+                              >
+                                Add to dates?
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}

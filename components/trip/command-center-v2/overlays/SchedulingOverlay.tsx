@@ -57,6 +57,8 @@ interface SchedulingOverlayProps {
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
   onQuoteToChat?: (quote: string) => void
+  prefillStart?: string
+  prefillEnd?: string
 }
 
 // Helper function for getting initials
@@ -84,7 +86,9 @@ export function SchedulingOverlay({
   onRefresh,
   onClose,
   setHasUnsavedChanges,
-  onQuoteToChat
+  onQuoteToChat,
+  prefillStart,
+  prefillEnd
 }: SchedulingOverlayProps) {
   // Check scheduling mode - use funnel for 'funnel' mode trips
   const isFunnelMode = trip.schedulingMode === 'funnel'
@@ -516,6 +520,8 @@ export function SchedulingOverlay({
         onClose={onClose}
         setHasUnsavedChanges={setHasUnsavedChanges}
         onQuoteToChat={onQuoteToChat}
+        prefillStart={prefillStart}
+        prefillEnd={prefillEnd}
       />
     )
   }

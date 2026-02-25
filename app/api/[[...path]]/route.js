@@ -3868,6 +3868,16 @@ async function handleRoute(request, { params }) {
         }
       }
 
+      // Lazy check for stale CAVEAT reactions → insert chat reminders
+      if (phase === 'PROPOSED' && proposedWindowIds.length > 0) {
+        try {
+          const { checkStaleCheckingReactions } = await import('@/lib/nudges/checkingReminder.js')
+          await checkStaleCheckingReactions(db, trip, proposedWindowIds, enrichedWindows)
+        } catch (err) {
+          console.error('[nudges] checkStaleCheckingReactions error:', err)
+        }
+      }
+
       return handleCORS(NextResponse.json({
         phase,
         windows: enrichedWindows,

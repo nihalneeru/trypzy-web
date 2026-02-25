@@ -137,6 +137,13 @@ export function getNudgeCopy(
         ctaLabel: 'Suggest anyway',
       }
 
+    case NudgeType.CHECKING_REMINDER:
+      return {
+        message: payload.travelerName && payload.dateRange
+          ? `${payload.travelerName} — still checking on ${payload.dateRange.label}? No rush, just keeping it on your radar.`
+          : 'Still checking on those dates? No rush, just keeping it on your radar.',
+      }
+
     default:
       return {
         message: 'Something is happening with your trip.',
@@ -167,6 +174,8 @@ export function getNudgeEmoji(type: NudgeType): string {
       return '💡'
     case NudgeType.LEADER_PROPOSING_LOW_COVERAGE:
       return '⚠️'
+    case NudgeType.CHECKING_REMINDER:
+      return '🔔'
     default:
       return '📌'
   }
