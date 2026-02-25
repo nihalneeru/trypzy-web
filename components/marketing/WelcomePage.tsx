@@ -127,22 +127,53 @@ export function WelcomePage() {
       </main>
 
       {/* Bottom CTA Section - always visible */}
-      <section className="bg-primary/5 py-4 sm:py-6 shrink-0">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-lg sm:text-2xl font-bold text-brand-carbon mb-3 sm:mb-4">
-            Ready to try it with your group?
-          </h2>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-center">
-            <Button size="default" asChild className="text-sm sm:text-base px-6 sm:px-10">
-              <Link href={signupPath}>Get started</Link>
-            </Button>
-            <Button size="default" variant="outline" asChild className="text-sm sm:text-base px-6 sm:px-10">
-              <Link href={loginPath}>Log in</Link>
-            </Button>
+      <section className="py-4 sm:py-6 shrink-0" style={{ backgroundColor: '#09173D' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Mobile: logo left (cols 1-2), text+CTAs right (cols 3-4), all top-aligned */}
+          <div className="grid grid-cols-4 gap-x-3 items-start sm:hidden">
+            <div className="col-span-2 pt-0.5">
+              <img
+                src="/brand/tripti.ai-logo-final-versions/full-logo/tripti-fl-gray-dark-bg-v3.svg"
+                alt="Tripti.ai"
+                className="h-6 w-auto"
+              />
+            </div>
+            <div className="col-span-2">
+              <p className="text-sm font-medium text-white mb-2">
+                Ready to try it with your group?
+              </p>
+              <div className="flex flex-col gap-1.5">
+                <Button size="sm" asChild className="bg-brand-red hover:bg-brand-red/90 text-white text-sm px-4 w-full">
+                  <Link href={signupPath}>Get started</Link>
+                </Button>
+                <Button size="sm" variant="ghost" asChild className="border border-white/30 text-white hover:bg-white/10 text-sm px-4 w-full">
+                  <Link href={loginPath}>Log in</Link>
+                </Button>
+              </div>
+            </div>
           </div>
-          {/* Inline footer */}
-          <div className="mt-4 pt-3 border-t border-gray-200/50">
-            <TriptiLogo variant="full" className="h-5 w-auto mx-auto opacity-60" aria-hidden="true" />
+          {/* Desktop: logo left-aligned (cols 1-2), text+CTAs right (cols 3-12), all top-aligned */}
+          <div className="hidden sm:grid grid-cols-12 gap-x-6 items-start">
+            <div className="col-span-2 pt-0.5">
+              <img
+                src="/brand/tripti.ai-logo-final-versions/full-logo/tripti-fl-gray-dark-bg-v3.svg"
+                alt="Tripti.ai"
+                className="h-7 w-auto"
+              />
+            </div>
+            <div className="col-span-10">
+              <p className="text-base font-medium text-white mb-2">
+                Ready to try it with your group?
+              </p>
+              <div className="flex gap-3">
+                <Button size="default" asChild className="bg-brand-red hover:bg-brand-red/90 text-white text-base px-8">
+                  <Link href={signupPath}>Get started</Link>
+                </Button>
+                <Button size="default" variant="ghost" asChild className="border border-white/30 text-white hover:bg-white/10 text-base px-8">
+                  <Link href={loginPath}>Log in</Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </section>

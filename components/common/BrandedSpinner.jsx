@@ -20,11 +20,11 @@ export function BrandedSpinner({ className = '', size = 'default' }) {
   return (
     <div className={`inline-flex items-center justify-center ${className}`}>
       <Image
-        src="/brand/tripti-icon.svg"
+        src="/brand/loading-animation.gif"
         alt="Loading"
         width={dimensions[size]}
         height={dimensions[size]}
-        className={`${sizeClasses[size]} animate-spin`}
+        className={sizeClasses[size]}
         unoptimized
       />
     </div>
