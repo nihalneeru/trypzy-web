@@ -30,9 +30,9 @@ export function BoostGateCard({ trip, feature, token, otherFeatures }) {
 
   const handleBoost = async () => {
     if (isNative) {
-      // Native apps: open in browser (avoid Apple anti-steering issues)
-      const url = `https://preview.tripti.ai/trips/${trip.id}?boost=start`
-      window.open(url, '_blank')
+      // Native apps: purchase not available (IAP not yet implemented)
+      // Compliant with Apple Guidelines 3.1.1 — no external payment link
+      toast.info('Trip Boost is available at tripti.ai')
       return
     }
 

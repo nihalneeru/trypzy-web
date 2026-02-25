@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { Users, Sparkles, ChevronDown, Settings, FileText, LogOut, Bell } from 'lucide-react'
+import { Users, Sparkles, ChevronDown, Settings, FileText, LogOut, Bell, HelpCircle } from 'lucide-react'
 
 interface Notification {
   id: string
@@ -189,6 +189,12 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
                   <DropdownMenuItem onClick={() => router.push('/privacy')}>
                     <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
                     Privacy Policy
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href="mailto:contact@tripti.ai">
+                      <HelpCircle className="h-4 w-4 mr-2" aria-hidden="true" />
+                      Help & Support
+                    </a>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>

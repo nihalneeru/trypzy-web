@@ -106,6 +106,31 @@ export function OverlayContainer({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, handleCloseAttempt])
 
+  // Handle browser back button / mobile back swipe — close overlay instead of navigating away
+  useEffect(() => {
+    if (!isOpen) return
+
+    // Push a history entry so back button closes overlay instead of navigating
+    window.history.pushState({ triptiOverlay: true }, '')
+    let popstateHandled = false
+
+    const handlePopState = (e: PopStateEvent) => {
+      popstateHandled = true
+      handleCloseAttempt()
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      // If overlay was closed by X/backdrop/Escape (not by back button),
+      // clean up the extra history entry we pushed
+      if (!popstateHandled) {
+        window.history.back()
+      }
+    }
+  }, [isOpen, handleCloseAttempt])
+
   // Focus management - save previous focus, focus overlay when opened, restore on close
   useEffect(() => {
     if (isOpen) {

@@ -17,6 +17,7 @@ export default function JoinCirclePage({ params }) {
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
   const [token, setToken] = useState(null)
+  const [publicTripName, setPublicTripName] = useState(null)
 
   // Normalize invite code
   const inviteCode = params.inviteCode?.trim().toUpperCase()
@@ -34,6 +35,17 @@ export default function JoinCirclePage({ params }) {
       }
     }
   }, [])
+
+  // Fetch public trip context when tripId param exists (no auth needed)
+  useEffect(() => {
+    if (!tripId) return
+    fetch(`/api/trips/${tripId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.trip?.name) setPublicTripName(data.trip.name)
+      })
+      .catch(() => {})
+  }, [tripId])
 
   // Check if we're returning from auth and should auto-join
   // Uses both cookie (original mechanism) and localStorage (more reliable across OAuth redirects)
@@ -182,7 +194,7 @@ export default function JoinCirclePage({ params }) {
     )
   }
 
-  // Logged out state - generic message (no validity leak)
+  // Logged out state — contextual invite with product explanation
   if (status === 'unauthenticated') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -191,25 +203,43 @@ export default function JoinCirclePage({ params }) {
             <div className="h-16 w-16 rounded-full bg-brand-sand flex items-center justify-center mx-auto mb-6">
               <Users className="h-8 w-8 text-brand-blue" />
             </div>
-            <h1 className="text-2xl font-bold text-brand-carbon mb-2">
-              You're invited to a Tripti.ai circle
-            </h1>
-            <p className="text-gray-600 mb-8">
-              Sign in to view and join this circle
-            </p>
+
+            {publicTripName ? (
+              <>
+                <h1 className="text-2xl font-bold text-brand-carbon mb-2">
+                  You're invited to plan a trip
+                </h1>
+                <p className="text-lg font-medium text-brand-blue mb-1">
+                  {publicTripName}
+                </p>
+                <p className="text-gray-600 mb-6">
+                  Join the group on Tripti to share your availability and help pick dates.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold text-brand-carbon mb-2">
+                  You're invited to join a group on Tripti
+                </h1>
+                <p className="text-gray-600 mb-6">
+                  Tripti helps friend groups plan trips together — share availability, pick dates, and coordinate without the group chat chaos.
+                </p>
+              </>
+            )}
+
             <div className="space-y-3">
               <Button
-                onClick={() => handleAuthRedirect('login')}
+                onClick={() => handleAuthRedirect('signup')}
                 className="w-full"
               >
-                Sign in to join
+                Sign up to join
               </Button>
               <Button
-                onClick={() => handleAuthRedirect('signup')}
+                onClick={() => handleAuthRedirect('login')}
                 variant="outline"
                 className="w-full"
               >
-                Create an account
+                I already have an account
               </Button>
             </div>
           </CardContent>

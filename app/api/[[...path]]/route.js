@@ -11,6 +11,7 @@ import { ITINERARY_CONFIG, SCHEDULING_CONFIG } from '@/lib/itinerary/config.js'
 import { isLateJoinerForTrip } from '@/lib/trips/isLateJoiner.js'
 import { generateICS } from '@/lib/trips/generateICS.js'
 import { checkRateLimit, getTierForRoute } from '@/lib/server/rateLimit.js'
+import { ensureCoreIndexes } from '@/lib/server/ensureCoreIndexes'
 
 // Event instrumentation (data moat)
 import {
@@ -413,6 +414,7 @@ async function handleRoute(request, { params }) {
 
   try {
     const db = await connectToMongo()
+    await ensureCoreIndexes(db)
 
     // ============ AUTH ROUTES ============
 
@@ -4852,7 +4854,7 @@ async function handleRoute(request, { params }) {
         const { ensureBoostIndexes } = await import('@/lib/server/ensureIndexes.js')
         await ensureBoostIndexes()
 
-        const origin = request.headers.get('origin') || process.env.NEXTAUTH_URL || 'https://preview.tripti.ai'
+        const origin = request.headers.get('origin') || process.env.NEXTAUTH_URL || 'https://tripti.ai'
 
         const session = await stripe.checkout.sessions.create({
           payment_method_types: ['card'],
@@ -13596,7 +13598,7 @@ async function handleRoute(request, { params }) {
   } catch (error) {
     console.error('API Error:', error)
     return handleCORS(NextResponse.json(
-      { error: 'Internal server error', details: error.message },
+      { error: 'Internal server error' },
       { status: 500 }
     ))
   }

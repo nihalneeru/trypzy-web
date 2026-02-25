@@ -1236,7 +1236,11 @@ export function DateWindowsFunnel({
   }
 
   // COLLECTING phase - show windows and allow adding/supporting
-  const sortedWindows = [...windows].sort((a, b) => b.supportCount - a.supportCount)
+  const sortedWindows = [...windows].sort((a, b) => {
+    if (b.supportCount !== a.supportCount) return b.supportCount - a.supportCount
+    // Tiebreaker: earlier window wins (matches server-side proposalReady.js)
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  })
   const stats = proposalStatus?.stats
   const remainingWindows = maxWindows - userWindowCount
   const similarWindow = similarWindowId ? windows.find(w => w.id === similarWindowId) : null

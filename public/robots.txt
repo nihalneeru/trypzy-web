@@ -1,2 +1,13 @@
 User-agent: *
-Disallow: /
+Allow: /
+
+# Private app routes
+Disallow: /dashboard
+Disallow: /trips/
+Disallow: /circles/
+Disallow: /settings/
+Disallow: /api/
+Disallow: /join/
+Disallow: /members/
+
+Sitemap: https://tripti.ai/sitemap.xml

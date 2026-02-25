@@ -4,50 +4,16 @@ import { Suspense, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
 import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import Image from 'next/image'
 import { toast } from 'sonner'
 
-// API Helper
-const api = async (endpoint, options = {}) => {
-  const headers = {
-    'Content-Type': 'application/json',
-  }
-
-  const response = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: { ...headers, ...options.headers }
-  })
-
-  // Check if response has content before parsing JSON
-  const text = await response.text()
-  if (!text) {
-    throw new Error('Empty response from server')
-  }
-
-  let data
-  try {
-    data = JSON.parse(text)
-  } catch (error) {
-    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`)
-  }
-
-  if (!response.ok) {
-    throw new Error(data.error || 'Something went wrong')
-  }
-
-  return data
-}
-
 function SignupPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
-  const [betaSecret, setBetaSecret] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [isOAuthReturn, setIsOAuthReturn] = useState(false)
@@ -57,7 +23,7 @@ function SignupPageContent() {
 
   // Detect OAuth return vs fresh visit (client-only, avoids hydration mismatch)
   useEffect(() => {
-    setIsOAuthReturn(!!sessionStorage.getItem('signup_beta_secret'))
+    setIsOAuthReturn(!!sessionStorage.getItem('signup_oauth_pending'))
     setInitialized(true)
   }, [])
 
@@ -130,8 +96,7 @@ function SignupPageContent() {
       return
     }
 
-    // Redirect already authenticated users (who didn't just complete signup flow)
-    const storedSecret = sessionStorage.getItem('signup_beta_secret')
+    const oauthPending = sessionStorage.getItem('signup_oauth_pending')
 
     if (status === 'authenticated' && session?.accessToken) {
       // Always store credentials when authenticated (ensures token is available after redirect)
@@ -153,8 +118,8 @@ function SignupPageContent() {
       if (pendingRemix && !returnTo) {
         sessionStorage.removeItem('tripti_pending_remix')
         sessionStorage.removeItem('tripti_pending_ref')
-        if (storedSecret) {
-          sessionStorage.removeItem('signup_beta_secret')
+        if (oauthPending) {
+          sessionStorage.removeItem('signup_oauth_pending')
           document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
         }
         toast.success('Welcome! Trip remix feature coming soon.')
@@ -162,8 +127,8 @@ function SignupPageContent() {
         return
       }
 
-      if (storedSecret) {
-        sessionStorage.removeItem('signup_beta_secret')
+      if (oauthPending) {
+        sessionStorage.removeItem('signup_oauth_pending')
         document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
       }
 
@@ -228,11 +193,6 @@ function SignupPageContent() {
   }, [])
 
   const handleGoogleSignIn = async () => {
-    if (!betaSecret.trim()) {
-      toast.error('Please enter the private beta secret phrase')
-      return
-    }
-
     setGoogleLoading(true)
 
     // Set a timeout to reset loading state if OAuth flow is interrupted (e.g., popup blocked)
@@ -242,21 +202,8 @@ function SignupPageContent() {
     }, 60000) // 60 second timeout
 
     try {
-      // Validate secret phrase first
-      const response = await api('/auth/validate-beta-secret', {
-        method: 'POST',
-        body: JSON.stringify({ secret: betaSecret })
-      })
-
-      if (!response.valid) {
-        toast.error('Invalid private beta secret phrase')
-        clearTimeout(loadingTimeoutRef.current)
-        setGoogleLoading(false)
-        return
-      }
-
-      // Store secret in sessionStorage to verify in callback
-      sessionStorage.setItem('signup_beta_secret', betaSecret)
+      // Mark OAuth flow as pending so we can detect the return
+      sessionStorage.setItem('signup_oauth_pending', '1')
 
       // Set auth mode cookie for server-side validation
       // Use SameSite=Lax to ensure cookie survives OAuth redirect
@@ -281,7 +228,7 @@ function SignupPageContent() {
       // Note: When redirect is true, the page will redirect, so code below won't execute
     } catch (error) {
       // Clear sessionStorage on error
-      sessionStorage.removeItem('signup_beta_secret')
+      sessionStorage.removeItem('signup_oauth_pending')
       clearTimeout(loadingTimeoutRef.current)
       toast.error(error.message || 'Failed to sign in with Google')
       setGoogleLoading(false)
@@ -331,30 +278,11 @@ function SignupPageContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="beta-secret">Beta access code</Label>
-                <Input
-                  id="beta-secret"
-                  type="text"
-                  value={betaSecret}
-                  onChange={(e) => setBetaSecret(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && betaSecret.trim() && !googleLoading) {
-                      handleGoogleSignIn()
-                    }
-                  }}
-                  placeholder="Enter your beta access code"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Ask a friend or check your invite for the code
-                </p>
-              </div>
               <Button
                 type="button"
                 className="w-full"
                 onClick={handleGoogleSignIn}
-                disabled={googleLoading || !betaSecret.trim()}
+                disabled={googleLoading}
               >
                 {googleLoading ? (
                   <div className="flex items-center gap-2">
