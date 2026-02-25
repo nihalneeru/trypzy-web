@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Globe, Search, Plus, Users, UserPlus
+  Globe, Search, Plus, Users, UserPlus, Shuffle, Compass
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,8 @@ interface Post {
   isAuthor?: boolean
   tripName?: string
   tripId?: string
+  circleName?: string
+  shareId?: string
   hasItinerary?: boolean
   itinerarySnapshot?: any
   [key: string]: any
@@ -48,7 +50,7 @@ interface DiscoverFeedProps {
 export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
   const router = useRouter()
 
-  // Feed state
+  // Feed state — default to My Circles
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -56,7 +58,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [total, setTotal] = useState(0)
-  const [scope, setScope] = useState('global')
+  const [scope, setScope] = useState('circle')
   const [viewCircleId, setViewCircleId] = useState('')
 
   // Dialog state
@@ -80,6 +82,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
         scope: currentScope,
       })
       if (searchQuery) params.append('search', searchQuery)
+      // Only pass circleId when a specific circle is selected (not "all")
       if (currentScope === 'circle' && circleId) {
         params.append('circleId', circleId)
       }
@@ -112,21 +115,12 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
 
   // Load when scope or circle changes
   useEffect(() => {
-    if (scope === 'circle' && !viewCircleId) {
-      setPosts([])
-      setTotal(0)
-      setHasMore(false)
-      setLoading(false)
-      return
-    }
     loadPosts(1, search, scope, viewCircleId)
   }, [scope, viewCircleId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initial load
   useEffect(() => {
-    if (scope !== 'circle' || viewCircleId) {
-      loadPosts(1)
-    }
+    loadPosts(1)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = (e: React.FormEvent) => {
@@ -178,6 +172,12 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
     router.push(tripHref(tripId))
   }
 
+  const handleRemix = (post: Post) => {
+    if (post.shareId) {
+      router.push(`/remix/${post.shareId}`)
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto">
       {/* Header */}
@@ -194,54 +194,57 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
         </Button>
       </div>
 
-      {/* Scope Toggle */}
-      <div className="mb-6 flex items-center gap-4">
-        <div className="flex items-center gap-2">
+      {/* Scope Toggle + Circle Filter */}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="flex rounded-lg bg-gray-100 p-0.5">
+          <button
+            onClick={() => {
+              setScope('circle')
+              setViewCircleId('')
+            }}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              scope === 'circle'
+                ? 'bg-white text-brand-carbon shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Users className="h-4 w-4 inline mr-1.5 -mt-0.5" />
+            My Circles
+          </button>
           <button
             onClick={() => {
               setScope('global')
               setViewCircleId('')
             }}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               scope === 'global'
-                ? 'bg-brand-red text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-white text-brand-carbon shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            Global
-          </button>
-          <button
-            onClick={() => setScope('circle')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              scope === 'circle'
-                ? 'bg-brand-red text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            My Circles
+            <Compass className="h-4 w-4 inline mr-1.5 -mt-0.5" />
+            Explore
           </button>
         </div>
 
-        {/* Circle selector */}
-        {scope === 'circle' && (
-          <>
-            {circles && circles.length > 0 ? (
-              <Select value={viewCircleId || undefined} onValueChange={(value) => setViewCircleId(value || '')}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select a circle..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {circles.map((circle) => (
-                    <SelectItem key={circle.id} value={circle.id}>
-                      {circle.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="text-sm text-gray-500">No circles available. Join a circle to see circle-scoped posts.</p>
-            )}
-          </>
+        {/* Circle filter (only in My Circles scope) */}
+        {scope === 'circle' && circles && circles.length > 0 && (
+          <Select
+            value={viewCircleId || 'all'}
+            onValueChange={(value) => setViewCircleId(value === 'all' ? '' : value)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All circles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All circles</SelectItem>
+              {circles.map((circle) => (
+                <SelectItem key={circle.id} value={circle.id}>
+                  {circle.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </div>
 
@@ -275,30 +278,23 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
         <div className="flex items-center justify-center py-12">
           <BrandedSpinner size="lg" />
         </div>
-      ) : scope === 'circle' && !viewCircleId && circles && circles.length > 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-brand-carbon mb-2">
-              Select a Circle
-            </h3>
-            <p className="text-gray-500 mb-4 max-w-sm mx-auto">
-              Choose a circle from the dropdown above to see travel stories from your friends,
-              or browse all public stories.
-            </p>
-          </CardContent>
-        </Card>
       ) : posts.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
-            <Globe className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            {scope === 'circle' ? (
+              <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            ) : (
+              <Globe className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            )}
             <h3 className="text-lg font-medium text-brand-carbon mb-2">
-              {search ? 'No stories found' : 'Nothing to discover yet'}
+              {search ? 'No stories found' : scope === 'circle' ? 'No circle stories yet' : 'Nothing to explore yet'}
             </h3>
             <p className="text-gray-500 mb-6 max-w-sm mx-auto">
               {search
                 ? 'Try a different search term or browse all stories.'
-                : 'When your circle members share memories or complete trips, their stories show up here.'}
+                : scope === 'circle'
+                  ? 'When your circle members share memories or complete trips, their stories show up here.'
+                  : 'Public stories from the Tripti community will appear here.'}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               {!search && (
@@ -329,16 +325,36 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
                   onDelete={post.isAuthor ? handleDeletePost : undefined}
                   onEdit={post.isAuthor ? handleEditPost : undefined}
                 />
-                {/* CTA for posts with itinerary */}
-                {post.hasItinerary && (
-                  <Button
-                    className="w-full mt-2"
-                    onClick={() => handleProposeTrip(post)}
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Propose this trip to a circle
-                  </Button>
+                {/* Circle name context badge — show in "All circles" view */}
+                {scope === 'circle' && !viewCircleId && post.circleName && (
+                  <p className="text-xs text-gray-400 mt-1 px-1">
+                    from {post.circleName}
+                  </p>
                 )}
+                {/* Action CTAs below the card */}
+                <div className="flex gap-2 mt-2">
+                  {/* Propose to circle — only for posts with itinerary */}
+                  {post.hasItinerary && (
+                    <Button
+                      className="flex-1"
+                      onClick={() => handleProposeTrip(post)}
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Propose to circle
+                    </Button>
+                  )}
+                  {/* Remix — only for posts with an associated trip that has a shareId */}
+                  {post.tripId && post.shareId && (
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => handleRemix(post)}
+                    >
+                      <Shuffle className="h-4 w-4 mr-2" />
+                      Remix this trip
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -60,30 +60,42 @@ export async function GET(request) {
           { status: 401 }
         ))
       }
-      
-      if (!circleId) {
-        return handleCORS(NextResponse.json(
-          { error: 'circleId is required for circle scope' },
-          { status: 400 }
-        ))
+
+      if (circleId) {
+        // Specific circle: verify membership
+        const membership = await db.collection('memberships').findOne({
+          userId: user.id,
+          circleId
+        })
+
+        if (!membership) {
+          return handleCORS(NextResponse.json(
+            { error: 'You must be a member of this circle to view its feed' },
+            { status: 403 }
+          ))
+        }
+
+        // Circle feed: posts with discoverScope="circle" and matching circleId
+        query.discoverScope = 'circle'
+        query.circleId = circleId
+      } else {
+        // All circles: get user's memberships and query across all
+        const memberships = await db.collection('memberships')
+          .find({ userId: user.id, status: { $ne: 'left' } })
+          .toArray()
+
+        const memberCircleIds = memberships.map(m => m.circleId)
+
+        if (memberCircleIds.length === 0) {
+          return handleCORS(NextResponse.json({
+            posts: [],
+            pagination: { page, limit, total: 0, hasMore: false }
+          }))
+        }
+
+        query.discoverScope = 'circle'
+        query.circleId = { $in: memberCircleIds }
       }
-      
-      // Verify membership
-      const membership = await db.collection('memberships').findOne({
-        userId: user.id,
-        circleId
-      })
-      
-      if (!membership) {
-        return handleCORS(NextResponse.json(
-          { error: 'You must be a member of this circle to view its feed' },
-          { status: 403 }
-        ))
-      }
-      
-      // Circle feed: posts with discoverScope="circle" and matching circleId
-      query.discoverScope = 'circle'
-      query.circleId = circleId
     } else {
       return handleCORS(NextResponse.json(
         { error: 'Invalid scope. Must be "global" or "circle"' },
@@ -118,9 +130,16 @@ export async function GET(request) {
       .find({ id: { $in: userIds } })
       .toArray()
     
-    const trips = tripIds.length > 0 
+    const trips = tripIds.length > 0
       ? await db.collection('trips').find({ id: { $in: tripIds } }).toArray()
       : []
+
+    // Fetch circle names for circle-scoped posts (for "All circles" view context)
+    const postCircleIds = [...new Set(posts.filter(p => p.circleId).map(p => p.circleId))]
+    const postCircles = postCircleIds.length > 0
+      ? await db.collection('circles').find({ id: { $in: postCircleIds } }).toArray()
+      : []
+    const circleMap = new Map(postCircles.map(c => [c.id, c.name]))
     
     // Fetch itinerary data for posts that have attached itineraries
     let itineraries = []
@@ -199,6 +218,8 @@ export async function GET(request) {
           isAuthor: currentUser && currentUser.id === post.userId, // Check if current user is author
           tripName: trip?.name || null,
           tripId: post.tripId,
+          circleName: post.circleId ? (circleMap.get(post.circleId) || null) : null,
+          shareId: trip?.shareId || null,
           hasItinerary: !!itinerary,
           itinerarySnapshot
         }
