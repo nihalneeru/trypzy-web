@@ -3,20 +3,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import {
   Users,
-  XCircle,
-  ArrowRight,
-  Lightbulb,
   Calendar as CalendarIcon,
-  ListTodo,
-  Home,
-  Luggage,
   Rocket,
-  Camera,
-  DollarSign
 } from 'lucide-react'
 
 export function WelcomePage() {
@@ -29,16 +20,10 @@ export function WelcomePage() {
       setSignupPath('/native-login')
     }
   }, [])
-  // Trip progress milestones in order
-  const milestones = [
-    { icon: Lightbulb, label: 'Trip idea' },
-    { icon: CalendarIcon, label: 'Dates' },
-    { icon: ListTodo, label: 'Itinerary' },
-    { icon: Home, label: 'Stay' },
-    { icon: Luggage, label: 'Prep' },
-    { icon: Rocket, label: 'Travel' },
-    { icon: Camera, label: 'Memories' },
-    { icon: DollarSign, label: 'Expenses' }
+  const steps = [
+    { icon: Users, label: 'Create a circle', description: 'Invite your group' },
+    { icon: CalendarIcon, label: 'Find dates', description: 'Share when you\'re free' },
+    { icon: Rocket, label: 'Plan together', description: 'Build your trip as a group' },
   ]
 
   return (
@@ -72,23 +57,26 @@ export function WelcomePage() {
               Plan trips together — without the chaos.
             </h1>
 
-            {/* Visual Flow Graphic - All 8 milestones */}
+            {/* 3 core steps with connecting lines */}
             <div className="mb-6 sm:mb-10">
-              <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-5 max-w-4xl mx-auto">
-                {milestones.map((milestone, index) => {
-                  const Icon = milestone.icon
+              <div className="flex items-start justify-center max-w-2xl mx-auto">
+                {steps.map((step, index) => {
+                  const Icon = step.icon
                   return (
-                    <div key={milestone.label} className="flex items-center">
-                      <div className="flex flex-col items-center gap-1 sm:gap-2">
-                        <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Icon className="h-4 w-4 sm:h-6 sm:w-6 text-primary" aria-hidden="true" />
+                    <div key={step.label} className="flex items-start flex-1">
+                      <div className="flex flex-col items-center text-center w-full">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-brand-red/10 flex items-center justify-center mb-2 sm:mb-3">
+                          <Icon className="h-5 w-5 sm:h-7 sm:w-7 text-brand-red" aria-hidden="true" />
                         </div>
-                        <span className="text-[10px] sm:text-xs font-medium text-gray-700">
-                          {milestone.label}
+                        <span className="text-xs sm:text-sm font-semibold text-brand-carbon">
+                          {step.label}
+                        </span>
+                        <span className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
+                          {step.description}
                         </span>
                       </div>
-                      {index < milestones.length - 1 && (
-                        <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 mx-1 sm:mx-2 hidden sm:block" aria-hidden="true" />
+                      {index < steps.length - 1 && (
+                        <div className="flex-shrink-0 w-8 sm:w-12 mt-6 sm:mt-8 border-t border-gray-300" aria-hidden="true" />
                       )}
                     </div>
                   )
@@ -96,31 +84,11 @@ export function WelcomePage() {
               </div>
             </div>
 
-            {/* Great for / Not for - inline on mobile */}
-            <div className="max-w-3xl mx-auto">
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <Card className="border border-primary/20">
-                  <CardContent className="py-3 px-3 sm:py-4 sm:px-5">
-                    <h3 className="text-sm sm:text-base font-semibold text-brand-carbon mb-2">Great for</h3>
-                    <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-gray-600 text-left">
-                      <li>• Friend groups</li>
-                      <li>• Up to ~15 people</li>
-                      <li>• Plan at your own pace</li>
-                    </ul>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-gray-200">
-                  <CardContent className="py-3 px-3 sm:py-4 sm:px-5">
-                    <h3 className="text-sm sm:text-base font-semibold text-brand-carbon mb-2">Not for (yet)</h3>
-                    <ul className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm text-gray-600 text-left">
-                      <li>• Flights & hotels</li>
-                      <li>• Rigid checklists</li>
-                      <li>• Planning alone</li>
-                    </ul>
-                  </CardContent>
-                </Card>
-              </div>
+            {/* Positive scoping */}
+            <div className="max-w-xl mx-auto text-center">
+              <p className="text-sm sm:text-base text-gray-500">
+                Built for friend circles planning trips together. Not a booking tool — a coordination tool.
+              </p>
             </div>
           </div>
         </section>
@@ -140,7 +108,7 @@ export function WelcomePage() {
             </div>
             <div className="col-span-2">
               <p className="text-sm font-medium text-white mb-2">
-                Ready to try it with your group?
+                Ready to try it with your circle?
               </p>
               <div className="flex flex-col gap-1.5">
                 <Button size="sm" asChild className="bg-brand-red hover:bg-brand-red/90 text-white text-sm px-4 w-full">
@@ -163,7 +131,7 @@ export function WelcomePage() {
             </div>
             <div className="col-span-10">
               <p className="text-base font-medium text-white mb-2">
-                Ready to try it with your group?
+                Ready to try it with your circle?
               </p>
               <div className="flex gap-3">
                 <Button size="default" asChild className="bg-brand-red hover:bg-brand-red/90 text-white text-base px-8">

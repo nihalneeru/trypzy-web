@@ -4,6 +4,9 @@ import { useMemo, useRef, useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
+import { ChevronLeft } from 'lucide-react'
+import { circlePageHref } from '@/lib/navigation/routes'
 import {
   Tooltip,
   TooltipContent,
@@ -114,6 +117,8 @@ interface ProgressStripProps {
   participationMeter?: { responded: number; total: number; label: string } | null
   /** Whether the current user is the trip leader */
   isLeader?: boolean
+  /** Circle ID for back navigation (falls back to /dashboard) */
+  circleId?: string | null
 }
 
 export function ProgressStrip({
@@ -127,7 +132,8 @@ export function ProgressStrip({
   activeOverlay,
   onStepClick,
   participationMeter,
-  isLeader = false
+  isLeader = false,
+  circleId,
 }: ProgressStripProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const effectiveStart = lockedStartDate || startDate
@@ -191,6 +197,13 @@ export function ProgressStrip({
       {/* Row 1: Trip name + dates + participation meter */}
       <div className="flex items-center justify-between px-3 md:px-4 pt-2 pb-1 gap-2">
         <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
+          <Link
+            href={circleId ? circlePageHref(circleId) : '/dashboard'}
+            className="flex-shrink-0 p-1 -ml-1 text-brand-carbon/50 hover:text-brand-carbon self-center"
+            aria-label="Back"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Link>
           <h1 className="text-sm md:text-base font-semibold text-brand-carbon break-words min-w-0">
             {tripName}
           </h1>

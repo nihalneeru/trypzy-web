@@ -73,6 +73,10 @@ import { ChatTab } from '@/components/trip/TripTabs/tabs/ChatTab'
 // Error boundary
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 
+// Onboarding & nudge
+import { OnboardingTooltips } from '@/components/trip/OnboardingTooltips'
+import { NudgeCard } from '@/components/trip/chat/NudgeCard'
+
 // Hooks
 import { useTripChat } from '@/hooks/use-trip-chat'
 
@@ -469,6 +473,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
             onStepClick={handleStepClick}
             participationMeter={participationMeter}
             isLeader={trip?.createdBy === user?.id}
+            circleId={trip?.circleId}
           />
         </div>
 
@@ -486,6 +491,15 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
                 onOpenOverlay={openOverlay}
               />
             </div>
+          )}
+
+          {/* Gentle nudge card — max 1, dismissible, shown above chat when user has a pending action */}
+          {!isCancelled && !isCompleted && !isReadOnly && (
+            <NudgeCard
+              trip={trip}
+              userRole={trip?.createdBy === user?.id ? 'leader' : 'traveler'}
+              onOpenOverlay={openOverlay}
+            />
           )}
 
           {/* Chat area - now constrained by outer max-w-3xl container */}
@@ -635,6 +649,9 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
           )}
           </ErrorBoundary>
         </OverlayContainer>
+
+        {/* First-visit onboarding tooltips (fixed overlay, max 2 tips) */}
+        <OnboardingTooltips />
       </div>
     </div>
   )
