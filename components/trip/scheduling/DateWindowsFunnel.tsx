@@ -180,7 +180,7 @@ export function DateWindowsFunnel({
   const [showAddWindow, setShowAddWindow] = useState(false)
   const [newDateText, setNewDateText] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [useTextInput, setUseTextInput] = useState(false)
+  const [useTextInput, setUseTextInput] = useState(true)
 
   // Manual date entry fallback (when normalization fails)
   const [showManualEntry, setShowManualEntry] = useState(false)
@@ -1444,7 +1444,7 @@ export function DateWindowsFunnel({
                 </div>
               )}
 
-              {/* Date input — calendar picker (primary) or text (fallback) */}
+              {/* Date input — type or calendar (equal-weight tabs) */}
               {!showSimilarNudge && (
                 <>
                   {/* Show normalization error with accept anyway option */}
@@ -1477,70 +1477,65 @@ export function DateWindowsFunnel({
                     </div>
                   )}
 
-                  {/* Calendar picker (primary) or free-form text (fallback) */}
                   {!normalizationError && (
                     <>
-                      {!useTextInput ? (
-                        <>
-                          <div>
-                            <Label className="text-sm">When works for you?</Label>
-                            <div className="mt-2">
-                              <DateRangePicker onSelect={handleCalendarSelect} />
-                            </div>
-                            <p className="text-xs text-gray-400 mt-2">
-                              You can change your dates anytime until they're locked.
-                            </p>
-                          </div>
-                          <Button
-                            onClick={() => handleAddWindow(false)}
-                            disabled={submitting || !newDateText.trim()}
-                            className="w-full bg-brand-blue hover:bg-brand-blue/90"
-                          >
-                            {submitting ? 'Adding...' : 'Add these dates'}
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={() => setUseTextInput(true)}
-                            className="w-full text-center text-xs text-brand-blue hover:underline"
-                          >
-                            Can't find your dates? Type them instead
-                          </button>
-                        </>
+                      <Label className="text-sm">When works for you?</Label>
+
+                      {/* Equal-weight toggle tabs */}
+                      <div className="flex rounded-lg bg-gray-100 p-0.5 mt-1.5 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => setUseTextInput(true)}
+                          className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
+                            useTextInput
+                              ? 'bg-white text-brand-carbon shadow-sm'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          Type dates
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setUseTextInput(false); setNewDateText('') }}
+                          className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
+                            !useTextInput
+                              ? 'bg-white text-brand-carbon shadow-sm'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          Pick on calendar
+                        </button>
+                      </div>
+
+                      {useTextInput ? (
+                        <div>
+                          <Input
+                            id="dateText"
+                            type="text"
+                            value={newDateText}
+                            onChange={(e) => setNewDateText(e.target.value)}
+                            placeholder="e.g., Feb 7-9, early March, last week of June"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            Try: "Feb 7-9", "mid March", "last weekend of June"
+                          </p>
+                        </div>
                       ) : (
-                        <>
-                          <div>
-                            <Label htmlFor="dateText" className="text-sm">When works for you?</Label>
-                            <Input
-                              id="dateText"
-                              type="text"
-                              value={newDateText}
-                              onChange={(e) => setNewDateText(e.target.value)}
-                              placeholder="e.g., Feb 7-9, early March, last week of June"
-                              className="mt-1"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Try: "Feb 7-9", "mid March", "last weekend of June"
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              You can change your dates anytime until they're locked.
-                            </p>
-                          </div>
-                          <Button
-                            onClick={() => handleAddWindow(false)}
-                            disabled={submitting || !newDateText.trim()}
-                            className="w-full bg-brand-blue hover:bg-brand-blue/90"
-                          >
-                            {submitting ? 'Adding...' : 'Add these dates'}
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={() => { setUseTextInput(false); setNewDateText('') }}
-                            className="w-full text-center text-xs text-brand-blue hover:underline"
-                          >
-                            Use calendar picker instead
-                          </button>
-                        </>
+                        <div>
+                          <DateRangePicker onSelect={handleCalendarSelect} />
+                        </div>
                       )}
+
+                      <p className="text-xs text-gray-400 mt-2">
+                        You can change your dates anytime until they're locked.
+                      </p>
+                      <Button
+                        onClick={() => handleAddWindow(false)}
+                        disabled={submitting || !newDateText.trim()}
+                        className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                      >
+                        {submitting ? 'Adding...' : 'Add these dates'}
+                      </Button>
                     </>
                   )}
                 </>
