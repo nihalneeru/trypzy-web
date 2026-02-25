@@ -78,7 +78,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
       return
     }
 
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']
     for (const file of files) {
       if (!allowedTypes.includes(file.type)) {
         toast.error(`Invalid file type: ${file.name}. Allowed: JPEG, PNG, WebP`)
@@ -322,7 +322,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
+              accept="image/*"
               multiple
               onChange={handleFileSelect}
               className="hidden"

@@ -18,7 +18,7 @@ export async function POST(request) {
       body,
       request,
       onBeforeGenerateToken: async (pathname) => ({
-        allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+        allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'],
         maximumSizeInBytes: 5 * 1024 * 1024,
       }),
       onUploadCompleted: async ({ blob }) => {

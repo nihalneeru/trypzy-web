@@ -303,7 +303,7 @@ export async function POST(request) {
       }
 
       // Validate file types and sizes
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']
       const maxSize = 5 * 1024 * 1024
 
       for (const file of images) {

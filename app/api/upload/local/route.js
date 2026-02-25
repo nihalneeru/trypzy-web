@@ -25,7 +25,7 @@ export async function POST(request) {
       ))
     }
 
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']
     if (!allowedTypes.includes(file.type)) {
       return handleCORS(NextResponse.json(
         { error: `Invalid file type: ${file.type}` },

@@ -8973,10 +8973,10 @@ async function handleRoute(request, { params }) {
         }
 
         // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']
         if (!allowedTypes.includes(file.type)) {
           return handleCORS(NextResponse.json(
-            { error: 'Invalid file type. Allowed: JPEG, PNG, WebP, GIF' },
+            { error: 'Invalid file type. Allowed: JPEG, PNG, WebP, GIF, HEIC' },
             { status: 400 }
           ))
         }
