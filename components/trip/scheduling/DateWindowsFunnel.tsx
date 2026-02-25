@@ -180,7 +180,7 @@ export function DateWindowsFunnel({
   const [showAddWindow, setShowAddWindow] = useState(false)
   const [newDateText, setNewDateText] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [useTextInput, setUseTextInput] = useState(true)
+  const [useTextInput, setUseTextInput] = useState(false)
 
   // Manual date entry fallback (when normalization fails)
   const [showManualEntry, setShowManualEntry] = useState(false)
@@ -215,6 +215,13 @@ export function DateWindowsFunnel({
   const [concreteDatesStart, setConcreteDatesStart] = useState('')
   const [concreteDatesEnd, setConcreteDatesEnd] = useState('')
   const [pendingUnstructuredWindow, setPendingUnstructuredWindow] = useState<DateWindow | null>(null)
+
+  // Auto-expand "Add dates" when no windows exist and user can participate
+  useEffect(() => {
+    if (windows.length === 0 && isActiveParticipant && phase === 'COLLECTING') {
+      setShowAddWindow(true)
+    }
+  }, [windows.length, isActiveParticipant, phase])
 
   // Auto-scroll to the add-dates area when it opens
   useEffect(() => {
@@ -906,7 +913,7 @@ export function DateWindowsFunnel({
 
     const labels: Record<string, string> = {
       WORKS: 'Works for me',
-      CAVEAT: 'Maybe with conditions',
+      CAVEAT: 'Checking — we\'ll keep this on your radar',
       CANT: "Can't make it"
     }
     toast.success(labels[reactionType])
@@ -1130,10 +1137,10 @@ export function DateWindowsFunnel({
                     className={userReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
                   >
                     <HelpCircle className="h-4 w-4 mr-1" />
-                    Maybe
+                    Checking
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>I might be able to make this</TooltipContent>
+                <TooltipContent>I'm checking if this works</TooltipContent>
               </Tooltip>
             </TooltipProvider>
             <TooltipProvider>
@@ -1203,7 +1210,7 @@ export function DateWindowsFunnel({
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {r.userName}: {r.reactionType === 'WORKS' ? 'Works for me' : r.reactionType === 'CAVEAT' ? 'Maybe' : "Can't make it"}
+                            {r.userName}: {r.reactionType === 'WORKS' ? 'Works for me' : r.reactionType === 'CAVEAT' ? 'Checking' : "Can't make it"}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -1322,7 +1329,11 @@ export function DateWindowsFunnel({
         <h3 className="text-lg font-semibold text-brand-carbon">When works for everyone?</h3>
         {stats && (
           <p className="text-sm text-muted-foreground">
-            {stats.responderCount} of {stats.totalTravelers} travelers have weighed in
+            {isLeader
+              ? `${stats.responderCount} of ${stats.totalTravelers} travelers have weighed in`
+              : stats.responderCount >= 3
+                ? 'Dates are taking shape'
+                : 'Share when you\'re free'}
           </p>
         )}
       </div>
@@ -1608,8 +1619,8 @@ export function DateWindowsFunnel({
                         <Users className="h-3 w-3" />
                         <span>{window.supportCount} can make this</span>
                       </div>
-                      {/* Conflict detection — show who hasn't confirmed */}
-                      {(() => {
+                      {/* Conflict detection — show who hasn't confirmed (leader only) */}
+                      {isLeader && (() => {
                         const totalCount = travelers.length
                         const confirmedCount = window.supporterIds.length
                         const unconfirmed = travelers.filter(t => !window.supporterIds.includes(t.id))
@@ -1720,8 +1731,8 @@ export function DateWindowsFunnel({
         })()
       )}
 
-      {/* Scheduling Insights card */}
-      {phase === 'COLLECTING' && windows.length > 0 && (
+      {/* Scheduling Insights card (non-leader only — leader has sticky footer) */}
+      {!isLeader && phase === 'COLLECTING' && windows.length > 0 && (
         (() => {
           const output = insightData?.output
           const hasInsight = output && output.summary
@@ -1883,112 +1894,83 @@ export function DateWindowsFunnel({
         })()
       )}
 
-      {/* Unified leader propose section */}
+      {/* Sticky propose footer — leader only */}
       {isLeader && phase === 'COLLECTING' && sortedWindows.length > 0 && (
-        <Card className="border-brand-blue/20">
-          <CardContent className="py-4 space-y-3">
-            {/* AI Recommendation */}
-            {aiRecommendation && (
-              <div className="bg-brand-sand/40 rounded-lg p-3 space-y-1.5 mb-3">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-brand-red" />
-                  <span className="text-xs font-semibold text-brand-carbon uppercase tracking-wide">Tripti recommends</span>
-                </div>
-                <p className="text-sm font-medium text-brand-carbon">
-                  {formatWindowDisplay(aiRecommendation.window)}
-                </p>
-                <p className="text-xs text-gray-600">
-                  {aiRecommendation.reason}
-                </p>
-                {aiRecommendation.alternativeNote && (
-                  <p className="text-xs text-gray-500 italic">
-                    {aiRecommendation.alternativeNote}
-                  </p>
-                )}
-              </div>
-            )}
-            {proposalStatus?.proposalReady && proposalStatus.leadingWindow ? (
-              <>
-                <p className="text-sm text-muted-foreground text-center">
-                  {proposalStatus.stats.leaderCount} of {proposalStatus.stats.totalTravelers} can make the leading option
-                </p>
-                <Button
-                  onClick={() => handlePropose(proposalStatus.leadingWindow!.id, false)}
-                  disabled={submitting}
-                  className="w-full bg-brand-red hover:bg-brand-red/90"
-                >
-                  {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(proposalStatus.leadingWindow)}`}
-                </Button>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-brand-carbon text-center">
-                  Pick a window to propose
-                </p>
-                <div className="space-y-1.5">
-                  {sortedWindows.map((w) => (
-                    <button
-                      key={w.id}
-                      onClick={() => handlePropose(w.id, !proposalStatus?.proposalReady)}
-                      disabled={submitting}
-                      className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-brand-red/40 hover:bg-brand-red/5 transition-colors text-sm flex items-center justify-between disabled:opacity-50"
-                    >
-                      <span className="text-brand-carbon">{formatWindowDisplay(w)}</span>
-                      <span className="text-xs text-muted-foreground">{w.supportCount} supporters</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+        <div className="sticky bottom-0 -mx-4 -mb-4 bg-white border-t shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 space-y-2">
+          {/* Condensed AI recommendation one-liner */}
+          {aiRecommendation && (
+            <p className="text-xs text-brand-carbon/70 text-center">
+              <Sparkles className="inline h-3 w-3 text-brand-red mr-1 align-text-bottom" />
+              Tripti recommends <strong>{formatWindowDisplay(aiRecommendation.window)}</strong>
+              {' '}({aiRecommendation.window.supporterIds.length}/{stats?.totalTravelers || travelers.length} confirmed)
+            </p>
+          )}
 
-            {/* Secondary: propose custom dates */}
-            {!showCustomProposal ? (
-              <button
-                onClick={() => setShowCustomProposal(true)}
-                className="w-full text-center text-xs text-brand-blue hover:underline"
-              >
-                Propose custom dates
-              </button>
-            ) : (
-              <div className="space-y-3 pt-2 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Propose dates that nobody has suggested yet.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="custom-start" className="text-sm">Start date</Label>
-                    <Input
-                      id="custom-start"
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="custom-end" className="text-sm">End date</Label>
-                    <Input
-                      id="custom-end"
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      min={customStartDate || new Date().toISOString().split('T')[0]}
-                      className="mt-1"
-                    />
-                  </div>
+          {/* Primary propose button */}
+          {proposalStatus?.proposalReady && proposalStatus.leadingWindow ? (
+            <Button
+              onClick={() => handlePropose(proposalStatus.leadingWindow!.id, false)}
+              disabled={submitting}
+              className="w-full bg-brand-red hover:bg-brand-red/90"
+            >
+              {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(proposalStatus.leadingWindow)}`}
+            </Button>
+          ) : sortedWindows.length > 0 ? (
+            <Button
+              onClick={() => handlePropose(sortedWindows[0].id, true)}
+              disabled={submitting}
+              variant="outline"
+              className="w-full border-brand-red/30 text-brand-red hover:bg-brand-red/5"
+            >
+              {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(sortedWindows[0])}`}
+            </Button>
+          ) : null}
+
+          {/* Custom dates toggle */}
+          {!showCustomProposal ? (
+            <button
+              onClick={() => setShowCustomProposal(true)}
+              className="w-full text-center text-xs text-brand-blue hover:underline"
+            >
+              Propose custom dates
+            </button>
+          ) : (
+            <div className="space-y-2 pt-2 border-t">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="custom-start" className="text-xs">Start</Label>
+                  <Input
+                    id="custom-start"
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="mt-0.5 h-8 text-sm"
+                  />
                 </div>
-                <Button
-                  onClick={handleProposeCustomDates}
-                  disabled={submitting || !customStartDate || !customEndDate}
-                  className="w-full bg-brand-blue hover:bg-brand-blue/90"
-                >
-                  {submitting ? 'Proposing...' : 'Propose these dates'}
-                </Button>
+                <div>
+                  <Label htmlFor="custom-end" className="text-xs">End</Label>
+                  <Input
+                    id="custom-end"
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    min={customStartDate || new Date().toISOString().split('T')[0]}
+                    className="mt-0.5 h-8 text-sm"
+                  />
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <Button
+                onClick={handleProposeCustomDates}
+                disabled={submitting || !customStartDate || !customEndDate}
+                className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                size="sm"
+              >
+                {submitting ? 'Proposing...' : 'Propose these dates'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Concrete dates dialog (for unstructured windows) */}
