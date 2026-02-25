@@ -133,7 +133,9 @@ export function TripCard({ trip, circleId = null }) {
   const { dotClass, label: statusLabel } = getStatusDisplay(trip.status)
 
   // Active pulse: activity within last 24 hours (#331)
+  // Only show on active trips — completed/canceled trips don't need attention
   const hasRecentActivity = (() => {
+    if (trip.status === 'completed' || trip.status === 'canceled') return false
     const ts = trip.latestActivity?.createdAt
     if (!ts) return false
     return (Date.now() - new Date(ts).getTime()) < 24 * 60 * 60 * 1000
