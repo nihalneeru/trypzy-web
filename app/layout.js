@@ -6,6 +6,7 @@ import { PushHandler } from '@/components/common/PushHandler'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { Analytics } from '@vercel/analytics/next'
 import { MixpanelProvider } from '@/components/providers/MixpanelProvider'
+import { CookieBanner } from '@/components/common/CookieBanner'
 import * as Sentry from '@sentry/nextjs'
 
 const inter = Inter({
@@ -85,6 +86,7 @@ export default function RootLayout({ children }) {
           <PushHandler />
         </SessionProvider>
         <Toaster position="top-right" />
+        <CookieBanner />
       </body>
     </html>
   )
