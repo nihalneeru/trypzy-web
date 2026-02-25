@@ -17,7 +17,7 @@ export default function JoinCirclePage({ params }) {
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
   const [token, setToken] = useState(null)
-  const [publicTripName, setPublicTripName] = useState(null)
+  const [invitePreview, setInvitePreview] = useState(null)
 
   // Normalize invite code
   const inviteCode = params.inviteCode?.trim().toUpperCase()
@@ -36,16 +36,24 @@ export default function JoinCirclePage({ params }) {
     }
   }, [])
 
-  // Fetch public trip context when tripId param exists (no auth needed)
+  // Fetch invite preview (no auth needed) for personalized landing
   useEffect(() => {
-    if (!tripId) return
-    fetch(`/api/trips/${tripId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.trip?.name) setPublicTripName(data.trip.name)
-      })
-      .catch(() => {})
-  }, [tripId])
+    async function fetchPreview() {
+      try {
+        const previewParams = new URLSearchParams({ code: inviteCode })
+        if (tripId) previewParams.set('tripId', tripId)
+        if (ref) previewParams.set('ref', ref)
+        const res = await fetch(`/api/invite-preview?${previewParams}`)
+        const data = await res.json()
+        if (data.valid) {
+          setInvitePreview(data)
+        }
+      } catch (e) {
+        // Silent fail — falls back to generic UI
+      }
+    }
+    fetchPreview()
+  }, [inviteCode, tripId, ref])
 
   // Check if we're returning from auth and should auto-join
   // Uses both cookie (original mechanism) and localStorage (more reliable across OAuth redirects)
@@ -194,56 +202,70 @@ export default function JoinCirclePage({ params }) {
     )
   }
 
-  // Logged out state — contextual invite with product explanation
+  // Logged out state - personalized magic landing (or generic fallback)
   if (status === 'unauthenticated') {
+    const preview = invitePreview
+    const hasTrip = preview?.trip?.name
+    const headline = preview?.inviterName
+      ? hasTrip
+        ? `${preview.inviterName} invited you to ${preview.trip.name}`
+        : `${preview.inviterName} invited you to join ${preview.circleName}`
+      : hasTrip
+        ? `You're invited to ${preview?.trip?.name}`
+        : `You're invited to join a circle on Tripti`
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-8 pb-8 text-center">
-            <div className="h-16 w-16 rounded-full bg-brand-sand flex items-center justify-center mx-auto mb-6">
-              <Users className="h-8 w-8 text-brand-blue" />
-            </div>
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="w-full max-w-md text-center">
+          {/* Tripti branding */}
+          <div className="mb-8">
+            <img
+              src="/brand/tripti-logo.svg"
+              alt="Tripti.ai"
+              className="h-7 w-auto mx-auto mb-6"
+            />
+          </div>
 
-            {publicTripName ? (
-              <>
-                <h1 className="text-2xl font-bold text-brand-carbon mb-2">
-                  You're invited to plan a trip
-                </h1>
-                <p className="text-lg font-medium text-brand-blue mb-1">
-                  {publicTripName}
-                </p>
-                <p className="text-gray-600 mb-6">
-                  Join the group on Tripti to share your availability and help pick dates.
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="text-2xl font-bold text-brand-carbon mb-2">
-                  You're invited to join a group on Tripti
-                </h1>
-                <p className="text-gray-600 mb-6">
-                  Tripti helps friend groups plan trips together — share availability, pick dates, and coordinate without the group chat chaos.
-                </p>
-              </>
-            )}
+          <div className="h-16 w-16 rounded-full bg-brand-sand flex items-center justify-center mx-auto mb-6">
+            <Users className="h-8 w-8 text-brand-blue" />
+          </div>
 
-            <div className="space-y-3">
-              <Button
-                onClick={() => handleAuthRedirect('signup')}
-                className="w-full"
-              >
-                Sign up to join
-              </Button>
-              <Button
-                onClick={() => handleAuthRedirect('login')}
-                variant="outline"
-                className="w-full"
-              >
-                I already have an account
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          <h1 className="text-2xl font-bold text-brand-carbon mb-2">
+            {headline}
+          </h1>
+
+          {hasTrip && preview.trip.destinationHint && (
+            <p className="text-base text-brand-red font-medium mb-1">
+              {preview.trip.destinationHint}
+            </p>
+          )}
+
+          <p className="text-gray-500 text-sm mb-8">
+            {preview?.memberCount
+              ? `${preview.memberCount} ${preview.memberCount === 1 ? 'person' : 'people'} already planning`
+              : 'Share availability, pick dates, and coordinate together'}
+          </p>
+
+          <div className="space-y-3">
+            <Button
+              onClick={() => handleAuthRedirect('signup')}
+              className="w-full bg-brand-red hover:bg-brand-red/90 text-white"
+            >
+              Sign up to join
+            </Button>
+            <Button
+              onClick={() => handleAuthRedirect('login')}
+              variant="outline"
+              className="w-full"
+            >
+              I already have an account
+            </Button>
+          </div>
+
+          <p className="text-xs text-gray-400 mt-6">
+            Plan trips with your circle — without the group chat chaos.
+          </p>
+        </div>
       </div>
     )
   }

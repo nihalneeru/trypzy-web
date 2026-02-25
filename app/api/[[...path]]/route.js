@@ -672,6 +672,65 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(members))
     }
 
+    // Public stats — GET /api/stats
+    if (route === '/stats' && method === 'GET') {
+      const tripCount = await db.collection('trips').countDocuments({ status: { $ne: 'canceled' } })
+      const circleCount = await db.collection('circles').countDocuments({})
+      return handleCORS(NextResponse.json({ trips: tripCount, circles: circleCount }))
+    }
+
+    // Invite preview (no auth) — GET /api/invite-preview?code=ABCD12&tripId=xxx
+    if (route === '/invite-preview' && method === 'GET') {
+      const url = new URL(request.url)
+      const code = url.searchParams.get('code')?.trim().toUpperCase()
+      const tripIdParam = url.searchParams.get('tripId')
+      const refParam = url.searchParams.get('ref')
+
+      if (!code) {
+        return handleCORS(NextResponse.json({ valid: false }))
+      }
+
+      const circle = await db.collection('circles').findOne({ inviteCode: code })
+      if (!circle) {
+        return handleCORS(NextResponse.json({ valid: false }))
+      }
+
+      const memberCount = await db.collection('memberships').countDocuments({
+        circleId: circle.id,
+        status: { $ne: 'left' }
+      })
+
+      // Get trip context if tripId provided
+      let tripPreview = null
+      if (tripIdParam) {
+        const trip = await db.collection('trips').findOne({ id: tripIdParam, circleId: circle.id })
+        if (trip) {
+          tripPreview = {
+            name: trip.name,
+            destinationHint: trip.destinationHint || null,
+            travelerCount: memberCount,
+          }
+        }
+      }
+
+      // Get inviter info if ref provided
+      let inviterName = null
+      if (refParam) {
+        const inviter = await db.collection('users').findOne({ id: refParam })
+        if (inviter) {
+          inviterName = inviter.name?.split(' ')[0] || null  // First name only for privacy
+        }
+      }
+
+      return handleCORS(NextResponse.json({
+        valid: true,
+        circleName: circle.name,
+        memberCount,
+        trip: tripPreview,
+        inviterName,
+      }))
+    }
+
     // Validate invite code - GET /api/circles/validate-invite?code=ABCD12
     if (route === '/circles/validate-invite' && method === 'GET') {
       const url = new URL(request.url)
@@ -1341,6 +1400,159 @@ async function handleRoute(request, { params }) {
       }
 
       return handleCORS(NextResponse.json(trip))
+    }
+
+    // Remix a trip — POST /api/trips/remix
+    if (route === '/trips/remix' && method === 'POST') {
+      const auth = await requireAuth(request)
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const body = await request.json()
+      const { shareId } = body
+
+      if (!shareId) {
+        return handleCORS(NextResponse.json({ error: 'shareId is required' }, { status: 400 }))
+      }
+
+      // Find source trip by shareId (must be shared via link)
+      const sourceTripDoc = await db.collection('trips').findOne({
+        shareId,
+        shareVisibility: 'link_only',
+      })
+
+      if (!sourceTripDoc) {
+        return handleCORS(NextResponse.json({ error: 'Trip not found or not shared' }, { status: 404 }))
+      }
+
+      const now = new Date().toISOString()
+      const newTripId = uuidv4()
+      const newCircleId = uuidv4()
+
+      // Create circle (same pattern as trip-first onboarding)
+      const inviteCode = generateInviteCode()
+      await db.collection('circles').insertOne({
+        id: newCircleId,
+        name: `${sourceTripDoc.name} circle`,
+        inviteCode,
+        ownerId: auth.user.id,
+        autoCreated: true,
+        createdBy: auth.user.id,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      // Add creator as circle member
+      await db.collection('memberships').insertOne({
+        userId: auth.user.id,
+        circleId: newCircleId,
+        role: 'owner',
+        joinedAt: now,
+        createdAt: now,
+      })
+
+      // Create new trip cloned from source
+      const newTrip = {
+        id: newTripId,
+        name: sourceTripDoc.name,
+        destinationHint: sourceTripDoc.destinationHint || null,
+        duration: sourceTripDoc.duration || null,
+        type: 'collaborative',
+        circleId: newCircleId,
+        createdBy: auth.user.id,
+        status: 'proposed',
+        schedulingMode: 'date_windows',
+        remixedFrom: {
+          tripId: sourceTripDoc.id,
+          shareId: sourceTripDoc.shareId,
+        },
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      await db.collection('trips').insertOne(newTrip)
+
+      // Add creator as trip participant
+      await db.collection('trip_participants').insertOne({
+        id: uuidv4(),
+        tripId: newTripId,
+        userId: auth.user.id,
+        status: 'active',
+        joinedAt: now,
+      })
+
+      // Copy itinerary ideas from source's latest itinerary version (if any)
+      const latestItinerary = await db.collection('itinerary_versions')
+        .findOne({ tripId: sourceTripDoc.id }, { sort: { version: -1 } })
+
+      if (latestItinerary?.content) {
+        // If structured content with days/blocks, convert to ideas
+        const ideas = []
+        if (latestItinerary.content.days) {
+          for (const day of latestItinerary.content.days) {
+            if (day.blocks) {
+              for (const block of day.blocks) {
+                const text = block.activity || block.title || block.label
+                if (text) {
+                  ideas.push({
+                    id: uuidv4(),
+                    tripId: newTripId,
+                    text,
+                    category: 'activity',
+                    createdBy: auth.user.id,
+                    createdAt: now,
+                    likes: [],
+                  })
+                }
+              }
+            }
+          }
+        }
+        if (ideas.length > 0) {
+          await db.collection('itinerary_ideas').insertMany(ideas)
+        }
+      }
+
+      // Also copy standalone ideas from source trip
+      const sourceIdeas = await db.collection('itinerary_ideas')
+        .find({ tripId: sourceTripDoc.id })
+        .limit(50)
+        .toArray()
+
+      if (sourceIdeas.length > 0) {
+        const copiedIdeas = sourceIdeas.map(idea => ({
+          id: uuidv4(),
+          tripId: newTripId,
+          text: idea.text,
+          category: idea.category || 'activity',
+          createdBy: auth.user.id,
+          createdAt: now,
+          likes: [],
+        }))
+        await db.collection('itinerary_ideas').insertMany(copiedIdeas, { ordered: false }).catch(() => {})
+      }
+
+      // Emit chat event for trip creation
+      try {
+        const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
+        await emitTripChatEvent({
+          tripId: newTripId,
+          circleId: newCircleId,
+          actorUserId: auth.user.id,
+          subtype: 'milestone',
+          text: `✈️ Trip "${newTrip.name}" was remixed by ${auth.user.name}`,
+          metadata: { key: 'trip_remixed', sourceShareId: shareId }
+        })
+      } catch (chatErr) {
+        console.error('[remix] chat event failed:', chatErr.message)
+      }
+
+      return handleCORS(NextResponse.json({
+        tripId: newTripId,
+        circleId: newCircleId,
+        tripUrl: `/trips/${newTripId}`,
+      }))
     }
 
     // Delete trip - DELETE /api/trips/:id
