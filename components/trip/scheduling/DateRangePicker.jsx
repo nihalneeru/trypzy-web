@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -27,7 +27,7 @@ function toDateStr(d) {
  *  - selectedStart (YYYY-MM-DD)        optional controlled start
  *  - selectedEnd   (YYYY-MM-DD)        optional controlled end
  */
-export function DateRangePicker({ onSelect, selectedStart, selectedEnd }) {
+export function DateRangePicker({ onSelect, selectedStart, selectedEnd, heatData, totalTravelers }) {
   const today = useMemo(() => {
     const d = new Date()
     return toDateStr(d)
@@ -42,6 +42,22 @@ export function DateRangePicker({ onSelect, selectedStart, selectedEnd }) {
   const [rangeEnd, setRangeEnd] = useState(selectedEnd || null)
   // Hover preview
   const [hoverDate, setHoverDate] = useState(null)
+
+  // Sync from controlled props (e.g. smart chip pre-selection)
+  useEffect(() => {
+    if (selectedStart) {
+      setRangeStart(selectedStart)
+      setRangeEnd(selectedEnd || null)
+      // Navigate calendar to the start date's month
+      const d = new Date(selectedStart + 'T12:00:00')
+      setViewYear(d.getFullYear())
+      setViewMonth(d.getMonth())
+      // Fire onSelect if we have both
+      if (selectedEnd) {
+        onSelect?.({ startDate: selectedStart, endDate: selectedEnd })
+      }
+    }
+  }, [selectedStart, selectedEnd])
 
   const goForward = useCallback(() => {
     setViewMonth((m) => {
@@ -156,8 +172,8 @@ export function DateRangePicker({ onSelect, selectedStart, selectedEnd }) {
       dateStr > rangeStart &&
       dateStr < effectiveEnd
 
+    // Selection colors take precedence over heat
     if (isStart && isEnd) {
-      // Single-day selection
       return 'bg-brand-red text-white rounded-lg font-semibold'
     }
     if (isStart) {
@@ -168,6 +184,14 @@ export function DateRangePicker({ onSelect, selectedStart, selectedEnd }) {
     }
     if (inRange) {
       return 'bg-brand-sand text-brand-carbon'
+    }
+
+    // Heat tint from availability data (when not selected)
+    if (heatData && totalTravelers > 0 && heatData[dateStr]) {
+      const fraction = heatData[dateStr] / totalTravelers
+      if (fraction >= 0.6) return 'bg-brand-blue/20 text-brand-carbon rounded-lg hover:bg-brand-blue/30'
+      if (fraction >= 0.3) return 'bg-brand-blue/10 text-brand-carbon rounded-lg hover:bg-brand-blue/20'
+      return 'bg-brand-sand/60 text-brand-carbon rounded-lg hover:bg-brand-sand'
     }
 
     // Default: future date

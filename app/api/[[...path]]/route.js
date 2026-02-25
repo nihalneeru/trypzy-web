@@ -3783,9 +3783,14 @@ async function handleRoute(request, { params }) {
         travelers = participants.map(p => ({ id: p.userId }))
       }
 
-      // Compute proposal readiness
-      const proposalStatus = computeProposalReady(trip, travelers, windows, supports)
+      // Compute proposal readiness (exclude blocker windows)
+      const availableWindows = windows.filter(w => (w.windowType || 'available') !== 'blocker')
+      const proposalStatus = computeProposalReady(trip, travelers, availableWindows, supports)
       const phase = getSchedulingPhase(trip)
+
+      // Get proposed window IDs (handles both old and new format)
+      const { getProposedWindowIds } = await import('@/lib/trips/proposalReady.js')
+      const proposedWindowIds = getProposedWindowIds(trip)
 
       // Enrich windows with support counts
       const enrichedWindows = windows.map(w => {
@@ -3794,7 +3799,7 @@ async function handleRoute(request, { params }) {
           ...w,
           supportCount: windowSupports.length,
           supporterIds: windowSupports.map(s => s.userId),
-          isProposed: trip.proposedWindowId === w.id
+          isProposed: proposedWindowIds.includes(w.id)
         }
       })
 
@@ -3806,26 +3811,60 @@ async function handleRoute(request, { params }) {
       const { WINDOW_CONFIG } = await import('@/lib/trips/normalizeWindow.js')
       const userWindowCount = windows.filter(w => w.proposedBy === auth.user.id).length
 
-      // Compute approval summary if there's a proposed window
+      // Compute approval summaries for proposed windows
       let approvalSummary = null
-      if (trip.proposedWindowId) {
-        const reactions = trip.proposedWindowReactions || []
-        const approvals = reactions.filter(r => r.reactionType === 'WORKS').length
-        const caveats = reactions.filter(r => r.reactionType === 'CAVEAT').length
-        const cants = reactions.filter(r => r.reactionType === 'CANT').length
-        const requiredApprovals = Math.ceil(travelers.length / 2)
-        const userReaction = reactions.find(r => r.userId === auth.user.id)
+      let approvalSummaries = null
+      const requiredApprovals = Math.ceil(travelers.length / 2)
 
-        approvalSummary = {
-          approvals,
-          caveats,
-          cants,
-          totalReactions: reactions.length,
-          requiredApprovals,
-          memberCount: travelers.length,
-          readyToLock: approvals >= requiredApprovals,
-          userReaction: userReaction?.reactionType || null,
-          reactions  // Full list for UI to display
+      if (proposedWindowIds.length > 0) {
+        // Per-window approval summaries (from date_windows.reactions)
+        approvalSummaries = {}
+        for (const pid of proposedWindowIds) {
+          const pw = windows.find(w => w.id === pid)
+          const wReactions = pw?.reactions || []
+          const wApprovals = wReactions.filter(r => r.reactionType === 'WORKS').length
+          const wCaveats = wReactions.filter(r => r.reactionType === 'CAVEAT').length
+          const wCants = wReactions.filter(r => r.reactionType === 'CANT').length
+          const userReaction = wReactions.find(r => r.userId === auth.user.id)
+          approvalSummaries[pid] = {
+            approvals: wApprovals,
+            caveats: wCaveats,
+            cants: wCants,
+            totalReactions: wReactions.length,
+            requiredApprovals,
+            memberCount: travelers.length,
+            readyToLock: wApprovals >= requiredApprovals,
+            userReaction: userReaction?.reactionType || null,
+            reactions: wReactions
+          }
+        }
+
+        // Legacy single-window approvalSummary (check both per-window and trip-level)
+        const primaryId = proposedWindowIds[0]
+        if (approvalSummaries[primaryId]) {
+          approvalSummary = approvalSummaries[primaryId]
+        }
+
+        // Fallback to trip-level reactions for backward compat
+        if (!approvalSummary || approvalSummary.totalReactions === 0) {
+          const tripReactions = trip.proposedWindowReactions || []
+          if (tripReactions.length > 0) {
+            const tApprovals = tripReactions.filter(r => r.reactionType === 'WORKS').length
+            const tCaveats = tripReactions.filter(r => r.reactionType === 'CAVEAT').length
+            const tCants = tripReactions.filter(r => r.reactionType === 'CANT').length
+            const tUserReaction = tripReactions.find(r => r.userId === auth.user.id)
+            approvalSummary = {
+              approvals: tApprovals,
+              caveats: tCaveats,
+              cants: tCants,
+              totalReactions: tripReactions.length,
+              requiredApprovals,
+              memberCount: travelers.length,
+              readyToLock: tApprovals >= requiredApprovals,
+              userReaction: tUserReaction?.reactionType || null,
+              reactions: tripReactions
+            }
+          }
         }
       }
 
@@ -3834,12 +3873,14 @@ async function handleRoute(request, { params }) {
         windows: enrichedWindows,
         proposalStatus,
         userSupportedWindowIds: Array.from(userSupportedWindowIds),
-        proposedWindowId: trip.proposedWindowId || null,
+        proposedWindowId: proposedWindowIds[0] || null,
+        proposedWindowIds,
         isLeader: trip.createdBy === auth.user.id,
         userWindowCount,
         maxWindows: WINDOW_CONFIG.MAX_WINDOWS_PER_USER,
         canCreateWindow: phase === 'COLLECTING' && userWindowCount < WINDOW_CONFIG.MAX_WINDOWS_PER_USER,
-        approvalSummary
+        approvalSummary,
+        approvalSummaries
       }))
     }
 
@@ -3855,7 +3896,12 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { startDate, endDate, text, acknowledgeOverlap, forceAccept } = body
+      const { startDate, endDate, text, acknowledgeOverlap, forceAccept, windowType } = body
+
+      // Validate windowType if provided
+      if (windowType && !['available', 'blocker'].includes(windowType)) {
+        return handleCORS(NextResponse.json({ error: 'windowType must be "available" or "blocker"' }, { status: 400 }))
+      }
 
       // Limit text length to prevent abuse
       const MAX_WINDOW_TEXT_LENGTH = 100
@@ -4006,6 +4052,7 @@ async function handleRoute(request, { params }) {
       }
 
       // Create window with normalized fields
+      const effectiveWindowType = windowType || 'available'
       const windowId = uuidv4()
       const window = {
         id: windowId,
@@ -4019,18 +4066,21 @@ async function handleRoute(request, { params }) {
         normalizedStart,
         normalizedEnd,
         precision,
+        windowType: effectiveWindowType,
         createdAt: new Date().toISOString()
       }
       await db.collection('date_windows').insertOne(window)
 
-      // Auto-support the window you created
-      await db.collection('window_supports').insertOne({
-        id: uuidv4(),
-        windowId,
-        tripId,
-        userId: auth.user.id,
-        createdAt: new Date().toISOString()
-      })
+      // Auto-support the window you created (skip for blockers)
+      if (effectiveWindowType !== 'blocker') {
+        await db.collection('window_supports').insertOne({
+          id: uuidv4(),
+          windowId,
+          tripId,
+          userId: auth.user.id,
+          createdAt: new Date().toISOString()
+        })
+      }
 
       // Auto-transition from proposed to scheduling on first window
       const wasProposed = trip.status === 'proposed'
@@ -4143,6 +4193,11 @@ async function handleRoute(request, { params }) {
       const isActive = await isActiveTraveler(db, trip, auth.user.id)
       if (!isActive) {
         return handleCORS(NextResponse.json({ error: 'You are not an active participant in this trip' }, { status: 403 }))
+      }
+
+      // Reject support on blocker windows
+      if ((window.windowType || 'available') === 'blocker') {
+        return handleCORS(NextResponse.json({ error: 'Cannot support a blocker window' }, { status: 400 }))
       }
 
       // Check if already supporting
@@ -4600,10 +4655,15 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { windowId, startDate, endDate, leaderOverride = false, concreteDates } = body
+      const { windowId, windowIds, startDate, endDate, leaderOverride = false, concreteDates } = body
 
-      if (!windowId && (!startDate || !endDate)) {
-        return handleCORS(NextResponse.json({ error: 'Provide either windowId or startDate + endDate' }, { status: 400 }))
+      if (!windowId && !windowIds?.length && (!startDate || !endDate)) {
+        return handleCORS(NextResponse.json({ error: 'Provide windowId, windowIds, or startDate + endDate' }, { status: 400 }))
+      }
+
+      // Validate windowIds limit (1-3)
+      if (windowIds && (windowIds.length < 1 || windowIds.length > 3)) {
+        return handleCORS(NextResponse.json({ error: 'windowIds must contain 1-3 window IDs' }, { status: 400 }))
       }
 
       const trip = await db.collection('trips').findOne({ id: tripId })
@@ -4620,13 +4680,48 @@ async function handleRoute(request, { params }) {
       }
 
       let window
+      let proposedIds = []
 
-      if (windowId) {
+      // Mode C: Multi-window propose (1-3 windows)
+      if (windowIds?.length > 0) {
+        const proposedWindows = await db.collection('date_windows').find({
+          id: { $in: windowIds },
+          tripId
+        }).toArray()
+
+        if (proposedWindows.length !== windowIds.length) {
+          return handleCORS(NextResponse.json({ error: 'One or more windows not found' }, { status: 404 }))
+        }
+
+        // Check all proposed windows have concrete dates
+        for (const pw of proposedWindows) {
+          if (pw.precision === 'unstructured' && (!pw.startDate || !pw.endDate)) {
+            return handleCORS(NextResponse.json({
+              error: `Window "${pw.sourceText}" needs concrete dates before it can be proposed.`,
+              code: 'REQUIRES_CONCRETE_DATES',
+              windowId: pw.id,
+              sourceText: pw.sourceText
+            }, { status: 400 }))
+          }
+        }
+
+        // Check no blocker windows
+        for (const pw of proposedWindows) {
+          if ((pw.windowType || 'available') === 'blocker') {
+            return handleCORS(NextResponse.json({ error: 'Cannot propose a blocker window' }, { status: 400 }))
+          }
+        }
+
+        // Use first window as primary (backward compat)
+        window = proposedWindows.find(w => w.id === windowIds[0])
+        proposedIds = windowIds
+      } else if (windowId) {
         // Mode A: Propose an existing window
         window = await db.collection('date_windows').findOne({ id: windowId, tripId })
         if (!window) {
           return handleCORS(NextResponse.json({ error: 'Window not found' }, { status: 404 }))
         }
+        proposedIds = [windowId]
 
         // If window is unstructured, leader must supply concrete dates
         if (window.precision === 'unstructured') {
@@ -4700,6 +4795,7 @@ async function handleRoute(request, { params }) {
           createdAt: new Date().toISOString()
         }
         await db.collection('date_windows').insertOne(window)
+        proposedIds = [newWindowId]
 
         // Auto-support for leader
         await db.collection('window_supports').insertOne({
@@ -4779,17 +4875,24 @@ async function handleRoute(request, { params }) {
         }, { status: 400 }))
       }
 
-      // Set the proposed window and clear any previous reactions
+      // Set the proposed window(s) and clear any previous reactions
       await db.collection('trips').updateOne(
         { id: tripId },
         {
           $set: {
-            proposedWindowId: window.id,
+            proposedWindowId: proposedIds[0],  // Backward compat: first window
+            proposedWindowIds: proposedIds,     // New: array of 1-3 window IDs
             proposedAt: new Date().toISOString(),
             proposedByOverride: effectiveOverride,
-            proposedWindowReactions: []  // Clear reactions for new proposal
+            proposedWindowReactions: []  // Clear legacy reactions
           }
         }
+      )
+
+      // Clear per-window reactions on proposed windows
+      await db.collection('date_windows').updateMany(
+        { id: { $in: proposedIds }, tripId },
+        { $set: { reactions: [] } }
       )
 
       // Emit chat event
@@ -4865,18 +4968,31 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: validation.message }, { status: validation.status }))
       }
 
-      // Clear the proposed window and reactions
+      // Get proposed window IDs before clearing (for reaction cleanup)
+      const { getProposedWindowIds: getWithdrawIds } = await import('@/lib/trips/proposalReady.js')
+      const withdrawProposedIds = getWithdrawIds(trip)
+
+      // Clear the proposed window(s) and reactions
       await db.collection('trips').updateOne(
         { id: tripId },
         {
           $unset: {
             proposedWindowId: '',
+            proposedWindowIds: '',
             proposedAt: '',
             proposedByOverride: '',
             proposedWindowReactions: ''
           }
         }
       )
+
+      // Clear per-window reactions on all previously-proposed windows
+      if (withdrawProposedIds.length > 0) {
+        await db.collection('date_windows').updateMany(
+          { id: { $in: withdrawProposedIds }, tripId },
+          { $set: { reactions: [] } }
+        )
+      }
 
       // Emit chat event
       const { emitTripChatEvent } = await import('@/lib/chat/emitTripChatEvent.js')
@@ -4918,7 +5034,7 @@ async function handleRoute(request, { params }) {
 
       const tripId = path[1]
       const body = await request.json()
-      const { reactionType, note } = body
+      const { reactionType, note, windowId: targetWindowId } = body
 
       const validReactions = ['WORKS', 'CAVEAT', 'CANT']
       if (!reactionType || !validReactions.includes(reactionType)) {
@@ -4946,12 +5062,20 @@ async function handleRoute(request, { params }) {
       }
 
       // Must have an active proposed window
-      if (!trip.proposedWindowId) {
+      const { getProposedWindowIds } = await import('@/lib/trips/proposalReady.js')
+      const allProposedIds = getProposedWindowIds(trip)
+      if (allProposedIds.length === 0) {
         return handleCORS(NextResponse.json({ error: 'No dates are proposed to react to' }, { status: 400 }))
       }
 
       if (trip.status === 'locked' || trip.lockedStartDate) {
         return handleCORS(NextResponse.json({ error: 'Dates are already locked' }, { status: 400 }))
+      }
+
+      // Determine which window to react to
+      const reactWindowId = targetWindowId || allProposedIds[0]
+      if (!allProposedIds.includes(reactWindowId)) {
+        return handleCORS(NextResponse.json({ error: 'Window is not in the current proposal' }, { status: 400 }))
       }
 
       // Check if user is active participant (uses standardized helper for consistency)
@@ -4961,44 +5085,49 @@ async function handleRoute(request, { params }) {
       }
 
       const now = new Date().toISOString()
+      const reactionDoc = {
+        userId: auth.user.id,
+        userName: auth.user.name,
+        reactionType,
+        note: note || null,
+        createdAt: now
+      }
 
-      // Remove existing reaction from this user, then add new one
+      // Store reaction on the date_windows doc (new: per-window reactions)
+      await db.collection('date_windows').updateOne(
+        { id: reactWindowId, tripId },
+        { $pull: { reactions: { userId: auth.user.id } } }
+      )
+      await db.collection('date_windows').updateOne(
+        { id: reactWindowId, tripId },
+        { $push: { reactions: reactionDoc } }
+      )
+
+      // Also store on trip doc for backward compatibility (legacy single-window)
       await db.collection('trips').updateOne(
         { id: tripId },
         { $pull: { proposedWindowReactions: { userId: auth.user.id } } }
       )
-
       await db.collection('trips').updateOne(
         { id: tripId },
-        {
-          $push: {
-            proposedWindowReactions: {
-              userId: auth.user.id,
-              userName: auth.user.name,
-              reactionType,
-              note: note || null,
-              createdAt: now
-            }
-          }
-        }
+        { $push: { proposedWindowReactions: reactionDoc } }
       )
 
       const updatedTrip = await db.collection('trips').findOne({ id: tripId })
 
       // Emit scheduling.reaction.submitted event
-      // Map reactionType to spec format: WORKS -> 'works', CAVEAT -> 'maybe', CANT -> 'cant'
       const reactionMap = { WORKS: 'works', CAVEAT: 'maybe', CANT: 'cant' }
       emitReactionSubmitted(
         tripId,
         trip.circleId,
         auth.user.id,
         trip.createdBy === auth.user.id ? 'leader' : 'traveler',
-        trip.proposedWindowId,
+        reactWindowId,
         reactionMap[reactionType] || reactionType.toLowerCase(),
         new Date(trip.createdAt)
       ).catch(err => console.error('[events] emitReactionSubmitted failed:', err))
 
-      // Compute approval status for response
+      // Compute per-window approval summaries
       const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
       const participants = await db.collection('trip_participants').find({ tripId }).toArray()
       const statusMap = new Map(participants.map(p => [p.userId, p.status || 'active']))
@@ -5007,24 +5136,49 @@ async function handleRoute(request, { params }) {
         const status = statusMap.get(m.userId)
         if (!status || status === 'active') memberCount++
       }
-
-      const reactions = updatedTrip.proposedWindowReactions || []
-      const approvals = reactions.filter(r => r.reactionType === 'WORKS').length
-      const caveats = reactions.filter(r => r.reactionType === 'CAVEAT').length
-      const cants = reactions.filter(r => r.reactionType === 'CANT').length
       const requiredApprovals = Math.ceil(memberCount / 2)
+
+      // Build per-window approval summaries
+      const proposedWindowDocs = await db.collection('date_windows').find({
+        id: { $in: allProposedIds }, tripId
+      }).toArray()
+
+      const approvalSummaries = {}
+      for (const pw of proposedWindowDocs) {
+        const wReactions = pw.reactions || []
+        const wApprovals = wReactions.filter(r => r.reactionType === 'WORKS').length
+        const wCaveats = wReactions.filter(r => r.reactionType === 'CAVEAT').length
+        const wCants = wReactions.filter(r => r.reactionType === 'CANT').length
+        const userReaction = wReactions.find(r => r.userId === auth.user.id)
+        approvalSummaries[pw.id] = {
+          approvals: wApprovals,
+          caveats: wCaveats,
+          cants: wCants,
+          totalReactions: wReactions.length,
+          requiredApprovals,
+          memberCount,
+          readyToLock: wApprovals >= requiredApprovals,
+          userReaction: userReaction?.reactionType || null,
+          reactions: wReactions
+        }
+      }
+
+      // Also return legacy single-window approvalSummary for backward compat
+      const legacyReactions = updatedTrip.proposedWindowReactions || []
+      const legacyApprovals = legacyReactions.filter(r => r.reactionType === 'WORKS').length
 
       return handleCORS(NextResponse.json({
         trip: updatedTrip,
         approvalSummary: {
-          approvals,
-          caveats,
-          cants,
-          totalReactions: reactions.length,
+          approvals: legacyApprovals,
+          caveats: legacyReactions.filter(r => r.reactionType === 'CAVEAT').length,
+          cants: legacyReactions.filter(r => r.reactionType === 'CANT').length,
+          totalReactions: legacyReactions.length,
           requiredApprovals,
           memberCount,
-          readyToLock: approvals >= requiredApprovals
-        }
+          readyToLock: legacyApprovals >= requiredApprovals
+        },
+        approvalSummaries
       }))
     }
 
@@ -5136,7 +5290,7 @@ async function handleRoute(request, { params }) {
       } catch {
         // Empty body is fine
       }
-      const { leaderOverride = false } = body
+      const { leaderOverride = false, windowId: lockWindowId } = body
 
       const trip = await db.collection('trips').findOne({ id: tripId })
       if (!trip) {
@@ -5165,17 +5319,26 @@ async function handleRoute(request, { params }) {
       }
 
       // Must have a proposed window
-      if (!trip.proposedWindowId) {
+      const { getProposedWindowIds: getLockProposedIds } = await import('@/lib/trips/proposalReady.js')
+      const allLockProposedIds = getLockProposedIds(trip)
+      if (allLockProposedIds.length === 0) {
         return handleCORS(NextResponse.json({ error: 'No dates are proposed. Propose dates first.' }, { status: 400 }))
       }
 
+      // Determine which window to lock
+      const targetLockId = lockWindowId || allLockProposedIds[0]
+      if (!allLockProposedIds.includes(targetLockId)) {
+        return handleCORS(NextResponse.json({ error: 'Window is not in the current proposal' }, { status: 400 }))
+      }
+
       // Get the proposed window
-      const proposedWindow = await db.collection('date_windows').findOne({ id: trip.proposedWindowId })
+      const proposedWindow = await db.collection('date_windows').findOne({ id: targetLockId })
       if (!proposedWindow) {
         return handleCORS(NextResponse.json({ error: 'Proposed window not found' }, { status: 404 }))
       }
 
       // Check approval threshold (unless leader override)
+      // Use per-window reactions first, fallback to trip-level
       if (!leaderOverride) {
         const circleMemberships = await db.collection('memberships').find({ circleId: trip.circleId, status: { $ne: 'left' } }).toArray()
         const participants = await db.collection('trip_participants').find({ tripId }).toArray()
@@ -5186,7 +5349,10 @@ async function handleRoute(request, { params }) {
           if (!status || status === 'active') memberCount++
         }
 
-        const reactions = trip.proposedWindowReactions || []
+        // Try per-window reactions first
+        const windowReactions = proposedWindow.reactions || []
+        const tripReactions = trip.proposedWindowReactions || []
+        const reactions = windowReactions.length > 0 ? windowReactions : tripReactions
         const approvals = reactions.filter(r => r.reactionType === 'WORKS').length
         const requiredApprovals = Math.ceil(memberCount / 2)
 

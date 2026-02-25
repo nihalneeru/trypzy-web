@@ -1126,4 +1126,209 @@ describe('Date Windows API - Date Locking Funnel V2', () => {
       expect(data.error).toContain('proposal is active')
     })
   })
+
+  describe('Blocker windows (windowType)', () => {
+    const tripId = 'trip-blocker-1'
+    const circleId = 'circle-blocker-1'
+    const leaderId = 'leader-blocker-1'
+    const memberId = 'member-blocker-1'
+    const member2Id = 'member2-blocker-1'
+    const member3Id = 'member3-blocker-1'
+
+    beforeEach(async () => {
+      await createTestUser({ id: leaderId, name: 'Leader', email: 'leader-blocker@test.com' })
+      await createTestUser({ id: memberId, name: 'Member', email: 'member-blocker@test.com' })
+      await createTestUser({ id: member2Id, name: 'Member2', email: 'member2-blocker@test.com' })
+      await createTestUser({ id: member3Id, name: 'Member3', email: 'member3-blocker@test.com' })
+      await createTestCircle({ id: circleId, ownerId: leaderId })
+      await addMembership({ userId: leaderId, circleId, role: 'owner' })
+      await addMembership({ userId: memberId, circleId })
+      await addMembership({ userId: member2Id, circleId })
+      await addMembership({ userId: member3Id, circleId })
+      await createTestTrip({ id: tripId, circleId, createdBy: leaderId })
+    })
+
+    afterEach(async () => {
+      await cleanupTestData({ tripId, circleId, userIds: [leaderId, memberId, member2Id, member3Id] })
+    })
+
+    it('should create a blocker window', async () => {
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-10',
+          endDate: '2025-03-15',
+          windowType: 'blocker'
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.window).toBeDefined()
+      expect(data.window.windowType).toBe('blocker')
+      expect(data.window.startDate).toBe('2025-03-10')
+      expect(data.window.endDate).toBe('2025-03-15')
+    })
+
+    it('should skip auto-support for blocker windows', async () => {
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-10',
+          endDate: '2025-03-15',
+          windowType: 'blocker'
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      const windowId = data.window.id
+
+      // Verify no auto-support was created for the blocker window
+      const supports = await db.collection('window_supports').find({ windowId }).toArray()
+      expect(supports).toHaveLength(0)
+    })
+
+    it('should return windowType in GET response', async () => {
+      // Insert a blocker window directly
+      await db.collection('date_windows').insertOne({
+        id: 'blocker-window-get-1',
+        tripId,
+        proposedBy: memberId,
+        startDate: '2025-03-10',
+        endDate: '2025-03-15',
+        windowType: 'blocker',
+        createdAt: new Date().toISOString()
+      })
+
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const response = await GET(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.windows).toHaveLength(1)
+      expect(data.windows[0].windowType).toBe('blocker')
+    })
+
+    it('should reject support on blocker windows', async () => {
+      // Insert a blocker window directly
+      await db.collection('date_windows').insertOne({
+        id: 'blocker-window-support-1',
+        tripId,
+        proposedBy: memberId,
+        startDate: '2025-03-10',
+        endDate: '2025-03-15',
+        windowType: 'blocker',
+        createdAt: new Date().toISOString()
+      })
+
+      const token = createToken(member2Id)
+      const windowId = 'blocker-window-support-1'
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows/${windowId}/support`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows', windowId, 'support'] } })
+      expect(response.status).toBe(400)
+
+      const data = await response.json()
+      expect(data.error).toContain('blocker')
+    })
+
+    it('should exclude blocker windows from proposalReady calculation', async () => {
+      // Create a blocker window from member
+      await db.collection('date_windows').insertOne({
+        id: 'blocker-window-proposal-1',
+        tripId,
+        proposedBy: memberId,
+        startDate: '2025-03-10',
+        endDate: '2025-03-15',
+        windowType: 'blocker',
+        createdAt: new Date().toISOString()
+      })
+
+      // Create an available window with enough support to meet threshold
+      // 4 members total, threshold = floor(4/2) + 1 = 3
+      await db.collection('date_windows').insertOne({
+        id: 'available-window-proposal-1',
+        tripId,
+        proposedBy: leaderId,
+        startDate: '2025-03-20',
+        endDate: '2025-03-25',
+        windowType: 'available',
+        createdAt: new Date().toISOString()
+      })
+      await db.collection('window_supports').insertMany([
+        { id: 'blocker-test-support-1', windowId: 'available-window-proposal-1', tripId, userId: leaderId, createdAt: new Date().toISOString() },
+        { id: 'blocker-test-support-2', windowId: 'available-window-proposal-1', tripId, userId: member2Id, createdAt: new Date().toISOString() },
+        { id: 'blocker-test-support-3', windowId: 'available-window-proposal-1', tripId, userId: member3Id, createdAt: new Date().toISOString() }
+      ])
+
+      const token = createToken(leaderId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      const response = await GET(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      // proposalReady should be based only on available windows (blocker excluded)
+      expect(data.proposalStatus.proposalReady).toBe(true)
+      expect(data.proposalStatus.leadingWindow.id).toBe('available-window-proposal-1')
+    })
+
+    it('should default windowType to available when not specified', async () => {
+      const token = createToken(memberId)
+      const url = new URL(`http://localhost:3000/api/trips/${tripId}/date-windows`)
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2025-03-10',
+          endDate: '2025-03-15'
+        })
+      })
+
+      const response = await POST(request, { params: { path: ['trips', tripId, 'date-windows'] } })
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.window).toBeDefined()
+      expect(data.window.windowType).toBe('available')
+
+      // Also verify auto-support WAS created (confirming it's treated as available)
+      const supports = await db.collection('window_supports').find({ windowId: data.window.id }).toArray()
+      expect(supports).toHaveLength(1)
+    })
+  })
 })
