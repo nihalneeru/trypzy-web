@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -934,6 +934,54 @@ export function DateWindowsFunnel({
     })
   }
 
+  // Compute sorted windows for use in aiRecommendation (also used in render)
+  const sortedWindowsMemo = useMemo(() =>
+    [...windows].sort((a, b) => b.supportCount - a.supportCount),
+    [windows]
+  )
+
+  // Compute AI recommendation for leader (rule-based, not LLM)
+  const aiRecommendation = useMemo(() => {
+    if (!isLeader || phase !== 'COLLECTING' || sortedWindowsMemo.length === 0) return null
+
+    const totalTravelers = proposalStatus?.stats?.totalTravelers || travelers.length
+    if (totalTravelers === 0) return null
+
+    // Score each window
+    const scored = sortedWindowsMemo.map(w => {
+      const confirmed = w.supporterIds.length
+      const missing = travelers.filter(t => !w.supporterIds.includes(t.id))
+      const missingNames = missing.map(t => (t.name || 'Someone').split(' ')[0])
+      const score = confirmed / totalTravelers
+      return { window: w, confirmed, missing: missing.length, missingNames, score }
+    })
+
+    // Best window (sortedWindowsMemo is already sorted by supportCount desc)
+    const best = scored[0]
+    if (!best) return null
+
+    // Build recommendation text
+    let reason = ''
+    if (best.score === 1) {
+      reason = 'Works for everyone!'
+    } else if (best.score >= 0.8) {
+      reason = `Works for ${best.confirmed} of ${totalTravelers}. ${best.missingNames.length === 1 ? `Only ${best.missingNames[0]} hasn't confirmed.` : `${best.missingNames.join(' and ')} haven't confirmed yet.`}`
+    } else if (best.score >= 0.5) {
+      reason = `${best.confirmed} of ${totalTravelers} confirmed. ${best.missingNames.slice(0, 3).join(', ')}${best.missingNames.length > 3 ? ` and ${best.missingNames.length - 3} more` : ''} haven't responded.`
+    } else {
+      reason = `Only ${best.confirmed} of ${totalTravelers} confirmed so far. You may want to wait for more responses.`
+    }
+
+    // Check if there's a close second with the same support
+    const runner = scored[1]
+    let alternativeNote = ''
+    if (runner && runner.score === best.score) {
+      alternativeNote = `${formatWindowDisplay(runner.window)} has the same support \u2014 consider which works better for your circle.`
+    }
+
+    return { window: best.window, reason, alternativeNote, score: best.score, confirmed: best.confirmed, total: totalTravelers }
+  }, [isLeader, phase, sortedWindowsMemo, travelers, proposalStatus])
+
   // Loading state
   if (loading) {
     return (
@@ -1539,6 +1587,18 @@ export function DateWindowsFunnel({
                         <Users className="h-3 w-3" />
                         <span>{window.supportCount} can make this</span>
                       </div>
+                      {/* Conflict detection — show who hasn't confirmed */}
+                      {(() => {
+                        const totalCount = travelers.length
+                        const confirmedCount = window.supporterIds.length
+                        const unconfirmed = travelers.filter(t => !window.supporterIds.includes(t.id))
+                        const unconfirmedNames = unconfirmed.map(t => (t.name || '?').split(' ')[0])
+                        return totalCount > 0 && confirmedCount < totalCount && unconfirmedNames.length > 0 ? (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            Not yet: {unconfirmedNames.slice(0, 4).join(', ')}{unconfirmedNames.length > 4 ? ` +${unconfirmedNames.length - 4}` : ''}
+                          </p>
+                        ) : null
+                      })()}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1806,6 +1866,26 @@ export function DateWindowsFunnel({
       {isLeader && phase === 'COLLECTING' && sortedWindows.length > 0 && (
         <Card className="border-brand-blue/20">
           <CardContent className="py-4 space-y-3">
+            {/* AI Recommendation */}
+            {aiRecommendation && (
+              <div className="bg-brand-sand/40 rounded-lg p-3 space-y-1.5 mb-3">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-brand-red" />
+                  <span className="text-xs font-semibold text-brand-carbon uppercase tracking-wide">Tripti recommends</span>
+                </div>
+                <p className="text-sm font-medium text-brand-carbon">
+                  {formatWindowDisplay(aiRecommendation.window)}
+                </p>
+                <p className="text-xs text-gray-600">
+                  {aiRecommendation.reason}
+                </p>
+                {aiRecommendation.alternativeNote && (
+                  <p className="text-xs text-gray-500 italic">
+                    {aiRecommendation.alternativeNote}
+                  </p>
+                )}
+              </div>
+            )}
             {proposalStatus?.proposalReady && proposalStatus.leadingWindow ? (
               <>
                 <p className="text-sm text-muted-foreground text-center">

@@ -3,6 +3,7 @@ import { Toaster } from 'sonner'
 import { Inter } from 'next/font/google'
 import { SessionProvider } from '@/components/providers/SessionProvider'
 import { PushHandler } from '@/components/common/PushHandler'
+import { CookieBanner } from '@/components/common/CookieBanner'
 import * as Sentry from '@sentry/nextjs'
 
 const inter = Inter({
@@ -78,6 +79,7 @@ export default function RootLayout({ children }) {
           <PushHandler />
         </SessionProvider>
         <Toaster position="top-right" />
+        <CookieBanner />
       </body>
     </html>
   )

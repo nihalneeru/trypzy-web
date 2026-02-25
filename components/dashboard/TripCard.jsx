@@ -131,6 +131,13 @@ export function TripCard({ trip, circleId = null }) {
     return (Date.now() - new Date(ts).getTime()) > 7 * 24 * 60 * 60 * 1000
   })()
 
+  // Active pulse: activity within last 24 hours (#331)
+  const hasRecentActivity = (() => {
+    const ts = trip.latestActivity?.createdAt
+    if (!ts) return false
+    return (Date.now() - new Date(ts).getTime()) < 24 * 60 * 60 * 1000
+  })()
+
   return (
     <Link href={tripUrl} className="block h-full min-w-0" data-testid={`trip-card-${trip.id}`} onClick={() => setNavigating(true)}>
       <Card className={`cursor-pointer hover:shadow-lg transition-shadow flex flex-col h-full min-w-0 relative ${isStalled ? 'bg-brand-sand/20' : ''}`}>
@@ -143,7 +150,15 @@ export function TripCard({ trip, circleId = null }) {
           {/* Header with info icon */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-base mb-1 line-clamp-2">{trip.name}</h3>
+              <h3 className="font-semibold text-base mb-1 line-clamp-2 flex items-center gap-1.5">
+                {trip.name}
+                {hasRecentActivity && (
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-blue opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-blue" />
+                  </span>
+                )}
+              </h3>
             </div>
             <TooltipProvider>
               <Tooltip>
