@@ -17,10 +17,11 @@ import {
   Trash2,
   Sparkles,
   Copy,
-  MessageCircle
+  MessageCircle,
+  Share2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { copyToClipboard } from '@/lib/native/share'
+import { copyToClipboard, nativeShare } from '@/lib/native/share'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -971,27 +972,48 @@ export function DateWindowsFunnel({
             These dates are final. Time to plan the itinerary!
           </p>
           {trip.lockedStartDate && trip.lockedEndDate && (
-            <button
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md border border-green-300 text-green-700 hover:bg-green-100 text-sm font-medium transition-colors"
-              onClick={() => {
-                import('@/lib/trips/generateICS').then(({ generateICS }) => {
-                  const ics = generateICS(trip, null)
-                  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `${(trip.name || 'trip').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')}.ics`
-                  document.body.appendChild(a)
-                  a.click()
-                  document.body.removeChild(a)
-                  URL.revokeObjectURL(url)
-                  toast.success('Calendar file downloaded')
-                })
-              }}
-            >
-              <CalendarIcon className="h-4 w-4" />
-              Add to calendar
-            </button>
+            <div className="flex flex-col items-center gap-2 mt-4">
+              <button
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-green-300 text-green-700 hover:bg-green-100 text-sm font-medium transition-colors"
+                onClick={() => {
+                  import('@/lib/trips/generateICS').then(({ generateICS }) => {
+                    const ics = generateICS(trip, null)
+                    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${(trip.name || 'trip').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')}.ics`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                    toast.success('Calendar file downloaded')
+                  })
+                }}
+              >
+                <CalendarIcon className="h-4 w-4" />
+                Add to calendar
+              </button>
+              <button
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-brand-blue/30 text-brand-blue hover:bg-brand-blue/5 text-sm font-medium transition-colors"
+                onClick={async () => {
+                  const dateRange = `${formatDate(trip.lockedStartDate)} – ${formatDate(trip.lockedEndDate)}`
+                  const text = `We locked in dates for ${trip.name}!${trip.destinationHint ? ` ${trip.destinationHint}` : ''} — ${dateRange}`
+                  const receiptUrl = `${window.location.origin}/api/trips/${trip.id}/receipt`
+                  const result = await nativeShare({
+                    title: `${trip.name} — Dates Locked!`,
+                    text,
+                    url: receiptUrl,
+                  })
+                  if (result === 'copied') {
+                    toast.success('Link copied!')
+                  }
+                }}
+              >
+                <Share2 className="h-4 w-4" />
+                Share the news
+              </button>
+            </div>
           )}
         </div>
       </div>
