@@ -170,9 +170,9 @@ export function WelcomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <img
-              src="/brand/tripti.ai-logo-final-versions/full-logo/tripti-fl-gray-dark-bg-v3.svg"
+              src="/brand/tripti-logo-white.svg"
               alt="Tripti.ai"
-              className="h-6 w-auto"
+              className="h-6 w-auto opacity-60"
             />
             <p className="text-sm text-white/60 italic">
               Nifty plans. Happy circles.
