@@ -190,11 +190,9 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
                     <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
                     Privacy Policy
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a href="mailto:contact@tripti.ai">
-                      <HelpCircle className="h-4 w-4 mr-2" aria-hidden="true" />
-                      Help & Support
-                    </a>
+                  <DropdownMenuItem onClick={() => router.push('/help')}>
+                    <HelpCircle className="h-4 w-4 mr-2" aria-hidden="true" />
+                    Help & Support
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
