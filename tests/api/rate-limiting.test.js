@@ -25,7 +25,6 @@ describe('Rate Limiting - getTierForRoute', () => {
   it('should map auth routes to auth tier', async () => {
     const { getTierForRoute } = await import('@/lib/server/rateLimit.js')
 
-    expect(getTierForRoute('/auth/validate-beta-secret', 'POST')).toBe('auth')
     expect(getTierForRoute('/signup', 'POST')).toBe('auth')
     expect(getTierForRoute('/login', 'POST')).toBe('auth')
   })

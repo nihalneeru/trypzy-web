@@ -514,22 +514,6 @@ async function handleRoute(request, { params }) {
       }))
     }
 
-    // Validate private beta secret - POST /api/auth/validate-beta-secret
-    // (Rate limiting handled by auth-tier check above)
-    if (route === '/auth/validate-beta-secret' && method === 'POST') {
-      const body = await request.json()
-      const { secret } = body
-      const VALID_BETA_PHRASES = [
-        'tripti-beta-2026',
-        'trypzy-beta-2024',
-        ...(process.env.PRIVATE_BETA_SECRET ? [process.env.PRIVATE_BETA_SECRET] : []),
-      ]
-
-      return handleCORS(NextResponse.json({
-        valid: VALID_BETA_PHRASES.some(p => secret?.toLowerCase() === p.toLowerCase())
-      }))
-    }
-
     // Get current user - GET /api/auth/me
     if (route === '/auth/me' && method === 'GET') {
       const auth = await requireAuth(request)
