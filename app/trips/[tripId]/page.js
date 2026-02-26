@@ -155,7 +155,7 @@ export default function TripDetailPage() {
   }
 
   return (
-    <div className="h-screen bg-white flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-white flex flex-col overflow-hidden">
       <AppHeader userName={user?.name} />
 
       {/* Command Center V3 */}
