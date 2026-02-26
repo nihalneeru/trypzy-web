@@ -18,15 +18,19 @@ function generateSmartChips(currentMonth) {
   chips.push({ label: `Late ${m1Name}`, action: 'dates' })
   chips.push({ label: `Early ${m2Name}`, action: 'dates' })
 
-  // Seasonal chips based on current month
+  // Seasonal chips based on current month (non-overlapping)
   if (currentMonth >= 1 && currentMonth <= 2) {
     chips.push({ label: 'Spring break', action: 'dates' })
-  } else if (currentMonth >= 3 && currentMonth <= 5) {
+  } else if (currentMonth >= 3 && currentMonth <= 4) {
     chips.push({ label: 'Memorial Day weekend', action: 'dates' })
-  } else if (currentMonth >= 4 && currentMonth <= 6) {
+  } else if (currentMonth >= 5 && currentMonth <= 6) {
     chips.push({ label: '4th of July weekend', action: 'dates' })
-  } else if (currentMonth >= 7 && currentMonth <= 9) {
+  } else if (currentMonth >= 7 && currentMonth <= 8) {
+    chips.push({ label: 'Labor Day weekend', action: 'dates' })
+  } else if (currentMonth >= 9 && currentMonth <= 10) {
     chips.push({ label: 'Thanksgiving week', action: 'dates' })
+  } else if (currentMonth === 11 || currentMonth === 0) {
+    chips.push({ label: "New Year's weekend", action: 'dates' })
   }
 
   chips.push({ label: "I'm flexible", action: 'flexible' })
@@ -39,11 +43,10 @@ function generateSmartChips(currentMonth) {
 
 describe('generateSmartChips', () => {
   describe('structure and count', () => {
-    it('returns 4-5 chips for every month, never more than 5', () => {
+    it('returns 5 chips for every month (3 month-relative + 1 seasonal + flexible)', () => {
       for (let month = 0; month < 12; month++) {
         const chips = generateSmartChips(month)
-        expect(chips.length).toBeGreaterThanOrEqual(4)
-        expect(chips.length).toBeLessThanOrEqual(5)
+        expect(chips.length).toBe(5)
       }
     })
 
@@ -60,13 +63,13 @@ describe('generateSmartChips', () => {
       for (let month = 0; month < 12; month++) {
         const chips = generateSmartChips(month)
         const dateChips = chips.filter(c => c.action === 'dates')
-        // At least 3 date chips (the month-relative ones), possibly 4 with seasonal
-        expect(dateChips.length).toBeGreaterThanOrEqual(3)
+        // 3 month-relative + 1 seasonal = 4 date chips
+        expect(dateChips.length).toBe(4)
       }
     })
   })
 
-  describe('seasonal chip presence', () => {
+  describe('seasonal chip presence (non-overlapping)', () => {
     it('months 1-2 (Feb-Mar) include "Spring break"', () => {
       for (const month of [1, 2]) {
         const chips = generateSmartChips(month)
@@ -75,47 +78,55 @@ describe('generateSmartChips', () => {
       }
     })
 
-    it('months 3-5 (Apr-Jun) include "Memorial Day weekend"', () => {
-      for (const month of [3, 4, 5]) {
+    it('months 3-4 (Apr-May) include "Memorial Day weekend"', () => {
+      for (const month of [3, 4]) {
         const chips = generateSmartChips(month)
         const labels = chips.map(c => c.label)
         expect(labels).toContain('Memorial Day weekend')
       }
     })
 
-    it('month 6 (Jul) includes "4th of July weekend"', () => {
-      // Months 4-5 hit the Memorial Day else-if branch first, so only month 6 fires this branch
-      const chips = generateSmartChips(6)
-      const labels = chips.map(c => c.label)
-      expect(labels).toContain('4th of July weekend')
+    it('months 5-6 (Jun-Jul) include "4th of July weekend"', () => {
+      for (const month of [5, 6]) {
+        const chips = generateSmartChips(month)
+        const labels = chips.map(c => c.label)
+        expect(labels).toContain('4th of July weekend')
+      }
     })
 
-    it('months 7-9 (Aug-Oct) include "Thanksgiving week"', () => {
-      for (const month of [7, 8, 9]) {
+    it('months 7-8 (Aug-Sep) include "Labor Day weekend"', () => {
+      for (const month of [7, 8]) {
+        const chips = generateSmartChips(month)
+        const labels = chips.map(c => c.label)
+        expect(labels).toContain('Labor Day weekend')
+      }
+    })
+
+    it('months 9-10 (Oct-Nov) include "Thanksgiving week"', () => {
+      for (const month of [9, 10]) {
         const chips = generateSmartChips(month)
         const labels = chips.map(c => c.label)
         expect(labels).toContain('Thanksgiving week')
       }
     })
 
-    it('months 0, 10, 11 have no seasonal chip', () => {
-      for (const month of [0, 10, 11]) {
+    it('months 11, 0 (Dec-Jan) include "New Year\'s weekend"', () => {
+      for (const month of [11, 0]) {
         const chips = generateSmartChips(month)
-        const dateChips = chips.filter(c => c.action === 'dates')
-        // Only the 3 month-relative chips, no seasonal
-        expect(dateChips.length).toBe(3)
+        const labels = chips.map(c => c.label)
+        expect(labels).toContain("New Year's weekend")
       }
     })
 
-    it('month 4 and 5 can produce both Memorial Day and 4th of July but slice caps at 5', () => {
-      // months 4 and 5 hit BOTH the Memorial Day (3-5) and 4th of July (4-6) branches
-      // But the if/else-if chain means only Memorial Day fires (it comes first)
-      for (const month of [4, 5]) {
+    it('every month has exactly one seasonal chip (no overlaps, no gaps)', () => {
+      for (let month = 0; month < 12; month++) {
         const chips = generateSmartChips(month)
-        const labels = chips.map(c => c.label)
-        // else-if means only Memorial Day matches (3-5 branch fires before 4-6)
-        expect(labels).toContain('Memorial Day weekend')
-        expect(labels).not.toContain('4th of July weekend')
+        const seasonalLabels = [
+          'Spring break', 'Memorial Day weekend', '4th of July weekend',
+          'Labor Day weekend', 'Thanksgiving week', "New Year's weekend"
+        ]
+        const seasonal = chips.filter(c => seasonalLabels.includes(c.label))
+        expect(seasonal.length, `Month ${month} should have exactly 1 seasonal chip`).toBe(1)
       }
     })
   })
@@ -172,7 +183,9 @@ describe('generateSmartChips', () => {
       'Spring break',
       'Memorial Day weekend',
       '4th of July weekend',
+      'Labor Day weekend',
       'Thanksgiving week',
+      "New Year's weekend",
     ]
 
     for (const label of seasonalLabels) {

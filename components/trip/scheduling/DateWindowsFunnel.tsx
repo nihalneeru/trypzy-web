@@ -137,15 +137,25 @@ function generateSmartChips(): { label: string; action: 'dates' | 'flexible' }[]
   chips.push({ label: `Late ${m1Name}`, action: 'dates' })
   chips.push({ label: `Early ${m2Name}`, action: 'dates' })
 
-  // Seasonal chips based on current month
+  // Seasonal chips based on current month (non-overlapping)
   if (currentMonth >= 1 && currentMonth <= 2) {
+    // Feb-Mar: spring break planning
     chips.push({ label: 'Spring break', action: 'dates' })
-  } else if (currentMonth >= 3 && currentMonth <= 5) {
+  } else if (currentMonth >= 3 && currentMonth <= 4) {
+    // Apr-May: Memorial Day is late May
     chips.push({ label: 'Memorial Day weekend', action: 'dates' })
-  } else if (currentMonth >= 4 && currentMonth <= 6) {
+  } else if (currentMonth >= 5 && currentMonth <= 6) {
+    // Jun-Jul: 4th of July
     chips.push({ label: '4th of July weekend', action: 'dates' })
-  } else if (currentMonth >= 7 && currentMonth <= 9) {
+  } else if (currentMonth >= 7 && currentMonth <= 8) {
+    // Aug-Sep: Labor Day + fall planning
+    chips.push({ label: 'Labor Day weekend', action: 'dates' })
+  } else if (currentMonth >= 9 && currentMonth <= 10) {
+    // Oct-Nov: Thanksgiving is late Nov
     chips.push({ label: 'Thanksgiving week', action: 'dates' })
+  } else if (currentMonth === 11 || currentMonth === 0) {
+    // Dec-Jan: holiday/New Year planning
+    chips.push({ label: "New Year's weekend", action: 'dates' })
   }
 
   // Always include "I'm flexible"
