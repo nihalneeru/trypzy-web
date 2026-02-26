@@ -219,7 +219,7 @@ export function OverlayContainer({
             : useAbsolutePosition && !isBottomSlide
               ? {
                   // Right slide with absolute positioning (constrained to parent container)
-                  top: topOffset,
+                  top: `calc(${topOffset} + 15px)`,
                   bottom: `calc(${bottomOffset} + 15px)`,
                   right: `calc(${rightOffset} + 15px)`,
                   left: fullWidth ? '15px' : undefined,
