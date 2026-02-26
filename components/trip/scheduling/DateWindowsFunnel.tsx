@@ -574,7 +574,6 @@ export function DateWindowsFunnel({
         body: JSON.stringify({
           text: textToSubmit,
           acknowledgeOverlap,
-          ...(inputMode === 'busy' && { windowType: 'blocker' })
         })
       })
 
@@ -632,7 +631,6 @@ export function DateWindowsFunnel({
           startDate: manualStartDate,
           endDate: manualEndDate,
           acknowledgeOverlap,
-          ...(inputMode === 'busy' && { windowType: 'blocker' })
         })
       })
 
@@ -677,7 +675,6 @@ export function DateWindowsFunnel({
         body: JSON.stringify({
           text: newDateText,
           forceAccept: true,
-          ...(inputMode === 'busy' && { windowType: 'blocker' })
         })
       })
 
@@ -1782,31 +1779,8 @@ export function DateWindowsFunnel({
                         </div>
                       )}
 
-                      {/* I'm free / I'm busy segmented toggle */}
-                      <div className="flex rounded-lg bg-brand-sand/50 p-0.5 mt-2 mb-1">
-                        <button
-                          type="button"
-                          onClick={() => setInputMode('free')}
-                          className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
-                            inputMode === 'free'
-                              ? 'bg-white text-brand-carbon shadow-sm'
-                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
-                          }`}
-                        >
-                          I'm free
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setInputMode('busy')}
-                          className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
-                            inputMode === 'busy'
-                              ? 'bg-white text-brand-red shadow-sm'
-                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
-                          }`}
-                        >
-                          I'm busy
-                        </button>
-                      </div>
+                      {/* Spacer between chips and calendar/text toggle */}
+                      <div className="mt-2 mb-1" />
 
                       {/* Equal-weight toggle tabs */}
                       <div className="flex rounded-lg bg-brand-sand/50 p-0.5 mt-1.5 mb-3">
