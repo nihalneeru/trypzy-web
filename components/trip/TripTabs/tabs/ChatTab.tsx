@@ -715,9 +715,9 @@ export function ChatTab({
             {/* Voting status - only during voting stage */}
             {trip?.votingStatus?.isVotingStage && trip.votingStatus.leadingOption && (
               <div className="flex justify-center mb-3">
-                <div className="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-700 flex items-center gap-3">
+                <div className="bg-brand-sand/30 border border-brand-carbon/10 rounded-full px-4 py-2 text-sm text-brand-carbon/80 flex items-center gap-3">
                   <span>{formatLeadingOption(trip.votingStatus)}</span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-brand-carbon/60">
                     {trip.votingStatus.votedCount}/{trip.votingStatus.totalTravelers} voted
                   </span>
                 </div>
@@ -750,7 +750,7 @@ export function ChatTab({
                     <Button
                       size="sm"
                       disabled
-                      className="bg-gray-300 text-gray-500 h-9 md:h-7 text-xs cursor-not-allowed"
+                      className="bg-brand-carbon/20 text-brand-carbon/60 h-9 md:h-7 text-xs cursor-not-allowed"
                       title="Only the trip organizer can lock dates."
                     >
                       Lock dates
@@ -761,7 +761,7 @@ export function ChatTab({
             )}
             
             {messages.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No messages yet. Share ideas, ask questions, or coordinate plans here.</p>
+              <p className="text-center text-brand-carbon/60 py-8">No messages yet. Share ideas, ask questions, or coordinate plans here.</p>
             ) : (
               messages.map((msg: any, idx: number) => {
                 // Determine if message is from current user (used for alignment and styling)
@@ -811,9 +811,9 @@ export function ChatTab({
                     {/* Date divider */}
                     {showDateDivider && dateDividerLabel && (
                       <div className="flex items-center gap-3 py-2">
-                        <div className="flex-1 h-px bg-gray-200" />
-                        <span className="text-xs font-medium text-gray-400 whitespace-nowrap">{dateDividerLabel}</span>
-                        <div className="flex-1 h-px bg-gray-200" />
+                        <div className="flex-1 h-px bg-brand-sand/70" />
+                        <span className="text-xs font-medium text-brand-carbon/40 whitespace-nowrap">{dateDividerLabel}</span>
+                        <div className="flex-1 h-px bg-brand-sand/70" />
                       </div>
                     )}
 
@@ -849,7 +849,7 @@ export function ChatTab({
                             </div>
                           ) : (
                             <div
-                              className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
+                              className={`bg-brand-sand/50 rounded-full px-4 py-1 text-sm text-brand-carbon/70 ${msg.metadata?.href ? 'cursor-pointer hover:bg-brand-sand/70 transition-colors' : ''}`}
                               onClick={msg.metadata?.href ? () => {
                                 if (msg.metadata.href.startsWith('/')) {
                                   window.location.href = msg.metadata.href
@@ -895,9 +895,9 @@ export function ChatTab({
                           )}
                           <div>
                             {!isSameGroup && (
-                              <p className="text-xs font-medium text-gray-500 mb-0.5 ml-1">{senderName}</p>
+                              <p className="text-xs font-medium text-brand-carbon/60 mb-0.5 ml-1">{senderName}</p>
                             )}
-                            <div className="bg-gray-100 rounded-2xl rounded-bl-md px-3.5 py-2">
+                            <div className="bg-brand-sand/50 rounded-2xl rounded-bl-md px-3.5 py-2">
                               <p className="text-sm text-brand-carbon">{msg.content}</p>
                             </div>
                             {dateDetectionCache.get(msg.id) && (
@@ -916,7 +916,7 @@ export function ChatTab({
                       )}
                       {/* Timestamp — show for first in group or standalone */}
                       {!msg.isSystem && !isSameGroup && timeStr && (
-                        <p className={`text-[10px] text-gray-400 mt-0.5 ${isFromCurrentUser ? 'mr-1' : 'ml-10'}`}>
+                        <p className={`text-[10px] text-brand-carbon/40 mt-0.5 ${isFromCurrentUser ? 'mr-1' : 'ml-10'}`}>
                           {timeStr}
                         </p>
                       )}
@@ -945,7 +945,7 @@ export function ChatTab({
                           {request.requesterName} requested to join this trip
                         </h3>
                         {request.message && (
-                          <p className="text-sm text-gray-700 mt-1">{request.message}</p>
+                          <p className="text-sm text-brand-carbon/80 mt-1">{request.message}</p>
                         )}
                       </div>
                     </div>
@@ -980,7 +980,7 @@ export function ChatTab({
                 {nextAction.kind === 'inline' && (
               <Collapsible open={isInlinePanelOpen} onOpenChange={setIsInlinePanelOpen}>
                 <CollapsibleContent className="mb-4">
-                  <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                  <div className="p-4 bg-white border border-brand-carbon/10 rounded-lg">
                     {nextAction.id === 'quick-note' && (
                       <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-brand-carbon">
@@ -1014,7 +1014,7 @@ export function ChatTab({
                       </div>
                     )}
                     {nextAction.id !== 'quick-note' && nextAction.id !== 'lock-dates' && (
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-brand-carbon/70">
                         Inline action: {nextAction.title}
                       </div>
                     )}
@@ -1063,14 +1063,14 @@ export function ChatTab({
                             <div key={windowValue} className="flex items-start space-x-3">
                               <RadioGroupItem value={windowValue} id={windowValue} className="mt-1" />
                               <Label htmlFor={windowValue} className="flex-1 cursor-pointer">
-                                <div className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                                <div className="p-3 bg-brand-sand/30 rounded-lg hover:bg-brand-sand/50">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-3">
-                                      <span className="text-lg font-bold text-gray-500">#{idx + 1}</span>
+                                      <span className="text-lg font-bold text-brand-carbon/60">#{idx + 1}</span>
                                       <div>
                                         <p className="font-medium">{windowStartDate} to {windowEndDate}</p>
                                         {windowScore && (
-                                          <p className="text-sm text-gray-500">Compatibility: {windowScore}%</p>
+                                          <p className="text-sm text-brand-carbon/60">Compatibility: {windowScore}%</p>
                                         )}
                                       </div>
                                     </div>
@@ -1085,9 +1085,9 @@ export function ChatTab({
                   </div>
                 ) : (
                   <div className="py-4">
-                    <div className="text-center text-gray-600 mb-4">
+                    <div className="text-center text-brand-carbon/70 mb-4">
                       <p className="mb-2">We couldn't compute date options right now.</p>
-                      <p className="text-sm text-gray-500">This may happen if no one has submitted availability yet.</p>
+                      <p className="text-sm text-brand-carbon/60">This may happen if no one has submitted availability yet.</p>
                     </div>
                     <div className="flex justify-center">
                       <Button

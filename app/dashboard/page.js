@@ -207,7 +207,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-sand/30 flex items-center justify-center">
         <Card>
           <CardContent className="py-8 px-6 text-center">
             <p className="text-brand-red mb-4">Could not load dashboard — please try again.</p>
@@ -234,7 +234,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" data-testid="dashboard-page">
+    <div className="min-h-screen bg-brand-sand/30" data-testid="dashboard-page">
       <AppHeader userName={user?.name} activePage="circles" notifications={dashboardData.globalNotifications || []} />
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -248,7 +248,7 @@ export default function DashboardPage() {
                 {isTripFirst && dashboardData.circles.length === 1 ? 'Your Trips' : 'Your Circles'}
               </h2>
               {isTripFirst && dashboardData.circles.length === 1 && (
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-brand-carbon/60 mt-0.5">
                   Circle:{' '}
                   <a href={`/circles/${dashboardData.circles[0].id}`} className="hover:underline text-brand-blue">
                     {dashboardData.circles[0].name}
@@ -297,7 +297,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <h2 className="text-lg font-medium text-brand-carbon mb-2">Nifty plans start here.</h2>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                <p className="text-brand-carbon/60 mb-6 max-w-md mx-auto">
                   Start a trip, and we{'\u2019'}ll help your group figure out the rest.
                 </p>
                 <div className="flex flex-col items-center gap-3">
@@ -325,7 +325,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <h2 className="text-lg font-medium text-brand-carbon mb-2">Nifty plans start here.</h2>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                <p className="text-brand-carbon/60 mb-6 max-w-md mx-auto">
                   A circle is your travel crew. Create one and start planning trips together.
                 </p>
                 <div className="flex flex-col items-center gap-3">

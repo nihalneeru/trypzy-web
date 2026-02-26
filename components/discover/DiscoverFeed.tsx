@@ -186,7 +186,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
           <h1 className="text-3xl font-bold text-brand-carbon">
             Discover
           </h1>
-          <p className="text-gray-500 mt-1">Trip stories and inspiration from your circles</p>
+          <p className="text-brand-carbon/60 mt-1">Trip stories and inspiration from your circles</p>
         </div>
         <Button onClick={() => setShowShareModal(true)} className="flex-shrink-0">
           <Plus className="h-4 w-4 mr-2" />
@@ -196,7 +196,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
 
       {/* Scope Toggle + Circle Filter */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex rounded-lg bg-gray-100 p-0.5">
+        <div className="flex rounded-lg bg-brand-sand/50 p-0.5">
           <button
             onClick={() => {
               setScope('circle')
@@ -205,7 +205,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               scope === 'circle'
                 ? 'bg-white text-brand-carbon shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+                : 'text-brand-carbon/60 hover:text-brand-carbon/80'
             }`}
           >
             <Users className="h-4 w-4 inline mr-1.5 -mt-0.5" />
@@ -219,7 +219,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               scope === 'global'
                 ? 'bg-white text-brand-carbon shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+                : 'text-brand-carbon/60 hover:text-brand-carbon/80'
             }`}
           >
             <Compass className="h-4 w-4 inline mr-1.5 -mt-0.5" />
@@ -253,7 +253,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
         <form onSubmit={handleSearch}>
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-carbon/40" />
               <Input
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
@@ -268,7 +268,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
 
       {/* Results count */}
       {search && (
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-brand-carbon/60 mb-4">
           Found {total} {total === 1 ? 'story' : 'stories'} for &ldquo;{search}&rdquo;
         </p>
       )}
@@ -282,14 +282,14 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
         <Card className="text-center py-12">
           <CardContent>
             {scope === 'circle' ? (
-              <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <Users className="h-12 w-12 text-brand-carbon/30 mx-auto mb-4" />
             ) : (
-              <Globe className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <Globe className="h-12 w-12 text-brand-carbon/30 mx-auto mb-4" />
             )}
             <h3 className="text-lg font-medium text-brand-carbon mb-2">
               {search ? 'No stories found' : scope === 'circle' ? 'No circle stories yet' : 'Nothing to explore yet'}
             </h3>
-            <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+            <p className="text-brand-carbon/60 mb-6 max-w-sm mx-auto">
               {search
                 ? 'Try a different search term or browse all stories.'
                 : scope === 'circle'
@@ -327,7 +327,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
                 />
                 {/* Circle name context badge — show in "All circles" view */}
                 {scope === 'circle' && !viewCircleId && post.circleName && (
-                  <p className="text-xs text-gray-400 mt-1 px-1">
+                  <p className="text-xs text-brand-carbon/40 mt-1 px-1">
                     from {post.circleName}
                   </p>
                 )}

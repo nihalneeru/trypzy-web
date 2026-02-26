@@ -107,8 +107,8 @@ export function PostCard({
     switch (timeBlock) {
       case 'morning': return <Sun className="h-3 w-3 text-yellow-500" />
       case 'afternoon': return <Sunset className="h-3 w-3 text-orange-500" />
-      case 'evening': return <Moon className="h-3 w-3 text-gray-500" />
-      default: return <Clock className="h-3 w-3 text-gray-400" />
+      case 'evening': return <Moon className="h-3 w-3 text-brand-carbon/60" />
+      default: return <Clock className="h-3 w-3 text-brand-carbon/40" />
     }
   }
 
@@ -129,7 +129,7 @@ export function PostCard({
           {post.mediaUrls.slice(0, 5).map((url, idx) => (
             <div
               key={idx}
-              className={`aspect-square bg-gray-100 overflow-hidden ${
+              className={`aspect-square bg-brand-sand/50 overflow-hidden ${
                 post.mediaUrls!.length === 3 && idx === 0 ? 'col-span-2 row-span-2' : ''
               }`}
             >
@@ -147,14 +147,14 @@ export function PostCard({
         {/* Author & Date */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-full bg-brand-sand/50 flex items-center justify-center">
               <span className="text-brand-carbon text-sm font-medium">
                 {authorName.charAt(0).toUpperCase()}
               </span>
             </div>
             <div>
               <p className="font-medium text-sm truncate">{authorName}</p>
-              <p className="text-xs text-gray-500">{formatRelativeTime(post.createdAt)}</p>
+              <p className="text-xs text-brand-carbon/60">{formatRelativeTime(post.createdAt)}</p>
             </div>
           </div>
 
@@ -176,7 +176,7 @@ export function PostCard({
 
         {/* Destination */}
         {post.destinationText && (
-          <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+          <p className="text-sm text-brand-carbon/60 mb-2 flex items-center gap-1">
             <MapPin className="h-3 w-3" />
             {post.destinationText}
           </p>
@@ -184,47 +184,47 @@ export function PostCard({
 
         {/* Caption */}
         {post.caption && (
-          <p className="text-gray-700 text-sm">{post.caption}</p>
+          <p className="text-brand-carbon/80 text-sm">{post.caption}</p>
         )}
 
         {/* Itinerary Snapshot */}
         {post.itinerarySnapshot && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="mt-4 pt-4 border-t border-brand-sand/50">
             <button
               onClick={() => setItineraryExpanded(!itineraryExpanded)}
               className="w-full flex items-center justify-between text-left"
             >
               <div className="flex items-center gap-2">
-                <ListTodo className="h-4 w-4 text-gray-500" />
+                <ListTodo className="h-4 w-4 text-brand-carbon/60" />
                 <span className="font-medium text-sm text-brand-carbon">Itinerary Snapshot</span>
                 <Badge variant="secondary" className="text-xs">
                   {post.itinerarySnapshot.tripLength} days &bull; {post.itinerarySnapshot.style}
                 </Badge>
               </div>
               {itineraryExpanded
-                ? <ChevronUp className="h-4 w-4 text-gray-400" />
-                : <ChevronDown className="h-4 w-4 text-gray-400" />
+                ? <ChevronUp className="h-4 w-4 text-brand-carbon/40" />
+                : <ChevronDown className="h-4 w-4 text-brand-carbon/40" />
               }
             </button>
 
             {itineraryExpanded && (
               <div className="mt-3 space-y-3">
-                <p className="text-xs text-gray-500 italic">
+                <p className="text-xs text-brand-carbon/60 italic">
                   This itinerary worked for them. Your group can change it.
                 </p>
                 <div className="space-y-2">
                   {post.itinerarySnapshot.days?.map((day) => (
-                    <div key={day.dayNumber} className="bg-gray-50 rounded-lg p-3">
-                      <p className="font-medium text-xs text-gray-700 mb-2">Day {day.dayNumber}</p>
+                    <div key={day.dayNumber} className="bg-brand-sand/30 rounded-lg p-3">
+                      <p className="font-medium text-xs text-brand-carbon/80 mb-2">Day {day.dayNumber}</p>
                       <div className="space-y-1">
                         {day.items.map((item, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-xs text-gray-600">
+                          <div key={idx} className="flex items-center gap-2 text-xs text-brand-carbon/70">
                             {getTimeBlockIcon(item.timeBlock)}
                             <span className="truncate">{item.title}</span>
                           </div>
                         ))}
                         {day.hasMore && (
-                          <p className="text-xs text-gray-400 pl-5">
+                          <p className="text-xs text-brand-carbon/40 pl-5">
                             +{(day.totalItems || 0) - day.items.length} more activities
                           </p>
                         )}

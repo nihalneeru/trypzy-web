@@ -277,7 +277,7 @@ export function ContextCTABar({
       'flex items-center justify-between px-2 md:px-4 py-2 border-t',
       isBarBlocking
         ? 'bg-brand-red border-brand-red'
-        : 'bg-white border-gray-200'
+        : 'bg-white border-brand-carbon/10'
     )}>
       {/* Left section: Travelers, Expenses, Memories buttons */}
       <div className="flex items-center gap-1 md:gap-2">
@@ -290,7 +290,7 @@ export function ContextCTABar({
             'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
             isBarBlocking
               ? 'bg-white/10 hover:bg-white/20 text-white'
-              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
+              : 'bg-brand-sand/50 hover:bg-brand-sand/70 text-brand-carbon'
           )}
           aria-label={`View ${travelerCount} travelers`}
         >
@@ -312,7 +312,7 @@ export function ContextCTABar({
             'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
             isBarBlocking
               ? 'bg-white/10 hover:bg-white/20 text-white'
-              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
+              : 'bg-brand-sand/50 hover:bg-brand-sand/70 text-brand-carbon'
           )}
           aria-label="View expenses"
         >
@@ -329,7 +329,7 @@ export function ContextCTABar({
             'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
             isBarBlocking
               ? 'bg-white/10 hover:bg-white/20 text-white'
-              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
+              : 'bg-brand-sand/50 hover:bg-brand-sand/70 text-brand-carbon'
           )}
           aria-label="View memories"
         >

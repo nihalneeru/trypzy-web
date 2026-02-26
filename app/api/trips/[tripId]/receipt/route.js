@@ -73,7 +73,7 @@ export async function GET(request, { params }) {
           display: 'flex',
           flexDirection: 'column',
           padding: isStory ? '120px 60px' : '80px 80px',
-          backgroundColor: '#F2EDDA',
+          backgroundColor: '#DED9C1',
           fontFamily: 'Inter, sans-serif',
         }}
       >
@@ -88,7 +88,7 @@ export async function GET(request, { params }) {
               marginRight: 10,
             }}
           />
-          <span style={{ fontSize: 24, fontWeight: 700, color: '#2E303B', letterSpacing: 1 }}>
+          <span style={{ fontSize: 24, fontWeight: 700, color: '#45474F', letterSpacing: 1 }}>
             TRIPTI.ai
           </span>
         </div>
@@ -96,7 +96,7 @@ export async function GET(request, { params }) {
         {/* Dashed "tear" line */}
         <div
           style={{
-            borderTop: '3px dashed #2E303B40',
+            borderTop: '3px dashed #45474F40',
             marginBottom: isStory ? 80 : 48,
             width: '100%',
           }}
@@ -107,7 +107,7 @@ export async function GET(request, { params }) {
           style={{
             fontSize: isStory ? 64 : 56,
             fontWeight: 800,
-            color: '#2E303B',
+            color: '#45474F',
             lineHeight: 1.1,
             marginBottom: 20,
           }}
@@ -135,7 +135,7 @@ export async function GET(request, { params }) {
             display: 'flex',
             gap: 24,
             fontSize: 24,
-            color: '#2E303B',
+            color: '#45474F',
             opacity: 0.7,
             marginBottom: isStory ? 60 : 40,
           }}
@@ -153,7 +153,7 @@ export async function GET(request, { params }) {
         {/* Bottom dashed line */}
         <div
           style={{
-            borderTop: '3px dashed #2E303B40',
+            borderTop: '3px dashed #45474F40',
             marginBottom: isStory ? 60 : 40,
             width: '100%',
           }}
@@ -164,7 +164,7 @@ export async function GET(request, { params }) {
           <div
             style={{
               fontSize: 18,
-              color: '#2E303B',
+              color: '#45474F',
               opacity: 0.5,
               fontStyle: 'italic',
             }}
@@ -174,7 +174,7 @@ export async function GET(request, { params }) {
           <div
             style={{
               fontSize: 16,
-              color: '#2E303B',
+              color: '#45474F',
               opacity: 0.4,
               fontWeight: 600,
             }}

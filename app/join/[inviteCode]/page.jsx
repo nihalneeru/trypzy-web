@@ -193,10 +193,10 @@ export default function JoinCirclePage({ params }) {
   // Loading state (wait for session status and token if authenticated)
   if (loading || status === 'loading' || (status === 'authenticated' && !token)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-brand-sand/30">
         <div className="text-center">
           <BrandedSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-gray-500">Loading invite...</p>
+          <p className="text-brand-carbon/60">Loading invite...</p>
         </div>
       </div>
     )
@@ -240,7 +240,7 @@ export default function JoinCirclePage({ params }) {
             </p>
           )}
 
-          <p className="text-gray-500 text-sm mb-8">
+          <p className="text-brand-carbon/60 text-sm mb-8">
             {preview?.memberCount
               ? `${preview.memberCount} ${preview.memberCount === 1 ? 'person' : 'people'} already planning`
               : 'Share availability, pick dates, and coordinate together'}
@@ -262,7 +262,7 @@ export default function JoinCirclePage({ params }) {
             </Button>
           </div>
 
-          <p className="text-xs text-gray-400 mt-6">
+          <p className="text-xs text-brand-carbon/40 mt-6">
             Plan trips with your circle — without the group chat chaos.
           </p>
         </div>
@@ -273,7 +273,7 @@ export default function JoinCirclePage({ params }) {
   // Invalid code state
   if (circleInfo && !circleInfo.valid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-brand-sand/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-8 pb-8 text-center">
             <div className="h-16 w-16 rounded-full bg-brand-red/10 flex items-center justify-center mx-auto mb-6">
@@ -282,7 +282,7 @@ export default function JoinCirclePage({ params }) {
             <h1 className="text-2xl font-bold text-brand-carbon mb-2">
               Invalid Invite
             </h1>
-            <p className="text-gray-600 mb-8">
+            <p className="text-brand-carbon/70 mb-8">
               {circleInfo.error || 'This invite link is invalid or expired'}
             </p>
             <Button
@@ -300,17 +300,17 @@ export default function JoinCirclePage({ params }) {
   // Valid code, logged in - show circle info
   if (circleInfo?.valid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-brand-sand/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-8 pb-8 text-center">
             <div className="h-16 w-16 rounded-full bg-brand-sand flex items-center justify-center mx-auto mb-6">
               <Users className="h-8 w-8 text-brand-blue" />
             </div>
-            <p className="text-sm text-gray-500 mb-1">You're invited to join</p>
+            <p className="text-sm text-brand-carbon/60 mb-1">You're invited to join</p>
             <h1 className="text-2xl font-bold text-brand-carbon mb-2">
               {circleInfo.circleName}
             </h1>
-            <p className="text-gray-600 mb-8">
+            <p className="text-brand-carbon/70 mb-8">
               {circleInfo.memberCount} member{circleInfo.memberCount !== 1 ? 's' : ''}
             </p>
             <Button
@@ -328,7 +328,7 @@ export default function JoinCirclePage({ params }) {
 
   // Fallback loading
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-brand-sand/30">
       <BrandedSpinner size="lg" />
     </div>
   )

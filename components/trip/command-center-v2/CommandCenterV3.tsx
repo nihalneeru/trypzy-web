@@ -368,11 +368,11 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   }
 
   const overlayAccentColor = useMemo(() => {
-    if (!activeOverlay) return '#00334D'
+    if (!activeOverlay) return '#09173D'
     const stepKey = OVERLAY_TO_STEP[activeOverlay]
-    if (!stepKey) return '#00334D' // non-stage overlays (travelers, expenses, memories, member)
+    if (!stepKey) return '#09173D' // non-stage overlays (travelers, expenses, memories, member)
     if (stepKey === blocker.stageKey) return '#FA3823' // brand-red for blocker
-    return '#00334D' // brand-blue for completed/active/future
+    return '#09173D' // brand-blue for completed/active/future
   }, [activeOverlay, blocker.stageKey, progressSteps])
 
   // Overlay callbacks
@@ -417,15 +417,15 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   const hasActiveOverlay = activeOverlay !== null
 
   return (
-    <div className="flex flex-col h-full bg-gray-100 overflow-x-hidden">
+    <div className="flex flex-col h-full bg-brand-sand/50 overflow-x-hidden">
       {/* Centered column container - constrains all content to max-w-5xl */}
       <div className="flex-1 flex flex-col h-full w-full max-w-5xl mx-auto bg-white relative shadow-sm overflow-x-hidden">
         {/* Top section: Cancelled/removed banner + ProgressStrip (measured for overlay offset) */}
         <div ref={stripRef} className="shrink-0 z-10">
           {isCancelled && (
-            <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center justify-center gap-2">
-              <span className="text-gray-600 text-sm font-medium">This trip has been canceled</span>
-              <span className="text-gray-500 text-xs">(read-only)</span>
+            <div className="bg-brand-sand/50 border-b border-brand-carbon/10 px-4 py-3 flex items-center justify-center gap-2">
+              <span className="text-brand-carbon/70 text-sm font-medium">This trip has been canceled</span>
+              <span className="text-brand-carbon/60 text-xs">(read-only)</span>
               <Link
                 href="/dashboard"
                 className="ml-2 text-sm font-medium text-brand-blue hover:underline"

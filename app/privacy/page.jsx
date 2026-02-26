@@ -16,7 +16,7 @@ export default function PrivacyPolicyPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-brand-sand/30">
       <AppHeader userName={userName} />
       <main id="main-content" className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-3 mb-6">
@@ -24,8 +24,8 @@ export default function PrivacyPolicyPage() {
           <h1 className="text-3xl font-bold text-brand-carbon">Privacy Policy</h1>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8 prose prose-gray max-w-none">
-          <p className="text-sm text-gray-500">Last updated: February 9, 2026</p>
+        <div className="bg-white rounded-lg border border-brand-carbon/10 p-6 sm:p-8 prose prose-gray max-w-none">
+          <p className="text-sm text-brand-carbon/60">Last updated: February 9, 2026</p>
 
           <p>
             Tripti.ai (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is operated by Trypzy, Inc.,
@@ -226,7 +226,7 @@ export default function PrivacyPolicyPage() {
               privacy@tripti.ai
             </a>
           </p>
-          <p className="text-sm text-gray-500 mt-6">
+          <p className="text-sm text-brand-carbon/60 mt-6">
             Tripti.ai is a product of Trypzy, Inc.
           </p>
         </div>

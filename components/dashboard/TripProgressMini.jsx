@@ -64,7 +64,7 @@ export function TripProgressMini({ trip }) {
             )}>
               <Icon className={cn(
                 'w-2.5 h-2.5',
-                (isCurrent || isCompleted) ? 'text-white' : 'text-gray-500'
+                (isCurrent || isCompleted) ? 'text-white' : 'text-brand-carbon/60'
               )} />
             </div>
             <span className={cn(

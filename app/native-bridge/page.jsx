@@ -122,7 +122,7 @@ export default function NativeBridgePage() {
       <div className="text-center">
         <TriptiLogo variant="full" className="h-10 w-auto mx-auto mb-4" />
         <BrandedSpinner size="lg" className="mx-auto mb-3" />
-        <p className="text-sm text-[#6B7280]">{status}</p>
+        <p className="text-sm text-brand-carbon/60">{status}</p>
       </div>
     </div>
   )

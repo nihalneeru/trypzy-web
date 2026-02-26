@@ -51,7 +51,7 @@ export function WelcomePage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
-      <header className="border-b border-gray-200 shrink-0 safe-top">
+      <header className="border-b border-brand-carbon/10 shrink-0 safe-top">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <Link href="/" className="flex items-center">
@@ -77,7 +77,7 @@ export function WelcomePage() {
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-brand-carbon mb-4 sm:mb-6 leading-tight">
             Plan trips together —<br className="hidden sm:block" /> without the chaos.
           </h1>
-          <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto mb-8 sm:mb-10">
+          <p className="text-base sm:text-lg text-brand-carbon/70 max-w-2xl mx-auto mb-8 sm:mb-10">
             Share availability, pick dates, and coordinate your next adventure — all in one calm, friendly space.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -110,7 +110,7 @@ export function WelcomePage() {
                     <h3 className="text-lg font-semibold text-brand-carbon mb-2">
                       {step.title}
                     </h3>
-                    <p className="text-sm text-gray-600 leading-relaxed">
+                    <p className="text-sm text-brand-carbon/70 leading-relaxed">
                       {step.description}
                     </p>
                   </div>
@@ -127,7 +127,7 @@ export function WelcomePage() {
               <p className="text-3xl sm:text-4xl font-bold text-brand-carbon">
                 {stats.trips.toLocaleString()} trips
               </p>
-              <p className="text-base text-gray-500 mt-2">
+              <p className="text-base text-brand-carbon/60 mt-2">
                 planned on Tripti and counting
               </p>
             </div>
@@ -140,7 +140,7 @@ export function WelcomePage() {
             <h2 className="text-xl sm:text-2xl font-bold text-brand-carbon mb-4">
               Built for friend circles.
             </h2>
-            <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+            <p className="text-sm sm:text-base text-brand-carbon/70 leading-relaxed">
               Tripti is made for friend groups and families planning trips together —
               weekend getaways, bachelor parties, family reunions, you name it.
               It&apos;s not a booking engine or a rigid planner.
@@ -155,7 +155,7 @@ export function WelcomePage() {
             <h2 className="text-2xl sm:text-3xl font-bold text-brand-carbon mb-4">
               Ready to plan your next trip?
             </h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-brand-carbon/70 mb-6">
               It takes 30 seconds to create a circle and invite your crew.
             </p>
             <Button size="lg" asChild className="bg-brand-red hover:bg-brand-red/90 text-white text-base px-10">

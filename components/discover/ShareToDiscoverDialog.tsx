@@ -222,7 +222,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
                 <SelectItem value="circle">Circle-only Discover (Members of selected circle)</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-brand-carbon/60">
               {shareScope === 'global'
                 ? 'Visible to everyone on Discover'
                 : 'Visible only to members of the selected circle'}
@@ -259,7 +259,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
                   )}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-brand-carbon/60">
                 {selectedCircle === 'all'
                   ? 'Will be shared to all your circles'
                   : 'Circle name won\'t be visible publicly'}
@@ -295,7 +295,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
             <Label>Photos (1-5 images) <span className="text-brand-red">*</span></Label>
             <div className="grid grid-cols-5 gap-2">
               {mediaUrls.map((url, idx) => (
-                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-brand-sand/50">
                   <img src={url} alt="" className="w-full h-full object-cover" />
                   <button
                     onClick={() => removeImage(idx)}
@@ -309,10 +309,10 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-brand-blue flex items-center justify-center text-gray-400 hover:text-brand-blue transition-colors disabled:opacity-50"
+                  className="aspect-square rounded-lg border-2 border-dashed border-brand-carbon/20 hover:border-brand-blue flex items-center justify-center text-brand-carbon/40 hover:text-brand-blue transition-colors disabled:opacity-50"
                 >
                   {uploading ? (
-                    <div className="animate-spin h-5 w-5 border-2 border-gray-400 border-t-transparent rounded-full" />
+                    <div className="animate-spin h-5 w-5 border-2 border-brand-carbon/30 border-t-transparent rounded-full" />
                   ) : (
                     <ImageIcon className="h-6 w-6" />
                   )}
@@ -341,7 +341,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
           </div>
 
           {/* Notice — contextual based on scope */}
-          <div className="bg-brand-sand border border-gray-200 rounded-lg p-3 text-sm text-brand-carbon">
+          <div className="bg-brand-sand border border-brand-carbon/10 rounded-lg p-3 text-sm text-brand-carbon">
             {shareScope === 'global' ? (
               <>
                 <p className="font-medium">This will be shared publicly</p>

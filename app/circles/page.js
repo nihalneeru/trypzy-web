@@ -158,7 +158,7 @@ export default function CirclesPage() {
               </div>
             </div>
             <h2 className="text-lg font-semibold text-brand-carbon mb-2">Your circles are where trips begin</h2>
-            <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+            <p className="text-sm text-brand-carbon/60 mb-6 max-w-sm mx-auto">
               Circles are your friend groups. Create a trip to start a circle, or join one with an invite code.
             </p>
             <div className="flex gap-3 justify-center">

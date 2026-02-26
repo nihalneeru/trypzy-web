@@ -1183,7 +1183,7 @@ export function DateWindowsFunnel({
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-red mb-3" />
-        <p className="text-sm text-gray-500">Loading scheduling...</p>
+        <p className="text-sm text-brand-carbon/60">Loading scheduling...</p>
       </div>
     )
   }
@@ -1354,7 +1354,7 @@ export function DateWindowsFunnel({
 
                 {/* Per-window reaction summary */}
                 {wSummary && wSummary.totalReactions > 0 && (
-                  <div className="bg-gray-50 rounded-md px-3 py-2">
+                  <div className="bg-brand-sand/30 rounded-md px-3 py-2">
                     <div className="flex justify-center gap-3 text-sm">
                       {wSummary.approvals > 0 && (
                         <span className="flex items-center text-green-600">
@@ -1520,7 +1520,7 @@ export function DateWindowsFunnel({
       </div>
 
       {/* Duration preference selector */}
-      <Card className="bg-gray-50/50">
+      <Card className="bg-brand-sand/20">
         <CardContent className="py-3">
           {/* Show creator's initial duration hint if set */}
           {trip.duration && (
@@ -1549,10 +1549,10 @@ export function DateWindowsFunnel({
                 disabled={!isActiveParticipant}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                   !isActiveParticipant
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    ? 'bg-brand-sand/50 text-brand-carbon/40 border-brand-carbon/10 cursor-not-allowed'
                     : userDurationPref === opt.value
                     ? 'bg-brand-blue text-white border-brand-blue'
-                    : 'bg-white text-gray-700 border-gray-200 hover:border-brand-blue/50'
+                    : 'bg-white text-brand-carbon/80 border-brand-carbon/10 hover:border-brand-blue/50'
                 }`}
               >
                 {opt.label}
@@ -1561,7 +1561,7 @@ export function DateWindowsFunnel({
             ))}
           </div>
           {isLeader && durationTotalResponses > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="mt-3 pt-3 border-t border-brand-carbon/10">
               <p className="text-xs text-muted-foreground mb-1">Group preferences ({durationTotalResponses} responded):</p>
               <div className="flex flex-wrap gap-1">
                 {Object.entries(durationAggregate).map(([pref, users]) =>
@@ -1681,7 +1681,7 @@ export function DateWindowsFunnel({
                               key={chip.label}
                               type="button"
                               onClick={() => handleChipTap(chip)}
-                              className="px-2.5 py-1 rounded-full text-xs font-medium border border-gray-200 bg-white text-gray-600 hover:border-brand-blue/50 hover:text-brand-blue transition-colors"
+                              className="px-2.5 py-1 rounded-full text-xs font-medium border border-brand-carbon/10 bg-white text-brand-carbon/70 hover:border-brand-blue/50 hover:text-brand-blue transition-colors"
                             >
                               {chip.label}
                             </button>
@@ -1690,14 +1690,14 @@ export function DateWindowsFunnel({
                       )}
 
                       {/* I'm free / I'm busy segmented toggle */}
-                      <div className="flex rounded-lg bg-gray-100 p-0.5 mt-2 mb-1">
+                      <div className="flex rounded-lg bg-brand-sand/50 p-0.5 mt-2 mb-1">
                         <button
                           type="button"
                           onClick={() => setInputMode('free')}
                           className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
                             inputMode === 'free'
                               ? 'bg-white text-brand-carbon shadow-sm'
-                              : 'text-gray-500 hover:text-gray-700'
+                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
                           }`}
                         >
                           I'm free
@@ -1708,7 +1708,7 @@ export function DateWindowsFunnel({
                           className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
                             inputMode === 'busy'
                               ? 'bg-white text-brand-red shadow-sm'
-                              : 'text-gray-500 hover:text-gray-700'
+                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
                           }`}
                         >
                           I'm busy
@@ -1716,14 +1716,14 @@ export function DateWindowsFunnel({
                       </div>
 
                       {/* Equal-weight toggle tabs */}
-                      <div className="flex rounded-lg bg-gray-100 p-0.5 mt-1.5 mb-3">
+                      <div className="flex rounded-lg bg-brand-sand/50 p-0.5 mt-1.5 mb-3">
                         <button
                           type="button"
                           onClick={() => setUseTextInput(true)}
                           className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
                             useTextInput
                               ? 'bg-white text-brand-carbon shadow-sm'
-                              : 'text-gray-500 hover:text-gray-700'
+                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
                           }`}
                         >
                           Type dates
@@ -1734,7 +1734,7 @@ export function DateWindowsFunnel({
                           className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
                             !useTextInput
                               ? 'bg-white text-brand-carbon shadow-sm'
-                              : 'text-gray-500 hover:text-gray-700'
+                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
                           }`}
                         >
                           Pick on calendar
@@ -1766,7 +1766,7 @@ export function DateWindowsFunnel({
                         </div>
                       )}
 
-                      <p className="text-xs text-gray-400 mt-2">
+                      <p className="text-xs text-brand-carbon/40 mt-2">
                         You can change your dates anytime until they're locked.
                       </p>
                       <Button
@@ -1846,7 +1846,7 @@ export function DateWindowsFunnel({
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                           isShortlisted
                             ? 'bg-brand-red border-brand-red text-white'
-                            : 'border-gray-300'
+                            : 'border-brand-carbon/20'
                         }`}>
                           {isShortlisted && <Check className="h-3 w-3" />}
                         </div>
@@ -1894,7 +1894,7 @@ export function DateWindowsFunnel({
                             const unconfirmed = travelers.filter(t => !window.supporterIds.includes(t.id))
                             const unconfirmedNames = unconfirmed.map(t => (t.name || '?').split(' ')[0])
                             return totalCount > 0 && confirmedCount < totalCount && unconfirmedNames.length > 0 ? (
-                              <p className="text-xs text-gray-400 mt-0.5">
+                              <p className="text-xs text-brand-carbon/40 mt-0.5">
                                 Not yet: {unconfirmedNames.slice(0, 4).join(', ')}{unconfirmedNames.length > 4 ? ` +${unconfirmedNames.length - 4}` : ''}
                               </p>
                             ) : null
@@ -2051,7 +2051,7 @@ export function DateWindowsFunnel({
                         )}
                       </h4>
                       {insightData?.isStale && (
-                        <span className="text-[10px] text-muted-foreground bg-gray-100 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] text-muted-foreground bg-brand-sand/50 px-1.5 py-0.5 rounded">
                           may be outdated
                         </span>
                       )}
@@ -2071,7 +2071,7 @@ export function DateWindowsFunnel({
                               <span>
                                 {p.text}
                                 {p.confidence === 'low' && (
-                                  <span className="text-[10px] text-gray-400 ml-1">(low confidence)</span>
+                                  <span className="text-[10px] text-brand-carbon/40 ml-1">(low confidence)</span>
                                 )}
                               </span>
                             </li>
@@ -2112,7 +2112,7 @@ export function DateWindowsFunnel({
                         <ul className="space-y-1">
                           {output.ambiguities.map((a: any, i: number) => (
                             <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
-                              <span className="text-gray-400 mt-0.5 shrink-0">•</span>
+                              <span className="text-brand-carbon/40 mt-0.5 shrink-0">•</span>
                               <span>{a.text}</span>
                             </li>
                           ))}
@@ -2142,7 +2142,7 @@ export function DateWindowsFunnel({
                                 )}
                               </div>
                               {f.reason && (
-                                <p className="text-xs text-gray-400 mt-1">{f.reason}</p>
+                                <p className="text-xs text-brand-carbon/40 mt-1">{f.reason}</p>
                               )}
                             </li>
                           ))}

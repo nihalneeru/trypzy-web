@@ -417,7 +417,7 @@ export function ExpensesOverlay({
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
         <AlertTriangle className={`h-10 w-10 mb-3 ${isNotTraveler ? 'text-amber-500' : 'text-brand-red'}`} />
-        <p className="text-sm text-gray-600 mb-4">{error}</p>
+        <p className="text-sm text-brand-carbon/70 mb-4">{error}</p>
         {!isNotTraveler && (
           <Button
             variant="outline"
@@ -439,7 +439,7 @@ export function ExpensesOverlay({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-brand-carbon/60">
             {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -453,9 +453,9 @@ export function ExpensesOverlay({
 
       {expenses.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <DollarSign className="h-12 w-12 text-gray-400 mb-4" />
+          <DollarSign className="h-12 w-12 text-brand-carbon/40 mb-4" />
           <h3 className="text-lg font-medium text-brand-carbon mb-2">No Expenses Yet</h3>
-          <p className="text-gray-500 mb-4">Track shared costs for this trip</p>
+          <p className="text-brand-carbon/60 mb-4">Track shared costs for this trip</p>
           {!isReadOnly && (
             <Button onClick={() => setShowAddDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -472,23 +472,23 @@ export function ExpensesOverlay({
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-sm text-gray-600">Total spent</p>
+                <p className="text-sm text-brand-carbon/70">Total spent</p>
                 <p className="text-2xl font-bold">{formatCurrency(totals.totalSpend)}</p>
               </div>
 
               {/* Settlements - Who owes whom */}
               {settlements.length > 0 && (
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">To settle up</p>
+                  <p className="text-sm text-brand-carbon/70 mb-2">To settle up</p>
                   <div className="space-y-2">
                     {settlements.map((s, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm"
+                        className="flex items-center justify-between p-2 bg-brand-sand/30 rounded-lg text-sm"
                       >
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{getTravelerName(s.from)}</span>
-                          <ArrowRight className="h-4 w-4 text-gray-400" />
+                          <ArrowRight className="h-4 w-4 text-brand-carbon/40" />
                           <span className="font-medium">{getTravelerName(s.to)}</span>
                         </div>
                         <span className="font-semibold text-brand-red">{formatCurrency(s.amount)}</span>
@@ -501,7 +501,7 @@ export function ExpensesOverlay({
               {/* Balances */}
               {Object.keys(totals.balances).length > 0 && (
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">Balances</p>
+                  <p className="text-sm text-brand-carbon/70 mb-2">Balances</p>
                   <div className="space-y-1">
                     {Object.entries(totals.balances).map(([userId, balance]) => {
                       const isPositive = balance > 0
@@ -509,7 +509,7 @@ export function ExpensesOverlay({
                       return (
                         <div key={userId} className="flex justify-between text-sm">
                           <span>{getTravelerName(userId)}</span>
-                          <span className={`font-medium ${isZero ? 'text-gray-500' : isPositive ? 'text-green-600' : 'text-brand-red'}`}>
+                          <span className={`font-medium ${isZero ? 'text-brand-carbon/60' : isPositive ? 'text-green-600' : 'text-brand-red'}`}>
                             {isZero ? 'Settled' : isPositive ? `+${formatCurrency(balance)}` : formatCurrency(balance)}
                           </span>
                         </div>
@@ -523,7 +523,7 @@ export function ExpensesOverlay({
 
           {/* Expenses List */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+            <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide mb-3">
               All Expenses
             </h3>
             <div className="space-y-2">
@@ -536,7 +536,7 @@ export function ExpensesOverlay({
                           <h4 className="font-medium text-sm">{expense.title}</h4>
                           <span className="font-bold">{formatCurrency(expense.amountCents / 100)}</span>
                         </div>
-                        <div className="text-xs text-gray-600 space-y-0.5">
+                        <div className="text-xs text-brand-carbon/70 space-y-0.5">
                           <p>Paid by {getTravelerName(expense.paidByUserId)}</p>
                           {expense.incurredAt && (
                             <p className="flex items-center gap-1">
@@ -551,7 +551,7 @@ export function ExpensesOverlay({
                             </p>
                           )}
                           {expense.note && (
-                            <p className="text-gray-500 italic">{expense.note}</p>
+                            <p className="text-brand-carbon/60 italic">{expense.note}</p>
                           )}
                         </div>
                       </div>
@@ -623,7 +623,7 @@ export function ExpensesOverlay({
             <div>
               <Label htmlFor="paidBy">Paid by *</Label>
               {travelers.length === 0 ? (
-                <p className="text-sm text-gray-500 mt-1">No active travelers found</p>
+                <p className="text-sm text-brand-carbon/60 mt-1">No active travelers found</p>
               ) : (
                 <Select
                   value={formData.paidByUserId}
@@ -650,7 +650,7 @@ export function ExpensesOverlay({
             <div>
               <Label>Split between *</Label>
               {travelers.length === 0 ? (
-                <p className="text-sm text-gray-500 mt-1">No active travelers found</p>
+                <p className="text-sm text-brand-carbon/60 mt-1">No active travelers found</p>
               ) : (
                 <div className="space-y-2 mt-2">
                   {travelers.map((traveler: any) => {

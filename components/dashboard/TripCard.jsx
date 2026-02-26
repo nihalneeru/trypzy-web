@@ -63,11 +63,11 @@ function getStatusDisplay(status) {
     case 'locked':
       return { dotClass: 'bg-brand-blue', label: 'Dates locked' }
     case 'completed':
-      return { dotClass: 'bg-gray-400', label: 'Completed' }
+      return { dotClass: 'bg-brand-carbon/30', label: 'Completed' }
     case 'canceled':
-      return { dotClass: 'bg-gray-400', label: 'Canceled' }
+      return { dotClass: 'bg-brand-carbon/30', label: 'Canceled' }
     default:
-      return { dotClass: 'bg-gray-400', label: status || 'Unknown' }
+      return { dotClass: 'bg-brand-carbon/30', label: status || 'Unknown' }
   }
 }
 
@@ -169,7 +169,7 @@ export function TripCard({ trip, circleId = null }) {
                 e.stopPropagation()
                 setExpanded(!expanded)
               }}
-              className="flex-shrink-0 ml-2 p-1 text-gray-400 hover:text-gray-600"
+              className="flex-shrink-0 ml-2 p-1 text-brand-carbon/40 hover:text-brand-carbon/70"
               aria-label={expanded ? 'Show less' : 'Show more'}
             >
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -177,15 +177,15 @@ export function TripCard({ trip, circleId = null }) {
           </div>
 
           {/* Status dot + label + traveler count */}
-          <div className="flex items-center gap-1.5 text-sm text-gray-600 mb-2">
+          <div className="flex items-center gap-1.5 text-sm text-brand-carbon/70 mb-2">
             <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} aria-hidden="true" />
             <span>{statusLabel}</span>
-            <span className="text-gray-400">&middot;</span>
+            <span className="text-brand-carbon/40">&middot;</span>
             <span>{trip.travelerCount} {trip.travelerCount === 1 ? 'traveler' : 'travelers'}</span>
           </div>
 
           {/* Date range (always visible) */}
-          <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
+          <div className="flex items-center gap-1 text-sm text-brand-carbon/70 mb-2">
             <Calendar className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
             <span className="line-clamp-1">
               {trip.startDate && trip.endDate
@@ -199,19 +199,19 @@ export function TripCard({ trip, circleId = null }) {
             <div className="space-y-2 mb-2">
               {/* Countdown - shown when dates are locked */}
               {countdownLabel && (
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-brand-carbon/60">
                   {countdownLabel}
                 </div>
               )}
 
               {/* Latest activity */}
               {trip.latestActivity && (
-                <div className="flex items-start gap-1 text-xs text-gray-500 min-w-0">
+                <div className="flex items-start gap-1 text-xs text-brand-carbon/60 min-w-0">
                   <Clock className="h-3 w-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2">{trip.latestActivity.text}</p>
                     {trip.latestActivity.createdAt && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-brand-carbon/60 mt-1">
                         {formatRelativeTime(trip.latestActivity.createdAt)}
                       </p>
                     )}

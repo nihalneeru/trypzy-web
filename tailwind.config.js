@@ -28,6 +28,10 @@ module.exports = {
     				blue: 'var(--brand-blue)',
     				carbon: 'var(--brand-carbon)',
     				sand: 'var(--brand-sand)',
+    				yellow: 'var(--brand-yellow)',
+    				sky: 'var(--brand-sky)',
+    				green: 'var(--brand-green)',
+    				olive: 'var(--brand-olive)',
     			},
     			status: {
     				success: 'var(--color-success)',

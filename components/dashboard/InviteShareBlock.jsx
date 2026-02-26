@@ -62,9 +62,9 @@ export function InviteShareBlock({ inviteCode, shareText, shareUrl, onShareCompl
 
       {/* Invite Code (secondary) */}
       <div className="pt-2 border-t">
-        <p className="text-xs text-gray-500 mb-2">Or share the code directly:</p>
+        <p className="text-xs text-brand-carbon/60 mb-2">Or share the code directly:</p>
         <div className="flex items-center gap-2">
-          <div className="flex-1 p-2 bg-gray-100 border rounded">
+          <div className="flex-1 p-2 bg-brand-sand/50 border rounded">
             <p className="text-lg font-mono font-bold text-brand-carbon text-center">
               {inviteCode || 'N/A'}
             </p>

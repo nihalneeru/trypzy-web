@@ -141,7 +141,7 @@ export function ConvergenceTimeline({ windows, totalTravelers = 0 }) {
 
   // Color intensity: discrete levels based on fraction of peak
   const getCellColor = (count, index) => {
-    if (count === 0) return 'bg-gray-100'
+    if (count === 0) return 'bg-brand-sand/50'
 
     const fraction = count / peakCount
     const isPeak = bestStretch &&
@@ -227,7 +227,7 @@ export function ConvergenceTimeline({ windows, totalTravelers = 0 }) {
           <span className="text-[9px] text-brand-carbon/40">Few</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 rounded-sm bg-gray-100" />
+          <div className="w-2.5 h-2.5 rounded-sm bg-brand-sand/50" />
           <span className="text-[9px] text-brand-carbon/40">None</span>
         </div>
       </div>

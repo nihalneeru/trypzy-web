@@ -231,7 +231,7 @@ export function MemoriesOverlay({
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
         <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
-        <p className="text-sm text-gray-600 mb-4">{error}</p>
+        <p className="text-sm text-brand-carbon/70 mb-4">{error}</p>
         <Button
           variant="outline"
           size="sm"
@@ -250,7 +250,7 @@ export function MemoriesOverlay({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-brand-carbon/60">
           {memories.length} memor{memories.length !== 1 ? 'ies' : 'y'}
         </p>
         {!isReadOnly && (
@@ -263,9 +263,9 @@ export function MemoriesOverlay({
 
       {memories.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Camera className="h-12 w-12 text-gray-400 mb-4" />
+          <Camera className="h-12 w-12 text-brand-carbon/40 mb-4" />
           <h3 className="text-lg font-medium text-brand-carbon mb-2">No Memories Yet</h3>
-          <p className="text-gray-500 mb-4">Capture and share your travel moments</p>
+          <p className="text-brand-carbon/60 mb-4">Capture and share your travel moments</p>
           {!isReadOnly && (
             <Button onClick={() => setShowCreateDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -302,19 +302,19 @@ export function MemoriesOverlay({
                   )}
                 </div>
               ) : (
-                <div className="aspect-square bg-gray-100 flex items-center justify-center">
-                  <ImageIcon className="h-8 w-8 text-gray-400" />
+                <div className="aspect-square bg-brand-sand/50 flex items-center justify-center">
+                  <ImageIcon className="h-8 w-8 text-brand-carbon/40" />
                 </div>
               )}
 
               {/* Caption and metadata */}
               <CardContent className="p-3">
                 {memory.caption && (
-                  <p className="text-sm text-gray-700 line-clamp-2 mb-1">
+                  <p className="text-sm text-brand-carbon/80 line-clamp-2 mb-1">
                     {memory.caption}
                   </p>
                 )}
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-brand-carbon/60">
                   {formatDate(memory.createdAt)}
                 </p>
               </CardContent>
@@ -347,17 +347,17 @@ export function MemoriesOverlay({
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
-                    className="w-full border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors"
+                    className="w-full border-2 border-dashed border-brand-carbon/20 rounded-lg p-8 text-center hover:border-brand-carbon/30 transition-colors"
                   >
                     {uploading ? (
                       <BrandedSpinner size="sm" className="mx-auto mb-2" />
                     ) : (
-                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <Upload className="h-8 w-8 text-brand-carbon/40 mx-auto mb-2" />
                     )}
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-brand-carbon/70">
                       {uploading ? 'Uploading...' : 'Click to upload photos'}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Max 5 images</p>
+                    <p className="text-xs text-brand-carbon/40 mt-1">Max 5 images</p>
                   </button>
                 ) : (
                   <div className="space-y-3">
@@ -382,12 +382,12 @@ export function MemoriesOverlay({
                         <button
                           onClick={() => fileInputRef.current?.click()}
                           disabled={uploading}
-                          className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 transition-colors"
+                          className="aspect-square border-2 border-dashed border-brand-carbon/20 rounded-lg flex items-center justify-center hover:border-brand-carbon/30 transition-colors"
                         >
                           {uploading ? (
                             <BrandedSpinner size="sm" />
                           ) : (
-                            <Plus className="h-6 w-6 text-gray-400" />
+                            <Plus className="h-6 w-6 text-brand-carbon/40" />
                           )}
                         </button>
                       )}
@@ -430,7 +430,7 @@ export function MemoriesOverlay({
                 <Label htmlFor="discoverable" className="cursor-pointer text-sm">
                   Make discoverable
                 </Label>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-brand-carbon/60">
                   Allow others outside your circle to see this memory
                 </p>
               </div>

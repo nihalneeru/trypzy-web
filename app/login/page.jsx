@@ -204,7 +204,7 @@ function LoginPageContent() {
             <TriptiLogo variant="full" className="h-10 w-auto" />
           </div>
           <BrandedSpinner size="lg" className="mx-auto mb-3" />
-          <p className="text-[#6B7280] text-sm">{isOAuthReturn ? 'Signing you in...' : ''}</p>
+          <p className="text-brand-carbon/60 text-sm">{isOAuthReturn ? 'Signing you in...' : ''}</p>
         </div>
       </div>
     )
@@ -217,7 +217,7 @@ function LoginPageContent() {
           <div className="flex items-center justify-center mb-4">
             <TriptiLogo variant="full" className="h-10 w-auto" />
           </div>
-          <p className="text-[#6B7280]">Nifty plans. Happy circles.</p>
+          <p className="text-brand-carbon/60">Nifty plans. Happy circles.</p>
         </div>
 
         <Card className="shadow-xl border-0">

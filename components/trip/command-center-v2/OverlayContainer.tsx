@@ -36,7 +36,7 @@ interface OverlayContainerProps {
   useAbsolutePosition?: boolean
   /** Use full width instead of max 448px (for V3 full-screen overlays) */
   fullWidth?: boolean
-  /** Accent color for title bar and border (hex, e.g. '#00334D'). Defaults to brand-blue. */
+  /** Accent color for title bar and border (hex, e.g. '#09173D'). Defaults to brand-blue. */
   accentColor?: string
 }
 
@@ -63,7 +63,7 @@ export function OverlayContainer({
   slideFrom = 'right',
   useAbsolutePosition = false,
   fullWidth = false,
-  accentColor = '#00334D'
+  accentColor = '#09173D'
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)

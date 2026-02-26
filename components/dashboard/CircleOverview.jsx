@@ -66,7 +66,7 @@ export function CircleOverview({ circles }) {
               </p>
 
               {/* Trip count */}
-              <p className="text-[10px] text-gray-400">
+              <p className="text-[10px] text-brand-carbon/40">
                 {tripCount} {tripCount === 1 ? 'trip' : 'trips'}
               </p>
             </Link>

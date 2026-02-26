@@ -936,7 +936,7 @@ export function ItineraryOverlay({
           {/* Destination Hint (Leader only) */}
           {(trip?.destinationHint || isLeader) && (
             <div className="pb-3 border-b">
-              <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
+              <p className="text-xs font-medium text-brand-carbon/60 mb-1">Destination</p>
               {editingDestinationHint && isLeader ? (
                 <div className="space-y-2">
                   <Input
@@ -971,19 +971,19 @@ export function ItineraryOverlay({
                 </div>
               ) : (
                 <div
-                  className={`flex items-start justify-between gap-2${isLeader ? ' cursor-pointer hover:bg-gray-50 rounded-md -mx-1 px-1 transition-colors' : ''}`}
+                  className={`flex items-start justify-between gap-2${isLeader ? ' cursor-pointer hover:bg-brand-sand/30 rounded-md -mx-1 px-1 transition-colors' : ''}`}
                   onClick={isLeader ? () => {
                     setDestinationHintValue(trip?.destinationHint || '')
                     setEditingDestinationHint(true)
                   } : undefined}
                 >
                   {trip?.destinationHint ? (
-                    <p className="text-sm text-gray-700 flex-1">{trip.destinationHint}</p>
+                    <p className="text-sm text-brand-carbon/80 flex-1">{trip.destinationHint}</p>
                   ) : (
-                    <p className="text-sm text-gray-400 italic flex-1">No destination set</p>
+                    <p className="text-sm text-brand-carbon/40 italic flex-1">No destination set</p>
                   )}
                   {isLeader && (
-                    <Edit2 className="h-3 w-3 text-gray-400 shrink-0 mt-0.5" />
+                    <Edit2 className="h-3 w-3 text-brand-carbon/40 shrink-0 mt-0.5" />
                   )}
                 </div>
               )}
@@ -1005,7 +1005,7 @@ export function ItineraryOverlay({
                 maxLength={MAX_IDEA_LENGTH}
                 disabled={viewerIsReadOnly}
               />
-              <div className="flex items-center justify-between text-xs text-gray-500">
+              <div className="flex items-center justify-between text-xs text-brand-carbon/60">
                 <span>{newIdeaText.length}/{MAX_IDEA_LENGTH} characters</span>
                 <span>{userIdeaCount}/{MAX_IDEAS_PER_USER} ideas added</span>
               </div>
@@ -1018,18 +1018,18 @@ export function ItineraryOverlay({
                 {addingIdea ? 'Adding...' : 'Add idea'}
               </Button>
               {viewerIsReadOnly && readOnlyReason && (
-                <p className="text-xs text-gray-500 text-center mt-1">{readOnlyReason}</p>
+                <p className="text-xs text-brand-carbon/60 text-center mt-1">{readOnlyReason}</p>
               )}
             </div>
           ) : (
-            <div className="text-center py-4 px-2 bg-gray-50 rounded-lg border">
-              <p className="text-sm text-gray-600">You've added all {MAX_IDEAS_PER_USER} ideas</p>
+            <div className="text-center py-4 px-2 bg-brand-sand/30 rounded-lg border">
+              <p className="text-sm text-brand-carbon/70">You've added all {MAX_IDEAS_PER_USER} ideas</p>
             </div>
           )}
 
           {/* Ideas List - Grouped by Traveler */}
           <div className="pt-2">
-            <p className="text-xs font-medium text-gray-500 mb-2">All Ideas</p>
+            <p className="text-xs font-medium text-brand-carbon/60 mb-2">All Ideas</p>
             <ScrollArea className="h-[180px] md:h-[250px]">
               {loadingIdeas ? (
                 <div className="space-y-3 py-2">
@@ -1046,7 +1046,7 @@ export function ItineraryOverlay({
               ) : ideasError ? (
                 <div className="flex flex-col items-center justify-center p-8 text-center">
                   <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
-                  <p className="text-sm text-gray-600 mb-4">{ideasError}</p>
+                  <p className="text-sm text-brand-carbon/70 mb-4">{ideasError}</p>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1059,7 +1059,7 @@ export function ItineraryOverlay({
                   </Button>
                 </div>
               ) : ideas.length === 0 ? (
-                <p className="text-center text-gray-500 py-6 text-sm">
+                <p className="text-center text-brand-carbon/60 py-6 text-sm">
                   No ideas yet. Add some activities!
                 </p>
               ) : (
@@ -1074,7 +1074,7 @@ export function ItineraryOverlay({
                         <AccordionTrigger className="hover:no-underline py-2">
                           <div className="flex items-center gap-2 flex-1 text-left">
                             <span className="font-medium text-sm">{travelerName}</span>
-                            <span className="text-xs text-gray-500">({group.count}/{MAX_IDEAS_PER_USER})</span>
+                            <span className="text-xs text-brand-carbon/60">({group.count}/{MAX_IDEAS_PER_USER})</span>
                             {hasEnoughIdeas ? (
                               <span className="text-green-600 text-xs">Complete</span>
                             ) : (
@@ -1087,7 +1087,7 @@ export function ItineraryOverlay({
                             {group.ideas.map((idea) => (
                               <div
                                 key={idea.id}
-                                className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg border"
+                                className="flex items-start gap-2 p-2 bg-brand-sand/30 rounded-lg border"
                               >
                                 <Button
                                   size="icon"
@@ -1103,7 +1103,7 @@ export function ItineraryOverlay({
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm text-brand-carbon">{idea.text}</p>
                                   {(idea.likeCount || 0) > 0 && (
-                                    <p className="text-xs text-gray-500 mt-0.5">
+                                    <p className="text-xs text-brand-carbon/60 mt-0.5">
                                       {idea.likeCount} {idea.likeCount === 1 ? 'like' : 'likes'}
                                     </p>
                                   )}
@@ -1161,7 +1161,7 @@ export function ItineraryOverlay({
                   </div>
                   {/* llmMeta transparency — what inputs were used */}
                   {selectedVersion?.llmMeta && (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-brand-carbon/60">
                       Based on {selectedVersion.llmMeta.ideaCount || 0} idea{(selectedVersion.llmMeta.ideaCount || 0) !== 1 ? 's' : ''}
                       {(selectedVersion.llmMeta.feedbackCount || 0) > 0 && (
                         <>, {selectedVersion.llmMeta.feedbackCount} feedback</>
@@ -1222,7 +1222,7 @@ export function ItineraryOverlay({
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                     selectedVersionIdx === idx
                       ? 'bg-brand-blue text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-brand-sand/50 text-brand-carbon/70 hover:bg-brand-sand/70'
                   }`}
                 >
                   v{v.version}
@@ -1253,15 +1253,15 @@ export function ItineraryOverlay({
                 {isLeader ? (
                   <div className="space-y-3">
                     <div className="text-center mb-4">
-                      <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-500 text-sm">No itinerary generated yet</p>
+                      <ListTodo className="h-10 w-10 text-brand-carbon/40 mx-auto mb-2" />
+                      <p className="text-brand-carbon/60 text-sm">No itinerary generated yet</p>
                     </div>
                     <div className="rounded-lg border border-brand-sand bg-brand-sand/30 p-3">
                       <p className="text-xs font-semibold text-brand-carbon mb-2">What Tripti will use to generate</p>
                       <div className="space-y-1.5 text-xs text-brand-carbon/80">
                         <div className="flex items-center justify-between">
                           <span>Destination</span>
-                          <span className={`font-medium ${destinationHint ? 'text-brand-carbon' : 'text-gray-400 italic'}`}>
+                          <span className={`font-medium ${destinationHint ? 'text-brand-carbon' : 'text-brand-carbon/40 italic'}`}>
                             {destinationHint || 'Not set'}
                           </span>
                         </div>
@@ -1275,7 +1275,7 @@ export function ItineraryOverlay({
                         </div>
                         <div className="flex items-center justify-between">
                           <span>Ideas</span>
-                          <span className={`font-medium ${ideas.length > 0 ? 'text-brand-carbon' : 'text-gray-400 italic'}`}>
+                          <span className={`font-medium ${ideas.length > 0 ? 'text-brand-carbon' : 'text-brand-carbon/40 italic'}`}>
                             {ideas.length > 0
                               ? `${ideas.length} from ${groupedIdeas.length} traveler${groupedIdeas.length !== 1 ? 's' : ''}`
                               : 'None yet'}
@@ -1294,14 +1294,14 @@ export function ItineraryOverlay({
                       </div>
                     )}
                     {generating && (
-                      <p className="text-xs text-gray-500 text-center">{GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}</p>
+                      <p className="text-xs text-brand-carbon/60 text-center">{GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}</p>
                     )}
                   </div>
                 ) : (
                   <div className="text-center py-4">
-                    <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-500 mb-2 text-sm">No itinerary generated yet</p>
-                    <p className="text-xs text-gray-400">
+                    <ListTodo className="h-10 w-10 text-brand-carbon/40 mx-auto mb-3" />
+                    <p className="text-brand-carbon/60 mb-2 text-sm">No itinerary generated yet</p>
+                    <p className="text-xs text-brand-carbon/40">
                       The leader will generate an itinerary once ideas are in.
                     </p>
                   </div>
@@ -1323,12 +1323,12 @@ export function ItineraryOverlay({
                 {selectedVersion.content?.overview && (
                   <div className="p-3 bg-brand-blue/5 rounded-lg border border-brand-blue/20">
                     <p className="text-xs font-medium mb-1">Overview</p>
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-brand-carbon/70">
                       Pace: {selectedVersion.content.overview.pace} | Budget:{' '}
                       {selectedVersion.content.overview.budget}
                     </p>
                     {selectedVersion.content.overview.notes && (
-                      <p className="text-xs text-gray-600 mt-1">
+                      <p className="text-xs text-brand-carbon/70 mt-1">
                         {selectedVersion.content.overview.notes}
                       </p>
                     )}
@@ -1351,7 +1351,7 @@ export function ItineraryOverlay({
                               })}
                             </span>
                             {day.title && (
-                              <span className="text-xs text-gray-500">- {day.title}</span>
+                              <span className="text-xs text-brand-carbon/60">- {day.title}</span>
                             )}
                             {day.areaFocus && (
                               <span className="text-xs text-brand-blue ml-1">· {day.areaFocus}</span>
@@ -1364,7 +1364,7 @@ export function ItineraryOverlay({
                               day.blocks.map((block, blockIdx) => (
                                 <div
                                   key={blockIdx}
-                                  className="border rounded-lg p-2.5 bg-gray-50"
+                                  className="border rounded-lg p-2.5 bg-brand-sand/30"
                                 >
                                   <div className="flex items-center gap-2 mb-1">
                                     <span className="text-xs font-medium text-[#FA3823]">
@@ -1378,7 +1378,7 @@ export function ItineraryOverlay({
                                   </div>
                                   <p className="font-medium text-sm">{block.title}</p>
                                   {block.description && (
-                                    <p className="text-xs text-gray-600 mt-0.5">
+                                    <p className="text-xs text-brand-carbon/70 mt-0.5">
                                       {block.description}
                                     </p>
                                   )}
@@ -1394,7 +1394,7 @@ export function ItineraryOverlay({
                                     </p>
                                   )}
                                   {block.transitNotes && (
-                                    <p className="text-xs text-gray-500 mt-0.5 italic">
+                                    <p className="text-xs text-brand-carbon/60 mt-0.5 italic">
                                       Transit: {block.transitNotes}
                                     </p>
                                   )}
@@ -1406,7 +1406,7 @@ export function ItineraryOverlay({
                                 </div>
                               ))
                             ) : (
-                              <p className="text-xs text-gray-400 italic">No activities planned</p>
+                              <p className="text-xs text-brand-carbon/40 italic">No activities planned</p>
                             )}
                           </div>
                         </AccordionContent>
@@ -1437,21 +1437,21 @@ export function ItineraryOverlay({
               {isLeader && (
                 <div className="flex flex-col items-end gap-1">
                   {!canRevise ? (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-brand-carbon/60">
                       Maximum {maxVersions} versions reached
                     </p>
                   ) : newFeedbackCount > 0 || reactions.length > 0 ? (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-brand-carbon/60">
                       {newFeedbackCount > 0 && `${newFeedbackCount} feedback`}
                       {newFeedbackCount > 0 && reactions.length > 0 && ', '}
                       {reactions.length > 0 && `${reactions.length} reaction${reactions.length !== 1 ? 's' : ''}`}
                       {' '}since v{latestVersion.version}
                     </p>
                   ) : (
-                    <p className="text-xs text-gray-400">Waiting for feedback or reactions</p>
+                    <p className="text-xs text-brand-carbon/40">Waiting for feedback or reactions</p>
                   )}
                   {canRevise && versionCount < maxVersions && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-brand-carbon/40">
                       {maxVersions - versionCount} revision{maxVersions - versionCount !== 1 ? 's' : ''} remaining
                     </p>
                   )}
@@ -1487,7 +1487,7 @@ export function ItineraryOverlay({
                 (group) => !group.advanced || showAdvancedPreferences
               ).map((group) => (
                 <div key={group.category}>
-                  <p className="text-xs font-medium text-gray-700 mb-2">{group.label}</p>
+                  <p className="text-xs font-medium text-brand-carbon/80 mb-2">{group.label}</p>
                   <div className="flex flex-wrap gap-2">
                     {group.reactions
                       .filter((rx) => !rx.advanced || showAdvancedPreferences)
@@ -1523,14 +1523,14 @@ export function ItineraryOverlay({
                                   <span className="mr-1">{reaction.emoji}</span>
                                   {reaction.label}
                                   {reactionCount > 0 && (
-                                    <span className="ml-1 text-gray-500">({reactionCount})</span>
+                                    <span className="ml-1 text-brand-carbon/60">({reactionCount})</span>
                                   )}
                                 </>
                               )}
                             </Button>
                             {/* Show who reacted below the button */}
                             {reactedUsers.length > 0 && (
-                              <p className="text-xs text-gray-500 mt-0.5 pl-1">
+                              <p className="text-xs text-brand-carbon/60 mt-0.5 pl-1">
                                 {reactedUsers.length <= 2
                                   ? reactedUsers.join(', ')
                                   : `${reactedUsers.slice(0, 2).join(', ')} +${reactedUsers.length - 2}`}
@@ -1545,13 +1545,13 @@ export function ItineraryOverlay({
 
               <button
                 onClick={() => setShowAdvancedPreferences(!showAdvancedPreferences)}
-                className="text-xs text-gray-600 hover:text-brand-carbon underline"
+                className="text-xs text-brand-carbon/70 hover:text-brand-carbon underline"
               >
                 {showAdvancedPreferences ? 'Fewer preferences' : 'More preferences'}
               </button>
 
               {userReactions.length > 0 && (
-                <p className="text-xs text-gray-500 pt-2 border-t">
+                <p className="text-xs text-brand-carbon/60 pt-2 border-t">
                   Your selections: {userReactions.join(', ')}
                 </p>
               )}
@@ -1559,7 +1559,7 @@ export function ItineraryOverlay({
 
             {/* Feedback List */}
             <div className="pt-2 border-t">
-              <p className="text-xs font-medium text-gray-500 mb-2">Feedback History</p>
+              <p className="text-xs font-medium text-brand-carbon/60 mb-2">Feedback History</p>
               <ScrollArea className="h-[150px] md:h-[200px]">
                 {loadingFeedback ? (
                   <div className="space-y-3 py-2">
@@ -1574,13 +1574,13 @@ export function ItineraryOverlay({
                     ))}
                   </div>
                 ) : feedback.length === 0 ? (
-                  <p className="text-center text-gray-500 py-6 text-sm">
+                  <p className="text-center text-brand-carbon/60 py-6 text-sm">
                     No feedback yet — be the first!
                   </p>
                 ) : (
                   <div className="space-y-2 pr-2">
                     {feedback.map((fb) => (
-                      <div key={fb.id} className="p-2.5 bg-gray-50 rounded-lg border">
+                      <div key={fb.id} className="p-2.5 bg-brand-sand/30 rounded-lg border">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-medium">{fb.author?.name || 'Anonymous'}</span>
                           <Badge variant="secondary" className="text-xs">
@@ -1588,10 +1588,10 @@ export function ItineraryOverlay({
                           </Badge>
                         </div>
                         {fb.target && (
-                          <p className="text-xs text-gray-500 mb-1">Target: {fb.target}</p>
+                          <p className="text-xs text-brand-carbon/60 mb-1">Target: {fb.target}</p>
                         )}
-                        <p className="text-sm text-gray-700">{fb.message}</p>
-                        <p className="text-xs text-gray-400 mt-1">{formatDate(fb.createdAt)}</p>
+                        <p className="text-sm text-brand-carbon/80">{fb.message}</p>
+                        <p className="text-xs text-brand-carbon/40 mt-1">{formatDate(fb.createdAt)}</p>
                       </div>
                     ))}
                   </div>

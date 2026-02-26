@@ -67,7 +67,7 @@ function StripCircle({
   const getIconColor = () => {
     if (isActiveOverlay || isBlocker || isCompleted) return 'text-white'
     if (isNextStep) return 'text-brand-carbon/60'
-    return 'text-gray-500'
+    return 'text-brand-carbon/60'
   }
 
   return (
@@ -193,7 +193,7 @@ export function ProgressStrip({
   }, [blockerStageKey, activeOverlay])
 
   return (
-    <div className="border-b border-gray-200 bg-gray-50 shrink-0 safe-top">
+    <div className="border-b border-brand-carbon/10 bg-brand-sand/30 shrink-0 safe-top">
       {/* Row 1: Trip name + dates + participation meter */}
       <div className="flex items-center justify-between px-3 md:px-4 pt-2 pb-1 gap-2">
         <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
@@ -223,15 +223,15 @@ export function ProgressStrip({
           )}
           {dateDisplay && (
             <>
-              <span className="text-gray-400 hidden sm:inline" aria-hidden="true">·</span>
-              <span className="text-xs md:text-sm text-gray-500 hidden sm:inline whitespace-nowrap">
+              <span className="text-brand-carbon/40 hidden sm:inline" aria-hidden="true">·</span>
+              <span className="text-xs md:text-sm text-brand-carbon/60 hidden sm:inline whitespace-nowrap">
                 {dateDisplay}
               </span>
             </>
           )}
         </div>
         {participationMeter && (
-          <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
+          <span className="text-xs text-brand-carbon/60 whitespace-nowrap shrink-0">
             {participationMeter.responded} of {participationMeter.total} {participationMeter.label}
           </span>
         )}
@@ -300,7 +300,7 @@ export function ProgressStrip({
           })}
       </div>
       {/* Right-edge fade gradient to hint at scrollability on mobile */}
-      <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none md:hidden" />
+      <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-brand-sand/30 to-transparent pointer-events-none md:hidden" />
       </div>
     </div>
   )

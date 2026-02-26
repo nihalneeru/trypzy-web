@@ -98,12 +98,12 @@ function TripChip({ trip }) {
             </span>
           )}
         </span>
-        <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
+        <span className="text-xs text-brand-carbon/40 whitespace-nowrap flex-shrink-0">
           {dateText}
         </span>
       </div>
       <div className="flex items-center justify-between gap-2 mt-1">
-        <span className="text-xs text-gray-500 truncate">
+        <span className="text-xs text-brand-carbon/60 truncate">
           {actionRequired ? 'Waiting on you' : `${trip.travelerCount} ${trip.travelerCount === 1 ? 'traveler' : 'travelers'}`}
         </span>
         <span className={`text-xs font-medium whitespace-nowrap ${actionRequired ? 'text-brand-red' : 'text-brand-blue'}`}>
@@ -198,7 +198,7 @@ export function CircleBubbleSection({ circle, token, currentUserId, onTripCreate
               {circle.name}
             </h3>
           </Link>
-          <p className="text-xs text-gray-500 text-center mt-0.5">
+          <p className="text-xs text-brand-carbon/60 text-center mt-0.5">
             {memberCount} {memberCount === 1 ? 'member' : 'members'}
             {sortedActive.length > 0 && (
               <> · {sortedActive.length} active {sortedActive.length === 1 ? 'trip' : 'trips'}</>
@@ -209,7 +209,7 @@ export function CircleBubbleSection({ circle, token, currentUserId, onTripCreate
         {/* Trip list */}
         <div className="px-4 py-4">
           {visibleTrips.length === 0 && archivedCount === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-2">No trips yet</p>
+            <p className="text-sm text-brand-carbon/40 text-center py-2">No trips yet</p>
           ) : (
             <div className="space-y-2">
               {visibleTrips.map((trip) => (
@@ -229,10 +229,10 @@ export function CircleBubbleSection({ circle, token, currentUserId, onTripCreate
 
           {/* Archived toggle */}
           {archivedCount > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="mt-3 pt-3 border-t border-brand-sand/50">
               <button
                 onClick={() => setShowArchived(!showArchived)}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mx-auto"
+                className="flex items-center gap-1 text-xs text-brand-carbon/40 hover:text-brand-carbon/70 mx-auto"
               >
                 {showArchived ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                 <span>{archivedCount} past {archivedCount === 1 ? 'trip' : 'trips'}</span>
@@ -251,7 +251,7 @@ export function CircleBubbleSection({ circle, token, currentUserId, onTripCreate
           )}
 
           {/* Plan a trip */}
-          <div className="mt-3 pt-3 border-t border-gray-100 text-center">
+          <div className="mt-3 pt-3 border-t border-brand-sand/50 text-center">
             <button
               onClick={() => setShowCreateTrip(true)}
               className="inline-flex items-center gap-1 text-sm text-brand-blue hover:text-brand-blue/80 font-medium"

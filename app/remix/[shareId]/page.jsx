@@ -57,7 +57,7 @@ export default function RemixPage({ params }) {
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
         <div className="text-center max-w-md">
           <p className="text-brand-carbon font-semibold text-lg mb-2">Couldn&apos;t remix this trip</p>
-          <p className="text-gray-500 text-sm mb-6">{error}</p>
+          <p className="text-brand-carbon/60 text-sm mb-6">{error}</p>
           <button
             onClick={() => router.push('/')}
             className="text-brand-blue hover:underline text-sm"
@@ -73,7 +73,7 @@ export default function RemixPage({ params }) {
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="text-center">
         <BrandedSpinner size="lg" className="mx-auto mb-4" />
-        <p className="text-gray-500 text-sm">Setting up your trip...</p>
+        <p className="text-brand-carbon/60 text-sm">Setting up your trip...</p>
       </div>
     </div>
   )

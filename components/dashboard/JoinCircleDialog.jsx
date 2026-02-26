@@ -76,7 +76,7 @@ export function JoinCircleDialog({ open, onOpenChange, onSuccess, token }) {
               placeholder="ABCD12"
               className="uppercase"
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-brand-carbon/60">
               Ask the person who invited you for their circle's invite code or link.
             </p>
           </div>

@@ -38,7 +38,7 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
       <div className="space-y-2">
         <Label>
           Destination
-          <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
+          <span className="text-xs font-normal text-brand-carbon/60 ml-1">(optional)</span>
         </Label>
         <Input
           value={tripForm.destinationHint || ''}
@@ -50,9 +50,9 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
         <div className="space-y-2">
           <Label>
             Circle name
-            <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
+            <span className="text-xs font-normal text-brand-carbon/60 ml-1">(optional)</span>
           </Label>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-brand-carbon/60">
             A circle is your group of travelers. Defaults to your trip name.
           </p>
           <Input
@@ -79,7 +79,7 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
             <SelectItem value="hosted">Fixed dates (already decided)</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-brand-carbon/60 mt-1">
           {tripForm.type === 'collaborative'
             ? "Your group suggests dates and picks what works. Best when dates are flexible."
             : "Dates are set — others join if they can make it."}
@@ -89,9 +89,9 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
         <div className="space-y-2">
           <Label>
             How long would you like this trip to be?
-            <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
+            <span className="text-xs font-normal text-brand-carbon/60 ml-1">(optional)</span>
           </Label>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-brand-carbon/60">
             Just a starting point—your group can adjust this later.
           </p>
           <Select
@@ -116,10 +116,10 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
         <Label>
           {tripForm.type === 'hosted' ? 'Trip dates' : 'Date range'}
           {tripForm.type === 'collaborative' && (
-            <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
+            <span className="text-xs font-normal text-brand-carbon/60 ml-1">(optional)</span>
           )}
         </Label>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-brand-carbon/60">
           {tripForm.type === 'hosted'
             ? 'Set the fixed dates for your trip. Others join if they can make it.'
             : 'Set a general range. Your group can suggest dates and narrow it down.'}
@@ -148,7 +148,7 @@ export function TripFormFields({ tripForm, onChange, showCircleName = false }) {
         </div>
       </div>
       <details className="group">
-        <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700 select-none">
+        <summary className="text-sm text-brand-carbon/60 cursor-pointer hover:text-brand-carbon/80 select-none">
           Add a description (optional)
         </summary>
         <div className="space-y-2 pt-2">

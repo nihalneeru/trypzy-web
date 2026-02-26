@@ -38,13 +38,13 @@ export function ActionCard({
           <h3 className="text-sm font-semibold text-brand-carbon mb-1">
             {action.title}
           </h3>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-brand-carbon/80">
             {action.description}
           </p>
         </div>
         <button
           onClick={onDismiss}
-          className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+          className="flex-shrink-0 p-2 text-brand-carbon/40 hover:text-brand-carbon/70 transition-colors"
           aria-label="Dismiss"
         >
           <X className="h-4 w-4" />

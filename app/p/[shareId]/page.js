@@ -69,18 +69,18 @@ export default async function PublicTripPreviewPage({ params }) {
           <h1 className="text-2xl sm:text-3xl font-semibold text-brand-carbon mb-3">
             {trip.name}
           </h1>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-brand-carbon/70">
             {trip.destinationHint && (
               <span>{trip.destinationHint}</span>
             )}
             {trip.destinationHint && dateRange && (
-              <span className="text-gray-300">&middot;</span>
+              <span className="text-brand-carbon/30">&middot;</span>
             )}
             {dateRange && (
               <span>{dateRange}</span>
             )}
             {(trip.destinationHint || dateRange) && (
-              <span className="text-gray-300">&middot;</span>
+              <span className="text-brand-carbon/30">&middot;</span>
             )}
             <span>
               {trip.travelerCount} traveler{trip.travelerCount !== 1 ? 's' : ''}
@@ -101,7 +101,7 @@ export default async function PublicTripPreviewPage({ params }) {
         {/* Idea count (if no itinerary but has ideas) */}
         {!itinerary?.content && itinerary?.ideaCount > 0 && (
           <section className="mb-10">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+            <div className="rounded-lg border border-brand-carbon/10 bg-brand-sand/30 p-4 text-sm text-brand-carbon/70">
               {itinerary.ideaCount} itinerary idea{itinerary.ideaCount !== 1 ? 's' : ''} contributed so far
             </div>
           </section>
@@ -129,14 +129,14 @@ export default async function PublicTripPreviewPage({ params }) {
         </section>
 
         {/* Footer branding */}
-        <footer className="text-center pt-6 pb-8 border-t border-gray-100">
-          <p className="text-sm text-gray-500 mb-1">
+        <footer className="text-center pt-6 pb-8 border-t border-brand-sand/50">
+          <p className="text-sm text-brand-carbon/60 mb-1">
             Planned on{' '}
             <Link href="/" className="text-brand-blue hover:underline font-medium">
               Tripti.ai
             </Link>
           </p>
-          <p className="text-xs text-gray-400 italic">
+          <p className="text-xs text-brand-carbon/40 italic">
             Nifty plans. Happy circles.
           </p>
         </footer>
@@ -149,7 +149,7 @@ function ItineraryPreview({ content }) {
   // Handle plain string content
   if (typeof content === 'string') {
     return (
-      <div className="prose prose-sm max-w-none text-gray-700">
+      <div className="prose prose-sm max-w-none text-brand-carbon/80">
         {content.split('\n').map((line, i) => (
           <p key={i} className={line.trim() === '' ? 'h-3' : 'mb-1.5'}>
             {line}
@@ -163,12 +163,12 @@ function ItineraryPreview({ content }) {
   return (
     <div className="space-y-4">
       {content.overview && (
-        <div className="p-3 bg-brand-sand/50 rounded-lg text-sm text-gray-700">
+        <div className="p-3 bg-brand-sand/50 rounded-lg text-sm text-brand-carbon/80">
           {content.overview.pace && <span>Pace: {content.overview.pace}</span>}
           {content.overview.pace && content.overview.budget && <span> · </span>}
           {content.overview.budget && <span>Budget: {content.overview.budget}</span>}
           {content.overview.notes && (
-            <p className="mt-1 text-gray-600">{content.overview.notes}</p>
+            <p className="mt-1 text-brand-carbon/70">{content.overview.notes}</p>
           )}
         </div>
       )}
@@ -183,20 +183,20 @@ function ItineraryPreview({ content }) {
         })() : null
 
         return (
-          <div key={dayIdx} className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+          <div key={dayIdx} className="border border-brand-carbon/10 rounded-lg overflow-hidden">
+            <div className="px-3 py-2 bg-brand-sand/30 border-b border-brand-carbon/10">
               <span className="text-sm font-medium text-brand-carbon">
                 {dayDate || `Day ${dayIdx + 1}`}
               </span>
               {day.title && (
-                <span className="text-sm text-gray-500 ml-2">— {day.title}</span>
+                <span className="text-sm text-brand-carbon/60 ml-2">— {day.title}</span>
               )}
               {day.areaFocus && (
                 <span className="text-xs text-brand-blue ml-2">{day.areaFocus}</span>
               )}
             </div>
             {day.blocks?.length > 0 && (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-brand-sand/50">
                 {day.blocks.map((block, blockIdx) => (
                   <div key={blockIdx} className="px-3 py-2">
                     <div className="flex items-baseline gap-2">
@@ -205,12 +205,12 @@ function ItineraryPreview({ content }) {
                           {block.timeRange}
                         </span>
                       )}
-                      <span className="text-sm text-gray-700">
+                      <span className="text-sm text-brand-carbon/80">
                         {block.activity || block.title || block.label || ''}
                       </span>
                     </div>
                     {block.notes && (
-                      <p className="text-xs text-gray-500 mt-0.5 ml-0">{block.notes}</p>
+                      <p className="text-xs text-brand-carbon/60 mt-0.5 ml-0">{block.notes}</p>
                     )}
                   </div>
                 ))}
@@ -242,7 +242,7 @@ function NotFoundView() {
         <h1 className="text-xl font-semibold text-brand-carbon mb-3">
           Trip not found
         </h1>
-        <p className="text-sm text-gray-500 mb-6">
+        <p className="text-sm text-brand-carbon/60 mb-6">
           This trip may no longer be shared, or the link may be incorrect.
         </p>
         <Link

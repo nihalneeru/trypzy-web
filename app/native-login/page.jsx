@@ -233,7 +233,7 @@ export default function NativeLoginPage() {
       <div className="w-full max-w-sm text-center">
         <div className="mb-8">
           <TriptiLogo variant="full" className="h-10 w-auto mx-auto mb-3" />
-          <p className="text-[#6B7280]">Nifty plans. Happy circles.</p>
+          <p className="text-brand-carbon/60">Nifty plans. Happy circles.</p>
         </div>
 
         {error && (
@@ -259,11 +259,11 @@ export default function NativeLoginPage() {
                   }
                 }}
                 placeholder="Enter your beta access code"
-                className="w-full h-12 px-3 rounded-lg border border-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+                className="w-full h-12 px-3 rounded-lg border border-brand-carbon/20 text-base focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
                 autoCapitalize="none"
                 autoCorrect="off"
               />
-              <p className="text-xs text-[#6B7280] mt-1.5">
+              <p className="text-xs text-brand-carbon/60 mt-1.5">
                 Ask a friend or check your invite for the code
               </p>
             </div>
@@ -343,7 +343,7 @@ export default function NativeLoginPage() {
           </>
         )}
 
-        <p className="text-xs text-[#6B7280] mt-6">
+        <p className="text-xs text-brand-carbon/60 mt-6">
           By continuing, you agree to Tripti.ai&apos;s{' '}
           <a href="/terms" className="underline">Terms of Use</a>
           {' '}and{' '}

@@ -51,7 +51,7 @@ export function CookieBanner() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 p-4 safe-bottom">
-      <div className="max-w-lg mx-auto bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+      <div className="max-w-lg mx-auto bg-white rounded-xl shadow-lg border border-brand-carbon/10 p-4">
         <p className="text-sm text-brand-carbon mb-3">
           We use cookies to understand how you use Tripti and improve your experience.
           You can decline without affecting functionality.

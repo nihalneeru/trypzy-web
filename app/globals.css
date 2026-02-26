@@ -69,9 +69,15 @@
   :root {
         /* Tripti Brand Colors */
         --brand-red: #FA3823;
-        --brand-blue: #00334D;
-        --brand-carbon: #2E303B;
-        --brand-sand: #F2EDDA;
+        --brand-blue: #09173D;
+        --brand-carbon: #45474F;
+        --brand-sand: #DED9C1;
+
+        /* Secondary palette */
+        --brand-yellow: #FAC823;
+        --brand-sky: #23B0F7;
+        --brand-green: #093D0E;
+        --brand-olive: #57450C;
 
         /* Semantic status colors */
         --color-success: var(--brand-blue);
@@ -81,7 +87,7 @@
 
         --brand-text: #111111;
         --brand-bg: #FFFFFF;
-        --brand-muted: #6B7280;
+        --brand-muted: var(--brand-carbon);
         
         --background: 0 0% 100%;
         --foreground: 222.2 84% 4.9%;

@@ -552,9 +552,9 @@ export function TravelersOverlay({
   if (!trip?.circleId) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Users className="h-12 w-12 text-gray-400 mb-4" />
+        <Users className="h-12 w-12 text-brand-carbon/40 mb-4" />
         <h3 className="text-lg font-medium text-brand-carbon mb-2">No circle found</h3>
-        <p className="text-gray-500">This trip is not associated with a circle.</p>
+        <p className="text-brand-carbon/60">This trip is not associated with a circle.</p>
       </div>
     )
   }
@@ -591,7 +591,7 @@ export function TravelersOverlay({
       {/* Your Invitation Section (for invited users) — personal action stays at top */}
       {!isTripLeader && myInvitation && (
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+          <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide mb-3">
             Your Invitation
           </h3>
           <Card className="border-brand-blue/30 bg-brand-blue/5">
@@ -630,7 +630,7 @@ export function TravelersOverlay({
       {/* Active Travelers — always first */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+          <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide">
             {activeLabel} ({activeParticipants.length})
           </h3>
         </div>
@@ -638,8 +638,8 @@ export function TravelersOverlay({
         {activeParticipants.length === 0 ? (
           <Card>
             <CardContent className="py-6 text-center">
-              <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No one {completed ? 'went' : 'going'}</p>
+              <Users className="h-8 w-8 text-brand-carbon/40 mx-auto mb-2" />
+              <p className="text-sm text-brand-carbon/60">No one {completed ? 'went' : 'going'}</p>
             </CardContent>
           </Card>
         ) : (
@@ -669,7 +669,7 @@ export function TravelersOverlay({
                           <div className="flex items-center gap-2">
                             <p className="font-medium text-sm text-brand-blue hover:underline">{participantUser.name}</p>
                             {isCurrentUser && (
-                              <span className="text-xs text-gray-500">(you)</span>
+                              <span className="text-xs text-brand-carbon/60">(you)</span>
                             )}
                           </div>
                         </div>
@@ -694,7 +694,7 @@ export function TravelersOverlay({
       {/* Past Travelers */}
       {pastParticipants.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+          <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide mb-3">
             Left Trip ({pastParticipants.length})
           </h3>
           <div className="space-y-2">
@@ -715,7 +715,7 @@ export function TravelersOverlay({
                         </Avatar>
                         <div>
                           <p className="font-medium text-sm">{participantUser.name}</p>
-                          <p className="text-xs text-gray-500">{statusLabel}</p>
+                          <p className="text-xs text-brand-carbon/60">{statusLabel}</p>
                         </div>
                       </div>
                     </div>
@@ -761,7 +761,7 @@ export function TravelersOverlay({
       {hasManageContent && (
         <div>
           <button
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2"
+            className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2"
             onClick={() => setManageOpen(!manageOpen)}
           >
             {manageOpen ? (
@@ -782,7 +782,7 @@ export function TravelersOverlay({
               {/* Pending Leadership Transfer */}
               {hasPendingTransfer && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                  <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide mb-3">
                     Pending Leadership Transfer
                   </h3>
                   <Card className="border-amber-200 bg-amber-50">
@@ -795,7 +795,7 @@ export function TravelersOverlay({
                               <p className="font-medium text-sm text-brand-carbon">
                                 You've been asked to lead this trip
                               </p>
-                              <p className="text-xs text-gray-600 mt-1">
+                              <p className="text-xs text-brand-carbon/70 mt-1">
                                 Accept to become the trip leader, or decline to keep the current leader.
                               </p>
                             </div>
@@ -806,7 +806,7 @@ export function TravelersOverlay({
                               variant="outline"
                               onClick={handleDeclineTransfer}
                               disabled={decliningTransfer || acceptingTransfer}
-                              className="text-gray-600"
+                              className="text-brand-carbon/70"
                             >
                               <X className="h-4 w-4 mr-1" />
                               {decliningTransfer ? 'Declining...' : 'Decline'}
@@ -830,7 +830,7 @@ export function TravelersOverlay({
                               <p className="font-medium text-sm text-brand-carbon">
                                 Waiting for {pendingRecipientName} to accept leadership
                               </p>
-                              <p className="text-xs text-gray-600 mt-1">
+                              <p className="text-xs text-brand-carbon/70 mt-1">
                                 They need to accept before the transfer is complete.
                               </p>
                             </div>
@@ -841,7 +841,7 @@ export function TravelersOverlay({
                               variant="outline"
                               onClick={handleCancelPendingTransfer}
                               disabled={cancelingTransfer}
-                              className="text-gray-600"
+                              className="text-brand-carbon/70"
                             >
                               <XCircle className="h-4 w-4 mr-1" />
                               {cancelingTransfer ? 'Canceling...' : 'Cancel Transfer'}
@@ -855,7 +855,7 @@ export function TravelersOverlay({
                             <p className="font-medium text-sm text-brand-carbon">
                               Leadership transfer pending
                             </p>
-                            <p className="text-xs text-gray-600 mt-1">
+                            <p className="text-xs text-brand-carbon/70 mt-1">
                               {pendingRecipientName} has been asked to become the trip leader.
                             </p>
                           </div>
@@ -869,7 +869,7 @@ export function TravelersOverlay({
               {/* Join Requests Section (Trip Leader only) */}
               {isTripLeader && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                  <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide mb-3">
                     Join Requests
                   </h3>
                   {loadingRequests ? (
@@ -892,8 +892,8 @@ export function TravelersOverlay({
                   ) : joinRequests.length === 0 ? (
                     <Card>
                       <CardContent className="py-6 text-center">
-                        <UserPlus className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500">No pending requests</p>
+                        <UserPlus className="h-6 w-6 text-brand-carbon/40 mx-auto mb-2" />
+                        <p className="text-sm text-brand-carbon/60">No pending requests</p>
                       </CardContent>
                     </Card>
                   ) : (
@@ -911,7 +911,7 @@ export function TravelersOverlay({
                                 <div className="flex-1 min-w-0">
                                   <p className="font-medium text-sm truncate">{request.requesterName}</p>
                                   {request.message && (
-                                    <p className="text-xs text-gray-600 truncate">{request.message}</p>
+                                    <p className="text-xs text-brand-carbon/70 truncate">{request.message}</p>
                                   )}
                                 </div>
                               </div>
@@ -947,7 +947,7 @@ export function TravelersOverlay({
               {/* Pending Invitations Section (Trip Leader only) */}
               {isTripLeader && pendingInvitations.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                  <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide mb-3">
                     Pending Invitations ({pendingInvitations.length})
                   </h3>
                   <div className="space-y-2">
@@ -962,7 +962,7 @@ export function TravelersOverlay({
                             </Avatar>
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-sm truncate">{invitation.invitedUserName}</p>
-                              <p className="text-xs text-gray-500">Awaiting response</p>
+                              <p className="text-xs text-brand-carbon/60">Awaiting response</p>
                             </div>
                             <Clock className="h-4 w-4 text-amber-500" />
                           </div>
@@ -1009,7 +1009,7 @@ export function TravelersOverlay({
                 </Button>
               )}
               {canLeaveLeader && hasPendingTransfer && (
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-xs text-brand-carbon/60 text-center">
                   Resolve the pending transfer before canceling.
                 </p>
               )}

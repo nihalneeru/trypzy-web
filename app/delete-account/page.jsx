@@ -24,16 +24,16 @@ export default function DeleteAccountPage() {
   // Still checking auth state
   if (isLoggedIn === null) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-sand/30 flex items-center justify-center">
         <TriptiLogo variant="full" className="h-8 w-auto opacity-50" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-brand-sand/30">
       {/* Simple header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-white border-b border-brand-carbon/10">
         <div className="max-w-3xl mx-auto px-4 py-4">
           <Link href="/">
             <TriptiLogo variant="full" className="h-7 w-auto" />
@@ -50,7 +50,7 @@ export default function DeleteAccountPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="text-sm text-gray-600 space-y-3">
+            <div className="text-sm text-brand-carbon/70 space-y-3">
               <p>
                 Deleting your account will permanently remove your personal information
                 (name, email, profile). Your contributions to trips and circles will remain
@@ -69,7 +69,7 @@ export default function DeleteAccountPage() {
               </Button>
             ) : (
               <div className="space-y-3">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-brand-carbon/60">
                   You need to be logged in to delete your account.
                 </p>
                 <Button

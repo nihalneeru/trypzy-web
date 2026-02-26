@@ -201,7 +201,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Your group:</span>
+              <span className="text-sm text-brand-carbon/70">Your group:</span>
               {editingCircleName ? (
                 <div className="flex items-center gap-1 flex-1">
                   <Input
@@ -227,7 +227,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
                   <button
                     onClick={cancelEditCircleName}
                     disabled={savingCircleName}
-                    className="p-1 text-gray-400 hover:text-gray-600"
+                    className="p-1 text-brand-carbon/40 hover:text-brand-carbon/70"
                     aria-label="Cancel editing"
                   >
                     <X className="h-4 w-4" />

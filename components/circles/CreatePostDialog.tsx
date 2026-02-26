@@ -172,7 +172,7 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
             <Label>Photos (1-5 images)</Label>
             <div className="grid grid-cols-5 gap-2">
               {mediaUrls.map((url, idx) => (
-                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-brand-sand/50">
                   <img src={url} alt="" className="w-full h-full object-cover" />
                   <button
                     onClick={() => removeImage(idx)}
@@ -186,12 +186,12 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                  className="aspect-square rounded-lg border-2 border-dashed border-brand-carbon/20 flex items-center justify-center hover:border-brand-carbon/30 hover:bg-brand-sand/30 transition-colors"
                 >
                   {uploading ? (
                     <BrandedSpinner size="default" />
                   ) : (
-                    <Plus className="h-6 w-6 text-gray-400" />
+                    <Plus className="h-6 w-6 text-brand-carbon/40" />
                   )}
                 </button>
               )}
@@ -247,13 +247,13 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
 
           {/* Attach Itinerary Section */}
           {tripId && tripId !== 'none' && (
-            <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="space-y-3 p-4 bg-brand-sand/30 rounded-lg border border-brand-carbon/10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <ListTodo className="h-5 w-5 text-gray-500" />
+                  <ListTodo className="h-5 w-5 text-brand-carbon/60" />
                   <div>
                     <p className="font-medium text-sm">Attach itinerary to this memory?</p>
-                    <p className="text-xs text-gray-500">Share your trip plan to inspire others</p>
+                    <p className="text-xs text-brand-carbon/60">Share your trip plan to inspire others</p>
                   </div>
                 </div>
                 {loadingItinerary ? (
@@ -269,14 +269,14 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
               </div>
 
               {attachItinerary && selectedItinerary && (
-                <div className="space-y-3 pt-2 border-t border-gray-200">
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="space-y-3 pt-2 border-t border-brand-carbon/10">
+                  <div className="flex items-center gap-2 text-sm text-brand-carbon/60">
                     <Check className="h-4 w-4" />
                     <span>{selectedItinerary.title} ({selectedItinerary.itemCount} activities)</span>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs text-gray-600">How much to share:</Label>
+                    <Label className="text-xs text-brand-carbon/70">How much to share:</Label>
                     <RadioGroup value={itineraryMode} onValueChange={setItineraryMode} className="flex gap-4">
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="highlights" id="highlights" />
@@ -293,7 +293,7 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
                     </RadioGroup>
                   </div>
 
-                  <p className="text-xs text-gray-500 bg-white rounded p-2">
+                  <p className="text-xs text-brand-carbon/60 bg-white rounded p-2">
                     This itinerary worked for your group. Others can use it as a starting point and customize it for their own trip.
                   </p>
                 </div>
@@ -302,18 +302,18 @@ export function CreatePostDialog({ open, onOpenChange, circleId, trips, token, o
           )}
 
           {/* Visibility */}
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-brand-sand/30 rounded-lg">
             <div className="flex items-center gap-2">
               {discoverable ? (
-                <Globe className="h-5 w-5 text-gray-500" />
+                <Globe className="h-5 w-5 text-brand-carbon/60" />
               ) : (
-                <EyeOff className="h-5 w-5 text-gray-500" />
+                <EyeOff className="h-5 w-5 text-brand-carbon/60" />
               )}
               <div>
                 <p className="font-medium text-sm">
                   {discoverable ? 'Discoverable' : 'Circle-only'}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-brand-carbon/60">
                   {discoverable
                     ? 'Anyone can see this in Discover feed'
                     : 'Only circle members can see this'}

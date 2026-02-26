@@ -102,7 +102,7 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50 safe-top">
+    <header className="bg-white border-b border-brand-carbon/10 sticky top-0 z-50 safe-top">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Left: Logo + Navigation */}
@@ -149,13 +149,13 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-72">
                     <div className="px-3 py-2">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Activity</span>
+                      <span className="text-xs font-medium text-brand-carbon/60 uppercase tracking-wide">Activity</span>
                     </div>
                     <DropdownMenuSeparator />
                     {notifications.slice(0, 5).map((n) => (
                       <DropdownMenuItem key={n.id} onClick={() => router.push(n.href)} className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                         <span className="text-sm font-medium text-brand-carbon leading-tight">{n.title}</span>
-                        <span className="text-xs text-gray-500 leading-tight">{n.context || n.ctaLabel}</span>
+                        <span className="text-xs text-brand-carbon/60 leading-tight">{n.context || n.ctaLabel}</span>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>

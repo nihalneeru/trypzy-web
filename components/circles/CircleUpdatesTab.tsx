@@ -164,13 +164,13 @@ export function CircleUpdatesTab({ circleId, token }: CircleUpdatesTabProps) {
     if (items.length === 0) return null
     return (
       <div className={marginTop ? 'mt-4' : ''}>
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 px-1">
+        <p className="text-xs font-medium text-brand-carbon/60 uppercase tracking-wide mb-2 px-1">
           {label}
         </p>
         <div className="space-y-2">
           {items.map((update) => {
             const isStageTransition = update.type === 'dates_locked' || update.type === 'itinerary_finalized'
-            const iconColor = isStageTransition ? 'text-brand-blue' : 'text-gray-400'
+            const iconColor = isStageTransition ? 'text-brand-blue' : 'text-brand-carbon/40'
             const hasTripTarget = Boolean(update.tripId)
             const hasMemberTarget =
               (update.type === 'circle_member_joined' || update.type === 'circle_created') &&
@@ -182,8 +182,8 @@ export function CircleUpdatesTab({ circleId, token }: CircleUpdatesTabProps) {
               <div
                 key={update.id}
                 onClick={() => isClickable && handleClick(update)}
-                className={`p-3 rounded-md border border-gray-200 transition-all ${
-                  isClickable ? 'hover:bg-gray-50 hover:border-gray-300 cursor-pointer' : ''
+                className={`p-3 rounded-md border border-brand-carbon/10 transition-all ${
+                  isClickable ? 'hover:bg-brand-sand/30 hover:border-brand-carbon/20 cursor-pointer' : ''
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -195,14 +195,14 @@ export function CircleUpdatesTab({ circleId, token }: CircleUpdatesTabProps) {
                       {getActionText(update)}
                     </p>
                     {contextLabel && (
-                      <p className="text-xs text-gray-600 mt-0.5">{contextLabel}</p>
+                      <p className="text-xs text-brand-carbon/70 mt-0.5">{contextLabel}</p>
                     )}
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-brand-carbon/40 mt-1">
                       {formatTimestamp(update.timestamp)}
                     </p>
                   </div>
                   {isClickable && (
-                    <ChevronRight className="h-4 w-4 text-gray-300 ml-2 flex-shrink-0 mt-0.5" />
+                    <ChevronRight className="h-4 w-4 text-brand-carbon/30 ml-2 flex-shrink-0 mt-0.5" />
                   )}
                 </div>
               </div>
@@ -227,7 +227,7 @@ export function CircleUpdatesTab({ circleId, token }: CircleUpdatesTabProps) {
             </div>
           ) : updates.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-brand-carbon/60">
                 No updates yet. Activity will appear here as the circle grows.
               </p>
             </div>

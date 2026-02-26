@@ -143,7 +143,7 @@ export function CircleOnboardingInterstitial({
             
             <button
               onClick={handleSkip}
-              className="w-full text-sm text-gray-500 hover:text-gray-700 py-2"
+              className="w-full text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2"
             >
               Skip for now
             </button>

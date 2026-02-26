@@ -104,16 +104,16 @@ export function ProposeToCircleDialog({ open, onOpenChange, post, circles, token
                 </SelectContent>
               </Select>
             ) : (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-brand-carbon/60">
                 You need to create or join a circle first to propose trips.
               </p>
             )}
           </div>
 
           {/* Info Box */}
-          <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
-            <p className="font-medium text-gray-700">What happens next:</p>
-            <ul className="space-y-1 text-gray-600">
+          <div className="bg-brand-sand/30 rounded-lg p-4 text-sm space-y-2">
+            <p className="font-medium text-brand-carbon/80">What happens next:</p>
+            <ul className="space-y-1 text-brand-carbon/70">
               <li className="flex items-start gap-2">
                 <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                 <span>A new trip will be created in your circle</span>
@@ -127,7 +127,7 @@ export function ProposeToCircleDialog({ open, onOpenChange, post, circles, token
                 <span>Your circle decides the actual dates</span>
               </li>
             </ul>
-            <p className="text-xs text-gray-500 italic mt-2">
+            <p className="text-xs text-brand-carbon/60 italic mt-2">
               This itinerary worked for them. Your group can change it.
             </p>
           </div>

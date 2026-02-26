@@ -17,12 +17,12 @@ export async function GET(request, { params }) {
           width: '100%', height: '100%',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          backgroundColor: '#F2EDDA',
+          backgroundColor: '#DED9C1',
         }}>
-          <div style={{ fontSize: 48, fontWeight: 700, color: '#2E303B' }}>
+          <div style={{ fontSize: 48, fontWeight: 700, color: '#45474F' }}>
             TRIPTI.ai
           </div>
-          <div style={{ fontSize: 24, color: '#2E303B', marginTop: 16 }}>
+          <div style={{ fontSize: 24, color: '#45474F', marginTop: 16 }}>
             Nifty plans. Happy circles.
           </div>
         </div>
@@ -62,7 +62,7 @@ export async function GET(request, { params }) {
         width: '100%', height: '100%',
         display: 'flex', flexDirection: 'column',
         padding: '60px 80px',
-        backgroundColor: '#F2EDDA',
+        backgroundColor: '#DED9C1',
         fontFamily: 'Inter, sans-serif',
       }}>
         {/* Logo */}
@@ -71,14 +71,14 @@ export async function GET(request, { params }) {
             width: 24, height: 24, borderRadius: '50%',
             backgroundColor: '#FA3823', marginRight: 12,
           }} />
-          <span style={{ fontSize: 28, fontWeight: 700, color: '#2E303B' }}>
+          <span style={{ fontSize: 28, fontWeight: 700, color: '#45474F' }}>
             TRIPTI.ai
           </span>
         </div>
 
         {/* Trip name */}
         <div style={{
-          fontSize: 56, fontWeight: 800, color: '#2E303B',
+          fontSize: 56, fontWeight: 800, color: '#45474F',
           lineHeight: 1.1, marginBottom: 16,
           maxWidth: '90%',
           overflow: 'hidden',
@@ -99,7 +99,7 @@ export async function GET(request, { params }) {
 
         {/* Date + travelers */}
         <div style={{
-          fontSize: 24, color: '#2E303B', opacity: 0.7,
+          fontSize: 24, color: '#45474F', opacity: 0.7,
           display: 'flex', gap: 16,
         }}>
           {dateString && <span>{dateString}</span>}
@@ -114,7 +114,7 @@ export async function GET(request, { params }) {
 
         {/* Tagline */}
         <div style={{
-          fontSize: 20, color: '#2E303B', opacity: 0.5,
+          fontSize: 20, color: '#45474F', opacity: 0.5,
           fontStyle: 'italic',
         }}>
           Nifty plans. Happy circles.

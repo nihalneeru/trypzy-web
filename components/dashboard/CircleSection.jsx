@@ -78,7 +78,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />
+              <Users className="h-5 w-5 text-brand-carbon/70" aria-hidden="true" />
               <h2 className="text-xl font-semibold">
                 <Link href={circlePageHref(circle.id)} className="hover:underline">
                   {circle.name}
@@ -97,7 +97,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
         </CardHeader>
         <CardContent className="min-w-0 w-full">
           {allTrips.length === 0 && cancelledTrips.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-brand-carbon/60">
               <div className="flex justify-center gap-2 mb-4" aria-hidden="true">
                 {[0, 0.6, 1.2].map((delay, i) => (
                   <div
@@ -118,14 +118,14 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
               {/* Trips you are leading (expanded by default, collapsible) */}
               {leaderTrips.length > 0 && (
                 <Collapsible open={showLeading} onOpenChange={setShowLeading}>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                     {showLeading ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
                       <ChevronRight className="h-4 w-4" />
                     )}
                     <Crown className="h-4 w-4 text-amber-500" aria-hidden="true" />
-                    <span className="font-semibold text-gray-600 uppercase tracking-wide">Trips you are leading ({leaderTrips.length})</span>
+                    <span className="font-semibold text-brand-carbon/70 uppercase tracking-wide">Trips you are leading ({leaderTrips.length})</span>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch mt-2">
@@ -140,14 +140,14 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
               {/* Trips you are a traveler on (expanded by default, collapsible) */}
               {travelerTrips.length > 0 && (
                 <Collapsible open={showTraveler} onOpenChange={setShowTraveler}>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                     {showTraveler ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
                       <ChevronRight className="h-4 w-4" />
                     )}
-                    <Users className="h-4 w-4 text-gray-500" aria-hidden="true" />
-                    <span className="font-semibold text-gray-600 uppercase tracking-wide">Trips you are a traveler on ({travelerTrips.length})</span>
+                    <Users className="h-4 w-4 text-brand-carbon/60" aria-hidden="true" />
+                    <span className="font-semibold text-brand-carbon/70 uppercase tracking-wide">Trips you are a traveler on ({travelerTrips.length})</span>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full items-stretch mt-2">
@@ -162,7 +162,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
               {/* Completed Trips (expanded by default, collapsible) */}
               {completedTrips.length > 0 && (
                 <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                     {showCompleted ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
@@ -184,7 +184,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
               {/* Other trips in this circle (collapsed by default) */}
               {otherTrips.length > 0 && (
                 <Collapsible open={showOther} onOpenChange={setShowOther}>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                     {showOther ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
@@ -205,7 +205,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
               {/* Canceled Trips (collapsed by default, at bottom) */}
               {cancelledTrips.length > 0 && (
                 <Collapsible open={showCancelled} onOpenChange={setShowCancelled}>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                     {showCancelled ? (
                       <ChevronDown className="h-4 w-4" />
                     ) : (
