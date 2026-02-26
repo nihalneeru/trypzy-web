@@ -702,6 +702,10 @@ export function DateWindowsFunnel({
     // Use ISO format (YYYY-MM-DD) which normalizeWindow handles natively
     const text = startDate === endDate ? startDate : `${startDate} - ${endDate}`
     setNewDateText(text)
+    // Clear chip selection — user picked dates manually on the calendar
+    setSelectedChipLabel(null)
+    setChipPreStart(null)
+    setChipPreEnd(null)
   }, [])
 
   // Reset all form state
@@ -769,8 +773,17 @@ export function DateWindowsFunnel({
       return
     }
     const result = normalizeWindow(chip.label)
-    if ('error' in result) return
-    // Switch to calendar mode with pre-selection
+    if ('error' in result) {
+      // Unparseable chip (e.g. "Weekend in March", "Spring break")
+      // Switch to text input and pre-populate with the chip label
+      setUseTextInput(true)
+      setNewDateText(chip.label)
+      setChipPreStart(null)
+      setChipPreEnd(null)
+      setSelectedChipLabel(chip.label)
+      return
+    }
+    // Parseable chip — switch to calendar mode with pre-selection
     setUseTextInput(false)
     setChipPreStart(result.startISO)
     setChipPreEnd(result.endISO)
