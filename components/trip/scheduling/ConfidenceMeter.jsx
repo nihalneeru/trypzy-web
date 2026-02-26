@@ -13,13 +13,13 @@ export function ConfidenceMeter({ current, target }) {
     label = 'Ready when you are'
   } else if (ratio >= 0.8) {
     fillColor = 'bg-brand-blue/60'
-    label = 'Almost ready'
+    label = `${current} of ${target} on board`
   } else if (ratio >= 0.5) {
     fillColor = 'bg-brand-blue/30'
-    label = 'Moving forward'
+    label = `${current} of ${target} on board`
   } else {
     fillColor = 'bg-brand-sand'
-    label = 'Gathering input'
+    label = `${current} of ${target} responded`
   }
 
   return (

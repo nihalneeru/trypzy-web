@@ -139,7 +139,7 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
               {notifications.length > 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="relative px-2 h-11 [&_svg]:size-auto">
+                    <Button variant="ghost" size="sm" className="relative px-2 h-8 [&_svg]:size-auto">
                       <Bell className="h-4 w-4 text-brand-carbon" aria-hidden="true" />
                       <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-red text-[10px] font-semibold text-white px-1">
                         {notifications.length}
@@ -164,7 +164,7 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
               {/* User menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-xs sm:text-sm gap-1 px-2 h-11">
+                  <Button variant="ghost" size="sm" className="text-xs sm:text-sm gap-1 px-2 h-8">
                     {loggingOut ? (
                       <BrandedSpinner size="sm" />
                     ) : (

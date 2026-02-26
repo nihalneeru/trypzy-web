@@ -248,35 +248,33 @@ export function OverlayContainer({
         aria-labelledby="overlay-title"
       >
         {/* Header */}
-        <div className="flex flex-col shrink-0 border-b" style={{ backgroundColor: accentColor }}>
-          <div className="flex items-center justify-between px-4 py-3">
-            <h2 id="overlay-title" className="text-lg font-semibold text-white">
-              {title}
-            </h2>
-            <div className="relative">
-              <Button
-                variant="ghost"
-                onClick={handleCloseAttempt}
-                className="h-14 w-14 md:h-12 md:w-12 p-0 text-white bg-white/10 hover:bg-white/25 hover:text-white rounded-full [&_svg]:size-auto"
-                aria-label={hasUnsavedChanges ? 'Close overlay (unsaved changes)' : 'Close overlay'}
-              >
-                <X className="h-10 w-10 md:h-9 md:w-9" strokeWidth={2.5} aria-hidden="true" />
-              </Button>
-              {hasUnsavedChanges && (
-                <span
-                  className="absolute top-1 right-1 h-3 w-3 rounded-full bg-brand-red ring-2 ring-white animate-pulse"
-                  aria-label="Unsaved changes"
-                />
-              )}
-            </div>
-          </div>
+        <div className="flex items-center justify-between shrink-0 border-b px-4 py-2" style={{ backgroundColor: accentColor }}>
           <button
             onClick={handleCloseAttempt}
-            className="flex items-center gap-1.5 px-4 pb-2 text-xs text-white/70 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 text-xs text-white/70 hover:text-white transition-colors"
           >
-            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
-            Back to chat
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Back</span>
           </button>
+          <h2 id="overlay-title" className="text-sm font-semibold text-white">
+            {title}
+          </h2>
+          <div className="relative">
+            <Button
+              variant="ghost"
+              onClick={handleCloseAttempt}
+              className="h-8 w-8 p-0 text-white bg-white/10 hover:bg-white/25 hover:text-white rounded-full [&_svg]:size-auto"
+              aria-label={hasUnsavedChanges ? 'Close overlay (unsaved changes)' : 'Close overlay'}
+            >
+              <X className="h-5 w-5" strokeWidth={2.5} aria-hidden="true" />
+            </Button>
+            {hasUnsavedChanges && (
+              <span
+                className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand-red ring-2 ring-white animate-pulse"
+                aria-label="Unsaved changes"
+              />
+            )}
+          </div>
         </div>
 
         {/* Content - scrollable */}

@@ -305,6 +305,7 @@ export function DateWindowsFunnel({
   // Smart chip calendar pre-selection
   const [chipPreStart, setChipPreStart] = useState<string | null>(null)
   const [chipPreEnd, setChipPreEnd] = useState<string | null>(null)
+  const [selectedChipLabel, setSelectedChipLabel] = useState<string | null>(null)
 
   // Chat-to-scheduling bridge: prefill calendar from chat date detection
   useEffect(() => {
@@ -754,6 +755,7 @@ export function DateWindowsFunnel({
   const handleChipTap = useCallback((chip: { label: string; action: 'dates' | 'flexible' }) => {
     if (chip.action === 'flexible') {
       handleSetDurationPref('flexible')
+      setSelectedChipLabel(chip.label)
       return
     }
     const result = normalizeWindow(chip.label)
@@ -764,6 +766,7 @@ export function DateWindowsFunnel({
     setChipPreEnd(result.endISO)
     // Also set the text so the "Add these dates" button works
     setNewDateText(`${result.startISO} - ${result.endISO}`)
+    setSelectedChipLabel(chip.label)
   }, [])
 
   // Handle supporting a window
@@ -1744,7 +1747,11 @@ export function DateWindowsFunnel({
                               key={chip.label}
                               type="button"
                               onClick={() => handleChipTap(chip)}
-                              className="px-2.5 py-1 rounded-full text-xs font-medium border border-brand-carbon/10 bg-white text-brand-carbon/70 hover:border-brand-blue/50 hover:text-brand-blue transition-colors"
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                selectedChipLabel === chip.label
+                                  ? 'border-brand-blue bg-brand-blue/10 text-brand-blue'
+                                  : 'border-brand-carbon/10 bg-white text-brand-carbon/70 hover:border-brand-blue/50 hover:text-brand-blue'
+                              }`}
                             >
                               {chip.label}
                             </button>
@@ -1933,14 +1940,9 @@ export function DateWindowsFunnel({
                             Most popular
                           </Badge>
                         )}
-                        {!isBlocker && window.precision === 'approx' && (
-                          <Badge variant="outline" className="text-xs">
-                            Flexible
-                          </Badge>
-                        )}
-                        {!isBlocker && window.precision === 'unstructured' && (
-                          <Badge variant="outline" className="text-xs">
-                            Flexible
+                        {!isBlocker && (window.precision === 'approx' || window.precision === 'unstructured') && (
+                          <Badge variant="outline" className="text-xs text-brand-carbon/50">
+                            Approx dates
                           </Badge>
                         )}
                       </div>
