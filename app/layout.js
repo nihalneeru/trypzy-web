@@ -43,10 +43,10 @@ export function generateMetadata() {
       siteName: 'Tripti.ai',
       images: [
         {
-          url: '/icon-512x512.png',
-          width: 512,
-          height: 512,
-          alt: 'Tripti.ai logo',
+          url: '/og-image.png',
+          width: 1200,
+          height: 630,
+          alt: 'Tripti.ai — Nifty plans. Happy circles.',
         },
       ],
       type: 'website',
@@ -55,7 +55,7 @@ export function generateMetadata() {
       card: 'summary_large_image',
       title: 'Tripti.ai — Nifty plans. Happy circles.',
       description: 'Plan trips with your friend group — share availability, pick dates, and coordinate without the group chat chaos.',
-      images: ['/icon-512x512.png'],
+      images: ['/og-image.png'],
     },
     other: {
       ...Sentry.getTraceData()
