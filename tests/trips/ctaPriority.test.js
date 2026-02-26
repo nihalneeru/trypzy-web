@@ -67,7 +67,7 @@ function getCTAConfig(trip, user) {
     // Check if enough people have submitted to lock
     if (trip.canLockDates || trip.status === 'voting') {
       return {
-        label: 'Lock dates',
+        label: 'Confirm dates',
         overlayType: 'scheduling',
         priority: 1
       }
@@ -86,7 +86,7 @@ function getCTAConfig(trip, user) {
   // 3. Pick your dates (if user hasn't submitted availability and dates not locked)
   if (!hasSubmittedAvailability && !datesLocked) {
     return {
-      label: 'Pick your dates',
+      label: 'Share your dates',
       overlayType: 'scheduling',
       priority: 3
     }
@@ -176,7 +176,7 @@ describe('CTA Priority Logic', () => {
       const result = getCTAConfig(trip, user)
 
       expect(result).not.toBeNull()
-      expect(result.label).toBe('Lock dates')
+      expect(result.label).toBe('Confirm dates')
       expect(result.overlayType).toBe('scheduling')
       expect(result.priority).toBe(1)
     })
@@ -189,7 +189,7 @@ describe('CTA Priority Logic', () => {
       const result = getCTAConfig(trip, user)
 
       expect(result).not.toBeNull()
-      expect(result.label).toBe('Lock dates')
+      expect(result.label).toBe('Confirm dates')
       expect(result.priority).toBe(1)
     })
 
@@ -201,7 +201,7 @@ describe('CTA Priority Logic', () => {
       const result = getCTAConfig(trip, user)
 
       // Non-leader should get "Pick your dates" instead
-      expect(result.label).not.toBe('Lock dates')
+      expect(result.label).not.toBe('Confirm dates')
     })
 
     it('should NOT show "Lock dates" when dates are already locked', () => {
@@ -212,7 +212,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'leader-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result?.label).not.toBe('Lock dates')
+      expect(result?.label).not.toBe('Confirm dates')
     })
 
     it('should recognize leader via createdBy field', () => {
@@ -224,7 +224,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'creator-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result.label).toBe('Lock dates')
+      expect(result.label).toBe('Confirm dates')
     })
   })
 
@@ -297,7 +297,7 @@ describe('CTA Priority Logic', () => {
       const result = getCTAConfig(trip, user)
 
       // Leader gets Lock dates (priority 1) even if they haven't voted
-      expect(result.label).toBe('Lock dates')
+      expect(result.label).toBe('Confirm dates')
     })
   })
 
@@ -310,7 +310,7 @@ describe('CTA Priority Logic', () => {
       const result = getCTAConfig(trip, user)
 
       expect(result).not.toBeNull()
-      expect(result.label).toBe('Pick your dates')
+      expect(result.label).toBe('Share your dates')
       expect(result.overlayType).toBe('scheduling')
       expect(result.priority).toBe(3)
     })
@@ -322,7 +322,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'traveler-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result?.label).not.toBe('Pick your dates')
+      expect(result?.label).not.toBe('Share your dates')
     })
 
     it('should NOT show "Pick your dates" when user has submitted via availability array', () => {
@@ -334,7 +334,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'traveler-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result?.label).not.toBe('Pick your dates')
+      expect(result?.label).not.toBe('Share your dates')
     })
 
     it('should NOT show "Pick your dates" when dates are locked', () => {
@@ -345,7 +345,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'traveler-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result?.label).not.toBe('Pick your dates')
+      expect(result?.label).not.toBe('Share your dates')
     })
 
     it('should recognize locked dates via lockedDates field', () => {
@@ -356,7 +356,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'traveler-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result?.label).not.toBe('Pick your dates')
+      expect(result?.label).not.toBe('Share your dates')
     })
 
     it('should recognize locked dates via status=locked', () => {
@@ -367,7 +367,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'traveler-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result?.label).not.toBe('Pick your dates')
+      expect(result?.label).not.toBe('Share your dates')
     })
   })
 
@@ -778,7 +778,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'traveler-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result.label).toBe('Pick your dates')
+      expect(result.label).toBe('Share your dates')
     })
 
     it('should handle trip with undefined dateVotes', () => {
@@ -803,7 +803,7 @@ describe('CTA Priority Logic', () => {
       const user = mockUser({ id: 'leader-1' })
       const result = getCTAConfig(trip, user)
 
-      expect(result.label).toBe('Lock dates')
+      expect(result.label).toBe('Confirm dates')
       expect(result.priority).toBe(1)
     })
 
@@ -1009,11 +1009,11 @@ describe('CTA Priority Logic', () => {
 
       // Leader sees Lock dates
       const leaderResult = getCTAConfig(trip, mockUser({ id: 'leader-1' }))
-      expect(leaderResult.label).toBe('Lock dates')
+      expect(leaderResult.label).toBe('Confirm dates')
 
       // Traveler does NOT see Lock dates
       const travelerResult = getCTAConfig(trip, mockUser({ id: 'traveler-1' }))
-      expect(travelerResult?.label).not.toBe('Lock dates')
+      expect(travelerResult?.label).not.toBe('Confirm dates')
     })
 
     it('should show "Generate itinerary" only for leader with >= 3 ideas', () => {
@@ -1073,7 +1073,7 @@ describe('CTA Priority Logic', () => {
         availability: []
       })
       const beforeResult = getCTAConfig(beforeLock, user)
-      expect(beforeResult.label).toBe('Pick your dates')
+      expect(beforeResult.label).toBe('Share your dates')
 
       // After locking: No longer Pick your dates
       const afterLock = mockTrip({
@@ -1082,7 +1082,7 @@ describe('CTA Priority Logic', () => {
         ideas: []
       })
       const afterResult = getCTAConfig(afterLock, user)
-      expect(afterResult?.label).not.toBe('Pick your dates')
+      expect(afterResult?.label).not.toBe('Share your dates')
     })
 
     it('should transition from "Add ideas" to accommodation CTA when itinerary finalized', () => {

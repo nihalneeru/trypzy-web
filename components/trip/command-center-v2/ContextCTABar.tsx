@@ -119,10 +119,10 @@ export function ContextCTABar({
 
     // Priority-based CTA selection (lower priority number = higher importance)
 
-    // 1. Lock dates (if leader and can lock - highest priority for leader)
+    // 1. Confirm dates (if leader and can lock - highest priority for leader)
     if (isLeader && !datesLocked && leaderNeedsToLock) {
       return {
-        label: 'Lock dates',
+        label: 'Confirm dates',
         icon: Lock,
         overlayType: 'scheduling',
         priority: 1,
@@ -165,10 +165,10 @@ export function ContextCTABar({
       }
     }
 
-    // 3. Pick your dates (if user hasn't submitted availability and dates not locked)
+    // 3. Share your dates (if user hasn't submitted availability and dates not locked)
     if (!hasSubmittedAvailability && !datesLocked) {
       return {
-        label: 'Pick your dates',
+        label: 'Share your dates',
         icon: Calendar,
         overlayType: 'scheduling',
         priority: 3,
@@ -277,7 +277,7 @@ export function ContextCTABar({
       'flex items-center justify-between px-2 md:px-4 py-2 border-t',
       isBarBlocking
         ? 'bg-brand-red border-brand-red'
-        : 'bg-white border-gray-200'
+        : 'bg-white border-brand-carbon/10'
     )}>
       {/* Left section: Travelers, Expenses, Memories buttons */}
       <div className="flex items-center gap-1 md:gap-2">
@@ -290,7 +290,7 @@ export function ContextCTABar({
             'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
             isBarBlocking
               ? 'bg-white/10 hover:bg-white/20 text-white'
-              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
+              : 'bg-brand-sand/50 hover:bg-brand-sand/70 text-brand-carbon'
           )}
           aria-label={`View ${travelerCount} travelers`}
         >
@@ -312,12 +312,13 @@ export function ContextCTABar({
             'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
             isBarBlocking
               ? 'bg-white/10 hover:bg-white/20 text-white'
-              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
+              : 'bg-brand-sand/50 hover:bg-brand-sand/70 text-brand-carbon'
           )}
           aria-label="View expenses"
         >
           <DollarSign className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="text-sm font-medium hidden sm:inline">Expenses</span>
+          <span className="text-sm font-medium sm:hidden">$</span>
         </Button>
 
         <Button
@@ -329,12 +330,13 @@ export function ContextCTABar({
             'h-11 md:h-9 px-2.5 md:px-3 min-w-[44px]',
             isBarBlocking
               ? 'bg-white/10 hover:bg-white/20 text-white'
-              : 'bg-gray-100 hover:bg-gray-200 text-brand-carbon'
+              : 'bg-brand-sand/50 hover:bg-brand-sand/70 text-brand-carbon'
           )}
           aria-label="View memories"
         >
           <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="text-sm font-medium hidden sm:inline">Memories</span>
+          <span className="text-sm font-medium sm:hidden">Pics</span>
         </Button>
       </div>
 

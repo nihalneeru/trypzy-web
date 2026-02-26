@@ -268,9 +268,9 @@ export function MemberProfileOverlay({
         <div className="flex items-start gap-4">
           <Skeleton className="h-20 w-20 rounded-full" />
           <div className="flex-1 space-y-2">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-6 w-full max-w-[12rem]" />
+            <Skeleton className="h-4 w-full max-w-[8rem]" />
+            <Skeleton className="h-4 w-full max-w-[10rem]" />
           </div>
         </div>
 
@@ -305,9 +305,9 @@ export function MemberProfileOverlay({
   if (profileError) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Shield className="h-12 w-12 text-gray-400 mb-4" />
+        <Shield className="h-12 w-12 text-brand-carbon/40 mb-4" />
         <h3 className="text-lg font-semibold text-brand-carbon mb-2">Profile Private</h3>
-        <p className="text-gray-600 max-w-sm">{profileError}</p>
+        <p className="text-brand-carbon/70 max-w-sm">{profileError}</p>
       </div>
     )
   }
@@ -341,14 +341,14 @@ export function MemberProfileOverlay({
           </div>
 
           {profile.memberSince && (
-            <p className="text-sm text-gray-500 mb-2">
+            <p className="text-sm text-brand-carbon/60 mb-2">
               Member since {formatMemberSince(profile.memberSince)}
             </p>
           )}
 
           {/* Privacy Summary */}
           {profile.privacySummary && (
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-brand-carbon/60">
               Trips visibility: {
                 profile.privacySummary.tripsVisibility === 'public' ? 'Public' :
                 profile.privacySummary.tripsVisibility === 'circle' ? 'Circle members only' :
@@ -404,18 +404,18 @@ export function MemberProfileOverlay({
         <CardContent>
           {loadingTrips ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-              <span className="ml-2 text-sm text-gray-600">Loading trips...</span>
+              <Loader2 className="h-6 w-6 animate-spin text-brand-carbon/40" />
+              <span className="ml-2 text-sm text-brand-carbon/70">Loading trips...</span>
             </div>
           ) : tripsError ? (
             <div className="text-center py-8">
-              <Shield className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600">{tripsError}</p>
+              <Shield className="h-8 w-8 text-brand-carbon/40 mx-auto mb-2" />
+              <p className="text-sm text-brand-carbon/70">{tripsError}</p>
             </div>
           ) : trips.length === 0 ? (
             <div className="text-center py-8">
-              <MapPin className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600">No upcoming trips</p>
+              <MapPin className="h-8 w-8 text-brand-carbon/40 mx-auto mb-2" />
+              <p className="text-sm text-brand-carbon/70">No upcoming trips</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -439,12 +439,12 @@ export function MemberProfileOverlay({
                 return (
                   <div
                     key={trip.id}
-                    className="p-4 border rounded-lg bg-gray-50"
+                    className="p-4 border rounded-lg bg-brand-sand/30"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-sm mb-1 truncate">{trip.name}</h4>
-                        <div className="flex items-center gap-3 text-xs text-gray-600 flex-wrap">
+                        <div className="flex items-center gap-3 text-xs text-brand-carbon/70 flex-wrap">
                           <span className="flex items-center gap-1">
                             <Users className="h-3 w-3" />
                             {trip.activeTravelerCount} {trip.activeTravelerCount === 1 ? 'person' : 'people'}
@@ -476,7 +476,7 @@ export function MemberProfileOverlay({
                           <Badge variant="secondary" className="text-xs">Request pending</Badge>
                         )}
                         {showRejected && (
-                          <Badge variant="outline" className="text-xs text-gray-500">Request declined</Badge>
+                          <Badge variant="outline" className="text-xs text-brand-carbon/60">Request declined</Badge>
                         )}
                         {showOnTrip && (
                           <Badge variant="default" className="text-xs">On this trip</Badge>

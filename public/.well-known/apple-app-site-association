@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appID": "A9HZAFZMF5.ai.tripti.app",
+        "appID": "BLU3955CNK.ai.tripti.app",
         "paths": [
           "/trips/*",
           "/circles/*",
@@ -18,7 +18,7 @@
   },
   "webcredentials": {
     "apps": [
-      "A9HZAFZMF5.ai.tripti.app"
+      "BLU3955CNK.ai.tripti.app"
     ]
   }
 }

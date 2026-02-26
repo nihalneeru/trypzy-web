@@ -3,7 +3,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 import type { OverlayType, OverlayParams } from './types'
@@ -73,8 +72,13 @@ import { ChatTab } from '@/components/trip/TripTabs/tabs/ChatTab'
 // Error boundary
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 
+// Onboarding & nudge
+import { OnboardingTooltips } from '@/components/trip/OnboardingTooltips'
+import { NudgeCard } from '@/components/trip/chat/NudgeCard'
+
 // Hooks
 import { useTripChat } from '@/hooks/use-trip-chat'
+import { useOverlayState } from './hooks/useOverlayState'
 
 // Helpers
 import { computeProgressSteps } from '@/lib/trips/progress'
@@ -214,10 +218,15 @@ function PriorityStatusCard({
 // ─────────────────────────────────────────────────
 
 export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV3Props) {
-  // Overlay state
-  const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
-  const [overlayParams, setOverlayParams] = useState<OverlayParams>({})
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  // Overlay state (extracted hook)
+  const {
+    activeOverlay,
+    overlayParams,
+    hasUnsavedChanges,
+    setHasUnsavedChanges,
+    openOverlay,
+    closeOverlay
+  } = useOverlayState()
   const stripRef = useRef<HTMLDivElement>(null)
   const [stripHeight, setStripHeight] = useState(0)
 
@@ -265,6 +274,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   const visitFetchedRef = useRef<string | null>(null)
   useEffect(() => {
     if (!trip?.id || !token) return
+    if (!trip?.viewer?.isActiveParticipant) return // Skip for non-members (avoids 403)
     if (visitFetchedRef.current === trip.id) return
     visitFetchedRef.current = trip.id
 
@@ -283,30 +293,9 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
 
   // Quote-to-chat: close overlay and pre-fill chat input with quoted context
   const handleQuoteToChat = useCallback((quote: string) => {
-    setActiveOverlay(null)
-    setOverlayParams({})
-    setHasUnsavedChanges(false)
+    closeOverlay()
     setNewMessage(quote)
-  }, [setNewMessage])
-
-  // Deep link: open overlay from ?overlay= URL param (push notification tap)
-  const searchParams = useSearchParams()
-  const deepLinkHandledRef = useRef(false)
-  useEffect(() => {
-    if (deepLinkHandledRef.current) return
-    const overlayParam = searchParams?.get('overlay')
-    if (!overlayParam) return
-    const VALID_OVERLAYS: OverlayType[] = [
-      'proposed', 'scheduling', 'itinerary', 'accommodation',
-      'travelers', 'prep', 'expenses', 'memories', 'brief'
-    ]
-    if (VALID_OVERLAYS.includes(overlayParam as OverlayType)) {
-      deepLinkHandledRef.current = true
-      setActiveOverlay(overlayParam as OverlayType)
-      // Clean URL without triggering navigation
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-  }, [searchParams])
+  }, [closeOverlay, setNewMessage])
 
   // Derived state
   const progressSteps = useMemo(() => computeProgressSteps(trip), [trip])
@@ -364,32 +353,12 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   }
 
   const overlayAccentColor = useMemo(() => {
-    if (!activeOverlay) return '#00334D'
+    if (!activeOverlay) return '#09173D'
     const stepKey = OVERLAY_TO_STEP[activeOverlay]
-    if (!stepKey) return '#00334D' // non-stage overlays (travelers, expenses, memories, member)
+    if (!stepKey) return '#09173D' // non-stage overlays (travelers, expenses, memories, member)
     if (stepKey === blocker.stageKey) return '#FA3823' // brand-red for blocker
-    return '#00334D' // brand-blue for completed/active/future
+    return '#09173D' // brand-blue for completed/active/future
   }, [activeOverlay, blocker.stageKey, progressSteps])
-
-  // Overlay callbacks
-  const openOverlay = useCallback((type: OverlayType, params?: OverlayParams) => {
-    if (type) {
-      if (activeOverlay === type && !params?.memberId) {
-        setActiveOverlay(null)
-        setOverlayParams({})
-        setHasUnsavedChanges(false)
-      } else {
-        setActiveOverlay(type)
-        setOverlayParams(params || {})
-      }
-    }
-  }, [activeOverlay])
-
-  const closeOverlay = useCallback(() => {
-    setActiveOverlay(null)
-    setOverlayParams({})
-    setHasUnsavedChanges(false)
-  }, [])
 
   const handleStepClick = useCallback((overlayType: OverlayType) => {
     if (overlayType) openOverlay(overlayType)
@@ -413,15 +382,15 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   const hasActiveOverlay = activeOverlay !== null
 
   return (
-    <div className="flex flex-col h-full bg-gray-100 overflow-x-hidden">
+    <div className="flex flex-col h-full bg-brand-sand/50 overflow-x-hidden">
       {/* Centered column container - constrains all content to max-w-5xl */}
       <div className="flex-1 flex flex-col h-full w-full max-w-5xl mx-auto bg-white relative shadow-sm overflow-x-hidden">
         {/* Top section: Cancelled/removed banner + ProgressStrip (measured for overlay offset) */}
         <div ref={stripRef} className="shrink-0 z-10">
           {isCancelled && (
-            <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center justify-center gap-2">
-              <span className="text-gray-600 text-sm font-medium">This trip has been canceled</span>
-              <span className="text-gray-500 text-xs">(read-only)</span>
+            <div className="bg-brand-sand/50 border-b border-brand-carbon/10 px-4 py-3 flex items-center justify-center gap-2">
+              <span className="text-brand-carbon/70 text-sm font-medium">This trip has been canceled</span>
+              <span className="text-brand-carbon/60 text-xs">(read-only)</span>
               <Link
                 href="/dashboard"
                 className="ml-2 text-sm font-medium text-brand-blue hover:underline"
@@ -469,6 +438,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
             onStepClick={handleStepClick}
             participationMeter={participationMeter}
             isLeader={trip?.createdBy === user?.id}
+            circleId={trip?.circleId}
           />
         </div>
 
@@ -486,6 +456,15 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
                 onOpenOverlay={openOverlay}
               />
             </div>
+          )}
+
+          {/* Gentle nudge card — max 1, dismissible, shown above chat when user has a pending action */}
+          {!isCancelled && !isCompleted && !isReadOnly && (
+            <NudgeCard
+              trip={trip}
+              userRole={trip?.createdBy === user?.id ? 'leader' : 'traveler'}
+              onOpenOverlay={openOverlay}
+            />
           )}
 
           {/* Chat area - now constrained by outer max-w-3xl container */}
@@ -549,6 +528,8 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
                 onClose={closeOverlay}
                 setHasUnsavedChanges={setHasUnsavedChanges}
                 onQuoteToChat={handleQuoteToChat}
+                prefillStart={overlayParams?.prefillStart}
+                prefillEnd={overlayParams?.prefillEnd}
               />
             )}
           {activeOverlay === 'itinerary' && (
@@ -570,7 +551,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               onRefresh={onRefresh}
               onClose={closeOverlay}
               setHasUnsavedChanges={setHasUnsavedChanges}
-              onOpenOverlay={(overlay) => setActiveOverlay(overlay)}
+              onOpenOverlay={(overlay) => openOverlay(overlay)}
               onQuoteToChat={handleQuoteToChat}
             />
           )}
@@ -635,6 +616,9 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
           )}
           </ErrorBoundary>
         </OverlayContainer>
+
+        {/* First-visit onboarding tooltips (fixed overlay, max 2 tips) — suppress when overlay is open (e.g. deep-link) */}
+        {!activeOverlay && <OnboardingTooltips />}
       </div>
     </div>
   )

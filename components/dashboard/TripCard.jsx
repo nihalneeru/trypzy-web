@@ -2,19 +2,12 @@
 
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Users, Calendar, Clock, Info } from 'lucide-react'
+import { Calendar, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 import { tripHref } from '@/lib/navigation/routes'
-import { TripProgressMini } from './TripProgressMini'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
+import { getTripCountdownLabel, getTripCountdownBadge } from '@/lib/trips/getTripCountdownLabel'
 import { formatTripDateRange } from '@/lib/utils'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 /**
  * @typedef {Object} TripData
@@ -27,24 +20,6 @@ import {
  * @property {Object|null} latestActivity
  * @property {Array} pendingActions
  */
-
-/**
- * Format date range for display
- * @param {string|null} startDate
- * @param {string|null} endDate
- * @returns {string}
- */
-function formatDateRange(startDate, endDate) {
-  if (!startDate || !endDate) return 'Dates not set'
-  
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  
-  const startFormatted = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const endFormatted = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  
-  return `${startFormatted} - ${endFormatted}`
-}
 
 /**
  * Format relative time
@@ -74,19 +49,58 @@ function formatRelativeTime(timestamp) {
 
 
 /**
+ * Get status display info (dot color + label)
+ * @param {string} status
+ * @returns {{ dotClass: string, label: string }}
+ */
+function getStatusDisplay(status) {
+  switch (status) {
+    case 'proposed':
+    case 'scheduling':
+      return { dotClass: 'bg-brand-red', label: 'Picking dates' }
+    case 'voting':
+      return { dotClass: 'bg-brand-red', label: 'Voting on dates' }
+    case 'locked':
+      return { dotClass: 'bg-brand-blue', label: 'Dates locked' }
+    case 'completed':
+      return { dotClass: 'bg-brand-carbon/30', label: 'Completed' }
+    case 'canceled':
+      return { dotClass: 'bg-brand-carbon/30', label: 'Canceled' }
+    default:
+      return { dotClass: 'bg-brand-carbon/30', label: status || 'Unknown' }
+  }
+}
+
+/**
  * @param {Object} props
  * @param {TripData} props.trip
  * @param {string} [props.circleId] - Optional circle ID for returnTo parameter
  */
 export function TripCard({ trip, circleId = null }) {
   const [navigating, setNavigating] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   // Ensure pendingActions exists (default to empty array)
   const pendingActions = trip.pendingActions || []
-  
-  // Use tripHref without tab query - always land on Chat tab by default
-  // Deep-links should be explicit via ?tab= query, not inferred from pending actions
-  const tripUrl = tripHref(trip.id)
+
+  // Deep-link: if there's a pending action, append ?overlay= so the user
+  // lands directly on the relevant overlay instead of the chat view
+  const overlayForAction = (() => {
+    if (pendingActions.length === 0) return null
+    const topAction = pendingActions[0]
+    switch (topAction.type) {
+      case 'scheduling_required':
+      case 'date_vote':
+        return 'scheduling'
+      case 'itinerary_review':
+        return 'itinerary'
+      default:
+        return null
+    }
+  })()
+  const tripUrl = overlayForAction
+    ? `${tripHref(trip.id)}?overlay=${overlayForAction}`
+    : tripHref(trip.id)
   
   // CTA semantics: Use actionRequired as source of truth
   // If actionRequired = true: show red CTA with action-specific text
@@ -114,7 +128,7 @@ export function TripCard({ trip, circleId = null }) {
     } else {
       // Fallback: use generic action text based on status
       if (trip.status === 'proposed' || trip.status === 'scheduling') {
-        primaryLabel = trip.schedulingMode === 'top3_heatmap' ? 'Pick your dates' : 'Add your dates'
+        primaryLabel = trip.schedulingMode === 'top3_heatmap' ? 'Share your dates' : 'Add your dates'
       } else if (trip.status === 'voting') {
         primaryLabel = 'Vote on dates'
       }
@@ -123,12 +137,24 @@ export function TripCard({ trip, circleId = null }) {
   
   // Get countdown label if dates are locked
   const countdownLabel = getTripCountdownLabel(trip, trip.name)
+  const countdownBadge = getTripCountdownBadge(trip)
 
   // Stalled trip: no activity for 7+ days — subtle warmth tint (#296)
   const isStalled = (() => {
     const ts = trip.latestActivity?.createdAt
     if (!ts) return false
     return (Date.now() - new Date(ts).getTime()) > 7 * 24 * 60 * 60 * 1000
+  })()
+
+  const { dotClass, label: statusLabel } = getStatusDisplay(trip.status)
+
+  // Active pulse: activity within last 24 hours (#331)
+  // Only show on active trips — completed/canceled trips don't need attention
+  const hasRecentActivity = (() => {
+    if (trip.status === 'completed' || trip.status === 'canceled') return false
+    const ts = trip.latestActivity?.createdAt
+    if (!ts) return false
+    return (Date.now() - new Date(ts).getTime()) < 24 * 60 * 60 * 1000
   })()
 
   return (
@@ -140,81 +166,104 @@ export function TripCard({ trip, circleId = null }) {
           </div>
         )}
         <CardContent className="p-4 flex flex-col h-full min-w-0 flex-1">
-          {/* Header with info icon */}
-          <div className="flex items-start justify-between mb-2">
+          {/* Header with expand/collapse toggle */}
+          <div className="flex items-start justify-between mb-1">
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-base mb-1 line-clamp-2">{trip.name}</h3>
+              <h3 className="font-semibold text-base line-clamp-1 flex items-center gap-1.5">
+                {trip.name}
+                {hasRecentActivity && (
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-blue opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-blue" />
+                  </span>
+                )}
+              </h3>
             </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex-shrink-0 ml-2">
-                    <Info className="h-4 w-4 text-gray-500" aria-hidden="true" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Open trip</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setExpanded(!expanded)
+              }}
+              className="flex-shrink-0 ml-2 p-1 text-brand-carbon/40 hover:text-brand-carbon/70"
+              aria-label={expanded ? 'Show less' : 'Show more'}
+            >
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
           </div>
-          
-          {/* Progress indicator */}
-          <div className="mb-3">
-            <TripProgressMini trip={trip} />
-          </div>
-          
-          {/* Traveler count */}
-          <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
-            <Users className="h-3 w-3" aria-hidden="true" />
+
+          {/* Status dot + label + traveler count + countdown badge */}
+          <div className="flex items-center gap-1.5 text-sm text-brand-carbon/70 mb-2">
+            <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} aria-hidden="true" />
+            <span>{statusLabel}</span>
+            <span className="text-brand-carbon/40">&middot;</span>
             <span>{trip.travelerCount} {trip.travelerCount === 1 ? 'traveler' : 'travelers'}</span>
+            {countdownBadge && (
+              <>
+                <span className="text-brand-carbon/40">&middot;</span>
+                <span className="inline-flex items-center rounded bg-brand-blue/10 px-1.5 py-0.5 text-xs font-medium text-brand-blue leading-none">
+                  {countdownBadge}
+                </span>
+              </>
+            )}
           </div>
-          
-          {/* Date range */}
-          <div className="flex items-center gap-1 text-sm text-gray-600 mb-3">
-            <Calendar className="h-3 w-3" aria-hidden="true" />
+
+          {/* Date range (always visible) */}
+          <div className="flex items-center gap-1 text-sm text-brand-carbon/70 mb-2">
+            <Calendar className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
             <span className="line-clamp-1">
-              {trip.startDate && trip.endDate 
+              {trip.startDate && trip.endDate
                 ? formatTripDateRange(trip.startDate, trip.endDate)
                 : 'Dates not set'}
             </span>
           </div>
-          
-          {/* Countdown - shown when dates are locked */}
-          {countdownLabel && (
-            <div className="text-xs text-gray-500 mb-3">
-              {countdownLabel}
+
+          {/* Stalled indicator (always visible when applicable) */}
+          {isStalled && trip.status !== 'completed' && trip.status !== 'canceled' && (
+            <p className="text-xs text-brand-carbon/40 mb-2">No activity in 7 days</p>
+          )}
+
+          {/* Expanded section: countdown, activity, waiting badge */}
+          {expanded && (
+            <div className="space-y-2 mb-2">
+              {/* Countdown - shown when dates are locked */}
+              {countdownLabel && (
+                <div className="text-xs text-brand-carbon/60">
+                  {countdownLabel}
+                </div>
+              )}
+
+              {/* Latest activity */}
+              {trip.latestActivity && (
+                <div className="flex items-start gap-1 text-xs text-brand-carbon/60 min-w-0">
+                  <Clock className="h-3 w-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2">{trip.latestActivity.text}</p>
+                    {trip.latestActivity.createdAt && (
+                      <p className="text-xs text-brand-carbon/60 mt-1">
+                        {formatRelativeTime(trip.latestActivity.createdAt)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* "Your turn" badge */}
+              {trip.actionRequired && (
+                <div className="flex items-center">
+                  <span className="inline-flex items-center rounded-md bg-brand-sand px-2 py-1 text-xs font-medium text-brand-red border border-brand-red/20">
+                    Your turn
+                  </span>
+                </div>
+              )}
             </div>
           )}
-          
-          {/* Latest activity */}
-          {trip.latestActivity && (
-            <div className="flex items-start gap-1 text-xs text-gray-500 mb-3 min-w-0">
-              <Clock className="h-3 w-3 mt-0.5 flex-shrink-0" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-2">{trip.latestActivity.text}</p>
-                {trip.latestActivity.createdAt && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formatRelativeTime(trip.latestActivity.createdAt)}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-          
+
           {/* Spacer to push CTA to bottom */}
           <div className="flex-1" />
-          
+
           {/* Primary CTA - Use span styled as button since card is already a Link */}
-          <div className="pt-2 space-y-2">
-            {/* "Waiting on you" badge - shown when action required */}
-            {trip.actionRequired && (
-              <div className="flex items-center justify-center">
-                <span className="inline-flex items-center rounded-md bg-brand-sand px-2 py-1 text-xs font-medium text-brand-red border border-brand-red/20">
-                  Waiting on you
-                </span>
-              </div>
-            )}
+          <div className="pt-2">
             <div
               className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors w-full h-11 md:h-9 px-3 ${
                 actionRequired

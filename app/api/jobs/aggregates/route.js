@@ -15,11 +15,11 @@ import { runDailyAggregation } from '@/lib/events/aggregates'
 
 export async function POST(request) {
   try {
-    // Optional: Verify cron secret in production
+    // Require cron secret for all environments
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

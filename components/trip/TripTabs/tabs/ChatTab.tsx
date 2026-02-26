@@ -19,6 +19,8 @@ import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
 import { getBlockingUsers } from '@/lib/trips/getBlockingUsers'
 import { formatLeadingOption } from '@/lib/trips/getVotingStatus'
 import { computeTripProgressSnapshot } from '@/lib/trips/progressSnapshot'
+import { normalizeWindow } from '@/lib/trips/normalizeWindow'
+import { getSchedulingPhase } from '@/lib/trips/proposalReady'
 
 // API helper (local to this component)
 const api = async (endpoint, options = {}, token = null) => {
@@ -66,6 +68,25 @@ export function ChatTab({
   isReadOnly = false,
   onOpenOverlay
 }: any) {
+  // Chat-to-scheduling bridge: detect parseable dates in messages
+  const dateDetectionCache = useMemo(() => {
+    const cache = new Map()
+    if (!trip || getSchedulingPhase(trip) !== 'COLLECTING') return cache
+    if (!messages?.length) return cache
+    for (const msg of messages) {
+      if (msg.isSystem || !msg.content) continue
+      try {
+        const result = normalizeWindow(msg.content)
+        if (result && !result.error && result.startISO && result.endISO) {
+          cache.set(msg.id, { startISO: result.startISO, endISO: result.endISO })
+        }
+      } catch {
+        // normalizeWindow can throw on odd input — ignore
+      }
+    }
+    return cache
+  }, [messages, trip?.status, trip?.proposedWindowId])
+
   // Check if user is trip leader
   const isTripLeader = trip?.viewer?.isTripLeader || trip?.createdBy === user?.id
   
@@ -168,14 +189,14 @@ export function ChatTab({
     // Use progress snapshot for core state decisions (P0-4)
     const { datesLocked, everyoneResponded, leaderNeedsToLock, itineraryFinalized, accommodationChosen, prepStarted } = progressSnapshot
 
-    // Scheduling stage: show "Pick your dates" only if user hasn't picked
+    // Scheduling stage: show "Share your dates" only if user hasn't picked
     if (tripStatus === 'proposed' || tripStatus === 'scheduling') {
       if (!userHasPicked) {
         return {
           id: 'pick-dates',
-          title: 'Pick your dates',
+          title: 'Share your dates',
           description: 'Share your date preferences to help coordinate the trip',
-          ctaLabel: 'Pick your dates',
+          ctaLabel: 'Share your dates',
           kind: 'deeplink',
           deeplinkTab: 'planning',
           actionRequired
@@ -185,9 +206,9 @@ export function ChatTab({
       if (leaderNeedsToLock) {
         return {
           id: 'lock-dates',
-          title: 'Lock dates',
-          description: 'Everyone has responded. Lock the trip dates.',
-          ctaLabel: 'Lock Dates',
+          title: 'Confirm dates',
+          description: 'Everyone has responded. Confirm the trip dates.',
+          ctaLabel: 'Confirm dates',
           kind: 'inline',
           actionRequired: false // Leader actions are not "action required" for red styling
         }
@@ -217,9 +238,9 @@ export function ChatTab({
       if (isTripLeader) {
         return {
           id: 'lock-dates-voting',
-          title: 'Lock dates',
-          description: 'Lock the trip dates after voting.',
-          ctaLabel: 'Lock Dates',
+          title: 'Confirm dates',
+          description: 'Confirm the trip dates after voting.',
+          ctaLabel: 'Confirm dates',
           kind: 'inline',
           actionRequired: false
         }
@@ -694,9 +715,9 @@ export function ChatTab({
             {/* Voting status - only during voting stage */}
             {trip?.votingStatus?.isVotingStage && trip.votingStatus.leadingOption && (
               <div className="flex justify-center mb-3">
-                <div className="bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-700 flex items-center gap-3">
+                <div className="bg-brand-sand/30 border border-brand-carbon/10 rounded-full px-4 py-2 text-sm text-brand-carbon/80 flex items-center gap-3">
                   <span>{formatLeadingOption(trip.votingStatus)}</span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-brand-carbon/60">
                     {trip.votingStatus.votedCount}/{trip.votingStatus.totalTravelers} voted
                   </span>
                 </div>
@@ -723,24 +744,38 @@ export function ChatTab({
                       }}
                       className="bg-green-600 hover:bg-green-700 text-white h-9 md:h-7 text-xs"
                     >
-                      Lock dates
+                      Confirm dates
                     </Button>
                   ) : (
                     <Button
                       size="sm"
                       disabled
-                      className="bg-gray-300 text-gray-500 h-9 md:h-7 text-xs cursor-not-allowed"
-                      title="Only the trip organizer can lock dates."
+                      className="bg-brand-carbon/20 text-brand-carbon/60 h-9 md:h-7 text-xs cursor-not-allowed"
+                      title="Only the trip organizer can confirm dates."
                     >
-                      Lock dates
+                      Confirm dates
                     </Button>
                   )}
                 </div>
               </div>
             )}
             
-            {messages.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No messages yet. Share ideas, ask questions, or coordinate plans here.</p>
+            {!messages ? (
+              <div className="space-y-4 py-4 px-2">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`flex items-start gap-2 max-w-[70%] ${i % 2 === 0 ? 'flex-row-reverse' : ''}`}>
+                      <div className="w-8 h-8 rounded-full bg-brand-carbon/10 animate-pulse shrink-0" />
+                      <div className="space-y-1.5">
+                        <div className="h-3 w-16 bg-brand-carbon/10 rounded animate-pulse" />
+                        <div className={`h-10 ${i % 3 === 0 ? 'w-48' : 'w-32'} bg-brand-carbon/10 rounded-lg animate-pulse`} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : messages.length === 0 ? (
+              <p className="text-center text-brand-carbon/60 py-8">This is where your circle plans together — share ideas, ask questions, keep everyone in sync.</p>
             ) : (
               messages.map((msg: any, idx: number) => {
                 // Determine if message is from current user (used for alignment and styling)
@@ -790,13 +825,13 @@ export function ChatTab({
                     {/* Date divider */}
                     {showDateDivider && dateDividerLabel && (
                       <div className="flex items-center gap-3 py-2">
-                        <div className="flex-1 h-px bg-gray-200" />
-                        <span className="text-xs font-medium text-gray-400 whitespace-nowrap">{dateDividerLabel}</span>
-                        <div className="flex-1 h-px bg-gray-200" />
+                        <div className="flex-1 h-px bg-brand-sand/70" />
+                        <span className="text-xs font-medium text-brand-carbon/40 whitespace-nowrap">{dateDividerLabel}</span>
+                        <div className="flex-1 h-px bg-brand-sand/70" />
                       </div>
                     )}
 
-                    <div className={`flex flex-col ${isSameGroup ? 'mt-0.5' : 'mt-3'} ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex flex-col animate-slide-in-chat-msg ${isSameGroup ? 'mt-0.5' : 'mt-3'} ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
                       {msg.isSystem ? (
                         // System messages
                         <div className="flex justify-center">
@@ -828,7 +863,7 @@ export function ChatTab({
                             </div>
                           ) : (
                             <div
-                              className={`bg-gray-100 rounded-full px-4 py-1 text-sm text-gray-600 ${msg.metadata?.href ? 'cursor-pointer hover:bg-gray-200 transition-colors' : ''}`}
+                              className={`bg-brand-sand/50 rounded-full px-4 py-1 text-sm text-brand-carbon/70 ${msg.metadata?.href ? 'cursor-pointer hover:bg-brand-sand/70 transition-colors' : ''}`}
                               onClick={msg.metadata?.href ? () => {
                                 if (msg.metadata.href.startsWith('/')) {
                                   window.location.href = msg.metadata.href
@@ -843,17 +878,30 @@ export function ChatTab({
                         </div>
                       ) : isFromCurrentUser ? (
                         // Current user — right-aligned bubble
-                        <div className="flex items-end gap-1.5 max-w-[75%]">
-                          <div className="bg-brand-blue text-white rounded-2xl rounded-br-md px-3.5 py-2">
-                            <p className="text-sm">{msg.content}</p>
+                        <div className="max-w-[75%]">
+                          <div className="flex items-end gap-1.5">
+                            <div className="bg-brand-blue text-white rounded-2xl rounded-br-md px-3.5 py-2">
+                              <p className="text-sm">{msg.content}</p>
+                            </div>
                           </div>
+                          {dateDetectionCache.get(msg.id) && (
+                            <button
+                              onClick={() => {
+                                const d = dateDetectionCache.get(msg.id)
+                                onOpenOverlay?.('scheduling', { prefillStart: d.startISO, prefillEnd: d.endISO })
+                              }}
+                              className="text-xs text-brand-blue hover:underline mt-0.5 ml-auto block"
+                            >
+                              Add to dates?
+                            </button>
+                          )}
                         </div>
                       ) : (
                         // Other user — left-aligned bubble with avatar
-                        <div className="flex items-end gap-2 max-w-[75%]">
+                        <div className="flex items-start gap-2 max-w-[75%]">
                           {/* Avatar — show only for first message in a group */}
                           {!isSameGroup ? (
-                            <div className="w-7 h-7 rounded-full bg-brand-carbon/10 flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-brand-carbon/10 flex items-center justify-center shrink-0 mt-auto">
                               <span className="text-[10px] font-semibold text-brand-carbon/60">{initials}</span>
                             </div>
                           ) : (
@@ -861,17 +909,28 @@ export function ChatTab({
                           )}
                           <div>
                             {!isSameGroup && (
-                              <p className="text-xs font-medium text-gray-500 mb-0.5 ml-1">{senderName}</p>
+                              <p className="text-xs font-medium text-brand-carbon/60 mb-0.5 ml-1">{senderName}</p>
                             )}
-                            <div className="bg-gray-100 rounded-2xl rounded-bl-md px-3.5 py-2">
+                            <div className="bg-brand-sand/50 rounded-2xl rounded-bl-md px-3.5 py-2">
                               <p className="text-sm text-brand-carbon">{msg.content}</p>
                             </div>
+                            {dateDetectionCache.get(msg.id) && (
+                              <button
+                                onClick={() => {
+                                  const d = dateDetectionCache.get(msg.id)
+                                  onOpenOverlay?.('scheduling', { prefillStart: d.startISO, prefillEnd: d.endISO })
+                                }}
+                                className="text-xs text-brand-blue hover:underline mt-0.5"
+                              >
+                                Add to dates?
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}
                       {/* Timestamp — show for first in group or standalone */}
                       {!msg.isSystem && !isSameGroup && timeStr && (
-                        <p className={`text-[10px] text-gray-400 mt-0.5 ${isFromCurrentUser ? 'mr-1' : 'ml-10'}`}>
+                        <p className={`text-[10px] text-brand-carbon/40 mt-0.5 ${isFromCurrentUser ? 'mr-1' : 'ml-10'}`}>
                           {timeStr}
                         </p>
                       )}
@@ -900,7 +959,7 @@ export function ChatTab({
                           {request.requesterName} requested to join this trip
                         </h3>
                         {request.message && (
-                          <p className="text-sm text-gray-700 mt-1">{request.message}</p>
+                          <p className="text-sm text-brand-carbon/80 mt-1">{request.message}</p>
                         )}
                       </div>
                     </div>
@@ -935,7 +994,7 @@ export function ChatTab({
                 {nextAction.kind === 'inline' && (
               <Collapsible open={isInlinePanelOpen} onOpenChange={setIsInlinePanelOpen}>
                 <CollapsibleContent className="mb-4">
-                  <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                  <div className="p-4 bg-white border border-brand-carbon/10 rounded-lg">
                     {nextAction.id === 'quick-note' && (
                       <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-brand-carbon">
@@ -969,7 +1028,7 @@ export function ChatTab({
                       </div>
                     )}
                     {nextAction.id !== 'quick-note' && nextAction.id !== 'lock-dates' && (
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-brand-carbon/70">
                         Inline action: {nextAction.title}
                       </div>
                     )}
@@ -1018,14 +1077,14 @@ export function ChatTab({
                             <div key={windowValue} className="flex items-start space-x-3">
                               <RadioGroupItem value={windowValue} id={windowValue} className="mt-1" />
                               <Label htmlFor={windowValue} className="flex-1 cursor-pointer">
-                                <div className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                                <div className="p-3 bg-brand-sand/30 rounded-lg hover:bg-brand-sand/50">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-3">
-                                      <span className="text-lg font-bold text-gray-500">#{idx + 1}</span>
+                                      <span className="text-lg font-bold text-brand-carbon/60">#{idx + 1}</span>
                                       <div>
                                         <p className="font-medium">{windowStartDate} to {windowEndDate}</p>
                                         {windowScore && (
-                                          <p className="text-sm text-gray-500">Compatibility: {windowScore}%</p>
+                                          <p className="text-sm text-brand-carbon/60">Compatibility: {windowScore}%</p>
                                         )}
                                       </div>
                                     </div>
@@ -1040,9 +1099,9 @@ export function ChatTab({
                   </div>
                 ) : (
                   <div className="py-4">
-                    <div className="text-center text-gray-600 mb-4">
+                    <div className="text-center text-brand-carbon/70 mb-4">
                       <p className="mb-2">We couldn't compute date options right now.</p>
-                      <p className="text-sm text-gray-500">This may happen if no one has submitted availability yet.</p>
+                      <p className="text-sm text-brand-carbon/60">This may happen if no one has submitted availability yet.</p>
                     </div>
                     <div className="flex justify-center">
                       <Button
@@ -1100,13 +1159,13 @@ export function ChatTab({
               </DialogContent>
             </Dialog>
 
-            {/* Lock Dates Confirmation Dialog */}
+            {/* Confirm Dates Dialog */}
             <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+                  <AlertDialogTitle>Confirm dates for everyone?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This finalizes the trip dates. Once locked, dates cannot be changed.
+                    This finalizes the trip dates. Once confirmed, dates cannot be changed.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -1171,6 +1230,7 @@ export function ChatTab({
             onClick={viewerIsReadOnly ? undefined : handleSendMessage}
             disabled={viewerIsReadOnly || sendingMessage || !newMessage.trim()}
             title={viewerIsReadOnly ? readOnlyPlaceholder : undefined}
+            aria-label="Send message"
           >
             <Send className="h-4 w-4" />
           </Button>

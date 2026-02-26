@@ -11,9 +11,9 @@ import { Skeleton } from '@/components/ui/skeleton'
  */
 export function CircleDetailSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-brand-sand/30">
       {/* AppHeader placeholder */}
-      <div className="h-14 bg-white border-b border-gray-200">
+      <div className="h-14 bg-white border-b border-brand-carbon/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-full">
           <Skeleton className="h-6 w-24" />
           <Skeleton className="h-8 w-8 rounded-full" />
@@ -38,7 +38,7 @@ export function CircleDetailSkeleton() {
         </div>
 
         {/* Tab bar placeholder */}
-        <div className="flex items-center gap-1 mb-6 border-b border-gray-200 pb-1">
+        <div className="flex items-center gap-1 mb-6 border-b border-brand-carbon/10 pb-1">
           {['w-32', 'w-24', 'w-16', 'w-24'].map((w, i) => (
             <Skeleton key={i} className={`h-9 ${w} rounded-md`} />
           ))}
@@ -47,7 +47,7 @@ export function CircleDetailSkeleton() {
         {/* Content rows */}
         <div className="space-y-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
+            <div key={i} className="bg-white rounded-lg border border-brand-carbon/10 p-4">
               <div className="flex items-center gap-3 mb-2">
                 <Skeleton className="h-8 w-8 rounded-full" />
                 <Skeleton className="h-4 w-32" />

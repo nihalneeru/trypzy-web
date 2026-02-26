@@ -17,6 +17,7 @@ export default function JoinCirclePage({ params }) {
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
   const [token, setToken] = useState(null)
+  const [invitePreview, setInvitePreview] = useState(null)
 
   // Normalize invite code
   const inviteCode = params.inviteCode?.trim().toUpperCase()
@@ -34,6 +35,25 @@ export default function JoinCirclePage({ params }) {
       }
     }
   }, [])
+
+  // Fetch invite preview (no auth needed) for personalized landing
+  useEffect(() => {
+    async function fetchPreview() {
+      try {
+        const previewParams = new URLSearchParams({ code: inviteCode })
+        if (tripId) previewParams.set('tripId', tripId)
+        if (ref) previewParams.set('ref', ref)
+        const res = await fetch(`/api/invite-preview?${previewParams}`)
+        const data = await res.json()
+        if (data.valid) {
+          setInvitePreview(data)
+        }
+      } catch (e) {
+        // Silent fail — falls back to generic UI
+      }
+    }
+    fetchPreview()
+  }, [inviteCode, tripId, ref])
 
   // Check if we're returning from auth and should auto-join
   // Uses both cookie (original mechanism) and localStorage (more reliable across OAuth redirects)
@@ -95,7 +115,6 @@ export default function JoinCirclePage({ params }) {
 
         setCircleInfo(data)
       } catch (error) {
-        console.error('Failed to validate invite:', error)
         setCircleInfo({ valid: false, error: 'Unable to validate invite' })
       } finally {
         setLoading(false)
@@ -164,8 +183,7 @@ export default function JoinCirclePage({ params }) {
         setJoining(false)
       }
     } catch (error) {
-      console.error('Join error:', error)
-      toast.error('Could not join circle — please try again')
+      toast.error("Couldn't join circle — please try again")
       setJoining(false)
     }
   }
@@ -173,47 +191,79 @@ export default function JoinCirclePage({ params }) {
   // Loading state (wait for session status and token if authenticated)
   if (loading || status === 'loading' || (status === 'authenticated' && !token)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-brand-sand/30">
         <div className="text-center">
           <BrandedSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-gray-500">Loading invite...</p>
+          <p className="text-brand-carbon/60">Loading invite...</p>
         </div>
       </div>
     )
   }
 
-  // Logged out state - generic message (no validity leak)
+  // Logged out state - personalized magic landing (or generic fallback)
   if (status === 'unauthenticated') {
+    const preview = invitePreview
+    const hasTrip = preview?.trip?.name
+    const headline = preview?.inviterName
+      ? hasTrip
+        ? `${preview.inviterName} invited you to ${preview.trip.name}`
+        : `${preview.inviterName} invited you to join ${preview.circleName}`
+      : hasTrip
+        ? `You're invited to ${preview?.trip?.name}`
+        : `You're invited to join a circle on TRIPTI.ai`
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-8 pb-8 text-center">
-            <div className="h-16 w-16 rounded-full bg-brand-sand flex items-center justify-center mx-auto mb-6">
-              <Users className="h-8 w-8 text-brand-blue" />
-            </div>
-            <h1 className="text-2xl font-bold text-brand-carbon mb-2">
-              You're invited to a Tripti.ai circle
-            </h1>
-            <p className="text-gray-600 mb-8">
-              Sign in to view and join this circle
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="w-full max-w-md text-center">
+          {/* Tripti branding */}
+          <div className="mb-8">
+            <img
+              src="/brand/tripti-logo.svg"
+              alt="Tripti.ai"
+              className="h-7 w-auto mx-auto mb-6"
+            />
+          </div>
+
+          <div className="h-16 w-16 rounded-full bg-brand-sand flex items-center justify-center mx-auto mb-6">
+            <Users className="h-8 w-8 text-brand-blue" />
+          </div>
+
+          <h1 className="text-2xl font-bold text-brand-carbon mb-2">
+            {headline}
+          </h1>
+
+          {hasTrip && preview.trip.destinationHint && (
+            <p className="text-base text-brand-red font-medium mb-1">
+              {preview.trip.destinationHint}
             </p>
-            <div className="space-y-3">
-              <Button
-                onClick={() => handleAuthRedirect('login')}
-                className="w-full"
-              >
-                Sign in to join
-              </Button>
-              <Button
-                onClick={() => handleAuthRedirect('signup')}
-                variant="outline"
-                className="w-full"
-              >
-                Create an account
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          )}
+
+          <p className="text-brand-carbon/60 text-sm mb-8">
+            {preview?.memberCount
+              ? `${preview.memberCount} ${preview.memberCount === 1 ? 'person' : 'people'} already planning`
+              : 'Share availability, pick dates, and coordinate together'}
+          </p>
+
+          <div className="space-y-3">
+            <Button
+              onClick={() => handleAuthRedirect('signup')}
+              className="w-full bg-brand-red hover:bg-brand-red/90 text-white"
+            >
+              Sign up to join
+            </Button>
+            <Button
+              onClick={() => handleAuthRedirect('login')}
+              variant="outline"
+              className="w-full"
+            >
+              I already have an account
+            </Button>
+          </div>
+
+          <p className="text-xs text-brand-carbon/40 mt-6">
+            Plan trips with your circle — without the group chat chaos.
+          </p>
+        </div>
       </div>
     )
   }
@@ -221,17 +271,20 @@ export default function JoinCirclePage({ params }) {
   // Invalid code state
   if (circleInfo && !circleInfo.valid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-brand-sand/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-8 pb-8 text-center">
             <div className="h-16 w-16 rounded-full bg-brand-red/10 flex items-center justify-center mx-auto mb-6">
               <AlertTriangle className="h-8 w-8 text-brand-red" />
             </div>
             <h1 className="text-2xl font-bold text-brand-carbon mb-2">
-              Invalid Invite
+              This invite link isn't valid
             </h1>
-            <p className="text-gray-600 mb-8">
-              {circleInfo.error || 'This invite link is invalid or expired'}
+            <p className="text-brand-carbon/70 mb-2">
+              {circleInfo.error || 'It may have expired or already been used.'}
+            </p>
+            <p className="text-brand-carbon/50 mb-8 text-sm">
+              Ask your friend to resend the link.
             </p>
             <Button
               onClick={() => router.push('/dashboard')}
@@ -248,17 +301,17 @@ export default function JoinCirclePage({ params }) {
   // Valid code, logged in - show circle info
   if (circleInfo?.valid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-brand-sand/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-8 pb-8 text-center">
             <div className="h-16 w-16 rounded-full bg-brand-sand flex items-center justify-center mx-auto mb-6">
               <Users className="h-8 w-8 text-brand-blue" />
             </div>
-            <p className="text-sm text-gray-500 mb-1">You're invited to join</p>
+            <p className="text-sm text-brand-carbon/60 mb-1">You're invited to join</p>
             <h1 className="text-2xl font-bold text-brand-carbon mb-2">
               {circleInfo.circleName}
             </h1>
-            <p className="text-gray-600 mb-8">
+            <p className="text-brand-carbon/70 mb-8">
               {circleInfo.memberCount} member{circleInfo.memberCount !== 1 ? 's' : ''}
             </p>
             <Button
@@ -276,7 +329,7 @@ export default function JoinCirclePage({ params }) {
 
   // Fallback loading
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-brand-sand/30">
       <BrandedSpinner size="lg" />
     </div>
   )

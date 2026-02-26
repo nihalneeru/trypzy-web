@@ -117,8 +117,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
       setResult({ trip: data, circle: data.circle })
       setStep('invite')
     } catch (error) {
-      console.error('Create trip error:', error)
-      toast.error(error.message || 'Could not create trip — please try again')
+      toast.error(error.message || "Couldn't create trip — please try again")
     } finally {
       setCreating(false)
     }
@@ -178,8 +177,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
       toast.success('Circle renamed')
       setEditingCircleName(false)
     } catch (error) {
-      console.error('Rename circle error:', error)
-      toast.error(error.message || 'Could not rename circle — please try again')
+      toast.error(error.message || "Couldn't rename circle — please try again")
     } finally {
       setSavingCircleName(false)
     }
@@ -201,7 +199,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Your group:</span>
+              <span className="text-sm text-brand-carbon/70">Your group:</span>
               {editingCircleName ? (
                 <div className="flex items-center gap-1 flex-1">
                   <Input
@@ -227,7 +225,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
                   <button
                     onClick={cancelEditCircleName}
                     disabled={savingCircleName}
-                    className="p-1 text-gray-400 hover:text-gray-600"
+                    className="p-1 text-brand-carbon/40 hover:text-brand-carbon/70"
                     aria-label="Cancel editing"
                   >
                     <X className="h-4 w-4" />

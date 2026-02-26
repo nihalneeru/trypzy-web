@@ -380,9 +380,9 @@ export function AccommodationOverlay({
   if (trip.status !== 'locked') {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Lock className="h-12 w-12 text-gray-400 mb-4" />
+        <Lock className="h-12 w-12 text-brand-carbon/40 mb-4" />
         <h3 className="text-lg font-medium text-brand-carbon mb-2">Dates not confirmed yet</h3>
-        <p className="text-gray-500 max-w-sm">
+        <p className="text-brand-carbon/60 max-w-sm">
           Stay options open up once your dates are confirmed.
         </p>
       </div>
@@ -418,7 +418,7 @@ export function AccommodationOverlay({
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
         <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
-        <p className="text-sm text-gray-600 mb-4">{error}</p>
+        <p className="text-sm text-brand-carbon/70 mb-4">{error}</p>
         <Button variant="outline" size="sm" onClick={() => { setError(null); loadData() }}>
           Try again
         </Button>
@@ -448,7 +448,7 @@ export function AccommodationOverlay({
                 {isTripLeader ? (
                   <>
                     <p className="text-sm font-medium text-brand-carbon">Want personalized stay suggestions?</p>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs text-brand-carbon/70 mt-1">
                       Generate your itinerary first — it'll suggest locations based on your group's plans.
                     </p>
                     {onOpenOverlay && (
@@ -465,7 +465,7 @@ export function AccommodationOverlay({
                 ) : (
                   <>
                     <p className="text-sm font-medium text-brand-carbon">Want personalized stay suggestions?</p>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs text-brand-carbon/70 mt-1">
                       Ask your leader to generate the itinerary — it'll suggest stays based on your group's plans.
                       You can add options anytime.
                     </p>
@@ -529,7 +529,7 @@ export function AccommodationOverlay({
                       <p className="text-sm font-medium text-brand-carbon capitalize truncate">
                         {stay.locationName}
                       </p>
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                      <div className="flex items-center gap-3 text-xs text-brand-carbon/60 mt-0.5">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           {dateRange}
@@ -550,7 +550,7 @@ export function AccommodationOverlay({
                 )
               })}
             </div>
-            <p className="text-xs text-gray-500 mt-3">
+            <p className="text-xs text-brand-carbon/60 mt-3">
               Add accommodation options below for the group to vote on.
             </p>
           </CardContent>
@@ -562,7 +562,7 @@ export function AccommodationOverlay({
       {canAddMore ? (
         <Card>
           <CardContent className="pt-4 pb-4 space-y-3">
-            <p className="text-xs font-medium text-gray-500">
+            <p className="text-xs font-medium text-brand-carbon/60">
               Add a stay option ({userOptionCount}/{MAX_OPTIONS_PER_USER} added)
             </p>
             <Input
@@ -607,8 +607,8 @@ export function AccommodationOverlay({
           </CardContent>
         </Card>
       ) : !accommodationConfirmed && userOptionCount >= MAX_OPTIONS_PER_USER ? (
-        <div className="text-center py-3 px-2 bg-gray-50 rounded-lg border">
-          <p className="text-sm text-gray-600">
+        <div className="text-center py-3 px-2 bg-brand-sand/30 rounded-lg border">
+          <p className="text-sm text-brand-carbon/70">
             You've added {MAX_OPTIONS_PER_USER} options
           </p>
         </div>
@@ -623,7 +623,7 @@ export function AccommodationOverlay({
           </div>
           <h4 className="font-medium text-brand-carbon">{selectedOption.title}</h4>
           {selectedOption.priceRange && (
-            <p className="text-sm text-gray-600 mt-1">{selectedOption.priceRange}</p>
+            <p className="text-sm text-brand-carbon/70 mt-1">{selectedOption.priceRange}</p>
           )}
           {selectedOption.url && (
             <a
@@ -641,15 +641,15 @@ export function AccommodationOverlay({
 
       {/* Options List */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+        <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide mb-3">
           Stay options ({accommodations.length})
         </h3>
         <ScrollArea className="h-[250px] md:h-[350px]">
           {accommodations.length === 0 ? (
             <div className="text-center py-8">
-              <Home className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 mb-1 text-sm">No stays yet</p>
-              <p className="text-xs text-gray-400">
+              <Home className="h-10 w-10 text-brand-carbon/40 mx-auto mb-3" />
+              <p className="text-brand-carbon/60 mb-1 text-sm">No stays yet</p>
+              <p className="text-xs text-brand-carbon/40">
                 Add a stay option to help the group decide
               </p>
             </div>
@@ -682,7 +682,7 @@ export function AccommodationOverlay({
 
                           {/* Added by */}
                           {option.addedBy && (
-                            <p className="text-xs text-gray-500 mb-2">
+                            <p className="text-xs text-brand-carbon/60 mb-2">
                               Added by {isOwnOption ? 'you' : option.addedBy.name}
                             </p>
                           )}
@@ -690,19 +690,19 @@ export function AccommodationOverlay({
                           {/* Details */}
                           <div className="space-y-1 mb-2">
                             {option.priceRange && (
-                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                              <p className="text-sm text-brand-carbon/70 flex items-center gap-1">
                                 <DollarSign className="h-3 w-3" />
                                 {option.priceRange}
                               </p>
                             )}
                             {option.sleepCapacity && (
-                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                              <p className="text-sm text-brand-carbon/70 flex items-center gap-1">
                                 <Users className="h-3 w-3" />
                                 Sleeps {option.sleepCapacity}
                               </p>
                             )}
                             {option.notes && (
-                              <p className="text-sm text-gray-600">{option.notes}</p>
+                              <p className="text-sm text-brand-carbon/70">{option.notes}</p>
                             )}
                           </div>
 
@@ -723,7 +723,7 @@ export function AccommodationOverlay({
                           {/* Vote count and voters */}
                           {voteCount > 0 && (
                             <div className="mt-2">
-                              <div className="flex items-center gap-1 text-sm text-gray-600">
+                              <div className="flex items-center gap-1 text-sm text-brand-carbon/70">
                                 <ThumbsUp className="h-3 w-3" />
                                 <span>{voteCount} vote{voteCount !== 1 ? 's' : ''}</span>
                                 {hasVoted && (
@@ -733,7 +733,7 @@ export function AccommodationOverlay({
                                 )}
                               </div>
                               {option.voters && option.voters.length > 0 && (
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-brand-carbon/60 mt-1">
                                   Voted by: {option.voters.map(v => v.name).join(', ')}
                                 </p>
                               )}
@@ -781,7 +781,7 @@ export function AccommodationOverlay({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-gray-400 hover:text-brand-red"
+                              className="text-brand-carbon/40 hover:text-brand-red"
                               onClick={() => handleDelete(option.id)}
                               disabled={deleting === option.id}
                               aria-label="Delete accommodation option"
@@ -799,7 +799,7 @@ export function AccommodationOverlay({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-gray-400 hover:text-brand-blue"
+                              className="text-brand-carbon/40 hover:text-brand-blue"
                               onClick={() => onQuoteToChat(`Re: "${option.title}" — `)}
                               title="Discuss in chat"
                             >

@@ -31,12 +31,12 @@ import { Separator } from '@/components/ui/separator'
  */
 function NotificationRow({ notification, compact = false }) {
   return (
-    <div className={`flex items-center justify-between gap-4 ${compact ? 'py-1.5' : 'py-2'} hover:bg-gray-50/50 transition-colors`}>
+    <div className={`flex items-center justify-between gap-4 ${compact ? 'py-1.5' : 'py-2'} hover:bg-brand-sand/20 transition-colors`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-brand-carbon leading-tight">{notification.title}</span>
-          <span className="text-sm text-gray-500 leading-tight" aria-hidden="true">—</span>
-          <span className="text-sm text-gray-600 leading-tight">{notification.ctaLabel}</span>
+          <span className="text-sm text-brand-carbon/60 leading-tight" aria-hidden="true">—</span>
+          <span className="text-sm text-brand-carbon/70 leading-tight">{notification.ctaLabel}</span>
         </div>
       </div>
       <Link 
@@ -60,15 +60,15 @@ export function GlobalNotifications({ notifications }) {
   return (
     <>
       {/* Compact banner section */}
-      <div className="mb-6 border-b border-gray-200 pb-3">
+      <div className="mb-6 border-b border-brand-carbon/10 pb-3">
         {/* Header row */}
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-gray-600" aria-hidden="true" />
+            <Bell className="h-4 w-4 text-brand-carbon/70" aria-hidden="true" />
             <span className="text-sm font-medium text-brand-carbon leading-tight">Notifications</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500 leading-tight">
+            <span className="text-sm text-brand-carbon/60 leading-tight">
               {notifications.length} {notifications.length === 1 ? 'pending action' : 'pending actions'}
             </span>
             {notifications.length > 0 && (
@@ -84,7 +84,7 @@ export function GlobalNotifications({ notifications }) {
 
         {/* Body */}
         {notifications.length === 0 ? (
-          <div className="text-sm text-gray-500 py-0.5 leading-tight">
+          <div className="text-sm text-brand-carbon/60 py-0.5 leading-tight">
             All caught up ✅
           </div>
         ) : (

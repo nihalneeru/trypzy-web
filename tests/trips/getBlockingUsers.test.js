@@ -93,7 +93,7 @@ describe('getBlockingUsers', () => {
       expect(result.blockers).toHaveLength(1)
       expect(result.blockers[0].id).toBe('user-1')
       expect(result.blockers[0].name).toBe('Alice')
-      expect(result.message).toBe('Waiting on you to pick dates')
+      expect(result.message).toBe('Your turn to pick dates')
     })
 
     it('should return leader lock message when everyone responded and user is leader', () => {
@@ -183,7 +183,7 @@ describe('getBlockingUsers', () => {
       expect(result.reasonCode).toBe('voting')
       expect(result.blockers).toHaveLength(1)
       expect(result.blockers[0].id).toBe('user-1')
-      expect(result.message).toBe('Waiting on you to vote')
+      expect(result.message).toBe('Your turn to vote')
     })
 
     it('should return leader lock message when everyone voted and user is leader', () => {

@@ -49,14 +49,14 @@ export function CircleHeader({ circle, token, onLeft }) {
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-brand-carbon">{circle.name}</h1>
           {circle.description && (
-            <p className="text-gray-600">{circle.description}</p>
+            <p className="text-brand-carbon/70">{circle.description}</p>
           )}
         </div>
         {!circle.isOwner && (
           <Button
             variant="ghost"
             size="sm"
-            className="text-gray-500 hover:text-brand-red"
+            className="text-brand-carbon/60 hover:text-brand-red"
             onClick={() => setShowLeaveDialog(true)}
           >
             <LogOut className="h-4 w-4 mr-1" />
@@ -66,19 +66,19 @@ export function CircleHeader({ circle, token, onLeft }) {
       </div>
 
       {/* Invite Section */}
-      <Card className="bg-brand-sand border-gray-200">
+      <Card className="bg-brand-sand border-brand-carbon/10">
         <CardContent className="py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-600 mb-1">Invite friends to join</p>
-              <p className="text-xs text-gray-400">
+              <p className="text-sm text-brand-carbon/70 mb-1">Invite friends to join</p>
+              <p className="text-xs text-brand-carbon/40">
                 Code:{' '}
                 <span className="font-mono font-medium text-brand-carbon">
                   {circle.inviteCode}
                 </span>
                 <button
                   onClick={handleCopyCode}
-                  className="ml-1.5 text-gray-400 hover:text-brand-blue transition-colors"
+                  className="ml-1.5 text-brand-carbon/40 hover:text-brand-blue transition-colors"
                   aria-label="Copy invite code"
                 >
                   <Copy className="h-3 w-3 inline" />

@@ -50,7 +50,7 @@ function getTimeBlockIcon(timeBlock: string) {
     case 'morning': return <Sun className="h-4 w-4 text-yellow-500" />
     case 'afternoon': return <Sunset className="h-4 w-4 text-orange-500" />
     case 'evening': return <Moon className="h-4 w-4 text-brand-carbon/60" />
-    default: return <Clock className="h-4 w-4 text-gray-400" />
+    default: return <Clock className="h-4 w-4 text-brand-carbon/40" />
   }
 }
 
@@ -74,7 +74,7 @@ export function ViewItineraryDialog({ post, onClose, onProposeTrip }: ViewItiner
             </DialogHeader>
 
             {/* Inspiration Notice */}
-            <div className="bg-brand-sand border border-gray-200 rounded-lg p-3 text-sm text-brand-carbon">
+            <div className="bg-brand-sand border border-brand-carbon/10 rounded-lg p-3 text-sm text-brand-carbon">
               <p className="font-medium">This itinerary worked for them</p>
               <p className="text-brand-carbon/70">Your group can change it to fit your preferences.</p>
             </div>
@@ -84,7 +84,7 @@ export function ViewItineraryDialog({ post, onClose, onProposeTrip }: ViewItiner
               {snapshot.days?.map((day) => (
                 <div key={day.dayNumber} className="border rounded-lg p-4">
                   <h4 className="font-semibold mb-3 flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4 text-gray-500" />
+                    <CalendarIcon className="h-4 w-4 text-brand-carbon/60" />
                     Day {day.dayNumber}
                   </h4>
                   <div className="space-y-2">
@@ -94,7 +94,7 @@ export function ViewItineraryDialog({ post, onClose, onProposeTrip }: ViewItiner
                         <div className="flex-1">
                           <p className="font-medium text-sm">{item.title}</p>
                           {item.notes && (
-                            <p className="text-xs text-gray-500">{item.notes}</p>
+                            <p className="text-xs text-brand-carbon/60">{item.notes}</p>
                           )}
                           {item.locationText && (
                             <p className="text-xs text-brand-blue flex items-center gap-1 mt-1">
@@ -109,7 +109,7 @@ export function ViewItineraryDialog({ post, onClose, onProposeTrip }: ViewItiner
                       </div>
                     ))}
                     {day.hasMore && (
-                      <p className="text-xs text-gray-400 pl-7">
+                      <p className="text-xs text-brand-carbon/40 pl-7">
                         +{(day.totalItems || 0) - day.items.length} more activities
                       </p>
                     )}

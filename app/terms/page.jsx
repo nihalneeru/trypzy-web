@@ -16,7 +16,7 @@ export default function TermsOfUsePage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-brand-sand/30">
       <AppHeader userName={userName} />
       <main id="main-content" className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-3 mb-6">
@@ -24,8 +24,8 @@ export default function TermsOfUsePage() {
           <h1 className="text-3xl font-bold text-brand-carbon">Terms of Use</h1>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8 prose prose-gray max-w-none">
-          <p className="text-sm text-gray-500">Last updated: February 23, 2026</p>
+        <div className="bg-white rounded-lg border border-brand-carbon/10 p-6 sm:p-8 prose prose-gray max-w-none">
+          <p className="text-sm text-brand-carbon/60">Last updated: February 23, 2026</p>
 
           <h2 className="text-xl font-semibold text-brand-carbon mt-8 mb-3">About These Terms</h2>
           <p>
@@ -102,7 +102,7 @@ export default function TermsOfUsePage() {
             Content shared within a trip or circle is visible to members of that group. Deleting
             a message or item removes it from the Service, but group members may have already
             seen it. Itineraries and trip posts that you or your trip leader mark
-            as &ldquo;discoverable&rdquo; may be visible to other Tripti users outside your group
+            as &ldquo;discoverable&rdquo; may be visible to other TRIPTI.ai users outside your group
             through the Discover feature.
           </p>
 
@@ -140,7 +140,7 @@ export default function TermsOfUsePage() {
             without our prior written consent.
           </p>
           <p>
-            &ldquo;Tripti,&rdquo; &ldquo;Tripti.ai,&rdquo; the Tripti logo, and &ldquo;Nifty plans.
+            &ldquo;TRIPTI.ai,&rdquo; the TRIPTI.ai logo, and &ldquo;Nifty plans.
             Happy circles.&rdquo; are trademarks of Trypzy, Inc. You may not use these marks without
             our prior written permission.
           </p>
@@ -391,7 +391,7 @@ export default function TermsOfUsePage() {
               legal@tripti.ai
             </a>
           </p>
-          <p className="text-sm text-gray-500 mt-6">
+          <p className="text-sm text-brand-carbon/60 mt-6">
             Tripti.ai is a product of Trypzy, Inc.
           </p>
         </div>

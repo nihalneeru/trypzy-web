@@ -30,6 +30,10 @@ export function ConvergenceTimeline({ windows, totalTravelers = 0 }) {
     const dated = windows.filter(w => w.startDate && w.endDate)
     if (dated.length < 2) return null
 
+    // Split into available and blocker windows
+    const availableWindows = dated.filter(w => (w.windowType || 'available') !== 'blocker')
+    const blockerWindows = dated.filter(w => (w.windowType || 'available') === 'blocker')
+
     const toMs = (d) => new Date(d + 'T12:00:00').getTime()
     const globalMin = Math.min(...dated.map(w => toMs(w.startDate)))
     const globalMax = Math.max(...dated.map(w => toMs(w.endDate)))
@@ -38,31 +42,41 @@ export function ConvergenceTimeline({ windows, totalTravelers = 0 }) {
     const totalDays = Math.round((globalMax - globalMin) / DAY_MS) + 1
     if (totalDays <= 0 || totalDays > 120) return null
 
-    // Build per-day unique traveler counts
+    // Build per-day unique traveler counts (net: available - blockers, floor 0)
     const days = []
     let peakCount = 0
 
     for (let time = globalMin; time <= globalMax; time += DAY_MS) {
       const available = new Set()
+      const blocked = new Set()
 
-      dated.forEach(w => {
+      availableWindows.forEach(w => {
         const wStart = toMs(w.startDate)
         const wEnd = toMs(w.endDate)
         if (time >= wStart && time <= wEnd) {
-          // Use supporterIds for accurate unique-traveler counting
           if (w.supporterIds && Array.isArray(w.supporterIds)) {
             w.supporterIds.forEach(uid => available.add(uid))
           }
-          // Also count the proposer (they implicitly support their own window)
           if (w.proposedBy) {
             available.add(w.proposedBy)
           }
         }
       })
 
-      const count = available.size
+      blockerWindows.forEach(w => {
+        const wStart = toMs(w.startDate)
+        const wEnd = toMs(w.endDate)
+        if (time >= wStart && time <= wEnd) {
+          if (w.proposedBy) {
+            blocked.add(w.proposedBy)
+          }
+        }
+      })
+
+      const count = Math.max(0, available.size - blocked.size)
+      const hasBlocker = blocked.size > 0
       if (count > peakCount) peakCount = count
-      days.push({ time, count })
+      days.push({ time, count, hasBlocker })
     }
 
     if (peakCount === 0) return null
@@ -127,7 +141,7 @@ export function ConvergenceTimeline({ windows, totalTravelers = 0 }) {
 
   // Color intensity: discrete levels based on fraction of peak
   const getCellColor = (count, index) => {
-    if (count === 0) return 'bg-gray-100'
+    if (count === 0) return 'bg-brand-sand/50'
 
     const fraction = count / peakCount
     const isPeak = bestStretch &&
@@ -176,9 +190,9 @@ export function ConvergenceTimeline({ windows, totalTravelers = 0 }) {
               <div key={day.time} className="flex flex-col items-center" style={{ flex: '1 1 0', minWidth: '8px' }}>
                 {/* Cell */}
                 <div
-                  className={`w-full rounded-sm transition-colors duration-300 ${getCellColor(day.count, i)}`}
+                  className={`w-full rounded-sm transition-colors duration-300 ${getCellColor(day.count, i)}${day.hasBlocker ? ' border-b-2 border-brand-red' : ''}`}
                   style={{ height: '20px' }}
-                  title={`${new Date(day.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${day.count} available`}
+                  title={`${new Date(day.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${day.count} available${day.hasBlocker ? ' (has blockers)' : ''}`}
                 />
                 {/* Axis label (sparse) */}
                 {label ? (
@@ -213,7 +227,7 @@ export function ConvergenceTimeline({ windows, totalTravelers = 0 }) {
           <span className="text-[9px] text-brand-carbon/40">Few</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 rounded-sm bg-gray-100" />
+          <div className="w-2.5 h-2.5 rounded-sm bg-brand-sand/50" />
           <span className="text-[9px] text-brand-carbon/40">None</span>
         </div>
       </div>

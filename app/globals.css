@@ -69,9 +69,15 @@
   :root {
         /* Tripti Brand Colors */
         --brand-red: #FA3823;
-        --brand-blue: #00334D;
-        --brand-carbon: #2E303B;
-        --brand-sand: #F2EDDA;
+        --brand-blue: #09173D;
+        --brand-carbon: #45474F;
+        --brand-sand: #DED9C1;
+
+        /* Secondary palette */
+        --brand-yellow: #FAC823;
+        --brand-sky: #23B0F7;
+        --brand-green: #093D0E;
+        --brand-olive: #57450C;
 
         /* Semantic status colors */
         --color-success: var(--brand-blue);
@@ -81,7 +87,7 @@
 
         --brand-text: #111111;
         --brand-bg: #FFFFFF;
-        --brand-muted: #6B7280;
+        --brand-muted: var(--brand-carbon);
         
         --background: 0 0% 100%;
         --foreground: 222.2 84% 4.9%;
@@ -165,9 +171,15 @@
 }
 
 @layer utilities {
-  /* iOS safe area insets for notch and home indicator */
+  /* Safe area insets for notch/status bar and home indicator.
+     env(safe-area-inset-top) works on iOS but NOT in Android WebViews.
+     Android API 35+ enforces edge-to-edge, so we use a fixed fallback
+     when running inside Capacitor on Android (detected via .cap-android). */
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
+  }
+  .cap-android .safe-top {
+    padding-top: 28px;
   }
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -250,6 +262,15 @@
   }
   .animate-slide-in-bottom {
     animation: slide-in-bottom 300ms ease-out forwards;
+  }
+
+  /* Chat message entrance animation (#388) */
+  @keyframes slide-in-chat-msg {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .animate-slide-in-chat-msg {
+    animation: slide-in-chat-msg 200ms ease-out;
   }
 
   /* Breathing pulse for empty state circles (#300) */

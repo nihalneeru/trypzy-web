@@ -58,7 +58,7 @@ function formatCurrency(amount, currency) {
 
 function SectionCard({ children }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-brand-carbon/10 bg-white p-5 shadow-sm">
       {children}
     </div>
   )
@@ -75,7 +75,7 @@ function SectionHeader({ label }) {
 function EmptyState({ text }) {
   return (
     <div className="rounded-lg bg-brand-sand/40 px-3 py-2">
-      <p className="text-xs text-gray-500">{text}</p>
+      <p className="text-xs text-brand-carbon/60">{text}</p>
     </div>
   )
 }
@@ -96,7 +96,7 @@ export default async function PublicBriefPage({ params }) {
   const dateRange = formatDateRange(overview.lockedStartDate, overview.lockedEndDate)
 
   return (
-    <main className="min-h-screen bg-gray-50 font-inter">
+    <main className="min-h-screen bg-brand-sand/30 font-inter">
       <div className="max-w-2xl mx-auto px-4 py-6 sm:px-6 sm:py-10">
 
         {/* Logo */}
@@ -118,18 +118,18 @@ export default async function PublicBriefPage({ params }) {
           <h1 className="text-2xl sm:text-3xl font-semibold text-brand-carbon mb-2">
             {overview.name}
           </h1>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-brand-carbon/70">
             {overview.destinationHint && (
               <span>{overview.destinationHint}</span>
             )}
             {overview.destinationHint && dateRange && (
-              <span className="text-gray-300">&middot;</span>
+              <span className="text-brand-carbon/30">&middot;</span>
             )}
             {dateRange && (
               <span>{dateRange}</span>
             )}
             {(overview.destinationHint || dateRange) && (
-              <span className="text-gray-300">&middot;</span>
+              <span className="text-brand-carbon/30">&middot;</span>
             )}
             <span>
               {overview.travelerCount} traveler{overview.travelerCount !== 1 ? 's' : ''}
@@ -142,7 +142,7 @@ export default async function PublicBriefPage({ params }) {
           {/* Overview card */}
           <SectionCard>
             <SectionHeader label="Overview" />
-            <div className="space-y-1.5 text-sm text-gray-700">
+            <div className="space-y-1.5 text-sm text-brand-carbon/80">
               {overview.destinationHint && (
                 <p><span className="font-medium text-brand-carbon">Destination:</span> {overview.destinationHint}</p>
               )}
@@ -152,7 +152,7 @@ export default async function PublicBriefPage({ params }) {
               {dateRange ? (
                 <p><span className="font-medium text-brand-carbon">Dates:</span> {dateRange}{overview.duration != null && ` (${overview.duration} day${overview.duration !== 1 ? 's' : ''})`}</p>
               ) : (
-                <p className="text-gray-400 italic">Dates not yet locked</p>
+                <p className="text-brand-carbon/40 italic">Dates not yet locked</p>
               )}
               <p><span className="font-medium text-brand-carbon">Travelers:</span> {overview.travelerCount}</p>
             </div>
@@ -166,10 +166,10 @@ export default async function PublicBriefPage({ params }) {
                 <div className="space-y-1 text-sm">
                   <p className="font-medium text-brand-carbon">{accommodation.chosen.name}</p>
                   {accommodation.chosen.location && (
-                    <p className="text-gray-600">{accommodation.chosen.location}</p>
+                    <p className="text-brand-carbon/70">{accommodation.chosen.location}</p>
                   )}
                   {accommodation.chosen.priceRange && (
-                    <p className="text-gray-500 text-xs">{accommodation.chosen.priceRange}</p>
+                    <p className="text-brand-carbon/60 text-xs">{accommodation.chosen.priceRange}</p>
                   )}
                   {accommodation.chosen.url && (
                     <a
@@ -183,7 +183,7 @@ export default async function PublicBriefPage({ params }) {
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-brand-carbon/60">
                   {accommodation.optionCount} option{accommodation.optionCount !== 1 ? 's' : ''} proposed — not yet decided
                 </p>
               )
@@ -213,15 +213,15 @@ export default async function PublicBriefPage({ params }) {
                               {block.timeRange && (
                                 <span className="font-medium text-brand-red mr-1.5">{block.timeRange}</span>
                               )}
-                              <span className="text-gray-700">{block.activity}</span>
+                              <span className="text-brand-carbon/80">{block.activity}</span>
                               {block.notes && (
-                                <p className="text-gray-500 mt-0.5">{block.notes}</p>
+                                <p className="text-brand-carbon/60 mt-0.5">{block.notes}</p>
                               )}
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs text-gray-400 italic pl-3">No activities planned</p>
+                        <p className="text-xs text-brand-carbon/40 italic pl-3">No activities planned</p>
                       )}
                     </div>
                   )
@@ -238,7 +238,7 @@ export default async function PublicBriefPage({ params }) {
             {packingReminders && packingReminders.length > 0 ? (
               <ul className="space-y-1.5">
                 {packingReminders.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                  <li key={i} className="flex items-start gap-2 text-sm text-brand-carbon/80">
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-blue mt-1.5 shrink-0" />
                     {item.name}
                   </li>
@@ -257,7 +257,7 @@ export default async function PublicBriefPage({ params }) {
                 <p className="text-base font-semibold text-brand-carbon">
                   {formatCurrency(expensesSummary.totalAmount, expensesSummary.currency)}
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-brand-carbon/60 mt-0.5">
                   {expensesSummary.itemCount} expense{expensesSummary.itemCount !== 1 ? 's' : ''} tracked
                 </p>
               </div>
@@ -280,14 +280,14 @@ export default async function PublicBriefPage({ params }) {
         </section>
 
         {/* Footer */}
-        <footer className="text-center pt-6 pb-8 border-t border-gray-200">
-          <p className="text-sm text-gray-500 mb-1">
+        <footer className="text-center pt-6 pb-8 border-t border-brand-carbon/10">
+          <p className="text-sm text-brand-carbon/60 mb-1">
             Planned with{' '}
             <Link href="/" className="text-brand-blue hover:underline font-medium">
               Tripti.ai
             </Link>
           </p>
-          <p className="text-xs text-gray-400 italic">Nifty plans. Happy circles.</p>
+          <p className="text-xs text-brand-carbon/40 italic">Nifty plans. Happy circles.</p>
         </footer>
 
       </div>
@@ -314,7 +314,7 @@ function NotFoundView() {
         <h1 className="text-xl font-semibold text-brand-carbon mb-3">
           Trip brief not found
         </h1>
-        <p className="text-sm text-gray-500 mb-6">
+        <p className="text-sm text-brand-carbon/60 mb-6">
           This brief may no longer be shared, or the link may be incorrect.
         </p>
         <Link
@@ -440,7 +440,6 @@ async function fetchBriefData(briefToken) {
 
     return { overview, accommodation, dayByDay, decisions, packingReminders, expensesSummary }
   } catch (error) {
-    console.error('Error fetching public brief data:', error)
     return null
   }
 }

@@ -18,7 +18,7 @@ function deriveBlocker(trip, user) {
   if (!trip) {
     return {
       type: 'DATES',
-      title: 'Pick your dates',
+      title: 'Share your dates',
       description: 'Start by finding dates that work for everyone',
       ctaLabel: 'Pick Dates',
       icon: mockIcon,
@@ -61,7 +61,7 @@ function deriveBlocker(trip, user) {
 
     return {
       type: 'DATES',
-      title: userHasPicked ? 'Waiting on dates' : 'Pick your dates',
+      title: userHasPicked ? 'Waiting on dates' : 'Share your dates',
       description: userHasPicked
         ? 'Waiting for others to respond before dates can be locked'
         : 'Share your date preferences to help coordinate the trip',
@@ -157,7 +157,7 @@ describe('deriveBlocker', () => {
       const result = deriveBlocker(null, mockUser())
 
       expect(result.type).toBe('DATES')
-      expect(result.title).toBe('Pick your dates')
+      expect(result.title).toBe('Share your dates')
       expect(result.description).toBe('Start by finding dates that work for everyone')
       expect(result.ctaLabel).toBe('Pick Dates')
       expect(result.overlayType).toBe('scheduling')
@@ -167,7 +167,7 @@ describe('deriveBlocker', () => {
       const result = deriveBlocker(undefined, mockUser())
 
       expect(result.type).toBe('DATES')
-      expect(result.title).toBe('Pick your dates')
+      expect(result.title).toBe('Share your dates')
     })
   })
 
@@ -177,7 +177,7 @@ describe('deriveBlocker', () => {
       const result = deriveBlocker(trip, mockUser())
 
       expect(result.type).toBe('DATES')
-      expect(result.title).toBe('Pick your dates')
+      expect(result.title).toBe('Share your dates')
       expect(result.description).toBe('Share your date preferences to help coordinate the trip')
       expect(result.ctaLabel).toBe('Pick Dates')
       expect(result.overlayType).toBe('scheduling')
@@ -573,7 +573,7 @@ describe('deriveBlocker', () => {
       const result = deriveBlocker(trip, mockUser())
 
       expect(result.type).toBe('DATES')
-      expect(result.title).toBe('Pick your dates')
+      expect(result.title).toBe('Share your dates')
     })
 
     it('should handle null userDatePicks', () => {
@@ -584,7 +584,7 @@ describe('deriveBlocker', () => {
       const result = deriveBlocker(trip, mockUser())
 
       expect(result.type).toBe('DATES')
-      expect(result.title).toBe('Pick your dates')
+      expect(result.title).toBe('Share your dates')
     })
 
     it('should handle canLockDates via voting status', () => {

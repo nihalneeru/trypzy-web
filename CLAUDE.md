@@ -45,12 +45,20 @@
 
 ## 1) Tripti Brand Colors
 
-**CSS Variables** (defined in `app/globals.css`):
+**Primary CSS Variables** (defined in `app/globals.css`):
 ```css
 --brand-red: #FA3823;      /* Attention/CTAs/Blockers */
---brand-blue: #00334D;     /* Secondary CTAs/Links */
---brand-carbon: #2E303B;   /* Text/Dark elements */
---brand-sand: #F2EDDA;     /* Light backgrounds/Highlights */
+--brand-blue: #09173D;     /* Secondary CTAs/Links */
+--brand-carbon: #45474F;   /* Text/Dark elements */
+--brand-sand: #DED9C1;     /* Light backgrounds/Highlights */
+```
+
+**Secondary CSS Variables**:
+```css
+--brand-yellow: #FAC823;   /* Highlights, warnings */
+--brand-sky: #23B0F7;      /* Info, links, accents */
+--brand-green: #093D0E;    /* Success, confirmations */
+--brand-olive: #57450C;    /* Earthy accents, badges */
 ```
 
 **Tailwind Usage**:
@@ -58,6 +66,10 @@
 - `text-brand-blue`, `bg-brand-blue` - Secondary CTAs, links, active states
 - `text-brand-carbon`, `bg-brand-carbon` - Text, dark UI elements
 - `bg-brand-sand` - Highlights, selected states, light backgrounds
+- `text-brand-yellow`, `bg-brand-yellow` - Highlights, warnings
+- `text-brand-sky`, `bg-brand-sky` - Info states, accents
+- `text-brand-green`, `bg-brand-green` - Success, confirmations
+- `text-brand-olive`, `bg-brand-olive` - Earthy accents, badges
 
 **Typography**: Inter font family (`font-inter`)
 
@@ -272,5 +284,4 @@ Always create a feature branch (`feat/`, `fix/`), work there, create PR to merge
 ## 10) Deferred until public launch
 
 - Rate limiting (needs Redis/Upstash infrastructure)
-- Remaining generic Tailwind color cleanup (20+ files, low priority)
 - Accessibility polish (aria-hidden, aria-live)

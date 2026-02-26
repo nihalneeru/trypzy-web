@@ -164,17 +164,17 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-sand/30 flex items-center justify-center">
         <div className="text-center">
           <BrandedSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-gray-600">Loading settings...</p>
+          <p className="text-brand-carbon/70">Loading settings...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-brand-sand/30">
       <AppHeader userName={userName} />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
@@ -193,7 +193,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Sticky mini-nav */}
-        <div className="sticky top-14 sm:top-16 z-30 bg-gray-50 pb-3 pt-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
+        <div className="sticky top-14 sm:top-16 z-30 bg-brand-sand/30 pb-3 pt-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
           <div className="flex gap-2">
             {SECTIONS.map((section) => {
               const Icon = section.icon
@@ -208,7 +208,7 @@ export default function SettingsPage() {
                     ${
                       isActive
                         ? 'bg-brand-blue text-white'
-                        : 'bg-white text-brand-carbon border border-gray-200 hover:border-gray-300'
+                        : 'bg-white text-brand-carbon border border-brand-carbon/10 hover:border-brand-carbon/20'
                     }
                   `}
                 >
@@ -229,7 +229,7 @@ export default function SettingsPage() {
 
           {/* Privacy Philosophy */}
           <div className="bg-brand-sand/40 border border-brand-sand rounded-lg p-4 mb-4">
-            <p className="text-sm text-gray-700 leading-relaxed">
+            <p className="text-sm text-brand-carbon/80 leading-relaxed">
               Tripti.ai is designed for private group coordination within trusted circles.
               We do not sell personal data to third parties. Trip content is visible only to
               members of your selected group.
@@ -253,7 +253,7 @@ export default function SettingsPage() {
               {/* Profile Visibility */}
               <div className="space-y-3">
                 <Label className="text-base font-semibold">Profile Visibility</Label>
-                <p className="text-sm text-gray-600">Who can view your profile?</p>
+                <p className="text-sm text-brand-carbon/70">Who can view your profile?</p>
                 <RadioGroup
                   value={privacy.profileVisibility}
                   onValueChange={(value) =>
@@ -288,10 +288,10 @@ export default function SettingsPage() {
                 <Label className="text-base font-semibold">
                   Upcoming Trips Visibility
                 </Label>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-brand-carbon/70">
                   Who can see your upcoming trips on your profile?
                 </p>
-                <p className="text-xs text-gray-600 font-medium">
+                <p className="text-xs text-brand-carbon/70 font-medium">
                   This only affects your profile view. You and your circle members will
                   always see trips you&apos;re traveling on.
                 </p>
@@ -325,7 +325,7 @@ export default function SettingsPage() {
               {/* Trip Details Level */}
               <div className="space-y-3">
                 <Label className="text-base font-semibold">Trip Details Level</Label>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-brand-carbon/70">
                   How much detail should others see about your trips?
                 </p>
                 <RadioGroup
@@ -360,10 +360,10 @@ export default function SettingsPage() {
                   <Label className="text-base font-semibold">
                     Allow Trip Join Requests
                   </Label>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-brand-carbon/70">
                     Let others request to join your trips
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-brand-carbon/60">
                     Requests are visible only to you and trip organizers.
                   </p>
                 </div>
@@ -399,11 +399,11 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <Label className="text-sm text-gray-500">Name</Label>
+                <Label className="text-sm text-brand-carbon/60">Name</Label>
                 <p className="text-brand-carbon font-medium">{userName || '—'}</p>
               </div>
               <div>
-                <Label className="text-sm text-gray-500">Email</Label>
+                <Label className="text-sm text-brand-carbon/60">Email</Label>
                 <p className="text-brand-carbon font-medium">{userEmail || '—'}</p>
               </div>
             </CardContent>

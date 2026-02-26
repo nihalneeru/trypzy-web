@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -17,10 +17,12 @@ import {
   Trash2,
   Sparkles,
   Copy,
-  MessageCircle
+  MessageCircle,
+  Share2,
+  ChevronRight
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { copyToClipboard } from '@/lib/native/share'
+import { copyToClipboard, nativeShare } from '@/lib/native/share'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -49,6 +51,8 @@ import {
 } from '@/components/ui/collapsible'
 import { ConvergenceTimeline } from './ConvergenceTimeline'
 import { DateRangePicker } from './DateRangePicker'
+import { ConfidenceMeter } from './ConfidenceMeter'
+import { normalizeWindow } from '@/lib/trips/normalizeWindow'
 
 interface DateWindow {
   id: string
@@ -60,6 +64,7 @@ interface DateWindow {
   normalizedStart?: string
   normalizedEnd?: string
   precision?: 'exact' | 'approx' | 'unstructured'
+  windowType?: 'available' | 'blocker'
   createdAt: string
   supportCount: number
   supporterIds: string[]
@@ -109,6 +114,45 @@ interface DateWindowsFunnelProps {
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
   onQuoteToChat?: (quote: string) => void
+  prefillStart?: string
+  prefillEnd?: string
+}
+
+// Generate smart date chips based on current date context
+function generateSmartChips(): { label: string; action: 'dates' | 'flexible' }[] {
+  const now = new Date()
+  const currentMonth = now.getMonth()
+  const currentYear = now.getFullYear()
+  const chips: { label: string; action: 'dates' | 'flexible' }[] = []
+
+  // Next 2 months: "Weekend in {month}", "Late {month}", "Early {month+1}"
+  const month1 = currentMonth + 1
+  const month2 = currentMonth + 2
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+  const m1Name = monthNames[month1 % 12]
+  const m2Name = monthNames[month2 % 12]
+
+  chips.push({ label: `Weekend in ${m1Name}`, action: 'dates' })
+  chips.push({ label: `Late ${m1Name}`, action: 'dates' })
+  chips.push({ label: `Early ${m2Name}`, action: 'dates' })
+
+  // Seasonal chips based on current month
+  if (currentMonth >= 1 && currentMonth <= 2) {
+    chips.push({ label: 'Spring break', action: 'dates' })
+  } else if (currentMonth >= 3 && currentMonth <= 5) {
+    chips.push({ label: 'Memorial Day weekend', action: 'dates' })
+  } else if (currentMonth >= 4 && currentMonth <= 6) {
+    chips.push({ label: '4th of July weekend', action: 'dates' })
+  } else if (currentMonth >= 7 && currentMonth <= 9) {
+    chips.push({ label: 'Thanksgiving week', action: 'dates' })
+  }
+
+  // Always include "I'm flexible"
+  chips.push({ label: "I'm flexible", action: 'flexible' })
+
+  // Max 5 chips
+  return chips.slice(0, 5)
 }
 
 // Format date for display
@@ -132,6 +176,65 @@ function formatWindowDisplay(window: { startDate?: string; endDate?: string; sou
   return `${formatDate(window.startDate || '')} – ${formatDate(window.endDate || '')}`
 }
 
+// Phase indicator for the scheduling funnel
+const PHASE_STEPS = [
+  { key: 'COLLECTING', label: 'Suggest dates' },
+  { key: 'PROPOSED', label: 'React to proposal' },
+  { key: 'LOCKED', label: 'Confirm dates' },
+] as const
+
+const PHASE_SUBTITLES: Record<string, string> = {
+  COLLECTING: 'Suggest dates that work for you',
+  PROPOSED: 'The group is reviewing proposed dates — share your reaction',
+  LOCKED: 'Dates confirmed!',
+}
+
+function PhaseIndicator({ phase }: { phase: 'COLLECTING' | 'PROPOSED' | 'LOCKED' }) {
+  const phaseIndex = PHASE_STEPS.findIndex(s => s.key === phase)
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-center gap-1">
+        {PHASE_STEPS.map((step, i) => {
+          const isCompleted = i < phaseIndex
+          const isActive = i === phaseIndex
+          const isFuture = i > phaseIndex
+
+          return (
+            <div key={step.key} className="flex items-center">
+              <div className="flex items-center gap-1.5">
+                {isCompleted && (
+                  <Check className="h-3.5 w-3.5 text-brand-carbon/40" />
+                )}
+                {isActive && (
+                  <span className="inline-block h-2 w-2 rounded-full bg-brand-red" />
+                )}
+                <span
+                  className={`text-xs ${
+                    isCompleted
+                      ? 'text-brand-carbon/40'
+                      : isActive
+                        ? 'font-semibold text-brand-carbon'
+                        : 'text-brand-carbon/40'
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </div>
+              {i < PHASE_STEPS.length - 1 && (
+                <ChevronRight className={`h-3 w-3 mx-1 ${isFuture ? 'text-brand-carbon/20' : 'text-brand-carbon/40'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-center text-xs text-brand-carbon/50 mt-1.5">
+        {PHASE_SUBTITLES[phase]}
+      </p>
+    </div>
+  )
+}
+
 /**
  * DateWindowsFunnel - New date-locking funnel component
  *
@@ -148,7 +251,9 @@ export function DateWindowsFunnel({
   onRefresh,
   onClose,
   setHasUnsavedChanges,
-  onQuoteToChat
+  onQuoteToChat,
+  prefillStart,
+  prefillEnd
 }: DateWindowsFunnelProps) {
   // State
   const [loading, setLoading] = useState(true)
@@ -158,8 +263,17 @@ export function DateWindowsFunnel({
   const [proposalStatus, setProposalStatus] = useState<ProposalStatus | null>(null)
   const [userSupportedWindowIds, setUserSupportedWindowIds] = useState<string[]>([])
   const [proposedWindowId, setProposedWindowId] = useState<string | null>(null)
+  const [proposedWindowIds, setProposedWindowIds] = useState<string[]>([])
   const [isLeader, setIsLeader] = useState(false)
   const [approvalSummary, setApprovalSummary] = useState<ApprovalSummary | null>(null)
+  const [approvalSummaries, setApprovalSummaries] = useState<Record<string, ApprovalSummary>>({})
+
+  // Shortlist mode state (leader CONVERGE UX)
+  const [shortlistMode, setShortlistMode] = useState(false)
+  const [selectedShortlistIds, setSelectedShortlistIds] = useState<string[]>([])
+
+  // Lock target for multi-window lock dialog
+  const [lockTargetId, setLockTargetId] = useState<string | null>(null)
 
   // Duration preference state
   const [userDurationPref, setUserDurationPref] = useState<string | null>(null)
@@ -180,12 +294,26 @@ export function DateWindowsFunnel({
   const [newDateText, setNewDateText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [useTextInput, setUseTextInput] = useState(false)
+  const [inputMode, setInputMode] = useState<'free' | 'busy'>('free')
 
   // Manual date entry fallback (when normalization fails)
   const [showManualEntry, setShowManualEntry] = useState(false)
   const [manualStartDate, setManualStartDate] = useState('')
   const [manualEndDate, setManualEndDate] = useState('')
   const [normalizationError, setNormalizationError] = useState<string | null>(null)
+
+  // Smart chip calendar pre-selection
+  const [chipPreStart, setChipPreStart] = useState<string | null>(null)
+  const [chipPreEnd, setChipPreEnd] = useState<string | null>(null)
+
+  // Chat-to-scheduling bridge: prefill calendar from chat date detection
+  useEffect(() => {
+    if (prefillStart && prefillEnd) {
+      setChipPreStart(prefillStart)
+      setChipPreEnd(prefillEnd)
+      setShowAddWindow(true)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Similarity nudge state
   const [similarWindowId, setSimilarWindowId] = useState<string | null>(null)
@@ -215,6 +343,13 @@ export function DateWindowsFunnel({
   const [concreteDatesEnd, setConcreteDatesEnd] = useState('')
   const [pendingUnstructuredWindow, setPendingUnstructuredWindow] = useState<DateWindow | null>(null)
 
+  // Auto-expand "Add dates" when no windows exist and user can participate
+  useEffect(() => {
+    if (windows.length === 0 && isActiveParticipant && phase === 'COLLECTING') {
+      setShowAddWindow(true)
+    }
+  }, [windows.length, isActiveParticipant, phase])
+
   // Auto-scroll to the add-dates area when it opens
   useEffect(() => {
     if (showAddWindow && addWindowRef.current) {
@@ -240,7 +375,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to load date options')
+        throw new Error(data.error || "Couldn't load date options — try again")
       }
 
       const data = await response.json()
@@ -249,11 +384,13 @@ export function DateWindowsFunnel({
       setProposalStatus(data.proposalStatus)
       setUserSupportedWindowIds(data.userSupportedWindowIds || [])
       setProposedWindowId(data.proposedWindowId)
+      setProposedWindowIds(data.proposedWindowIds || (data.proposedWindowId ? [data.proposedWindowId] : []))
       setIsLeader(data.isLeader)
       setUserWindowCount(data.userWindowCount ?? 0)
       setMaxWindows(data.maxWindows ?? 2)
       setCanCreateWindow(data.canCreateWindow ?? true)
       setApprovalSummary(data.approvalSummary || null)
+      setApprovalSummaries(data.approvalSummaries || {})
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -425,7 +562,8 @@ export function DateWindowsFunnel({
         },
         body: JSON.stringify({
           text: textToSubmit,
-          acknowledgeOverlap
+          acknowledgeOverlap,
+          ...(inputMode === 'busy' && { windowType: 'blocker' })
         })
       })
 
@@ -437,7 +575,7 @@ export function DateWindowsFunnel({
           setNormalizationError(data.error)
           return
         }
-        throw new Error(data.error || 'Failed to add dates')
+        throw new Error(data.error || "Couldn't add dates — try again")
       }
 
       // Check if API is asking for overlap acknowledgement (window not yet created)
@@ -482,14 +620,15 @@ export function DateWindowsFunnel({
         body: JSON.stringify({
           startDate: manualStartDate,
           endDate: manualEndDate,
-          acknowledgeOverlap
+          acknowledgeOverlap,
+          ...(inputMode === 'busy' && { windowType: 'blocker' })
         })
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to add dates')
+        throw new Error(data.error || "Couldn't add dates — try again")
       }
 
       // Check if API is asking for overlap acknowledgement
@@ -526,14 +665,15 @@ export function DateWindowsFunnel({
         },
         body: JSON.stringify({
           text: newDateText,
-          forceAccept: true
+          forceAccept: true,
+          ...(inputMode === 'busy' && { windowType: 'blocker' })
         })
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to add dates')
+        throw new Error(data.error || "Couldn't add dates — try again")
       }
 
       toast.success('Dates added')
@@ -568,7 +708,63 @@ export function DateWindowsFunnel({
     setCustomStartDate('')
     setCustomEndDate('')
     setUseTextInput(false)
+    setInputMode('free')
+    setChipPreStart(null)
+    setChipPreEnd(null)
   }
+
+  // Smart date chips
+  const smartChips = useMemo(() => generateSmartChips(), [])
+
+  // Compute heat map data from available windows for calendar overlay
+  // Counts unique travelers per day across all windows
+  const heatData = useMemo(() => {
+    const availableWindows = windows.filter(w =>
+      (w.windowType || 'available') !== 'blocker' &&
+      w.startDate && w.endDate
+    )
+    if (availableWindows.length === 0) return null
+
+    const DAY_MS = 86400000
+    const dayUsers: Record<string, Set<string>> = {}
+
+    for (const w of availableWindows) {
+      const start = new Date(w.startDate + 'T12:00:00').getTime()
+      const end = new Date(w.endDate + 'T12:00:00').getTime()
+      const supporters: string[] = []
+      if (w.supporterIds) supporters.push(...w.supporterIds)
+      if (w.proposedBy && !supporters.includes(w.proposedBy)) supporters.push(w.proposedBy)
+
+      for (let t = start; t <= end; t += DAY_MS) {
+        const d = new Date(t)
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+        if (!dayUsers[key]) dayUsers[key] = new Set()
+        supporters.forEach(uid => dayUsers[key].add(uid))
+      }
+    }
+
+    const heat: Record<string, number> = {}
+    for (const [key, users] of Object.entries(dayUsers)) {
+      heat[key] = users.size
+    }
+    return heat
+  }, [windows])
+
+  // Handle chip tap — parse text, pre-fill calendar
+  const handleChipTap = useCallback((chip: { label: string; action: 'dates' | 'flexible' }) => {
+    if (chip.action === 'flexible') {
+      handleSetDurationPref('flexible')
+      return
+    }
+    const result = normalizeWindow(chip.label)
+    if ('error' in result) return
+    // Switch to calendar mode with pre-selection
+    setUseTextInput(false)
+    setChipPreStart(result.startISO)
+    setChipPreEnd(result.endISO)
+    // Also set the text so the "Add these dates" button works
+    setNewDateText(`${result.startISO} - ${result.endISO}`)
+  }, [])
 
   // Handle supporting a window
   const handleSupport = async (windowId: string) => {
@@ -602,7 +798,7 @@ export function DateWindowsFunnel({
     }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to add support')
+        throw new Error(data.error || "Couldn't add support — try again")
       }
       // Background sync
       fetchWindows()
@@ -637,7 +833,7 @@ export function DateWindowsFunnel({
     }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to remove support')
+        throw new Error(data.error || "Couldn't remove support — try again")
       }
       // Background sync
       fetchWindows()
@@ -661,7 +857,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to delete suggestion')
+        throw new Error(data.error || "Couldn't delete suggestion — try again")
       }
 
       toast.success('Date suggestion removed')
@@ -714,12 +910,46 @@ export function DateWindowsFunnel({
           setShowConcreteDatesDialog(true)
           return
         }
-        throw new Error(data.error || 'Failed to propose dates')
+        throw new Error(data.error || "Couldn't propose dates — try again")
       }
 
       toast.success('Dates proposed')
       setPendingProposeWindowId(null)
       setUseLeaderOverride(false)
+      await fetchWindows()
+      onRefresh()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle multi-window propose (leader shortlist)
+  const handleProposeMulti = async (windowIdsToPropose: string[]) => {
+    if (windowIdsToPropose.length === 0) return
+    try {
+      setSubmitting(true)
+      const response = await fetch(`/api/trips/${trip.id}/propose-dates`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          windowIds: windowIdsToPropose,
+          leaderOverride: true
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Couldn't propose dates — try again")
+      }
+
+      toast.success(windowIdsToPropose.length === 1 ? 'Dates proposed' : `${windowIdsToPropose.length} options proposed`)
+      setShortlistMode(false)
+      setSelectedShortlistIds([])
       await fetchWindows()
       onRefresh()
     } catch (err: any) {
@@ -767,7 +997,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to propose dates')
+        throw new Error(data.error || "Couldn't propose dates — try again")
       }
 
       toast.success('Dates proposed')
@@ -817,7 +1047,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to withdraw proposal')
+        throw new Error(data.error || "Couldn't withdraw proposal — try again")
       }
 
       toast.success('Proposal withdrawn')
@@ -831,7 +1061,7 @@ export function DateWindowsFunnel({
   }
 
   // Handle locking dates (leader only)
-  const handleLock = async (override = false) => {
+  const handleLock = async (override = false, lockWindowId?: string) => {
     try {
       setSubmitting(true)
       const response = await fetch(`/api/trips/${trip.id}/lock-proposed`, {
@@ -840,7 +1070,10 @@ export function DateWindowsFunnel({
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ leaderOverride: override })
+        body: JSON.stringify({
+          leaderOverride: override,
+          ...(lockWindowId && { windowId: lockWindowId })
+        })
       })
 
       const data = await response.json()
@@ -850,7 +1083,7 @@ export function DateWindowsFunnel({
         if (data.code === 'INSUFFICIENT_APPROVALS') {
           throw new Error(`Need ${data.approvalSummary?.requiredApprovals} approvals to lock. Currently have ${data.approvalSummary?.approvals}.`)
         }
-        throw new Error(data.error || 'Failed to lock dates')
+        throw new Error(data.error || "Couldn't confirm dates — try again")
       }
 
       toast.success('Dates locked!')
@@ -864,48 +1097,68 @@ export function DateWindowsFunnel({
     }
   }
 
-  // Handle reacting to proposed dates
-  const handleReact = async (reactionType: 'WORKS' | 'CAVEAT' | 'CANT') => {
+  // Handle reacting to proposed dates (supports per-window reactions)
+  const handleReact = async (reactionType: 'WORKS' | 'CAVEAT' | 'CANT', windowId?: string) => {
+    const targetWindowId = windowId || proposedWindowIds[0] || proposedWindowId
     // Snapshot current state
+    const prevApprovalSummaries = { ...approvalSummaries }
     const prevApprovalSummary = approvalSummary
 
-    // Optimistically update UI
-    if (approvalSummary) {
-      const prevReaction = approvalSummary.userReaction
-      const updated = { ...approvalSummary }
+    // Optimistically update UI for the target window
+    const targetSummary = targetWindowId ? approvalSummaries[targetWindowId] : approvalSummary
+    if (targetSummary && targetWindowId) {
+      const prevReaction = targetSummary.userReaction
+      const updated = { ...targetSummary }
 
-      // Decrement previous reaction count if user already reacted
       if (prevReaction === 'WORKS') updated.approvals = Math.max(0, updated.approvals - 1)
       else if (prevReaction === 'CAVEAT') updated.caveats = Math.max(0, updated.caveats - 1)
       else if (prevReaction === 'CANT') updated.cants = Math.max(0, updated.cants - 1)
 
-      // Increment new reaction count
       if (reactionType === 'WORKS') updated.approvals += 1
       else if (reactionType === 'CAVEAT') updated.caveats += 1
       else if (reactionType === 'CANT') updated.cants += 1
 
-      // Adjust totalReactions if this is a new reaction (no previous)
       if (!prevReaction) updated.totalReactions += 1
-
       updated.userReaction = reactionType
       updated.readyToLock = updated.approvals >= updated.requiredApprovals
 
-      // Update reactions list
       const userName = user.name || user.userName || 'You'
       updated.reactions = updated.reactions.filter((r: Reaction) => r.userId !== user.id)
-      updated.reactions.push({
-        userId: user.id,
-        userName,
-        reactionType,
-        createdAt: new Date().toISOString()
-      })
+      updated.reactions.push({ userId: user.id, userName, reactionType, createdAt: new Date().toISOString() })
+
+      setApprovalSummaries(prev => ({ ...prev, [targetWindowId]: updated }))
+
+      // Also update legacy approvalSummary if this is the primary window
+      if (targetWindowId === (proposedWindowIds[0] || proposedWindowId)) {
+        setApprovalSummary(updated)
+      }
+    } else if (approvalSummary) {
+      // Legacy single-window path
+      const prevReaction = approvalSummary.userReaction
+      const updated = { ...approvalSummary }
+
+      if (prevReaction === 'WORKS') updated.approvals = Math.max(0, updated.approvals - 1)
+      else if (prevReaction === 'CAVEAT') updated.caveats = Math.max(0, updated.caveats - 1)
+      else if (prevReaction === 'CANT') updated.cants = Math.max(0, updated.cants - 1)
+
+      if (reactionType === 'WORKS') updated.approvals += 1
+      else if (reactionType === 'CAVEAT') updated.caveats += 1
+      else if (reactionType === 'CANT') updated.cants += 1
+
+      if (!prevReaction) updated.totalReactions += 1
+      updated.userReaction = reactionType
+      updated.readyToLock = updated.approvals >= updated.requiredApprovals
+
+      const userName = user.name || user.userName || 'You'
+      updated.reactions = updated.reactions.filter((r: Reaction) => r.userId !== user.id)
+      updated.reactions.push({ userId: user.id, userName, reactionType, createdAt: new Date().toISOString() })
 
       setApprovalSummary(updated)
     }
 
     const labels: Record<string, string> = {
       WORKS: 'Works for me',
-      CAVEAT: 'Maybe with conditions',
+      CAVEAT: 'Checking — we\'ll keep this on your radar',
       CANT: "Can't make it"
     }
     toast.success(labels[reactionType])
@@ -917,16 +1170,17 @@ export function DateWindowsFunnel({
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ reactionType })
+      body: JSON.stringify({ reactionType, windowId: targetWindowId })
     }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to submit reaction')
+        throw new Error(data.error || "Couldn't submit reaction — try again")
       }
       // Background sync
       fetchWindows()
     }).catch((err: any) => {
       // Revert to snapshot
+      setApprovalSummaries(prevApprovalSummaries)
       setApprovalSummary(prevApprovalSummary)
       toast.error(err.message || "Couldn't save — tap to retry")
     }).finally(() => {
@@ -934,12 +1188,62 @@ export function DateWindowsFunnel({
     })
   }
 
+  // Compute sorted available windows for use in aiRecommendation (excludes blockers)
+  const sortedWindowsMemo = useMemo(() =>
+    [...windows]
+      .filter(w => (w.windowType || 'available') !== 'blocker')
+      .sort((a, b) => b.supportCount - a.supportCount),
+    [windows]
+  )
+
+  // Compute AI recommendation for leader (rule-based, not LLM)
+  const aiRecommendation = useMemo(() => {
+    if (!isLeader || phase !== 'COLLECTING' || sortedWindowsMemo.length === 0) return null
+
+    const totalTravelers = proposalStatus?.stats?.totalTravelers || travelers.length
+    if (totalTravelers === 0) return null
+
+    // Score each window
+    const scored = sortedWindowsMemo.map(w => {
+      const confirmed = w.supporterIds.length
+      const missing = travelers.filter(t => !w.supporterIds.includes(t.id))
+      const missingNames = missing.map(t => (t.name || 'Someone').split(' ')[0])
+      const score = confirmed / totalTravelers
+      return { window: w, confirmed, missing: missing.length, missingNames, score }
+    })
+
+    // Best window (sortedWindowsMemo is already sorted by supportCount desc)
+    const best = scored[0]
+    if (!best) return null
+
+    // Build recommendation text
+    let reason = ''
+    if (best.score === 1) {
+      reason = 'Works for everyone!'
+    } else if (best.score >= 0.8) {
+      reason = `Works for ${best.confirmed} of ${totalTravelers}. ${best.missingNames.length === 1 ? `Only ${best.missingNames[0]} hasn't confirmed.` : `${best.missingNames.join(' and ')} haven't confirmed yet.`}`
+    } else if (best.score >= 0.5) {
+      reason = `${best.confirmed} of ${totalTravelers} confirmed. ${best.missingNames.slice(0, 3).join(', ')}${best.missingNames.length > 3 ? ` and ${best.missingNames.length - 3} more` : ''} haven't responded.`
+    } else {
+      reason = `Only ${best.confirmed} of ${totalTravelers} confirmed so far. You may want to wait for more responses.`
+    }
+
+    // Check if there's a close second with the same support
+    const runner = scored[1]
+    let alternativeNote = ''
+    if (runner && runner.score === best.score) {
+      alternativeNote = `${formatWindowDisplay(runner.window)} has the same support \u2014 consider which works better for your circle.`
+    }
+
+    return { window: best.window, reason, alternativeNote, score: best.score, confirmed: best.confirmed, total: totalTravelers }
+  }, [isLeader, phase, sortedWindowsMemo, travelers, proposalStatus])
+
   // Loading state
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-red mb-3" />
-        <p className="text-sm text-gray-500">Loading scheduling...</p>
+        <p className="text-sm text-brand-carbon/60">Loading scheduling...</p>
       </div>
     )
   }
@@ -959,6 +1263,7 @@ export function DateWindowsFunnel({
   if (phase === 'LOCKED' || trip.status === 'locked') {
     return (
       <div className="space-y-4 p-4">
+        <PhaseIndicator phase="LOCKED" />
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-3">
             <Lock className="h-6 w-6 text-green-600" />
@@ -971,194 +1276,208 @@ export function DateWindowsFunnel({
             These dates are final. Time to plan the itinerary!
           </p>
           {trip.lockedStartDate && trip.lockedEndDate && (
-            <button
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md border border-green-300 text-green-700 hover:bg-green-100 text-sm font-medium transition-colors"
-              onClick={() => {
-                import('@/lib/trips/generateICS').then(({ generateICS }) => {
-                  const ics = generateICS(trip, null)
-                  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `${(trip.name || 'trip').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')}.ics`
-                  document.body.appendChild(a)
-                  a.click()
-                  document.body.removeChild(a)
-                  URL.revokeObjectURL(url)
-                  toast.success('Calendar file downloaded')
-                })
-              }}
-            >
-              <CalendarIcon className="h-4 w-4" />
-              Add to calendar
-            </button>
+            <div className="flex flex-col items-center gap-2 mt-4">
+              <button
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-green-300 text-green-700 hover:bg-green-100 text-sm font-medium transition-colors"
+                onClick={() => {
+                  import('@/lib/trips/generateICS').then(({ generateICS }) => {
+                    const ics = generateICS(trip, null)
+                    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${(trip.name || 'trip').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '-')}.ics`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                    toast.success('Calendar file downloaded')
+                  })
+                }}
+              >
+                <CalendarIcon className="h-4 w-4" />
+                Add to calendar
+              </button>
+              <button
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-brand-blue/30 text-brand-blue hover:bg-brand-blue/5 text-sm font-medium transition-colors"
+                onClick={async () => {
+                  const dateRange = `${formatDate(trip.lockedStartDate)} – ${formatDate(trip.lockedEndDate)}`
+                  const text = `We locked in dates for ${trip.name}!${trip.destinationHint ? ` ${trip.destinationHint}` : ''} — ${dateRange}`
+                  const receiptUrl = `${window.location.origin}/api/trips/${trip.id}/receipt`
+                  const result = await nativeShare({
+                    title: `${trip.name} — Dates Locked!`,
+                    text,
+                    url: receiptUrl,
+                  })
+                  if (result === 'copied') {
+                    toast.success('Link copied!')
+                  }
+                }}
+              >
+                <Share2 className="h-4 w-4" />
+                Share the news
+              </button>
+            </div>
           )}
         </div>
       </div>
     )
   }
 
-  // PROPOSED phase - show proposed window with reactions and leader actions
-  if (phase === 'PROPOSED' && proposedWindowId) {
-    const proposedWindow = windows.find(w => w.id === proposedWindowId)
-    const canLock = approvalSummary?.readyToLock ?? false
-    const userReaction = approvalSummary?.userReaction
+  // PROPOSED phase - show proposed window(s) with reactions and leader actions
+  if (phase === 'PROPOSED' && proposedWindowIds.length > 0) {
+    const proposedWindows = proposedWindowIds
+      .map(id => windows.find(w => w.id === id))
+      .filter(Boolean) as DateWindow[]
+
+    // Determine the leading window (most WORKS reactions)
+    const leadingId = proposedWindows.reduce((bestId, w) => {
+      const wSummary = approvalSummaries[w.id]
+      const bestSummary = approvalSummaries[bestId]
+      if (!wSummary) return bestId
+      if (!bestSummary) return w.id
+      return wSummary.approvals > bestSummary.approvals ? w.id : bestId
+    }, proposedWindows[0]?.id || '')
+
+    // Lock state for dialog
+    const lockTargetSummary = lockTargetId ? approvalSummaries[lockTargetId] : null
+    const lockTargetWindow = lockTargetId ? windows.find(w => w.id === lockTargetId) : null
+    const lockTargetCanLock = lockTargetSummary?.readyToLock ?? false
 
     return (
       <div className="space-y-4 p-4">
+        <PhaseIndicator phase="PROPOSED" />
         <div className="text-center mb-4">
           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-            Leader's Pick — Share Your Thoughts
+            {proposedWindows.length > 1
+              ? `${proposedWindows.length} Options — Share Your Thoughts`
+              : "Leader's Pick — Share Your Thoughts"
+            }
           </Badge>
         </div>
 
-        {proposedWindow && (
-          <Card className="border-2 border-amber-300 bg-amber-50/50">
-            <CardContent className="pt-4">
-              <div className="text-center">
-                <p className="text-xl font-bold text-brand-carbon">
-                  {formatWindowDisplay(proposedWindow)}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {proposedWindow.supportCount} {proposedWindow.supportCount === 1 ? 'person' : 'people'} can make this
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Proposed window cards */}
+        {proposedWindows.map((pw) => {
+          const wSummary = approvalSummaries[pw.id]
+          const wUserReaction = wSummary?.userReaction
+          const isLeadingOption = pw.id === leadingId && proposedWindows.length > 1 && (wSummary?.approvals || 0) > 0
 
-        {/* Reaction buttons - show for active participants */}
-        <div className="space-y-3">
-          <p className="text-sm font-medium text-center text-brand-carbon">
-            {isActiveParticipant ? 'Do these dates work?' : 'Reactions from travelers'}
-          </p>
-          {isActiveParticipant && (
-          <div className="flex gap-2 justify-center">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant={userReaction === 'WORKS' ? 'default' : 'outline'}
-                    onClick={() => handleReact('WORKS')}
-                    className={userReaction === 'WORKS' ? 'bg-green-600 hover:bg-green-700' : 'border-green-200 text-green-700 hover:bg-green-50'}
-                  >
-                    <ThumbsUp className="h-4 w-4 mr-1" />
-                    Works
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>These dates work for me</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant={userReaction === 'CAVEAT' ? 'default' : 'outline'}
-                    onClick={() => handleReact('CAVEAT')}
-                    className={userReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
-                  >
-                    <HelpCircle className="h-4 w-4 mr-1" />
-                    Maybe
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>I might be able to make this</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant={userReaction === 'CANT' ? 'default' : 'outline'}
-                    onClick={() => handleReact('CANT')}
-                    className={userReaction === 'CANT' ? 'bg-brand-red hover:bg-brand-red/90' : 'border-brand-red/30 text-brand-red hover:bg-brand-red/5'}
-                  >
-                    <ThumbsDown className="h-4 w-4 mr-1" />
-                    Can't
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>I can't make these dates</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          )}
-        </div>
-
-        {/* Reaction summary */}
-        {approvalSummary && approvalSummary.totalReactions > 0 && (
-          <Card className="bg-gray-50">
-            <CardContent className="py-3">
-              <div className="flex justify-center gap-4 text-sm">
-                {approvalSummary.approvals > 0 && (
-                  <span className="flex items-center text-green-600">
-                    <ThumbsUp className="h-3 w-3 mr-1" />
-                    {approvalSummary.approvals}
-                  </span>
-                )}
-                {approvalSummary.caveats > 0 && (
-                  <span className="flex items-center text-amber-600">
-                    <HelpCircle className="h-3 w-3 mr-1" />
-                    {approvalSummary.caveats}
-                  </span>
-                )}
-                {approvalSummary.cants > 0 && (
-                  <span className="flex items-center text-brand-red">
-                    <ThumbsDown className="h-3 w-3 mr-1" />
-                    {approvalSummary.cants}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-center text-muted-foreground mt-1">
-                {approvalSummary.totalReactions} of {approvalSummary.memberCount} have responded
-                {!canLock && ` • ${approvalSummary.requiredApprovals - (approvalSummary.approvals || 0)} more needed to lock`}
-              </p>
-              {/* Show who reacted */}
-              {approvalSummary.reactions.length > 0 && (
-                <div className="mt-2 pt-2 border-t">
-                  <div className="flex flex-wrap justify-center gap-1">
-                    {approvalSummary.reactions.map((r) => (
-                      <TooltipProvider key={r.userId}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded-full ${
-                                r.reactionType === 'WORKS' ? 'bg-green-100 text-green-700' :
-                                r.reactionType === 'CAVEAT' ? 'bg-amber-100 text-amber-700' :
-                                'bg-brand-red/10 text-brand-red'
-                              }`}
-                            >
-                              {r.userName.split(' ')[0]}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {r.userName}: {r.reactionType === 'WORKS' ? 'Works for me' : r.reactionType === 'CAVEAT' ? 'Maybe' : "Can't make it"}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ))}
+          return (
+            <Card key={pw.id} className={`border-2 ${isLeadingOption ? 'border-green-300 bg-green-50/30' : 'border-amber-300 bg-amber-50/50'}`}>
+              <CardContent className="pt-4 space-y-3">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-lg font-bold text-brand-carbon">
+                      {formatWindowDisplay(pw)}
+                    </p>
+                    {isLeadingOption && (
+                      <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                        Leading
+                      </Badge>
+                    )}
                   </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {pw.supportCount} {pw.supportCount === 1 ? 'person' : 'people'} can make this
+                  </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+
+                {/* Per-window reaction buttons */}
+                {isActiveParticipant && (
+                  <div className="flex gap-2 justify-center">
+                    <Button
+                      size="sm"
+                      variant={wUserReaction === 'WORKS' ? 'default' : 'outline'}
+                      onClick={() => handleReact('WORKS', pw.id)}
+                      className={wUserReaction === 'WORKS' ? 'bg-green-600 hover:bg-green-700' : 'border-green-200 text-green-700 hover:bg-green-50'}
+                    >
+                      <ThumbsUp className="h-4 w-4 mr-1" />
+                      Works
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={wUserReaction === 'CAVEAT' ? 'default' : 'outline'}
+                      onClick={() => handleReact('CAVEAT', pw.id)}
+                      className={wUserReaction === 'CAVEAT' ? 'bg-amber-500 hover:bg-amber-600' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}
+                    >
+                      <HelpCircle className="h-4 w-4 mr-1" />
+                      Checking
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={wUserReaction === 'CANT' ? 'default' : 'outline'}
+                      onClick={() => handleReact('CANT', pw.id)}
+                      className={wUserReaction === 'CANT' ? 'bg-brand-red hover:bg-brand-red/90' : 'border-brand-red/30 text-brand-red hover:bg-brand-red/5'}
+                    >
+                      <ThumbsDown className="h-4 w-4 mr-1" />
+                      Can't
+                    </Button>
+                  </div>
+                )}
+
+                {/* Per-window reaction summary */}
+                {wSummary && wSummary.totalReactions > 0 && (
+                  <div className="bg-brand-sand/30 rounded-md px-3 py-2">
+                    <div className="flex justify-center gap-3 text-sm">
+                      {wSummary.approvals > 0 && (
+                        <span className="flex items-center text-green-600">
+                          <ThumbsUp className="h-3 w-3 mr-1" />
+                          {wSummary.approvals}
+                        </span>
+                      )}
+                      {wSummary.caveats > 0 && (
+                        <span className="flex items-center text-amber-600">
+                          <HelpCircle className="h-3 w-3 mr-1" />
+                          {wSummary.caveats}
+                        </span>
+                      )}
+                      {wSummary.cants > 0 && (
+                        <span className="flex items-center text-brand-red">
+                          <ThumbsDown className="h-3 w-3 mr-1" />
+                          {wSummary.cants}
+                        </span>
+                      )}
+                    </div>
+                    {/* Reaction names */}
+                    {wSummary.reactions.length > 0 && (
+                      <div className="flex flex-wrap justify-center gap-1 mt-1.5">
+                        {wSummary.reactions.map((r: Reaction) => (
+                          <span
+                            key={r.userId}
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              r.reactionType === 'WORKS' ? 'bg-green-100 text-green-700' :
+                              r.reactionType === 'CAVEAT' ? 'bg-amber-100 text-amber-700' :
+                              'bg-brand-red/10 text-brand-red'
+                            }`}
+                          >
+                            {r.userName.split(' ')[0]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Leader: lock this specific window */}
+                {isLeader && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setLockTargetId(pw.id); setShowLockConfirm(true) }}
+                    disabled={submitting}
+                    className="w-full text-sm"
+                  >
+                    <Lock className="h-3.5 w-3.5 mr-1.5" />
+                    Lock this option
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
 
         {/* Leader actions */}
         {isLeader && (
           <div className="space-y-3 pt-2 border-t">
-            {/* Primary: Lock dates */}
-            <Button
-              onClick={() => setShowLockConfirm(true)}
-              className={`w-full ${canLock ? 'bg-brand-red hover:bg-brand-red/90' : 'bg-gray-400 hover:bg-gray-500'}`}
-              disabled={submitting}
-            >
-              <Lock className="h-4 w-4 mr-2" />
-              {canLock ? 'Lock these dates' : `Lock dates (${(approvalSummary?.requiredApprovals || 0) - (approvalSummary?.approvals || 0)} more approvals needed)`}
-            </Button>
-
-            {/* Secondary: Change proposal (withdraw and go back to COLLECTING) */}
             <Button
               variant="outline"
               onClick={handleWithdraw}
@@ -1174,29 +1493,26 @@ export function DateWindowsFunnel({
         {/* Non-leader waiting message */}
         {!isLeader && (
           <p className="text-sm text-center text-muted-foreground pt-2 border-t">
-            {canLock
-              ? 'Waiting for the leader to lock dates.'
-              : `The leader can lock once ${approvalSummary?.requiredApprovals || '?'} travelers approve.`
-            }
+            The leader will confirm dates once enough travelers respond.
           </p>
         )}
 
         {/* Lock confirmation dialog */}
-        <AlertDialog open={showLockConfirm} onOpenChange={setShowLockConfirm}>
+        <AlertDialog open={showLockConfirm} onOpenChange={(open) => { setShowLockConfirm(open); if (!open) setLockTargetId(null) }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Lock in these dates?</AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-2">
-                  {proposedWindow && (
-                    <p><strong>{formatWindowDisplay(proposedWindow)}</strong></p>
+                  {lockTargetWindow && (
+                    <p><strong>{formatWindowDisplay(lockTargetWindow)}</strong></p>
                   )}
-                  {approvalSummary && (
+                  {lockTargetSummary && (
                     <p className="text-sm">
-                      {approvalSummary.approvals} of {approvalSummary.memberCount} travelers approved.
-                      {!canLock && (
+                      {lockTargetSummary.approvals} of {lockTargetSummary.memberCount} travelers approved.
+                      {!lockTargetCanLock && (
                         <span className="text-muted-foreground block mt-1">
-                          {approvalSummary.approvals} of {approvalSummary.requiredApprovals} approvals so far.
+                          {lockTargetSummary.approvals} of {lockTargetSummary.requiredApprovals} approvals so far.
                           You can move forward when you're ready.
                         </span>
                       )}
@@ -1210,22 +1526,22 @@ export function DateWindowsFunnel({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
-              {!canLock && (
+              {!lockTargetCanLock && (
                 <AlertDialogAction
-                  onClick={() => handleLock(true)}
+                  onClick={() => handleLock(true, lockTargetId || undefined)}
                   disabled={submitting}
                   className="bg-brand-red hover:bg-brand-red/90"
                 >
                   {submitting ? 'Locking...' : 'Lock anyway'}
                 </AlertDialogAction>
               )}
-              {canLock && (
+              {lockTargetCanLock && (
                 <AlertDialogAction
-                  onClick={() => handleLock(false)}
+                  onClick={() => handleLock(false, lockTargetId || undefined)}
                   disabled={submitting}
                   className="bg-brand-red hover:bg-brand-red/90"
                 >
-                  {submitting ? 'Locking...' : 'Lock dates'}
+                  {submitting ? 'Confirming...' : 'Confirm dates'}
                 </AlertDialogAction>
               )}
             </AlertDialogFooter>
@@ -1236,25 +1552,38 @@ export function DateWindowsFunnel({
   }
 
   // COLLECTING phase - show windows and allow adding/supporting
-  const sortedWindows = [...windows].sort((a, b) => b.supportCount - a.supportCount)
+  // Sort available windows by support count, blockers at end
+  const sortedWindows = [...windows].sort((a, b) => {
+    const aBlocker = (a.windowType || 'available') === 'blocker'
+    const bBlocker = (b.windowType || 'available') === 'blocker'
+    if (aBlocker !== bBlocker) return aBlocker ? 1 : -1
+    if (b.supportCount !== a.supportCount) return b.supportCount - a.supportCount
+    // Tiebreaker: earlier window wins (matches server-side proposalReady.js)
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  })
   const stats = proposalStatus?.stats
   const remainingWindows = maxWindows - userWindowCount
   const similarWindow = similarWindowId ? windows.find(w => w.id === similarWindowId) : null
 
   return (
     <div className="space-y-4 p-4">
+      <PhaseIndicator phase="COLLECTING" />
       {/* Header with progress */}
       <div className="text-center mb-2">
         <h3 className="text-lg font-semibold text-brand-carbon">When works for everyone?</h3>
         {stats && (
           <p className="text-sm text-muted-foreground">
-            {stats.responderCount} of {stats.totalTravelers} travelers have weighed in
+            {isLeader
+              ? `${stats.responderCount} of ${stats.totalTravelers} travelers have weighed in`
+              : stats.responderCount >= 3
+                ? 'Dates are taking shape'
+                : 'Share when you\'re free'}
           </p>
         )}
       </div>
 
       {/* Duration preference selector */}
-      <Card className="bg-gray-50/50">
+      <Card className="bg-brand-sand/20">
         <CardContent className="py-3">
           {/* Show creator's initial duration hint if set */}
           {trip.duration && (
@@ -1283,10 +1612,10 @@ export function DateWindowsFunnel({
                 disabled={!isActiveParticipant}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                   !isActiveParticipant
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    ? 'bg-brand-sand/50 text-brand-carbon/40 border-brand-carbon/10 cursor-not-allowed'
                     : userDurationPref === opt.value
                     ? 'bg-brand-blue text-white border-brand-blue'
-                    : 'bg-white text-gray-700 border-gray-200 hover:border-brand-blue/50'
+                    : 'bg-white text-brand-carbon/80 border-brand-carbon/10 hover:border-brand-blue/50'
                 }`}
               >
                 {opt.label}
@@ -1295,7 +1624,7 @@ export function DateWindowsFunnel({
             ))}
           </div>
           {isLeader && durationTotalResponses > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="mt-3 pt-3 border-t border-brand-carbon/10">
               <p className="text-xs text-muted-foreground mb-1">Group preferences ({durationTotalResponses} responded):</p>
               <div className="flex flex-wrap gap-1">
                 {Object.entries(durationAggregate).map(([pref, users]) =>
@@ -1370,7 +1699,7 @@ export function DateWindowsFunnel({
                 </div>
               )}
 
-              {/* Date input — calendar picker (primary) or text (fallback) */}
+              {/* Date input — type or calendar (equal-weight tabs) */}
               {!showSimilarNudge && (
                 <>
                   {/* Show normalization error with accept anyway option */}
@@ -1403,70 +1732,113 @@ export function DateWindowsFunnel({
                     </div>
                   )}
 
-                  {/* Calendar picker (primary) or free-form text (fallback) */}
                   {!normalizationError && (
                     <>
-                      {!useTextInput ? (
-                        <>
-                          <div>
-                            <Label className="text-sm">When works for you?</Label>
-                            <div className="mt-2">
-                              <DateRangePicker onSelect={handleCalendarSelect} />
-                            </div>
-                            <p className="text-xs text-gray-400 mt-2">
-                              You can change your dates anytime until they're locked.
-                            </p>
-                          </div>
-                          <Button
-                            onClick={() => handleAddWindow(false)}
-                            disabled={submitting || !newDateText.trim()}
-                            className="w-full bg-brand-blue hover:bg-brand-blue/90"
-                          >
-                            {submitting ? 'Adding...' : 'Add these dates'}
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={() => setUseTextInput(true)}
-                            className="w-full text-center text-xs text-brand-blue hover:underline"
-                          >
-                            Can't find your dates? Type them instead
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div>
-                            <Label htmlFor="dateText" className="text-sm">When works for you?</Label>
-                            <Input
-                              id="dateText"
-                              type="text"
-                              value={newDateText}
-                              onChange={(e) => setNewDateText(e.target.value)}
-                              placeholder="e.g., Feb 7-9, early March, last week of June"
-                              className="mt-1"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Try: "Feb 7-9", "mid March", "last weekend of June"
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              You can change your dates anytime until they're locked.
-                            </p>
-                          </div>
-                          <Button
-                            onClick={() => handleAddWindow(false)}
-                            disabled={submitting || !newDateText.trim()}
-                            className="w-full bg-brand-blue hover:bg-brand-blue/90"
-                          >
-                            {submitting ? 'Adding...' : 'Add these dates'}
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={() => { setUseTextInput(false); setNewDateText('') }}
-                            className="w-full text-center text-xs text-brand-blue hover:underline"
-                          >
-                            Use calendar picker instead
-                          </button>
-                        </>
+                      <Label className="text-sm">When works for you?</Label>
+
+                      {/* Smart date chips (only in free mode) */}
+                      {inputMode === 'free' && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {smartChips.map((chip) => (
+                            <button
+                              key={chip.label}
+                              type="button"
+                              onClick={() => handleChipTap(chip)}
+                              className="px-2.5 py-1 rounded-full text-xs font-medium border border-brand-carbon/10 bg-white text-brand-carbon/70 hover:border-brand-blue/50 hover:text-brand-blue transition-colors"
+                            >
+                              {chip.label}
+                            </button>
+                          ))}
+                        </div>
                       )}
+
+                      {/* I'm free / I'm busy segmented toggle */}
+                      <div className="flex rounded-lg bg-brand-sand/50 p-0.5 mt-2 mb-1">
+                        <button
+                          type="button"
+                          onClick={() => setInputMode('free')}
+                          className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
+                            inputMode === 'free'
+                              ? 'bg-white text-brand-carbon shadow-sm'
+                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
+                          }`}
+                        >
+                          I'm free
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInputMode('busy')}
+                          className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
+                            inputMode === 'busy'
+                              ? 'bg-white text-brand-red shadow-sm'
+                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
+                          }`}
+                        >
+                          I'm busy
+                        </button>
+                      </div>
+
+                      {/* Equal-weight toggle tabs */}
+                      <div className="flex rounded-lg bg-brand-sand/50 p-0.5 mt-1.5 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => setUseTextInput(true)}
+                          className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
+                            useTextInput
+                              ? 'bg-white text-brand-carbon shadow-sm'
+                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
+                          }`}
+                        >
+                          Type dates
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setUseTextInput(false); setNewDateText('') }}
+                          className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${
+                            !useTextInput
+                              ? 'bg-white text-brand-carbon shadow-sm'
+                              : 'text-brand-carbon/60 hover:text-brand-carbon/80'
+                          }`}
+                        >
+                          Pick on calendar
+                        </button>
+                      </div>
+
+                      {useTextInput ? (
+                        <div>
+                          <Input
+                            id="dateText"
+                            type="text"
+                            value={newDateText}
+                            onChange={(e) => setNewDateText(e.target.value)}
+                            placeholder="e.g., Feb 7-9, early March, last week of June"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            Try: "Feb 7-9", "mid March", "last weekend of June"
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <DateRangePicker
+                            onSelect={handleCalendarSelect}
+                            selectedStart={chipPreStart}
+                            selectedEnd={chipPreEnd}
+                            heatData={heatData}
+                            totalTravelers={stats?.totalTravelers || travelers.length}
+                          />
+                        </div>
+                      )}
+
+                      <p className="text-xs text-brand-carbon/40 mt-2">
+                        You can change your dates anytime until they're locked.
+                      </p>
+                      <Button
+                        onClick={() => handleAddWindow(false)}
+                        disabled={submitting || !newDateText.trim()}
+                        className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                      >
+                        {submitting ? 'Adding...' : 'Add these dates'}
+                      </Button>
                     </>
                   )}
                 </>
@@ -1501,49 +1873,102 @@ export function DateWindowsFunnel({
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">Date options</p>
           {sortedWindows.map((window, index) => {
+            const isBlocker = (window.windowType || 'available') === 'blocker'
             const isSupported = userSupportedWindowIds.includes(window.id)
-            const isLeading = index === 0 && window.supportCount > 0
+            const isLeading = !isBlocker && index === 0 && window.supportCount > 0
+
+            const isShortlisted = selectedShortlistIds.includes(window.id)
 
             return (
               <Card
                 key={window.id}
-                className={`transition-all ${isLeading ? 'border-brand-blue/50 bg-brand-blue/5' : ''}`}
+                className={`transition-all ${
+                  isBlocker
+                    ? 'border-dashed border-brand-red/40 bg-brand-red/5'
+                    : isShortlisted
+                    ? 'border-brand-red/50 bg-brand-red/5'
+                    : isLeading
+                    ? 'border-brand-blue/50 bg-brand-blue/5'
+                    : ''
+                }`}
+                onClick={shortlistMode && !isBlocker ? () => {
+                  setSelectedShortlistIds(prev =>
+                    prev.includes(window.id)
+                      ? prev.filter(id => id !== window.id)
+                      : prev.length >= 3
+                      ? prev
+                      : [...prev, window.id]
+                  )
+                } : undefined}
               >
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center justify-between">
+                    {/* Shortlist checkbox */}
+                    {shortlistMode && !isBlocker && (
+                      <div className="mr-3 flex-shrink-0">
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                          isShortlisted
+                            ? 'bg-brand-red border-brand-red text-white'
+                            : 'border-brand-carbon/20'
+                        }`}>
+                          {isShortlisted && <Check className="h-3 w-3" />}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-brand-carbon">
+                        <span className={`font-medium ${isBlocker ? 'text-brand-red' : 'text-brand-carbon'}`}>
                           {window.precision === 'unstructured'
                             ? `"${window.sourceText}"`
                             : `${formatDate(window.startDate)} – ${formatDate(window.endDate)}`
                           }
                         </span>
+                        {isBlocker && (
+                          <Badge variant="outline" className="text-xs bg-brand-red/10 text-brand-red border-brand-red/30">
+                            Busy
+                          </Badge>
+                        )}
                         {isLeading && (
                           <Badge variant="outline" className="text-xs bg-brand-blue/10 text-brand-blue border-brand-blue/30">
                             Most popular
                           </Badge>
                         )}
-                        {window.precision === 'approx' && (
+                        {!isBlocker && window.precision === 'approx' && (
                           <Badge variant="outline" className="text-xs">
                             Flexible
                           </Badge>
                         )}
-                        {window.precision === 'unstructured' && (
+                        {!isBlocker && window.precision === 'unstructured' && (
                           <Badge variant="outline" className="text-xs">
                             Flexible
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
-                        <Users className="h-3 w-3" />
-                        <span>{window.supportCount} can make this</span>
-                      </div>
+                      {!isBlocker && (
+                        <>
+                          <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
+                            <Users className="h-3 w-3" />
+                            <span>{window.supportCount} can make this</span>
+                          </div>
+                          {/* Conflict detection — show who hasn't confirmed (leader only) */}
+                          {isLeader && (() => {
+                            const totalCount = travelers.length
+                            const confirmedCount = window.supporterIds.length
+                            const unconfirmed = travelers.filter(t => !window.supporterIds.includes(t.id))
+                            const unconfirmedNames = unconfirmed.map(t => (t.name || '?').split(' ')[0])
+                            return totalCount > 0 && confirmedCount < totalCount && unconfirmedNames.length > 0 ? (
+                              <p className="text-xs text-brand-carbon/40 mt-0.5">
+                                Not yet: {unconfirmedNames.slice(0, 4).join(', ')}{unconfirmedNames.length > 4 ? ` +${unconfirmedNames.length - 4}` : ''}
+                              </p>
+                            ) : null
+                          })()}
+                        </>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Support/unsupport button */}
-                      {phase === 'COLLECTING' && isActiveParticipant && (
+                      {/* Support/unsupport button (hide for blockers) */}
+                      {!isBlocker && phase === 'COLLECTING' && isActiveParticipant && (
                         isSupported ? (
                           <Button
                             size="sm"
@@ -1621,26 +2046,19 @@ export function DateWindowsFunnel({
       {isLeader && !proposalStatus?.proposalReady && phase === 'COLLECTING' && windows.length > 0 && stats && (
         (() => {
           const responseRate = stats.totalTravelers > 0 ? stats.responderCount / stats.totalTravelers : 0
-          const leadingWindow = proposalStatus?.leadingWindow
           const leaderCount = stats.leaderCount || 0
 
           if (responseRate >= 0.5) {
             return (
-              <p className="text-xs text-brand-carbon/60 text-center">
-                {stats.responderCount} of {stats.totalTravelers} weighed in
-                {leadingWindow && leaderCount > 0
-                  ? <> · <strong>{formatWindowDisplay(leadingWindow)}</strong> leads ({leaderCount})</>
-                  : null
-                }
-              </p>
+              <ConfidenceMeter current={leaderCount} target={stats.thresholdNeeded} />
             )
           }
           return null
         })()
       )}
 
-      {/* Scheduling Insights card */}
-      {phase === 'COLLECTING' && windows.length > 0 && (
+      {/* Scheduling Insights card (non-leader only — leader has sticky footer) */}
+      {!isLeader && phase === 'COLLECTING' && windows.length > 0 && (
         (() => {
           const output = insightData?.output
           const hasInsight = output && output.summary
@@ -1696,7 +2114,7 @@ export function DateWindowsFunnel({
                         )}
                       </h4>
                       {insightData?.isStale && (
-                        <span className="text-[10px] text-muted-foreground bg-gray-100 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] text-muted-foreground bg-brand-sand/50 px-1.5 py-0.5 rounded">
                           may be outdated
                         </span>
                       )}
@@ -1716,7 +2134,7 @@ export function DateWindowsFunnel({
                               <span>
                                 {p.text}
                                 {p.confidence === 'low' && (
-                                  <span className="text-[10px] text-gray-400 ml-1">(low confidence)</span>
+                                  <span className="text-[10px] text-brand-carbon/40 ml-1">(low confidence)</span>
                                 )}
                               </span>
                             </li>
@@ -1757,7 +2175,7 @@ export function DateWindowsFunnel({
                         <ul className="space-y-1">
                           {output.ambiguities.map((a: any, i: number) => (
                             <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
-                              <span className="text-gray-400 mt-0.5 shrink-0">•</span>
+                              <span className="text-brand-carbon/40 mt-0.5 shrink-0">•</span>
                               <span>{a.text}</span>
                             </li>
                           ))}
@@ -1787,7 +2205,7 @@ export function DateWindowsFunnel({
                                 )}
                               </div>
                               {f.reason && (
-                                <p className="text-xs text-gray-400 mt-1">{f.reason}</p>
+                                <p className="text-xs text-brand-carbon/40 mt-1">{f.reason}</p>
                               )}
                             </li>
                           ))}
@@ -1802,92 +2220,124 @@ export function DateWindowsFunnel({
         })()
       )}
 
-      {/* Unified leader propose section */}
-      {isLeader && phase === 'COLLECTING' && sortedWindows.length > 0 && (
-        <Card className="border-brand-blue/20">
-          <CardContent className="py-4 space-y-3">
-            {proposalStatus?.proposalReady && proposalStatus.leadingWindow ? (
-              <>
-                <p className="text-sm text-muted-foreground text-center">
-                  {proposalStatus.stats.leaderCount} of {proposalStatus.stats.totalTravelers} can make the leading option
-                </p>
-                <Button
-                  onClick={() => handlePropose(proposalStatus.leadingWindow!.id, false)}
-                  disabled={submitting}
-                  className="w-full bg-brand-red hover:bg-brand-red/90"
-                >
-                  {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(proposalStatus.leadingWindow)}`}
-                </Button>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-brand-carbon text-center">
-                  Pick a window to propose
-                </p>
-                <div className="space-y-1.5">
-                  {sortedWindows.map((w) => (
-                    <button
-                      key={w.id}
-                      onClick={() => handlePropose(w.id, !proposalStatus?.proposalReady)}
-                      disabled={submitting}
-                      className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-brand-red/40 hover:bg-brand-red/5 transition-colors text-sm flex items-center justify-between disabled:opacity-50"
-                    >
-                      <span className="text-brand-carbon">{formatWindowDisplay(w)}</span>
-                      <span className="text-xs text-muted-foreground">{w.supportCount} supporters</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+      {/* Sticky propose footer — leader only (only show if there are available windows) */}
+      {isLeader && phase === 'COLLECTING' && sortedWindowsMemo.length > 0 && (
+        <div className="sticky bottom-0 -mx-4 -mb-4 bg-white border-t shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 space-y-2">
+          {/* Condensed AI recommendation one-liner */}
+          {aiRecommendation && (
+            <div className="space-y-1">
+              <p className="text-xs text-brand-carbon/70 text-center">
+                <Sparkles className="inline h-3 w-3 text-brand-red mr-1 align-text-bottom" />
+                TRIPTI.ai recommends <strong>{formatWindowDisplay(aiRecommendation.window)}</strong>
+              </p>
+              <ConfidenceMeter
+                current={aiRecommendation.window.supporterIds.length}
+                target={stats?.thresholdNeeded || Math.ceil((stats?.totalTravelers || travelers.length) / 2)}
+              />
+            </div>
+          )}
 
-            {/* Secondary: propose custom dates */}
-            {!showCustomProposal ? (
-              <button
-                onClick={() => setShowCustomProposal(true)}
-                className="w-full text-center text-xs text-brand-blue hover:underline"
-              >
-                Propose custom dates
-              </button>
-            ) : (
-              <div className="space-y-3 pt-2 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Propose dates that nobody has suggested yet.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="custom-start" className="text-sm">Start date</Label>
-                    <Input
-                      id="custom-start"
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="custom-end" className="text-sm">End date</Label>
-                    <Input
-                      id="custom-end"
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      min={customStartDate || new Date().toISOString().split('T')[0]}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
+          {/* Primary propose button */}
+          {proposalStatus?.proposalReady && proposalStatus.leadingWindow ? (
+            <Button
+              onClick={() => handlePropose(proposalStatus.leadingWindow!.id, false)}
+              disabled={submitting}
+              className="w-full bg-brand-red hover:bg-brand-red/90"
+            >
+              {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(proposalStatus.leadingWindow)}`}
+            </Button>
+          ) : sortedWindowsMemo.length > 0 ? (
+            <Button
+              onClick={() => handlePropose(sortedWindowsMemo[0].id, true)}
+              disabled={submitting}
+              variant="outline"
+              className="w-full border-brand-red/30 text-brand-red hover:bg-brand-red/5"
+            >
+              {submitting ? 'Proposing...' : `Propose ${formatWindowDisplay(sortedWindowsMemo[0])}`}
+            </Button>
+          ) : null}
+
+          {/* Shortlist mode — "Narrow it down" for multi-window proposals */}
+          {sortedWindowsMemo.length >= 3 && !shortlistMode && (
+            <button
+              onClick={() => { setShortlistMode(true); setSelectedShortlistIds([]) }}
+              className="w-full text-center text-xs text-brand-blue hover:underline"
+            >
+              Narrow it down (present 2-3 options)
+            </button>
+          )}
+
+          {shortlistMode && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="text-xs text-muted-foreground text-center">
+                Select 1-3 options to present to the group
+                {selectedShortlistIds.length > 0 && ` (${selectedShortlistIds.length} selected)`}
+              </p>
+              <div className="flex gap-2">
                 <Button
-                  onClick={handleProposeCustomDates}
-                  disabled={submitting || !customStartDate || !customEndDate}
-                  className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                  onClick={() => handleProposeMulti(selectedShortlistIds)}
+                  disabled={submitting || selectedShortlistIds.length === 0}
+                  className="flex-1 bg-brand-red hover:bg-brand-red/90"
+                  size="sm"
                 >
-                  {submitting ? 'Proposing...' : 'Propose these dates'}
+                  {submitting ? 'Proposing...' : 'Present to group'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => { setShortlistMode(false); setSelectedShortlistIds([]) }}
+                  size="sm"
+                >
+                  Cancel
                 </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+
+          {/* Custom dates toggle */}
+          {!shortlistMode && !showCustomProposal ? (
+            <button
+              onClick={() => setShowCustomProposal(true)}
+              className="w-full text-center text-xs text-brand-blue hover:underline"
+            >
+              Propose custom dates
+            </button>
+          ) : (
+            <div className="space-y-2 pt-2 border-t">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="custom-start" className="text-xs">Start</Label>
+                  <Input
+                    id="custom-start"
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="mt-0.5 h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="custom-end" className="text-xs">End</Label>
+                  <Input
+                    id="custom-end"
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    min={customStartDate || new Date().toISOString().split('T')[0]}
+                    className="mt-0.5 h-8 text-sm"
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleProposeCustomDates}
+                disabled={submitting || !customStartDate || !customEndDate}
+                className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                size="sm"
+              >
+                {submitting ? 'Proposing...' : 'Propose these dates'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Concrete dates dialog (for unstructured windows) */}

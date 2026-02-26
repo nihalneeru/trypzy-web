@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <h2 className="text-lg font-semibold text-brand-carbon mb-2">
             Something went wrong
           </h2>
-          <p className="text-sm text-gray-600 mb-4 max-w-md">
+          <p className="text-sm text-brand-carbon/70 mb-4 max-w-md">
             Something went wrong — try refreshing the page.
           </p>
           <Button onClick={this.handleRetry} variant="outline">

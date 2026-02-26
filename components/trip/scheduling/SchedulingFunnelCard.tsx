@@ -167,7 +167,7 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to propose window')
+        throw new Error(error.error || "Couldn't propose window — try again")
       }
 
       const updatedTrip = await response.json()
@@ -177,7 +177,7 @@ export function SchedulingFunnelCard({
       setHasUnsavedChanges(false)
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to suggest window')
+      toast.error(error.message || "Couldn't suggest window — try again")
     } finally {
       setSubmittingWindow(false)
     }
@@ -198,13 +198,13 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to save preference')
+        throw new Error(error.error || "Couldn't save preference — try again")
       }
 
       const updatedTrip = await response.json()
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save preference')
+      toast.error(error.message || "Couldn't save preference — try again")
     } finally {
       setSubmittingPreference(null)
     }
@@ -238,7 +238,7 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to propose dates')
+        throw new Error(error.error || "Couldn't propose dates — try again")
       }
 
       const updatedTrip = await response.json()
@@ -249,7 +249,7 @@ export function SchedulingFunnelCard({
       setHasUnsavedChanges(false)
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to propose dates')
+      toast.error(error.message || "Couldn't propose dates — try again")
     } finally {
       setSubmittingProposal(false)
     }
@@ -270,14 +270,14 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to submit reaction')
+        throw new Error(error.error || "Couldn't submit reaction — try again")
       }
 
       const updatedTrip = await response.json()
       toast.success('Reaction saved!')
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to submit reaction')
+      toast.error(error.message || "Couldn't submit reaction — try again")
     } finally {
       setSubmittingReaction(false)
     }
@@ -298,7 +298,7 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to lock dates')
+        throw new Error(error.error || "Couldn't confirm dates — try again")
       }
 
       const updatedTrip = await response.json()
@@ -306,7 +306,7 @@ export function SchedulingFunnelCard({
       setShowLockConfirmation(false)
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to lock dates')
+      toast.error(error.message || "Couldn't confirm dates — try again")
       setShowLockConfirmation(false)
     } finally {
       setLocking(false)
@@ -321,7 +321,7 @@ export function SchedulingFunnelCard({
           <CardContent className="py-8 text-center">
             <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-brand-carbon mb-2">Dates Locked</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-brand-carbon/70 mb-4">
               {funnelState === SchedulingFunnelState.HOSTED_LOCKED
                 ? 'This is a hosted trip with fixed dates.'
                 : 'Trip dates have been finalized.'}
@@ -350,7 +350,7 @@ export function SchedulingFunnelCard({
             <div className="text-center mb-4">
               <CheckCircle2 className="h-10 w-10 text-green-600 mx-auto mb-3" />
               <h3 className="text-lg font-semibold text-brand-carbon">Ready to Lock!</h3>
-              <p className="text-gray-600">
+              <p className="text-brand-carbon/70">
                 {approvalStats.approvals} of {memberCount} members approved ({approvalStats.required} needed)
               </p>
             </div>
@@ -368,8 +368,8 @@ export function SchedulingFunnelCard({
                 Lock Dates
               </Button>
             ) : (
-              <div className="text-center text-gray-600 text-sm">
-                Waiting for the trip leader to lock dates...
+              <div className="text-center text-brand-carbon/70 text-sm">
+                Waiting for the trip leader to confirm dates...
               </div>
             )}
           </CardContent>
@@ -379,9 +379,9 @@ export function SchedulingFunnelCard({
         <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+              <AlertDialogTitle>Confirm dates for everyone?</AlertDialogTitle>
               <AlertDialogDescription>
-                This finalizes the trip dates. Once locked, dates cannot be changed.
+                This finalizes the trip dates. Once confirmed, dates cannot be changed.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -435,7 +435,7 @@ export function SchedulingFunnelCard({
               </span>
             </div>
 
-            <div className="text-center text-xs text-gray-500 mb-4">
+            <div className="text-center text-xs text-brand-carbon/60 mb-4">
               {approvalStats.required - approvalStats.approvals > 0
                 ? `Need ${approvalStats.required - approvalStats.approvals} more approval(s) to lock`
                 : 'Ready to lock!'}
@@ -495,19 +495,19 @@ export function SchedulingFunnelCard({
 
         {/* Collapsed windows list (read-only) */}
         {activeWindows.length > 0 && (
-          <Card className="bg-gray-50">
+          <Card className="bg-brand-sand/30">
             <CardHeader
               className="cursor-pointer py-3"
               onClick={() => setWindowsExpanded(!windowsExpanded)}
             >
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm text-gray-600">
+                <CardTitle className="text-sm text-brand-carbon/70">
                   Window Proposals ({activeWindows.length})
                 </CardTitle>
                 {windowsExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-gray-400" />
+                  <ChevronUp className="h-4 w-4 text-brand-carbon/40" />
                 ) : (
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                  <ChevronDown className="h-4 w-4 text-brand-carbon/40" />
                 )}
               </div>
             </CardHeader>
@@ -516,12 +516,12 @@ export function SchedulingFunnelCard({
                 <div className="space-y-2">
                   {activeWindows.map((window) => (
                     <div key={window.id} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
-                      <span className="text-gray-700">{window.description}</span>
-                      <span className="text-xs text-gray-500">by {window.userName}</span>
+                      <span className="text-brand-carbon/80">{window.description}</span>
+                      <span className="text-xs text-brand-carbon/60">by {window.userName}</span>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-brand-carbon/60 mt-2">
                   Windows are frozen while a date proposal is active.
                 </p>
               </CardContent>
@@ -594,11 +594,11 @@ export function SchedulingFunnelCard({
                 const isSubmitting = submittingPreference === window.id
 
                 return (
-                  <div key={window.id} className="p-3 bg-gray-50 rounded-lg border">
+                  <div key={window.id} className="p-3 bg-brand-sand/30 rounded-lg border">
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-medium text-brand-carbon">{window.description}</p>
-                        <p className="text-xs text-gray-500">Suggested by {window.userName}</p>
+                        <p className="text-xs text-brand-carbon/60">Suggested by {window.userName}</p>
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-green-600">{stats.works} Works</span>
@@ -642,7 +642,7 @@ export function SchedulingFunnelCard({
               })}
 
               {activeWindows.length === 0 && (
-                <p className="text-gray-500 text-center py-4">
+                <p className="text-brand-carbon/60 text-center py-4">
                   No windows proposed yet. Suggest a time that works for you!
                 </p>
               )}
@@ -696,7 +696,7 @@ export function SchedulingFunnelCard({
             {/* Leader: Propose dates */}
             {isCreator && activeWindows.length > 0 && (
               <div className="border-t pt-4 mt-4">
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-brand-carbon/70 mb-3">
                   As the organizer, you can propose concrete dates based on group preferences.
                 </p>
                 {!showDateProposalForm ? (
@@ -787,7 +787,7 @@ export function SchedulingFunnelCard({
                   placeholder="e.g., 'First week of March', 'Any weekend in April', 'March 15-20'"
                   rows={2}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-brand-carbon/60 mt-1">
                   Use natural language to describe when you're available.
                 </p>
               </div>
@@ -819,9 +819,9 @@ export function SchedulingFunnelCard({
 
       {/* Tip for leader */}
       {isCreator && (
-        <Card className="bg-gray-50">
+        <Card className="bg-brand-sand/30">
           <CardContent className="py-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-brand-carbon/70">
               <strong>Tip:</strong> Once enough windows are suggested, you can propose concrete dates
               for the group to approve.
             </p>

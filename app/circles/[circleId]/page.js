@@ -180,7 +180,7 @@ export default function CircleDetailPage() {
   // Error state
   if (error || !circle) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-sand/30 flex items-center justify-center">
         <div className="text-center max-w-sm px-4">
           <p className="text-brand-carbon text-lg font-medium mb-2">
             {error || 'Circle not found'}
@@ -214,7 +214,7 @@ export default function CircleDetailPage() {
   const totalTrips = sortedTrips.length + cancelledTrips.length
 
   return (
-    <div className="min-h-screen bg-gray-50" data-testid="circle-page">
+    <div className="min-h-screen bg-brand-sand/30" data-testid="circle-page">
       <AppHeader userName={user?.name} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -299,7 +299,7 @@ export default function CircleDetailPage() {
                     ))}
                   </div>
                   <h3 className="text-lg font-medium text-brand-carbon mb-2">No trips yet</h3>
-                  <p className="text-gray-500 mb-4">Start one — your crew is ready.</p>
+                  <p className="text-brand-carbon/60 mb-4">Start one — your crew is ready.</p>
                   <Button onClick={() => setShowCreateTrip(true)} className="bg-brand-red hover:bg-brand-red/90 text-white">
                     <Plus className="h-4 w-4 mr-1" />
                     Plan a trip
@@ -311,10 +311,10 @@ export default function CircleDetailPage() {
                 {/* Trips you are leading */}
                 {leaderTrips.length > 0 && (
                   <Collapsible open={showLeading} onOpenChange={setShowLeading}>
-                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                       {showLeading ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       <Crown className="h-4 w-4 text-amber-500" aria-hidden="true" />
-                      <span className="font-semibold text-gray-600 uppercase tracking-wide">Trips you are leading ({leaderTrips.length})</span>
+                      <span className="font-semibold text-brand-carbon/70 uppercase tracking-wide">Trips you are leading ({leaderTrips.length})</span>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch mt-2">
@@ -329,10 +329,10 @@ export default function CircleDetailPage() {
                 {/* Trips you are a traveler on */}
                 {travelerTrips.length > 0 && (
                   <Collapsible open={showTraveler} onOpenChange={setShowTraveler}>
-                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                       {showTraveler ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                      <Users className="h-4 w-4 text-gray-500" aria-hidden="true" />
-                      <span className="font-semibold text-gray-600 uppercase tracking-wide">Trips you are a traveler on ({travelerTrips.length})</span>
+                      <Users className="h-4 w-4 text-brand-carbon/60" aria-hidden="true" />
+                      <span className="font-semibold text-brand-carbon/70 uppercase tracking-wide">Trips you are a traveler on ({travelerTrips.length})</span>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch mt-2">
@@ -347,7 +347,7 @@ export default function CircleDetailPage() {
                 {/* Completed trips */}
                 {completedTrips.length > 0 && (
                   <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
-                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                       {showCompleted ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       <CheckCircle2 className="h-4 w-4" />
                       <span>Completed ({completedTrips.length})</span>
@@ -365,7 +365,7 @@ export default function CircleDetailPage() {
                 {/* Other trips in this circle */}
                 {otherTrips.length > 0 && (
                   <Collapsible open={showOther} onOpenChange={setShowOther}>
-                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                       {showOther ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       <span>Other trips in this circle ({otherTrips.length})</span>
                     </CollapsibleTrigger>
@@ -382,7 +382,7 @@ export default function CircleDetailPage() {
                 {/* Canceled trips */}
                 {cancelledTrips.length > 0 && (
                   <Collapsible open={showCancelled} onOpenChange={setShowCancelled}>
-                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-2">
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-brand-carbon/60 hover:text-brand-carbon/80 py-2">
                       {showCancelled ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       <XCircle className="h-4 w-4" />
                       <span>Canceled ({cancelledTrips.length})</span>
@@ -433,7 +433,7 @@ export default function CircleDetailPage() {
                 <CardContent>
                   <Camera className="h-10 w-10 text-brand-sand mx-auto mb-4" aria-hidden="true" />
                   <h3 className="text-lg font-medium text-brand-carbon mb-2">No memories yet</h3>
-                  <p className="text-gray-500 mb-4">Photos and moments from your trips will show up here.</p>
+                  <p className="text-brand-carbon/60 mb-4">Photos and moments from your trips will show up here.</p>
                   <Button onClick={() => setShowCreatePost(true)} variant="outline" className="border-brand-blue text-brand-blue">
                     <Camera className="h-4 w-4 mr-1" />
                     Share a memory

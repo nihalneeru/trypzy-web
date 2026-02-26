@@ -57,6 +57,8 @@ interface SchedulingOverlayProps {
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
   onQuoteToChat?: (quote: string) => void
+  prefillStart?: string
+  prefillEnd?: string
 }
 
 // Helper function for getting initials
@@ -84,7 +86,9 @@ export function SchedulingOverlay({
   onRefresh,
   onClose,
   setHasUnsavedChanges,
-  onQuoteToChat
+  onQuoteToChat,
+  prefillStart,
+  prefillEnd
 }: SchedulingOverlayProps) {
   // Check scheduling mode - use funnel for 'funnel' mode trips
   const isFunnelMode = trip.schedulingMode === 'funnel'
@@ -418,7 +422,7 @@ export function SchedulingOverlay({
 
   const lockDates = async (startDateISO: string) => {
     if (!isCreator) {
-      toast.error('Only the trip leader can lock dates.')
+      toast.error('Only the trip leader can confirm dates.')
       return
     }
 
@@ -454,7 +458,7 @@ export function SchedulingOverlay({
       onRefresh(updatedTrip)
     } catch (error: any) {
       if (error.message?.includes('403') || error.message?.includes('Only')) {
-        toast.error('Locking dates is available to the trip leader')
+        toast.error('Confirming dates is available to the trip leader')
       } else {
         toast.error(error.message || 'Could not lock dates — please try again')
       }
@@ -516,6 +520,8 @@ export function SchedulingOverlay({
         onClose={onClose}
         setHasUnsavedChanges={setHasUnsavedChanges}
         onQuoteToChat={onQuoteToChat}
+        prefillStart={prefillStart}
+        prefillEnd={prefillEnd}
       />
     )
   }
@@ -528,7 +534,7 @@ export function SchedulingOverlay({
           <CardContent className="py-8 text-center">
             <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-brand-carbon mb-2">Dates confirmed</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-brand-carbon/70 mb-4">
               Trip dates are set
             </p>
             <div className="text-3xl font-bold text-green-800 mb-4">
@@ -602,13 +608,13 @@ export function SchedulingOverlay({
                         disabled={!canParticipate}
                       />
                       <Label htmlFor={option.optionKey} className="flex-1 cursor-pointer">
-                        <div className="p-3 bg-white rounded-lg border hover:bg-gray-50 transition-colors">
+                        <div className="p-3 bg-white rounded-lg border hover:bg-brand-sand/30 transition-colors">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3">
-                              <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
+                              <span className="text-lg font-bold text-brand-carbon/40">#{idx + 1}</span>
                               <div>
                                 <p className="font-medium">{option.startDate} to {option.endDate}</p>
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-brand-carbon/60">
                                   Compatibility: {(option.score * 100).toFixed(0)}%
                                 </p>
                               </div>
@@ -618,8 +624,8 @@ export function SchedulingOverlay({
                             </Badge>
                           </div>
                           {voters.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-gray-200">
-                              <span className="text-xs text-gray-500 font-medium">Voted by:</span>
+                            <div className="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-brand-carbon/10">
+                              <span className="text-xs text-brand-carbon/60 font-medium">Voted by:</span>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {displayVoters.map((voter) => (
                                   <span
@@ -632,7 +638,7 @@ export function SchedulingOverlay({
                                 ))}
                                 {remainingCount > 0 && (
                                   <span
-                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700 font-medium"
+                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-brand-sand/50 text-brand-carbon/80 font-medium"
                                     title={voters.slice(6).map(v => v.name).join(', ')}
                                   >
                                     +{remainingCount} more
@@ -671,14 +677,14 @@ export function SchedulingOverlay({
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <Lock className="h-4 w-4 mr-2" />
-                  Lock dates
+                  Confirm dates
                 </Button>
               )}
             </div>
 
             {!isCreator && (
-              <p className="text-xs text-gray-500 mt-2">
-                Only the trip leader can lock dates.
+              <p className="text-xs text-brand-carbon/60 mt-2">
+                Only the trip leader can confirm dates.
               </p>
             )}
           </CardContent>
@@ -743,7 +749,7 @@ export function SchedulingOverlay({
           {/* Current Picks */}
           <div className="mb-4 space-y-2">
             {datePicks.length === 0 ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-brand-carbon/60">
                 Hover over dates to preview, then click to add your first pick.
               </p>
             ) : (
@@ -755,8 +761,8 @@ export function SchedulingOverlay({
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
                       activeRank === pick.rank
                         ? 'bg-brand-blue/5 border-brand-blue/30 ring-2 ring-brand-blue/20'
-                        : 'bg-gray-50 border-gray-200'
-                    } ${canParticipate ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                        : 'bg-brand-sand/30 border-brand-carbon/10'
+                    } ${canParticipate ? 'cursor-pointer hover:bg-brand-sand/50' : ''}`}
                     onClick={() => canParticipate && editPick(pick.rank)}
                   >
                     <div className="flex-1">
@@ -784,6 +790,7 @@ export function SchedulingOverlay({
                         removePick(pick.startDateISO)
                       }}
                       disabled={!canParticipate}
+                      aria-label="Remove date pick"
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -811,7 +818,7 @@ export function SchedulingOverlay({
             </div>
 
             {/* Date range info */}
-            <div className="mb-3 text-xs text-gray-600 space-y-1">
+            <div className="mb-3 text-xs text-brand-carbon/70 space-y-1">
               <div className="flex items-center gap-4 flex-wrap">
                 <span>
                   <strong>Date range:</strong> {formatDisplayDate(startBound)} - {formatDisplayDate(endBound)}
@@ -824,8 +831,8 @@ export function SchedulingOverlay({
 
             {/* Rank Selection Legend */}
             {canParticipate && !isLocked && !isVoting && (
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
-                <p className="text-xs font-medium text-gray-700 mb-2">Click a rank below, then click a date to select:</p>
+              <div className="mb-4 p-3 bg-brand-sand/30 rounded-lg border">
+                <p className="text-xs font-medium text-brand-carbon/80 mb-2">Click a rank below, then click a date to select:</p>
                 <div className="flex items-center gap-3 flex-wrap">
                   {[1, 2, 3].map((rank) => {
                     const RankIcon = getRankIcon(rank)
@@ -840,7 +847,7 @@ export function SchedulingOverlay({
                             ? 'bg-brand-blue/10 text-brand-blue ring-2 ring-brand-blue/40'
                             : existingPick
                             ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                            : 'bg-white text-brand-carbon/70 border border-brand-carbon/10 hover:bg-brand-sand/50'
                         }`}
                       >
                         {RankIcon && <RankIcon className={`h-3.5 w-3.5 ${getRankColor(rank)}`} />}
@@ -862,12 +869,12 @@ export function SchedulingOverlay({
             <div className="space-y-4 max-h-[320px] overflow-y-auto">
               {calendarMonths.map((monthData) => (
                 <div key={`${monthData.year}-${monthData.month}`} className="space-y-1">
-                  <h4 className="text-xs font-semibold text-gray-700 px-1 sticky top-0 bg-white">
+                  <h4 className="text-xs font-semibold text-brand-carbon/80 px-1 sticky top-0 bg-white">
                     {monthData.monthName}
                   </h4>
                   <div className="grid grid-cols-7 gap-0.5">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                      <div key={day} className="text-center text-[10px] font-medium text-gray-500 py-0.5">
+                      <div key={day} className="text-center text-[10px] font-medium text-brand-carbon/60 py-0.5">
                         {day.slice(0, 1)}
                       </div>
                     ))}
@@ -881,10 +888,10 @@ export function SchedulingOverlay({
                       if (!day.isInBounds) {
                         bgColor = 'bg-transparent'
                       } else if (!day.isValidStart) {
-                        bgColor = 'bg-gray-50'
+                        bgColor = 'bg-brand-sand/30'
                       } else {
                         const intensity = day.score > 0 ? Math.min(day.score / expectedMaxScore, 1) : 0
-                        bgColor = intensity > 0.7 ? 'bg-green-600' : intensity > 0.4 ? 'bg-green-400' : intensity > 0 ? 'bg-green-200' : 'bg-gray-100'
+                        bgColor = intensity > 0.7 ? 'bg-green-600' : intensity > 0.4 ? 'bg-green-400' : intensity > 0 ? 'bg-green-200' : 'bg-brand-sand/50'
                       }
 
                       const userPick = datePicks.find(p => p.startDateISO === day.dateISO)
@@ -926,7 +933,7 @@ export function SchedulingOverlay({
                               : userPick
                               ? 'ring-2 ring-brand-blue ring-offset-0'
                               : ''
-                          } ${bgColor} ${bgColor.startsWith('bg-green') ? 'text-white' : 'text-gray-600'}`}
+                          } ${bgColor} ${bgColor.startsWith('bg-green') ? 'text-white' : 'text-brand-carbon/70'}`}
                           title={
                             !day.isInBounds
                               ? 'Outside date range'
@@ -966,9 +973,9 @@ export function SchedulingOverlay({
             </div>
 
             {/* Legend */}
-            <div className="mt-3 flex items-center gap-2 sm:gap-4 text-xs text-gray-500 flex-wrap">
+            <div className="mt-3 flex items-center gap-2 sm:gap-4 text-xs text-brand-carbon/60 flex-wrap">
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-gray-100 border rounded" />
+                <div className="w-3 h-3 bg-brand-sand/50 border rounded" />
                 <span>No preference</span>
               </div>
               <div className="flex items-center gap-1">
@@ -1029,7 +1036,7 @@ export function SchedulingOverlay({
           <CardContent>
             <div className="space-y-3">
               {trip.topCandidates.slice(0, 3).map((candidate: any, idx: number) => (
-                <div key={candidate.startDateISO} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                <div key={candidate.startDateISO} className="flex items-center justify-between p-3 bg-brand-sand/30 rounded-lg border">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <Badge variant="secondary">#{idx + 1}</Badge>
@@ -1037,7 +1044,7 @@ export function SchedulingOverlay({
                         {formatDateRange(candidate.startDateISO)}
                       </span>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-brand-carbon/70">
                       {candidate.loveCount} love, {candidate.canCount} can, {candidate.mightCount} might
                     </div>
                   </div>
@@ -1058,13 +1065,13 @@ export function SchedulingOverlay({
         </Card>
       )}
 
-      {/* Lock Confirmation Dialog */}
+      {/* Confirm Dates Dialog */}
       <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+            <AlertDialogTitle>Confirm dates for everyone?</AlertDialogTitle>
             <AlertDialogDescription>
-              This finalizes the trip dates. Once locked, dates cannot be changed.
+              This finalizes the trip dates. Once confirmed, dates cannot be changed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

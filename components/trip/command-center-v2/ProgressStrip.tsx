@@ -4,6 +4,9 @@ import { useMemo, useRef, useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
+import { ChevronLeft } from 'lucide-react'
+import { circlePageHref } from '@/lib/navigation/routes'
 import {
   Tooltip,
   TooltipContent,
@@ -64,7 +67,7 @@ function StripCircle({
   const getIconColor = () => {
     if (isActiveOverlay || isBlocker || isCompleted) return 'text-white'
     if (isNextStep) return 'text-brand-carbon/60'
-    return 'text-gray-500'
+    return 'text-brand-carbon/60'
   }
 
   return (
@@ -87,7 +90,7 @@ function StripCircle({
         </div>
       )}
       <div className={cn(
-        'w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200',
+        'w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300',
         getBgColor(),
         isBlocker && !isActiveOverlay && 'ring-2 ring-brand-red/30 ring-offset-1'
       )}>
@@ -114,6 +117,8 @@ interface ProgressStripProps {
   participationMeter?: { responded: number; total: number; label: string } | null
   /** Whether the current user is the trip leader */
   isLeader?: boolean
+  /** Circle ID for back navigation (falls back to /dashboard) */
+  circleId?: string | null
 }
 
 export function ProgressStrip({
@@ -127,11 +132,34 @@ export function ProgressStrip({
   activeOverlay,
   onStepClick,
   participationMeter,
-  isLeader = false
+  isLeader = false,
+  circleId,
 }: ProgressStripProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const effectiveStart = lockedStartDate || startDate
   const effectiveEnd = lockedEndDate || endDate
+
+  // Track whether the scroll container has overflow to show/hide the scroll gradient
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const checkScroll = () => {
+      const hasOverflow = container.scrollWidth > container.clientWidth
+      const isNotAtEnd = container.scrollLeft + container.clientWidth < container.scrollWidth - 4
+      setCanScrollRight(hasOverflow && isNotAtEnd)
+    }
+
+    checkScroll()
+    container.addEventListener('scroll', checkScroll, { passive: true })
+    window.addEventListener('resize', checkScroll)
+    return () => {
+      container.removeEventListener('scroll', checkScroll)
+      window.removeEventListener('resize', checkScroll)
+    }
+  }, [])
 
   // Detect datesLocked transition for ring burst celebration
   const prevDatesLockedRef = useRef(progressSteps.datesLocked)
@@ -164,6 +192,18 @@ export function ProgressStrip({
     }
   }, [effectiveStart, effectiveEnd])
 
+  // Compute "Step X of Y" for mobile indicator
+  const stepIndicator = useMemo(() => {
+    const stageSteps = TRIP_PROGRESS_STEPS.filter(step => STAGE_STEP_KEYS.includes(step.key))
+    const total = stageSteps.length
+    const blockerIdx = stageSteps.findIndex(s => s.key === blockerStageKey)
+    if (blockerIdx >= 0) return { current: blockerIdx + 1, total }
+    // Find last completed step
+    let lastCompletedIdx = -1
+    stageSteps.forEach((s, i) => { if (progressSteps[s.key]) lastCompletedIdx = i })
+    return { current: Math.min(total, lastCompletedIdx + 2), total }
+  }, [progressSteps, blockerStageKey])
+
   // Auto-scroll to blocker/active chevron on mobile
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -187,10 +227,17 @@ export function ProgressStrip({
   }, [blockerStageKey, activeOverlay])
 
   return (
-    <div className="border-b border-gray-200 bg-gray-50 shrink-0 safe-top">
+    <div className="border-b border-brand-carbon/10 bg-brand-sand/30 shrink-0 safe-top">
       {/* Row 1: Trip name + dates + participation meter */}
       <div className="flex items-center justify-between px-3 md:px-4 pt-2 pb-1 gap-2">
         <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
+          <Link
+            href={circleId ? circlePageHref(circleId) : '/dashboard'}
+            className="flex-shrink-0 p-1 -ml-1 text-brand-carbon/50 hover:text-brand-carbon self-center"
+            aria-label="Back"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Link>
           <h1 className="text-sm md:text-base font-semibold text-brand-carbon break-words min-w-0">
             {tripName}
           </h1>
@@ -210,15 +257,15 @@ export function ProgressStrip({
           )}
           {dateDisplay && (
             <>
-              <span className="text-gray-400 hidden sm:inline" aria-hidden="true">·</span>
-              <span className="text-xs md:text-sm text-gray-500 hidden sm:inline whitespace-nowrap">
+              <span className="text-brand-carbon/40 hidden sm:inline" aria-hidden="true">·</span>
+              <span className="text-xs md:text-sm text-brand-carbon/60 hidden sm:inline whitespace-nowrap">
                 {dateDisplay}
               </span>
             </>
           )}
         </div>
         {participationMeter && (
-          <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
+          <span className="text-sm text-brand-carbon/60 whitespace-nowrap shrink-0">
             {participationMeter.responded} of {participationMeter.total} {participationMeter.label}
           </span>
         )}
@@ -270,7 +317,7 @@ export function ProgressStrip({
                   showRingBurst={step.key === 'datesLocked' && showLockBurst}
                 />
                 <span className={cn(
-                  'text-[11px] md:text-xs font-medium leading-tight text-center whitespace-nowrap',
+                  'text-[11px] md:text-xs font-medium leading-tight text-center whitespace-nowrap transition-colors duration-300',
                   isCurrent && 'underline underline-offset-2',
                   isActive
                     ? 'text-brand-blue'
@@ -286,8 +333,17 @@ export function ProgressStrip({
             )
           })}
       </div>
-      {/* Right-edge fade gradient to hint at scrollability on mobile */}
-      <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none md:hidden" />
+      {/* Right-edge fade gradient — only visible when more steps are scrollable */}
+      {canScrollRight && (
+        <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white/80 via-white/40 to-transparent pointer-events-none md:hidden" />
+      )}
+      </div>
+
+      {/* Mobile step counter */}
+      <div className="flex justify-center pb-1.5 md:hidden">
+        <span className="text-[11px] font-medium text-brand-carbon/40">
+          Step {stepIndicator.current} of {stepIndicator.total}
+        </span>
       </div>
     </div>
   )

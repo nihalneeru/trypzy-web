@@ -1,15 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,29 +11,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import {
-  Lightbulb,
-  ListTodo,
-  MessageCircle,
-  Vote,
-  MapPin,
-  Calendar as CalendarIcon,
-  CalendarPlus,
-  Sparkles,
-  RefreshCw,
-  Edit2,
-  Save,
-  X,
-  ThumbsUp,
-  Heart,
-  ChevronDown,
-  AlertTriangle
-} from 'lucide-react'
-import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config'
 import { isTripCompleted } from '@/lib/trips/isTripCompleted'
+
+import { ItineraryIdeasSection } from './ItineraryIdeasSection'
+import { ItineraryEditorPanel } from './ItineraryEditorPanel'
+import { ItineraryFeedbackSection } from './ItineraryFeedbackSection'
 
 // ============================================================================
 // Types
@@ -95,7 +70,13 @@ interface ItineraryVersion {
       budget?: string
       notes?: string
     }
-    days?: ItineraryDay[]
+    days?: {
+      date: string
+      title?: string
+      blocks?: any[]
+      areaFocus?: string
+      groupFit?: string
+    }[]
   }
   llmMeta?: {
     ideaCount?: number
@@ -105,25 +86,6 @@ interface ItineraryVersion {
     chatBriefEnabled?: boolean
     chatBriefSucceeded?: boolean
   }
-}
-
-interface ItineraryDay {
-  date: string
-  title?: string
-  blocks?: ItineraryBlock[]
-  areaFocus?: string
-  groupFit?: string
-}
-
-interface ItineraryBlock {
-  timeRange: string
-  title: string
-  description?: string
-  location?: string
-  estCost?: string
-  transitNotes?: string
-  tags?: string[]
-  reservation?: { needed?: boolean; notes?: string }
 }
 
 interface Reaction {
@@ -199,10 +161,8 @@ const REACTION_GROUPS = [
   }
 ]
 
-// Use centralized config for easy post-MVP adjustment
 const { MAX_IDEAS_PER_USER, MAX_IDEA_LENGTH, MAX_VERSIONS } = ITINERARY_CONFIG
 
-// Cycling progress messages shown during LLM generation
 const GENERATION_PROGRESS_MESSAGES = [
   'Gathering ideas...',
   'Building the itinerary...',
@@ -216,10 +176,6 @@ const GENERATION_PROGRESS_MESSAGES = [
 // Helpers
 // ============================================================================
 
-/**
- * API Helper - makes authenticated requests to the backend
- */
-// Custom error class to preserve API error codes
 class ApiError extends Error {
   code?: string
   constructor(message: string, code?: string) {
@@ -256,34 +212,6 @@ async function api(endpoint: string, options: RequestInit = {}, token: string | 
   return data
 }
 
-/**
- * Format relative date for display
- */
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
-  if (days < 365) return `${Math.floor(days / 30)} months ago`
-  return `${Math.floor(days / 365)} years ago`
-}
-
-/**
- * Parse YYYY-MM-DD date string as local date to avoid timezone issues
- */
-function parseLocalDate(dateStr: string): Date {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  return new Date(year, month - 1, day)
-}
-
-/**
- * Get author ID from various possible fields
- */
 function getAuthorId(idea: Idea): string | null {
   if (!idea) return null
   if (idea.authorUserId) return idea.authorUserId
@@ -330,7 +258,6 @@ export function ItineraryOverlay({
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [revising, setRevising] = useState(false)
-  // Version limit tracking (server is source of truth via data.canRevise)
   const [versionCount, setVersionCount] = useState(0)
   const [maxVersions, setMaxVersions] = useState(MAX_VERSIONS)
   const [canRevise, setCanRevise] = useState(true)
@@ -519,13 +446,10 @@ export function ItineraryOverlay({
       .filter(Boolean)
   }, [reactions, user?.id])
 
-  // Check if revise button should be enabled (combines server canRevise with UI conditions)
+  // Check if revise button should be enabled
   const reviseButtonEnabled = useMemo(() => {
-    // Server says we've hit version limit
     if (!canRevise) return false
-    // Must have a version, be leader, and not currently revising
     if (!latestVersion || !isLeader || revising) return false
-    // Enable if there's new feedback OR reactions for the current version
     return newFeedbackCount > 0 || reactions.length > 0
   }, [canRevise, latestVersion, isLeader, newFeedbackCount, reactions.length, revising])
 
@@ -533,7 +457,6 @@ export function ItineraryOverlay({
   // Data Loading
   // ----------------------------------------------------------------------------
 
-  // Load ideas
   const loadIdeas = useCallback(async () => {
     if (!trip?.id || !token) return
     setLoadingIdeas(true)
@@ -549,7 +472,6 @@ export function ItineraryOverlay({
     }
   }, [trip?.id, token])
 
-  // Load itinerary versions
   const loadVersions = useCallback(async () => {
     if (!trip?.id || !token) return
     setLoadingVersions(true)
@@ -558,7 +480,6 @@ export function ItineraryOverlay({
       const versions = (data.versions || data || [])
         .sort((a: ItineraryVersion, b: ItineraryVersion) => a.version - b.version)
 
-      // Track version metadata from server (source of truth for version limit)
       setVersionCount(data.versionCount ?? versions.length)
       setMaxVersions(data.maxVersions ?? MAX_VERSIONS)
       setCanRevise(data.canRevise ?? versions.length < MAX_VERSIONS)
@@ -579,7 +500,6 @@ export function ItineraryOverlay({
     }
   }, [trip?.id, token])
 
-  // Load feedback for the current version
   const loadFeedback = useCallback(async () => {
     if (!trip?.id || !token || !latestVersion) return
     setLoadingFeedback(true)
@@ -597,7 +517,6 @@ export function ItineraryOverlay({
     }
   }, [trip?.id, token, latestVersion])
 
-  // Load reactions for current version
   const loadReactions = useCallback(async () => {
     if (!latestVersion || !trip?.id || !token) return
     setLoadingReactions(true)
@@ -634,7 +553,6 @@ export function ItineraryOverlay({
   // Actions
   // ----------------------------------------------------------------------------
 
-  // Add idea
   const handleAddIdea = async () => {
     if (!newIdeaText.trim() || addingIdea || viewerIsReadOnly) return
     if (userIdeaCount >= MAX_IDEAS_PER_USER) {
@@ -656,7 +574,7 @@ export function ItineraryOverlay({
       setHasUnsavedChanges(false)
       toast.success('Idea added!')
       await loadIdeas()
-      onRefresh() // Refresh trip to update ideaSummary for CTA bar
+      onRefresh()
     } catch (error: any) {
       toast.error(error.message || 'Could not add idea — please try again')
     } finally {
@@ -664,7 +582,6 @@ export function ItineraryOverlay({
     }
   }
 
-  // Like/unlike idea
   const handleLikeIdea = async (ideaId: string) => {
     if (viewerIsReadOnly) return
     try {
@@ -675,12 +592,10 @@ export function ItineraryOverlay({
     }
   }
 
-  // Save destination hint (leader only)
   const handleSaveDestinationHint = async () => {
     if (!isLeader) return
     setSavingDestinationHint(true)
     try {
-      // P0-3: Get updated trip for immediate UI refresh
       const updatedTrip = await api(
         `/trips/${trip.id}`,
         {
@@ -699,13 +614,11 @@ export function ItineraryOverlay({
     }
   }
 
-  // Cancel destination hint editing
   const handleCancelDestinationHint = () => {
     setDestinationHintValue(trip?.destinationHint || '')
     setEditingDestinationHint(false)
   }
 
-  // Generate itinerary (leader only)
   const handleGenerateItinerary = async (forceGenerate = false) => {
     if (!isLeader || generating) return
     setGenerating(true)
@@ -719,7 +632,6 @@ export function ItineraryOverlay({
       )
       toast.success('Itinerary generated!')
       await loadVersions()
-      // Pass updated trip if returned, otherwise trigger refetch
       onRefresh(result?.trip || undefined)
     } catch (error: any) {
       const message = error.message || 'Couldn\'t generate itinerary — try again'
@@ -776,23 +688,19 @@ export function ItineraryOverlay({
     handleGenerateItinerary(false)
   }
 
-  // Revise itinerary (leader only)
   const handleReviseItinerary = async () => {
     if (!isLeader || revising || !reviseButtonEnabled || llmDisabled) return
     setRevising(true)
     try {
       setLlmDisabledMessage(null)
-      // P0-3: Get updated trip for immediate UI refresh
       const result = await api(`/trips/${trip.id}/itinerary/revise`, { method: 'POST' }, token)
       toast.success('Itinerary revised!')
       await loadVersions()
       await loadFeedback()
-      // Pass updated trip if returned, otherwise trigger refetch
       onRefresh(result?.trip || undefined)
     } catch (error: any) {
       const message = error.message || 'Couldn\'t revise itinerary — try again'
 
-      // Handle specific error codes
       if (error.code === 'VERSION_LIMIT_REACHED') {
         setCanRevise(false)
         toast.info('This itinerary is now finalized')
@@ -807,7 +715,6 @@ export function ItineraryOverlay({
     }
   }
 
-  // Submit feedback
   const handleSubmitFeedback = async () => {
     if (!newFeedback.message.trim() || submittingFeedback || viewerIsReadOnly || !latestVersion) return
     setSubmittingFeedback(true)
@@ -836,7 +743,6 @@ export function ItineraryOverlay({
     }
   }
 
-  // Send a chat message for the reaction
   const sendReactionChatMessage = async (reactionLabel: string, reactionEmoji: string, isAdding: boolean) => {
     try {
       const action = isAdding ? 'prefers' : 'removed preference for'
@@ -850,18 +756,15 @@ export function ItineraryOverlay({
         token
       )
     } catch (error) {
-      // Silent fail - chat message is optional enhancement
       console.error('Failed to send reaction chat message:', error)
     }
   }
 
-  // Handle quick reaction click
   const handleQuickReaction = async (reactionId: string, category: string) => {
     if (reactingChip || viewerIsReadOnly || !latestVersion) return
 
     setReactingChip(reactionId)
 
-    // Find the reaction details for the chat message
     let reactionLabel = ''
     let reactionEmoji = ''
     for (const group of REACTION_GROUPS) {
@@ -884,7 +787,6 @@ export function ItineraryOverlay({
           { method: 'DELETE' },
           token
         )
-        // Send chat message for removing reaction
         await sendReactionChatMessage(reactionLabel, reactionEmoji, false)
         toast.success('Reaction removed')
       } else {
@@ -897,7 +799,6 @@ export function ItineraryOverlay({
           },
           token
         )
-        // Send chat message for adding reaction
         await sendReactionChatMessage(reactionLabel, reactionEmoji, true)
         toast.success('Reaction added')
       }
@@ -915,6 +816,11 @@ export function ItineraryOverlay({
     }
   }
 
+  const handleRetryLoadIdeas = useCallback(() => {
+    setIdeasError(null)
+    loadIdeas()
+  }, [loadIdeas])
+
   // ----------------------------------------------------------------------------
   // Render
   // ----------------------------------------------------------------------------
@@ -922,745 +828,100 @@ export function ItineraryOverlay({
   return (
     <div className="space-y-6">
       {/* Section 1: Ideas Submission */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Lightbulb className="h-5 w-5 text-yellow-500" />
-            Activity Ideas
-          </CardTitle>
-          <CardDescription>
-            Share up to {MAX_IDEAS_PER_USER} activity ideas
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Destination Hint (Leader only) */}
-          {(trip?.destinationHint || isLeader) && (
-            <div className="pb-3 border-b">
-              <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
-              {editingDestinationHint && isLeader ? (
-                <div className="space-y-2">
-                  <Input
-                    value={destinationHintValue}
-                    onChange={(e) => setDestinationHintValue(e.target.value)}
-                    placeholder="e.g., Kenya (Nairobi + Maasai Mara)"
-                    className="text-sm"
-                    disabled={savingDestinationHint}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      onClick={handleSaveDestinationHint}
-                      disabled={savingDestinationHint}
-                      className="h-7"
-                    >
-                      <Save className="h-3 w-3 mr-1" />
-                      Save
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleCancelDestinationHint}
-                      disabled={savingDestinationHint}
-                      className="h-7"
-                    >
-                      <X className="h-3 w-3 mr-1" />
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className={`flex items-start justify-between gap-2${isLeader ? ' cursor-pointer hover:bg-gray-50 rounded-md -mx-1 px-1 transition-colors' : ''}`}
-                  onClick={isLeader ? () => {
-                    setDestinationHintValue(trip?.destinationHint || '')
-                    setEditingDestinationHint(true)
-                  } : undefined}
-                >
-                  {trip?.destinationHint ? (
-                    <p className="text-sm text-gray-700 flex-1">{trip.destinationHint}</p>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic flex-1">No destination set</p>
-                  )}
-                  {isLeader && (
-                    <Edit2 className="h-3 w-3 text-gray-400 shrink-0 mt-0.5" />
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Add Idea Form */}
-          {userIdeaCount < MAX_IDEAS_PER_USER ? (
-            <div className="space-y-2">
-              <Textarea
-                value={newIdeaText}
-                onChange={(e) => setNewIdeaText(e.target.value)}
-                placeholder={
-                  viewerIsReadOnly
-                    ? readOnlyReason || ''
-                    : 'e.g., Visit the local market, Try authentic street food...'
-                }
-                className="text-sm min-h-[80px]"
-                maxLength={MAX_IDEA_LENGTH}
-                disabled={viewerIsReadOnly}
-              />
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>{newIdeaText.length}/{MAX_IDEA_LENGTH} characters</span>
-                <span>{userIdeaCount}/{MAX_IDEAS_PER_USER} ideas added</span>
-              </div>
-              <Button
-                onClick={handleAddIdea}
-                disabled={viewerIsReadOnly || addingIdea || !newIdeaText.trim()}
-                className="w-full"
-                size="sm"
-              >
-                {addingIdea ? 'Adding...' : 'Add idea'}
-              </Button>
-              {viewerIsReadOnly && readOnlyReason && (
-                <p className="text-xs text-gray-500 text-center mt-1">{readOnlyReason}</p>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-4 px-2 bg-gray-50 rounded-lg border">
-              <p className="text-sm text-gray-600">You've added all {MAX_IDEAS_PER_USER} ideas</p>
-            </div>
-          )}
-
-          {/* Ideas List - Grouped by Traveler */}
-          <div className="pt-2">
-            <p className="text-xs font-medium text-gray-500 mb-2">All Ideas</p>
-            <ScrollArea className="h-[180px] md:h-[250px]">
-              {loadingIdeas ? (
-                <div className="space-y-3 py-2">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="flex items-start gap-3 px-2">
-                      <Skeleton className="h-6 w-6 rounded-full shrink-0 mt-0.5" />
-                      <div className="flex-1 space-y-1.5">
-                        <Skeleton className="h-4 w-3/4" />
-                        <Skeleton className="h-3 w-1/2" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : ideasError ? (
-                <div className="flex flex-col items-center justify-center p-8 text-center">
-                  <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
-                  <p className="text-sm text-gray-600 mb-4">{ideasError}</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setIdeasError(null)
-                      loadIdeas()
-                    }}
-                  >
-                    Try again
-                  </Button>
-                </div>
-              ) : ideas.length === 0 ? (
-                <p className="text-center text-gray-500 py-6 text-sm">
-                  No ideas yet. Add some activities!
-                </p>
-              ) : (
-                <Accordion type="multiple" className="w-full">
-                  {groupedIdeas.map((group) => {
-                    const isCurrentUser = group.travelerId === user?.id
-                    const travelerName = isCurrentUser ? 'You' : group.travelerName
-                    const hasEnoughIdeas = group.count >= MAX_IDEAS_PER_USER
-
-                    return (
-                      <AccordionItem key={group.travelerId} value={`traveler-${group.travelerId}`}>
-                        <AccordionTrigger className="hover:no-underline py-2">
-                          <div className="flex items-center gap-2 flex-1 text-left">
-                            <span className="font-medium text-sm">{travelerName}</span>
-                            <span className="text-xs text-gray-500">({group.count}/{MAX_IDEAS_PER_USER})</span>
-                            {hasEnoughIdeas ? (
-                              <span className="text-green-600 text-xs">Complete</span>
-                            ) : (
-                              <span className="text-yellow-600 text-xs">Pending</span>
-                            )}
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-2 pt-1">
-                            {group.ideas.map((idea) => (
-                              <div
-                                key={idea.id}
-                                className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg border"
-                              >
-                                <Button
-                                  size="icon"
-                                  variant={idea.userLiked ? 'default' : 'ghost'}
-                                  className="h-7 w-7 flex-shrink-0"
-                                  onClick={() => handleLikeIdea(idea.id)}
-                                  disabled={viewerIsReadOnly}
-                                >
-                                  <Heart
-                                    className={`h-3.5 w-3.5 ${idea.userLiked ? 'text-white fill-white' : ''}`}
-                                  />
-                                </Button>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-brand-carbon">{idea.text}</p>
-                                  {(idea.likeCount || 0) > 0 && (
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                      {idea.likeCount} {idea.likeCount === 1 ? 'like' : 'likes'}
-                                    </p>
-                                  )}
-                                </div>
-                                {onQuoteToChat && (
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-brand-blue"
-                                    onClick={() => onQuoteToChat(`Re: "${idea.text}" — `)}
-                                    title="Discuss in chat"
-                                  >
-                                    <MessageCircle className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    )
-                  })}
-                </Accordion>
-              )}
-            </ScrollArea>
-          </div>
-        </CardContent>
-      </Card>
+      <ItineraryIdeasSection
+        trip={trip}
+        user={user}
+        isLeader={isLeader}
+        viewerIsReadOnly={viewerIsReadOnly}
+        readOnlyReason={readOnlyReason}
+        maxIdeasPerUser={MAX_IDEAS_PER_USER}
+        maxIdeaLength={MAX_IDEA_LENGTH}
+        ideas={ideas}
+        loadingIdeas={loadingIdeas}
+        ideasError={ideasError}
+        newIdeaText={newIdeaText}
+        setNewIdeaText={setNewIdeaText}
+        addingIdea={addingIdea}
+        userIdeaCount={userIdeaCount}
+        groupedIdeas={groupedIdeas}
+        editingDestinationHint={editingDestinationHint}
+        setEditingDestinationHint={setEditingDestinationHint}
+        destinationHintValue={destinationHintValue}
+        setDestinationHintValue={setDestinationHintValue}
+        savingDestinationHint={savingDestinationHint}
+        onAddIdea={handleAddIdea}
+        onLikeIdea={handleLikeIdea}
+        onSaveDestinationHint={handleSaveDestinationHint}
+        onCancelDestinationHint={handleCancelDestinationHint}
+        onRetryLoadIdeas={handleRetryLoadIdeas}
+        onQuoteToChat={onQuoteToChat}
+      />
 
       {/* Section 2: Itinerary Viewer */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ListTodo className="h-5 w-5" />
-                Itinerary
-              </CardTitle>
-              {latestVersion && (
-                <div className="flex flex-col gap-1.5 mt-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">
-                      Version {selectedVersion?.version || latestVersion.version} of {maxVersions}
-                    </Badge>
-                    {!canRevise && isViewingLatest && (
-                      <Badge variant="secondary" className="text-xs bg-brand-sand text-brand-carbon">
-                        Final
-                      </Badge>
-                    )}
-                    {!isViewingLatest && (
-                      <Badge variant="secondary" className="text-xs">
-                        Viewing older version
-                      </Badge>
-                    )}
-                  </div>
-                  {/* llmMeta transparency — what inputs were used */}
-                  {selectedVersion?.llmMeta && (
-                    <p className="text-xs text-gray-500">
-                      Based on {selectedVersion.llmMeta.ideaCount || 0} idea{(selectedVersion.llmMeta.ideaCount || 0) !== 1 ? 's' : ''}
-                      {(selectedVersion.llmMeta.feedbackCount || 0) > 0 && (
-                        <>, {selectedVersion.llmMeta.feedbackCount} feedback</>
-                      )}
-                      {(selectedVersion.llmMeta.reactionCount || 0) > 0 && (
-                        <>, {selectedVersion.llmMeta.reactionCount} reaction{selectedVersion.llmMeta.reactionCount !== 1 ? 's' : ''}</>
-                      )}
-                      {selectedVersion.llmMeta.chatBriefSucceeded && (
-                        <> + chat context</>
-                      )}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {selectedVersion && trip?.lockedStartDate && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportICS}
-                  className="text-brand-blue border-brand-blue hover:bg-brand-blue/5"
-                >
-                  <CalendarPlus className="h-4 w-4 mr-1" />
-                  Export
-                </Button>
-              )}
-              {isLeader && !latestVersion && (
-                <Button
-                  onClick={handleGenerateClick}
-                  disabled={generating || llmDisabled}
-                  size="sm"
-                >
-                  {generating ? (
-                    <>
-                      <BrandedSpinner size="sm" className="mr-2" />
-                      {GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Generate
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Version picker tabs */}
-          {allVersions.length > 1 && (
-            <div className="flex gap-1 mb-3 pb-3 border-b">
-              {allVersions.map((v, idx) => (
-                <button
-                  key={v.id}
-                  onClick={() => setSelectedVersionIdx(idx)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                    selectedVersionIdx === idx
-                      ? 'bg-brand-blue text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  v{v.version}
-                  {idx === allVersions.length - 1 && ' (latest)'}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <ScrollArea className="h-[250px] md:h-[350px]">
-            {loadingVersions ? (
-              <div className="space-y-4 py-2 px-2">
-                {[1, 2].map(day => (
-                  <div key={day} className="space-y-2">
-                    <Skeleton className="h-5 w-20" />
-                    {[1, 2, 3].map(item => (
-                      <div key={item} className="flex items-center gap-3 pl-2">
-                        <Skeleton className="h-4 w-4 rounded shrink-0" />
-                        <Skeleton className="h-4 w-full max-w-[200px]" />
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            ) : !latestVersion ? (
-              <div className="py-6">
-                {/* "What Tripti will use" panel — pre-generate transparency */}
-                {isLeader ? (
-                  <div className="space-y-3">
-                    <div className="text-center mb-4">
-                      <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-500 text-sm">No itinerary generated yet</p>
-                    </div>
-                    <div className="rounded-lg border border-brand-sand bg-brand-sand/30 p-3">
-                      <p className="text-xs font-semibold text-brand-carbon mb-2">What Tripti will use to generate</p>
-                      <div className="space-y-1.5 text-xs text-brand-carbon/80">
-                        <div className="flex items-center justify-between">
-                          <span>Destination</span>
-                          <span className={`font-medium ${destinationHint ? 'text-brand-carbon' : 'text-gray-400 italic'}`}>
-                            {destinationHint || 'Not set'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Trip dates</span>
-                          <span className="font-medium">
-                            {trip?.lockedStartDate && trip?.lockedEndDate
-                              ? `${new Date(trip.lockedStartDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(trip.lockedEndDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                              : 'Not locked'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Ideas</span>
-                          <span className={`font-medium ${ideas.length > 0 ? 'text-brand-carbon' : 'text-gray-400 italic'}`}>
-                            {ideas.length > 0
-                              ? `${ideas.length} from ${groupedIdeas.length} traveler${groupedIdeas.length !== 1 ? 's' : ''}`
-                              : 'None yet'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Group size</span>
-                          <span className="font-medium">{trip?.activeTravelerCount || trip?.memberCount || '–'} travelers</span>
-                        </div>
-                      </div>
-                    </div>
-                    {llmDisabledMessage && (
-                      <div className="inline-flex items-center gap-2 text-xs text-amber-700">
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        <span>{llmDisabledMessage}</span>
-                      </div>
-                    )}
-                    {generating && (
-                      <p className="text-xs text-gray-500 text-center">{GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <ListTodo className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-500 mb-2 text-sm">No itinerary generated yet</p>
-                    <p className="text-xs text-gray-400">
-                      The leader will generate an itinerary once ideas are in.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : selectedVersion ? (
-              <div className="space-y-4">
-                {/* Changelog — prominent banner for v2+ */}
-                {selectedVersion.changeLog && selectedVersion.version > 1 && (
-                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                    <p className="text-xs font-semibold text-amber-800 mb-1">
-                      What changed in v{selectedVersion.version}
-                    </p>
-                    <p className="text-sm text-amber-900/80">{selectedVersion.changeLog}</p>
-                  </div>
-                )}
-
-                {/* Overview */}
-                {selectedVersion.content?.overview && (
-                  <div className="p-3 bg-brand-blue/5 rounded-lg border border-brand-blue/20">
-                    <p className="text-xs font-medium mb-1">Overview</p>
-                    <p className="text-xs text-gray-600">
-                      Pace: {selectedVersion.content.overview.pace} | Budget:{' '}
-                      {selectedVersion.content.overview.budget}
-                    </p>
-                    {selectedVersion.content.overview.notes && (
-                      <p className="text-xs text-gray-600 mt-1">
-                        {selectedVersion.content.overview.notes}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Days */}
-                {selectedVersion.content?.days && (
-                  <Accordion type="multiple" className="w-full">
-                    {selectedVersion.content.days.map((day, dayIdx) => (
-                      <AccordionItem key={dayIdx} value={`day-${dayIdx}`}>
-                        <AccordionTrigger className="hover:no-underline py-2">
-                          <div className="flex items-center gap-2">
-                            <CalendarIcon className="h-4 w-4" />
-                            <span className="font-medium text-sm">
-                              {parseLocalDate(day.date).toLocaleDateString('en-US', {
-                                weekday: 'short',
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </span>
-                            {day.title && (
-                              <span className="text-xs text-gray-500">- {day.title}</span>
-                            )}
-                            {day.areaFocus && (
-                              <span className="text-xs text-brand-blue ml-1">· {day.areaFocus}</span>
-                            )}
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-2 pt-1">
-                            {day.blocks && day.blocks.length > 0 ? (
-                              day.blocks.map((block, blockIdx) => (
-                                <div
-                                  key={blockIdx}
-                                  className="border rounded-lg p-2.5 bg-gray-50"
-                                >
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-xs font-medium text-[#FA3823]">
-                                      {block.timeRange}
-                                    </span>
-                                    {block.tags?.map((tag, tagIdx) => (
-                                      <Badge key={tagIdx} variant="secondary" className="text-xs">
-                                        {tag}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                  <p className="font-medium text-sm">{block.title}</p>
-                                  {block.description && (
-                                    <p className="text-xs text-gray-600 mt-0.5">
-                                      {block.description}
-                                    </p>
-                                  )}
-                                  {block.location && (
-                                    <p className="text-xs text-brand-blue mt-1 flex items-center gap-1">
-                                      <MapPin className="h-3 w-3" />
-                                      {block.location}
-                                    </p>
-                                  )}
-                                  {block.estCost && (
-                                    <p className="text-xs text-green-600 mt-0.5">
-                                      Est. {block.estCost}
-                                    </p>
-                                  )}
-                                  {block.transitNotes && (
-                                    <p className="text-xs text-gray-500 mt-0.5 italic">
-                                      Transit: {block.transitNotes}
-                                    </p>
-                                  )}
-                                  {block.reservation?.needed && (
-                                    <p className="text-xs text-amber-600 mt-0.5">
-                                      Reservation{block.reservation.notes ? `: ${block.reservation.notes}` : ' recommended'}
-                                    </p>
-                                  )}
-                                </div>
-                              ))
-                            ) : (
-                              <p className="text-xs text-gray-400 italic">No activities planned</p>
-                            )}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                )}
-              </div>
-            ) : null}
-          </ScrollArea>
-        </CardContent>
-      </Card>
+      <ItineraryEditorPanel
+        trip={trip}
+        isLeader={isLeader}
+        destinationHint={destinationHint}
+        ideas={ideas}
+        groupedIdeas={groupedIdeas}
+        allVersions={allVersions}
+        selectedVersionIdx={selectedVersionIdx}
+        setSelectedVersionIdx={setSelectedVersionIdx}
+        latestVersion={latestVersion}
+        selectedVersion={selectedVersion}
+        isViewingLatest={isViewingLatest}
+        loadingVersions={loadingVersions}
+        maxVersions={maxVersions}
+        canRevise={canRevise}
+        generating={generating}
+        llmDisabled={llmDisabled}
+        llmDisabledMessage={llmDisabledMessage}
+        generatingMsgIndex={generatingMsgIndex}
+        progressMessages={GENERATION_PROGRESS_MESSAGES}
+        onGenerateClick={handleGenerateClick}
+        onExportICS={handleExportICS}
+      />
 
       {/* Section 3: Feedback & Reactions */}
       {latestVersion && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <MessageCircle className="h-5 w-5" />
-                  Feedback
-                </CardTitle>
-                <CardDescription>
-                  React to v{latestVersion.version} or add detailed feedback
-                </CardDescription>
-              </div>
-              {isLeader && (
-                <div className="flex flex-col items-end gap-1">
-                  {!canRevise ? (
-                    <p className="text-xs text-gray-500">
-                      Maximum {maxVersions} versions reached
-                    </p>
-                  ) : newFeedbackCount > 0 || reactions.length > 0 ? (
-                    <p className="text-xs text-gray-500">
-                      {newFeedbackCount > 0 && `${newFeedbackCount} feedback`}
-                      {newFeedbackCount > 0 && reactions.length > 0 && ', '}
-                      {reactions.length > 0 && `${reactions.length} reaction${reactions.length !== 1 ? 's' : ''}`}
-                      {' '}since v{latestVersion.version}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-400">Waiting for feedback or reactions</p>
-                  )}
-                  {canRevise && versionCount < maxVersions && (
-                    <p className="text-xs text-gray-400">
-                      {maxVersions - versionCount} revision{maxVersions - versionCount !== 1 ? 's' : ''} remaining
-                    </p>
-                  )}
-                  {llmDisabledMessage && (
-                    <p className="text-xs text-amber-700">{llmDisabledMessage}</p>
-                  )}
-                  <Button
-                    onClick={handleReviseItinerary}
-                    disabled={!reviseButtonEnabled || llmDisabled}
-                    size="sm"
-                    variant="outline"
-                  >
-                    {revising ? (
-                      <>
-                        <BrandedSpinner size="sm" className="mr-2" />
-                        {GENERATION_PROGRESS_MESSAGES[generatingMsgIndex]}
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Revise
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Quick Reactions */}
-            <div className="space-y-3">
-              {REACTION_GROUPS.filter(
-                (group) => !group.advanced || showAdvancedPreferences
-              ).map((group) => (
-                <div key={group.category}>
-                  <p className="text-xs font-medium text-gray-700 mb-2">{group.label}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {group.reactions
-                      .filter((rx) => !rx.advanced || showAdvancedPreferences)
-                      .map((reaction) => {
-                        const isReacting = reactingChip === reaction.id
-                        const isDisabled = reactingChip !== null || viewerIsReadOnly
-                        const reactionCount = reactionCounts.get(reaction.id) || 0
-                        const userHasReaction = reactions.some(
-                          (r) => r.userId === user?.id && r.reactionKey === reaction.id
-                        )
-                        // Get names of users who reacted
-                        const reactedUsers = reactions
-                          .filter((r) => r.reactionKey === reaction.id)
-                          .map((r) => r.user?.name || 'Unknown')
-
-                        return (
-                          <div key={reaction.id} className="flex flex-col items-start">
-                            <Button
-                              variant={userHasReaction ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => handleQuickReaction(reaction.id, group.category)}
-                              disabled={isDisabled}
-                              className="text-xs h-9 md:h-8"
-                              title={reactedUsers.length > 0 ? `Voted by: ${reactedUsers.join(', ')}` : undefined}
-                            >
-                              {isReacting ? (
-                                <>
-                                  <span className="mr-1">OK</span>
-                                  {reactingAction === 'adding' ? 'Added!' : 'Removed!'}
-                                </>
-                              ) : (
-                                <>
-                                  <span className="mr-1">{reaction.emoji}</span>
-                                  {reaction.label}
-                                  {reactionCount > 0 && (
-                                    <span className="ml-1 text-gray-500">({reactionCount})</span>
-                                  )}
-                                </>
-                              )}
-                            </Button>
-                            {/* Show who reacted below the button */}
-                            {reactedUsers.length > 0 && (
-                              <p className="text-xs text-gray-500 mt-0.5 pl-1">
-                                {reactedUsers.length <= 2
-                                  ? reactedUsers.join(', ')
-                                  : `${reactedUsers.slice(0, 2).join(', ')} +${reactedUsers.length - 2}`}
-                              </p>
-                            )}
-                          </div>
-                        )
-                      })}
-                  </div>
-                </div>
-              ))}
-
-              <button
-                onClick={() => setShowAdvancedPreferences(!showAdvancedPreferences)}
-                className="text-xs text-gray-600 hover:text-brand-carbon underline"
-              >
-                {showAdvancedPreferences ? 'Fewer preferences' : 'More preferences'}
-              </button>
-
-              {userReactions.length > 0 && (
-                <p className="text-xs text-gray-500 pt-2 border-t">
-                  Your selections: {userReactions.join(', ')}
-                </p>
-              )}
-            </div>
-
-            {/* Feedback List */}
-            <div className="pt-2 border-t">
-              <p className="text-xs font-medium text-gray-500 mb-2">Feedback History</p>
-              <ScrollArea className="h-[150px] md:h-[200px]">
-                {loadingFeedback ? (
-                  <div className="space-y-3 py-2">
-                    {[1, 2].map(i => (
-                      <div key={i} className="flex items-start gap-3 px-2">
-                        <Skeleton className="h-6 w-6 rounded-full shrink-0 mt-0.5" />
-                        <div className="flex-1 space-y-1.5">
-                          <Skeleton className="h-3 w-20" />
-                          <Skeleton className="h-4 w-full" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : feedback.length === 0 ? (
-                  <p className="text-center text-gray-500 py-6 text-sm">
-                    No feedback yet — be the first!
-                  </p>
-                ) : (
-                  <div className="space-y-2 pr-2">
-                    {feedback.map((fb) => (
-                      <div key={fb.id} className="p-2.5 bg-gray-50 rounded-lg border">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium">{fb.author?.name || 'Anonymous'}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {FEEDBACK_TYPES.find((t) => t.value === fb.type)?.label || fb.type}
-                          </Badge>
-                        </div>
-                        {fb.target && (
-                          <p className="text-xs text-gray-500 mb-1">Target: {fb.target}</p>
-                        )}
-                        <p className="text-sm text-gray-700">{fb.message}</p>
-                        <p className="text-xs text-gray-400 mt-1">{formatDate(fb.createdAt)}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </div>
-
-            {/* Add Feedback Form */}
-            <Collapsible open={showFeedbackForm} onOpenChange={setShowFeedbackForm}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-xs"
-                  disabled={viewerIsReadOnly}
-                >
-                  <ChevronDown
-                    className={`h-4 w-4 mr-1 transition-transform ${showFeedbackForm ? 'rotate-180' : ''}`}
-                  />
-                  {showFeedbackForm ? 'Hide form' : 'Add detailed feedback'}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="space-y-2 pt-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <Select
-                      value={newFeedback.type}
-                      onValueChange={(v) => setNewFeedback({ ...newFeedback, type: v })}
-                    >
-                      <SelectTrigger className="text-sm h-9">
-                        <SelectValue placeholder="Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {FEEDBACK_TYPES.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      value={newFeedback.target}
-                      onChange={(e) => setNewFeedback({ ...newFeedback, target: e.target.value })}
-                      placeholder="Which part? e.g. Day 2, hotels (optional)"
-                      className="text-sm h-9"
-                      disabled={viewerIsReadOnly}
-                    />
-                  </div>
-                  <Textarea
-                    value={newFeedback.message}
-                    onChange={(e) => setNewFeedback({ ...newFeedback, message: e.target.value })}
-                    placeholder="Your feedback..."
-                    className="text-sm min-h-[70px] resize-none"
-                    disabled={viewerIsReadOnly}
-                  />
-                  <Button
-                    onClick={handleSubmitFeedback}
-                    disabled={submittingFeedback || !newFeedback.message.trim() || viewerIsReadOnly}
-                    className="w-full"
-                    size="sm"
-                  >
-                    {submittingFeedback ? 'Adding...' : 'Add feedback'}
-                  </Button>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </CardContent>
-        </Card>
+        <ItineraryFeedbackSection
+          user={user}
+          isLeader={isLeader}
+          viewerIsReadOnly={viewerIsReadOnly}
+          latestVersion={latestVersion}
+          feedback={feedback}
+          loadingFeedback={loadingFeedback}
+          showFeedbackForm={showFeedbackForm}
+          setShowFeedbackForm={setShowFeedbackForm}
+          newFeedback={newFeedback}
+          setNewFeedback={setNewFeedback}
+          submittingFeedback={submittingFeedback}
+          newFeedbackCount={newFeedbackCount}
+          feedbackTypes={FEEDBACK_TYPES}
+          reactions={reactions}
+          reactionGroups={REACTION_GROUPS}
+          reactionCounts={reactionCounts}
+          userReactions={userReactions}
+          reactingChip={reactingChip}
+          reactingAction={reactingAction}
+          showAdvancedPreferences={showAdvancedPreferences}
+          setShowAdvancedPreferences={setShowAdvancedPreferences}
+          canRevise={canRevise}
+          versionCount={versionCount}
+          maxVersions={maxVersions}
+          revising={revising}
+          reviseButtonEnabled={reviseButtonEnabled}
+          llmDisabled={llmDisabled}
+          llmDisabledMessage={llmDisabledMessage}
+          generatingMsgIndex={generatingMsgIndex}
+          progressMessages={GENERATION_PROGRESS_MESSAGES}
+          onSubmitFeedback={handleSubmitFeedback}
+          onQuickReaction={handleQuickReaction}
+          onReviseItinerary={handleReviseItinerary}
+        />
       )}
+
+      {/* Generate Confirmation Dialog */}
       <AlertDialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>

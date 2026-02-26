@@ -129,7 +129,7 @@ export function BriefOverlay({
         })
         if (!res.ok) {
           const data = await res.json()
-          throw new Error(data.error || 'Failed to load brief')
+          throw new Error(data.error || "Couldn't load brief — try again")
         }
         const data = await res.json()
         setBrief(data)
@@ -167,7 +167,7 @@ export function BriefOverlay({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
-        <p className="text-sm text-gray-600 mb-2">{error}</p>
+        <p className="text-sm text-brand-carbon/70 mb-2">{error}</p>
         <button
           onClick={() => {
             setError(null)
@@ -244,7 +244,7 @@ export function BriefOverlay({
     const url = `${window.location.origin}/t/${briefToken}`
     navigator.share?.({
       title: `${overview?.name || trip?.name || 'Trip'} — Brief`,
-      text: 'Check out our trip brief on Tripti',
+      text: 'Check out our trip brief on TRIPTI.ai',
       url
     }).catch(() => {})
   }
@@ -264,28 +264,28 @@ export function BriefOverlay({
 
               {briefToken ? (
                 <div className="space-y-3">
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-brand-carbon/70">
                     Anyone with this link can view a read-only summary of your trip. No personal details are shared.
                   </p>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 rounded-md bg-gray-100 px-3 py-1.5 text-xs text-gray-600 truncate font-mono">
+                    <div className="flex-1 rounded-md bg-brand-sand/50 px-3 py-1.5 text-xs text-brand-carbon/70 truncate font-mono">
                       {typeof window !== 'undefined' ? `${window.location.origin}/t/${briefToken}` : `/t/${briefToken}`}
                     </div>
                     <button
                       onClick={handleCopyLink}
-                      className="shrink-0 p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                      className="shrink-0 p-1.5 rounded-md hover:bg-brand-sand/50 transition-colors"
                       title="Copy link"
                     >
                       {copied ? (
                         <Check className="h-4 w-4 text-green-600" />
                       ) : (
-                        <Copy className="h-4 w-4 text-gray-500" />
+                        <Copy className="h-4 w-4 text-brand-carbon/60" />
                       )}
                     </button>
                     {typeof navigator !== 'undefined' && navigator.share && (
                       <button
                         onClick={handleNativeShare}
-                        className="shrink-0 p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                        className="shrink-0 p-1.5 rounded-md hover:bg-brand-sand/50 transition-colors"
                         title="Share"
                       >
                         <Share2 className="h-4 w-4 text-brand-blue" />
@@ -302,7 +302,7 @@ export function BriefOverlay({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-brand-carbon/70">
                     Create a shareable link so anyone can view a read-only summary of this trip.
                   </p>
                   <button
@@ -329,9 +329,9 @@ export function BriefOverlay({
             <div className="space-y-2">
               <p className="text-sm font-medium text-brand-carbon">{overview.name}</p>
               {overview.destinationHint && (
-                <p className="text-xs text-gray-600">{overview.destinationHint}</p>
+                <p className="text-xs text-brand-carbon/70">{overview.destinationHint}</p>
               )}
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-brand-carbon/70">
                 {overview.lockedStartDate && overview.lockedEndDate ? (
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
@@ -341,7 +341,7 @@ export function BriefOverlay({
                     {overview.duration !== null && ` (${overview.duration} day${overview.duration !== 1 ? 's' : ''})`}
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-gray-400 italic">
+                  <span className="flex items-center gap-1 text-brand-carbon/40 italic">
                     <Calendar className="h-3 w-3" />
                     Dates not locked yet
                   </span>
@@ -365,7 +365,7 @@ export function BriefOverlay({
               </div>
               <div className="space-y-2">
                 {decisions.closed.map((d, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-gray-700">
+                  <div key={i} className="flex items-center gap-2 text-xs text-brand-carbon/80">
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
                     <span className="font-medium">{d.type === 'dates_locked' ? 'Dates locked' : d.type}:</span>
                     <span>{d.summary}</span>
@@ -389,14 +389,14 @@ export function BriefOverlay({
                   <div>
                     <p className="text-sm font-medium text-brand-carbon">{accommodation.chosen.name}</p>
                     {accommodation.chosen.location && (
-                      <p className="text-xs text-gray-600">{accommodation.chosen.location}</p>
+                      <p className="text-xs text-brand-carbon/70">{accommodation.chosen.location}</p>
                     )}
                     {accommodation.chosen.priceRange && (
-                      <p className="text-xs text-gray-500">{accommodation.chosen.priceRange}</p>
+                      <p className="text-xs text-brand-carbon/60">{accommodation.chosen.priceRange}</p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-brand-carbon/60">
                     {accommodation.optionCount} option{accommodation.optionCount !== 1 ? 's' : ''} proposed
                     {accommodation.voteCount > 0 && `, ${accommodation.voteCount} vote${accommodation.voteCount !== 1 ? 's' : ''}`}
                   </p>
@@ -404,7 +404,7 @@ export function BriefOverlay({
               </div>
             ) : (
               <div className="rounded-md bg-brand-sand/40 px-3 py-2">
-                <p className="text-xs text-gray-500">Not yet chosen</p>
+                <p className="text-xs text-brand-carbon/60">Not yet chosen</p>
               </div>
             )}
           </CardContent>
@@ -430,22 +430,22 @@ export function BriefOverlay({
                         {day.blocks.map((block, blockIdx) => (
                           <div key={blockIdx} className="text-xs">
                             <span className="font-medium text-brand-red">{block.timeRange}</span>
-                            <span className="text-gray-700 ml-1.5">{block.activity}</span>
+                            <span className="text-brand-carbon/80 ml-1.5">{block.activity}</span>
                             {block.notes && (
-                              <p className="text-gray-500 mt-0.5">{block.notes}</p>
+                              <p className="text-brand-carbon/60 mt-0.5">{block.notes}</p>
                             )}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-400 italic pl-3">No activities planned</p>
+                      <p className="text-xs text-brand-carbon/40 italic pl-3">No activities planned</p>
                     )}
                   </div>
                 ))}
               </div>
             ) : (
               <div className="rounded-md bg-brand-sand/40 px-3 py-2">
-                <p className="text-xs text-gray-500">Itinerary not yet generated</p>
+                <p className="text-xs text-brand-carbon/60">Itinerary not yet generated</p>
               </div>
             )}
           </CardContent>
@@ -461,12 +461,12 @@ export function BriefOverlay({
             {packingReminders.length > 0 ? (
               <ul className="space-y-1">
                 {packingReminders.map((item, i) => (
-                  <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
+                  <li key={i} className="text-xs text-brand-carbon/80 flex items-start gap-1.5">
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-blue mt-1 shrink-0" />
                     <span>
                       {item.name}
                       {item.assignedTo && (
-                        <span className="text-gray-400 ml-1">({item.assignedTo})</span>
+                        <span className="text-brand-carbon/40 ml-1">({item.assignedTo})</span>
                       )}
                     </span>
                   </li>
@@ -474,7 +474,7 @@ export function BriefOverlay({
               </ul>
             ) : (
               <div className="rounded-md bg-brand-sand/40 px-3 py-2">
-                <p className="text-xs text-gray-500">No packing items yet</p>
+                <p className="text-xs text-brand-carbon/60">No packing items yet</p>
               </div>
             )}
           </CardContent>
@@ -492,13 +492,13 @@ export function BriefOverlay({
                 <p className="text-sm font-medium text-brand-carbon">
                   {formatCurrency(expensesSummary.totalAmount, expensesSummary.currency)}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-brand-carbon/60">
                   {expensesSummary.itemCount} expense{expensesSummary.itemCount !== 1 ? 's' : ''} tracked
                 </p>
               </div>
             ) : (
               <div className="rounded-md bg-brand-sand/40 px-3 py-2">
-                <p className="text-xs text-gray-500">No expenses tracked yet</p>
+                <p className="text-xs text-brand-carbon/60">No expenses tracked yet</p>
               </div>
             )}
           </CardContent>
@@ -516,8 +516,8 @@ export function BriefOverlay({
               {briefToken ? (
                 <div className="space-y-3">
                   {/* URL display */}
-                  <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                    <span className="text-xs text-gray-600 truncate flex-1 font-mono">
+                  <div className="flex items-center gap-2 rounded-md border border-brand-carbon/10 bg-brand-sand/30 px-3 py-2">
+                    <span className="text-xs text-brand-carbon/70 truncate flex-1 font-mono">
                       {typeof window !== 'undefined' ? `${window.location.origin}/t/${briefToken}` : `/t/${briefToken}`}
                     </span>
                   </div>
@@ -535,7 +535,7 @@ export function BriefOverlay({
                           // Fallback: select the text
                         }
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-xs font-medium text-brand-carbon hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-brand-carbon/10 bg-white text-xs font-medium text-brand-carbon hover:bg-brand-sand/30 transition-colors"
                     >
                       {copied ? (
                         <><Check className="h-3.5 w-3.5 text-green-600" /> Copied</>
@@ -553,7 +553,7 @@ export function BriefOverlay({
                             url: `${window.location.origin}/t/${briefToken}`
                           }).catch(() => {})
                         }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-xs font-medium text-brand-carbon hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-brand-carbon/10 bg-white text-xs font-medium text-brand-carbon hover:bg-brand-sand/30 transition-colors"
                       >
                         <Share2 className="h-3.5 w-3.5" /> Share
                       </button>
@@ -578,7 +578,7 @@ export function BriefOverlay({
                           setShareLoading(false)
                         }
                       }}
-                      className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-gray-400 hover:text-brand-red hover:bg-red-50 transition-colors disabled:opacity-50"
+                      className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-brand-carbon/40 hover:text-brand-red hover:bg-red-50 transition-colors disabled:opacity-50"
                     >
                       {shareLoading ? '...' : 'Revoke'}
                     </button>
@@ -586,7 +586,7 @@ export function BriefOverlay({
                 </div>
               ) : (
                 <div>
-                  <p className="text-xs text-gray-500 mb-3">
+                  <p className="text-xs text-brand-carbon/60 mb-3">
                     Share a read-only link to your trip brief with anyone.
                   </p>
                   <button

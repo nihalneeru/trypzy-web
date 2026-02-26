@@ -33,18 +33,18 @@ export function MembersTab({ members }: MembersTabProps) {
               <CardContent className="py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-600 font-medium">
+                    <div className="h-10 w-10 rounded-full bg-brand-sand/70 flex items-center justify-center">
+                      <span className="text-brand-carbon/70 font-medium">
                         {member.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div>
                       <p className="font-medium">{member.name}</p>
-                      <p className="text-sm text-gray-500">{member.email}</p>
+                      <p className="text-sm text-brand-carbon/60">{member.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">View profile</span>
+                    <span className="text-xs text-brand-carbon/60">View profile</span>
                     {member.role === 'owner' && (
                       <Badge>Circle Leader</Badge>
                     )}

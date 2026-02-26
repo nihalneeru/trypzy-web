@@ -53,8 +53,7 @@ export function JoinCircleDialog({ open, onOpenChange, onSuccess, token }) {
         onSuccess(data)
       }
     } catch (error) {
-      console.error('Join circle error:', error)
-      toast.error(error.message || 'Failed to join circle')
+      toast.error(error.message || "Couldn't join circle — please try again")
     } finally {
       setJoining(false)
     }
@@ -76,7 +75,7 @@ export function JoinCircleDialog({ open, onOpenChange, onSuccess, token }) {
               placeholder="ABCD12"
               className="uppercase"
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-brand-carbon/60">
               Ask the person who invited you for their circle's invite code or link.
             </p>
           </div>

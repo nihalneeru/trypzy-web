@@ -14,7 +14,7 @@ dotenvConfig()
  */
 
 const DEV_SERVER_URL = process.env.CAPACITOR_SERVER_URL
-const PROD_URL = 'https://preview.tripti.ai'
+const PROD_URL = 'https://tripti.ai'
 
 const serverUrl = DEV_SERVER_URL || PROD_URL
 const isDev = !!DEV_SERVER_URL
@@ -35,6 +35,11 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
   },
   plugins: {
+    StatusBar: {
+      overlaysWebView: false,
+      style: 'LIGHT',
+      backgroundColor: '#09173D',
+    },
     SplashScreen: {
       launchAutoHide: true,
       launchShowDuration: 1500,

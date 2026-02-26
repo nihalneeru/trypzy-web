@@ -91,10 +91,10 @@ export function LeaveCircleDialog({
               {blockingTrips.map((trip) => (
                 <li
                   key={trip.id}
-                  className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2"
+                  className="flex items-center justify-between rounded-md border border-brand-carbon/10 px-3 py-2"
                 >
                   <span className="text-sm font-medium text-brand-carbon">{trip.name}</span>
-                  <span className="text-xs text-gray-500 capitalize">{trip.status}</span>
+                  <span className="text-xs text-brand-carbon/60 capitalize">{trip.status}</span>
                 </li>
               ))}
             </ul>

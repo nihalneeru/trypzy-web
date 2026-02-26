@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { Users, Sparkles, ChevronDown, Settings, FileText, LogOut, Bell } from 'lucide-react'
+import { Users, Sparkles, ChevronDown, Settings, FileText, LogOut, Bell, HelpCircle } from 'lucide-react'
 
 interface Notification {
   id: string
@@ -102,7 +102,7 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50 safe-top">
+    <header className="bg-white border-b border-brand-carbon/10 sticky top-0 z-50 safe-top">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Left: Logo + Navigation */}
@@ -116,7 +116,7 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
                   variant={activePage === 'circles' ? 'secondary' : 'ghost'}
                   size="sm"
                   className="text-xs sm:text-sm px-1.5 sm:px-2 h-7 sm:h-8"
-                  onClick={() => router.push('/dashboard')}
+                  onClick={() => router.push('/circles')}
                 >
                   <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1" aria-hidden="true" />
                   Circles
@@ -147,15 +147,15 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
                       <span className="sr-only">{notifications.length} notification{notifications.length !== 1 ? 's' : ''}</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuContent align="end" className="w-72 max-w-[calc(100vw-1rem)]">
                     <div className="px-3 py-2">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Activity</span>
+                      <span className="text-xs font-medium text-brand-carbon/60 uppercase tracking-wide">Activity</span>
                     </div>
                     <DropdownMenuSeparator />
                     {notifications.slice(0, 5).map((n) => (
                       <DropdownMenuItem key={n.id} onClick={() => router.push(n.href)} className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer">
                         <span className="text-sm font-medium text-brand-carbon leading-tight">{n.title}</span>
-                        <span className="text-xs text-gray-500 leading-tight">{n.context || n.ctaLabel}</span>
+                        <span className="text-xs text-brand-carbon/60 leading-tight">{n.context || n.ctaLabel}</span>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -189,6 +189,10 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
                   <DropdownMenuItem onClick={() => router.push('/privacy')}>
                     <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
                     Privacy Policy
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/help')}>
+                    <HelpCircle className="h-4 w-4 mr-2" aria-hidden="true" />
+                    Help & Support
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>

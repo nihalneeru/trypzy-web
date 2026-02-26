@@ -67,7 +67,7 @@ export default function DiscoverPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50" aria-live="polite">
+      <div className="min-h-screen bg-brand-sand/30" aria-live="polite">
         <AppHeader userName={user?.name} activePage="discover" />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-16" role="status">
@@ -82,7 +82,7 @@ export default function DiscoverPage() {
   if (!token) return null
 
   return (
-    <div className="min-h-screen bg-gray-50" data-testid="discover-page">
+    <div className="min-h-screen bg-brand-sand/30" data-testid="discover-page">
       <AppHeader userName={user?.name} activePage="discover" />
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

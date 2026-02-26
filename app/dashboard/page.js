@@ -207,7 +207,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-sand/30 flex items-center justify-center">
         <Card>
           <CardContent className="py-8 px-6 text-center">
             <p className="text-brand-red mb-4">Could not load dashboard — please try again.</p>
@@ -234,7 +234,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" data-testid="dashboard-page">
+    <div className="min-h-screen bg-brand-sand/30" data-testid="dashboard-page">
       <AppHeader userName={user?.name} activePage="circles" notifications={dashboardData.globalNotifications || []} />
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -248,7 +248,7 @@ export default function DashboardPage() {
                 {isTripFirst && dashboardData.circles.length === 1 ? 'Your Trips' : 'Your Circles'}
               </h2>
               {isTripFirst && dashboardData.circles.length === 1 && (
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-brand-carbon/60 mt-0.5">
                   Circle:{' '}
                   <a href={`/circles/${dashboardData.circles[0].id}`} className="hover:underline text-brand-blue">
                     {dashboardData.circles[0].name}
@@ -276,6 +276,15 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Trip-first context banner: show when user has exactly 1 auto-created circle */}
+        {isTripFirst && dashboardData.circles && dashboardData.circles.length === 1 && (
+          <div className="rounded-lg bg-brand-sand/40 border border-brand-sand px-4 py-3 mb-6">
+            <p className="text-sm text-brand-carbon/70">
+              Your group is saved as a circle — invite friends to plan more trips together.
+            </p>
+          </div>
+        )}
+
         {/* Circle Overview — visual bubbles (only when 2+ circles) */}
         {dashboardData.circles && dashboardData.circles.length >= 2 && (
           <CircleOverview circles={dashboardData.circles} />
@@ -283,63 +292,44 @@ export default function DashboardPage() {
 
         {/* Circle Sections */}
         {dashboardData.circles && dashboardData.circles.length === 0 ? (
-          isTripFirst ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                {/* Breathing pulse circles */}
-                <div className="flex justify-center gap-3 mb-6" aria-hidden="true">
-                  {[0, 0.6, 1.2].map((delay, i) => (
-                    <div
-                      key={i}
-                      className="w-10 h-10 rounded-full bg-brand-sand animate-breathing-pulse"
-                      style={{ animationDelay: `${delay}s` }}
-                    />
-                  ))}
-                </div>
-                <h2 className="text-lg font-medium text-brand-carbon mb-2">Nifty plans start here.</h2>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                  Start a trip, and we{'\u2019'}ll help your group figure out the rest.
-                </p>
-                <div className="flex flex-col items-center gap-3">
-                  <Button className="bg-brand-red hover:bg-brand-red/90 text-white" onClick={() => setShowTripFirst(true)}>
-                    <Calendar className="h-4 w-4 mr-2" aria-hidden="true" />
-                    Plan a trip
-                  </Button>
-                  <button onClick={() => setShowJoinCircle(true)} className="text-sm text-brand-blue hover:underline">
-                    Got an invite? Join a friend{'\u2019'}s trip
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                {/* Breathing pulse circles */}
-                <div className="flex justify-center gap-3 mb-6" aria-hidden="true">
-                  {[0, 0.6, 1.2].map((delay, i) => (
-                    <div
-                      key={i}
-                      className="w-10 h-10 rounded-full bg-brand-sand animate-breathing-pulse"
-                      style={{ animationDelay: `${delay}s` }}
-                    />
-                  ))}
-                </div>
-                <h2 className="text-lg font-medium text-brand-carbon mb-2">Nifty plans start here.</h2>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                  A circle is your travel crew. Create one and start planning trips together.
-                </p>
-                <div className="flex flex-col items-center gap-3">
-                  <Button className="bg-brand-red hover:bg-brand-red/90 text-white" onClick={() => setShowCreateCircle(true)}>
-                    <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-                    Create circle
-                  </Button>
-                  <button onClick={() => setShowJoinCircle(true)} className="text-sm text-brand-blue hover:underline">
-                    Got an invite code? Join a circle
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          )
+          <Card>
+            <CardContent className="py-12 text-center">
+              {/* Breathing pulse circles */}
+              <div className="flex justify-center gap-3 mb-6" aria-hidden="true">
+                {[0, 0.6, 1.2].map((delay, i) => (
+                  <div
+                    key={i}
+                    className="w-10 h-10 rounded-full bg-brand-sand animate-breathing-pulse"
+                    style={{ animationDelay: `${delay}s` }}
+                  />
+                ))}
+              </div>
+              <h2 className="text-lg font-medium text-brand-carbon mb-2">Nifty plans start here.</h2>
+              <p className="text-brand-carbon/60 mb-6 max-w-md mx-auto">
+                {isTripFirst
+                  ? 'Start a trip, and we\u2019ll help your group figure out the rest.'
+                  : 'A circle is your travel crew. Create one and start planning trips together.'}
+              </p>
+              <div className="flex flex-col items-center gap-3">
+                <Button
+                  className="bg-brand-red hover:bg-brand-red/90 text-white"
+                  onClick={() => isTripFirst ? setShowTripFirst(true) : setShowCreateCircle(true)}
+                >
+                  <Calendar className="h-4 w-4 mr-2" aria-hidden="true" />
+                  Plan a trip
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-brand-blue border-brand-blue/30 hover:bg-brand-blue/5"
+                  onClick={() => setShowJoinCircle(true)}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" aria-hidden="true" />
+                  {isTripFirst ? 'Got an invite? Join a trip' : 'Got an invite code? Join a circle'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         ) : (
           dashboardData.circles.map((circle) => (
             <CircleSection

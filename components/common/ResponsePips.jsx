@@ -13,7 +13,7 @@ export function ResponsePips({ responded = 0, total = 0, maxDisplay = 12 }) {
   const displayFilled = Math.min(clamped, displayTotal);
 
   return (
-    <div className="flex items-center gap-1" key={responded}>
+    <div className="flex items-center gap-1">
       {Array.from({ length: displayTotal }, (_, i) => (
         <span
           key={i}

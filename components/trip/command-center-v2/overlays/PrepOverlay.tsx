@@ -373,9 +373,9 @@ export function PrepOverlay({
   if (trip.status !== 'locked') {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Lock className="h-12 w-12 text-gray-400 mb-4" />
+        <Lock className="h-12 w-12 text-brand-carbon/40 mb-4" />
         <h3 className="text-lg font-medium text-brand-carbon mb-2">Prep Not Available</h3>
-        <p className="text-gray-500">Prep opens up once your dates are confirmed.</p>
+        <p className="text-brand-carbon/60">Prep opens up once your dates are confirmed.</p>
       </div>
     )
   }
@@ -414,7 +414,7 @@ export function PrepOverlay({
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
         <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
-        <p className="text-sm text-gray-600 mb-4">{error}</p>
+        <p className="text-sm text-brand-carbon/70 mb-4">{error}</p>
         <Button
           variant="outline"
           size="sm"
@@ -469,7 +469,7 @@ export function PrepOverlay({
       {/* Transport Section */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+          <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide">
             Transport
           </h3>
           <div className="flex gap-2">
@@ -511,6 +511,7 @@ export function PrepOverlay({
                     resetTransportForm()
                   }}
                   className="h-8 w-8 p-0"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -560,7 +561,7 @@ export function PrepOverlay({
               <button
                 type="button"
                 onClick={() => setShowAdvancedTransport(!showAdvancedTransport)}
-                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                className="flex items-center gap-1 text-xs text-brand-carbon/60 hover:text-brand-carbon/80"
               >
                 {showAdvancedTransport ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 {showAdvancedTransport ? 'Less details' : 'More details (optional)'}
@@ -659,9 +660,9 @@ export function PrepOverlay({
         {transportItems.length === 0 && !showTransportForm ? (
           <Card>
             <CardContent className="py-6 text-center">
-              <Plane className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No transport items yet</p>
-              <p className="text-xs text-gray-500 mt-1">Add transport or generate suggestions</p>
+              <Plane className="h-8 w-8 text-brand-carbon/40 mx-auto mb-2" />
+              <p className="text-sm text-brand-carbon/60">No transport items yet</p>
+              <p className="text-xs text-brand-carbon/60 mt-1">Add transport or generate suggestions</p>
             </CardContent>
           </Card>
         ) : (
@@ -689,17 +690,17 @@ export function PrepOverlay({
                         )}
                       </div>
                       {item.departAt && (
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className="text-xs text-brand-carbon/70 mt-1">
                           Depart: {formatDateTime(item.departAt)}
                         </p>
                       )}
                       {item.provider && (
-                        <p className="text-xs text-gray-600">
+                        <p className="text-xs text-brand-carbon/70">
                           {item.provider}
                         </p>
                       )}
                       {item.bookingRef && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-brand-carbon/60">
                           Ref: {item.bookingRef}
                         </p>
                       )}
@@ -719,7 +720,7 @@ export function PrepOverlay({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
+                        className="h-8 w-8 p-0 text-brand-carbon/40 hover:text-brand-red"
                         onClick={() => handleDeleteTransport(item.id)}
                         disabled={deletingTransport === item.id}
                         aria-label="Delete transport"
@@ -740,7 +741,7 @@ export function PrepOverlay({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-brand-blue" />
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+            <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide">
               My Packing
             </h3>
           </div>
@@ -773,7 +774,7 @@ export function PrepOverlay({
         </div>
 
         {packingSuggestSource && (
-          <p className="text-xs text-gray-400 mb-2">
+          <p className="text-xs text-brand-carbon/40 mb-2">
             {(packingSuggestSource === 'llm' || packingSuggestSource === 'cache')
               ? 'AI-informed (based on itinerary)'
               : 'Based on itinerary'}
@@ -794,6 +795,7 @@ export function PrepOverlay({
                     setNewPackingItem({ title: '', quantity: '', notes: '' })
                   }}
                   className="h-8 w-8 p-0"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -865,9 +867,9 @@ export function PrepOverlay({
         {myPackingItems.length === 0 && !showPackingForm ? (
           <Card>
             <CardContent className="py-6 text-center">
-              <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No personal packing items yet</p>
-              <p className="text-xs text-gray-500 mt-1">Use Smart Suggest or add items manually</p>
+              <Package className="h-8 w-8 text-brand-carbon/40 mx-auto mb-2" />
+              <p className="text-sm text-brand-carbon/60">No personal packing items yet</p>
+              <p className="text-xs text-brand-carbon/60 mt-1">Use Smart Suggest or add items manually</p>
             </CardContent>
           </Card>
         ) : (
@@ -875,7 +877,7 @@ export function PrepOverlay({
             {myPackingItems.map((item: any) => (
               <div
                 key={item.id}
-                className="flex items-center gap-3 p-3 rounded-lg border bg-white hover:bg-gray-50"
+                className="flex items-center gap-3 p-3 rounded-lg border bg-white hover:bg-brand-sand/30"
               >
                 <Checkbox
                   checked={item.status === 'done'}
@@ -884,7 +886,7 @@ export function PrepOverlay({
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm ${item.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}`}>
+                    <span className={`text-sm ${item.status === 'done' ? 'line-through text-brand-carbon/60' : 'font-medium'}`}>
                       {item.title}
                     </span>
                     {item.quantity && (
@@ -894,14 +896,14 @@ export function PrepOverlay({
                     )}
                   </div>
                   {item.notes && (
-                    <p className="text-xs text-gray-500 mt-0.5">{item.notes}</p>
+                    <p className="text-xs text-brand-carbon/60 mt-0.5">{item.notes}</p>
                   )}
                 </div>
                 {canDeleteItem(item.ownerUserId) && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
+                    className="h-8 w-8 p-0 text-brand-carbon/40 hover:text-brand-red"
                     onClick={() => handleDeleteChecklist(item.id)}
                     disabled={deletingChecklist === item.id}
                     aria-label="Delete packing item"
@@ -919,8 +921,8 @@ export function PrepOverlay({
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-gray-500" />
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+            <Users className="h-4 w-4 text-brand-carbon/60" />
+            <h3 className="text-sm font-semibold text-brand-carbon/80 uppercase tracking-wide">
               Group Items
             </h3>
           </div>
@@ -954,6 +956,7 @@ export function PrepOverlay({
                     setNewPackingItem({ title: '', quantity: '', notes: '' })
                   }}
                   className="h-8 w-8 p-0"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -1025,9 +1028,9 @@ export function PrepOverlay({
         {groupPackingItems.length === 0 && !(showPackingForm && packingAddScope === 'group') ? (
           <Card>
             <CardContent className="py-6 text-center">
-              <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No group items yet</p>
-              <p className="text-xs text-gray-500 mt-1">Add shared items the group needs (e.g., first-aid kit, speaker)</p>
+              <Package className="h-8 w-8 text-brand-carbon/40 mx-auto mb-2" />
+              <p className="text-sm text-brand-carbon/60">No group items yet</p>
+              <p className="text-xs text-brand-carbon/60 mt-1">Add shared items the group needs (e.g., first-aid kit, speaker)</p>
             </CardContent>
           </Card>
         ) : (
@@ -1035,7 +1038,7 @@ export function PrepOverlay({
             {groupPackingItems.map((item: any) => (
               <div
                 key={item.id}
-                className="flex items-center gap-3 p-3 rounded-lg border bg-white hover:bg-gray-50"
+                className="flex items-center gap-3 p-3 rounded-lg border bg-white hover:bg-brand-sand/30"
               >
                 <Checkbox
                   checked={item.status === 'done'}
@@ -1044,7 +1047,7 @@ export function PrepOverlay({
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm ${item.status === 'done' ? 'line-through text-gray-500' : 'font-medium'}`}>
+                    <span className={`text-sm ${item.status === 'done' ? 'line-through text-brand-carbon/60' : 'font-medium'}`}>
                       {item.title}
                     </span>
                     {item.quantity && (
@@ -1054,14 +1057,14 @@ export function PrepOverlay({
                     )}
                   </div>
                   {item.notes && (
-                    <p className="text-xs text-gray-500 mt-0.5">{item.notes}</p>
+                    <p className="text-xs text-brand-carbon/60 mt-0.5">{item.notes}</p>
                   )}
                 </div>
                 {canDeleteItem(item.ownerUserId) && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-brand-red"
+                    className="h-8 w-8 p-0 text-brand-carbon/40 hover:text-brand-red"
                     onClick={() => handleDeleteChecklist(item.id)}
                     disabled={deletingChecklist === item.id}
                     aria-label="Delete group item"

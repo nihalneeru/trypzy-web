@@ -80,7 +80,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
         setCircleMembers(otherMembers)
       }
     } catch (error) {
-      console.error('Failed to fetch circle members:', error)
+      // Silently fail — members list is non-critical
     } finally {
       setLoadingMembers(false)
     }
@@ -153,8 +153,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
         onSuccess(data)
       }
     } catch (error) {
-      console.error('Create trip error:', error)
-      toast.error(error.message || 'Could not create trip — please try again')
+      toast.error(error.message || "Couldn't create trip — please try again")
     } finally {
       setCreating(false)
     }
@@ -178,19 +177,19 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
             <div className="space-y-2">
               <Label>
                 Invite Travelers
-                <span className="text-xs font-normal text-gray-500 ml-1">(optional)</span>
+                <span className="text-xs font-normal text-brand-carbon/60 ml-1">(optional)</span>
               </Label>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-brand-carbon/60">
                 Select circle members to invite. They can accept or decline the invitation.
               </p>
               {loadingMembers ? (
-                <p className="text-sm text-gray-500">Loading members...</p>
+                <p className="text-sm text-brand-carbon/60">Loading members...</p>
               ) : circleMembers.length === 0 ? (
-                <p className="text-sm text-gray-500">No other members in this circle yet.</p>
+                <p className="text-sm text-brand-carbon/60">No other members in this circle yet.</p>
               ) : (
                 <div className="border rounded-md">
-                  <div className="flex items-center justify-between px-3 py-2 border-b bg-gray-50">
-                    <span className="text-xs text-gray-600">
+                  <div className="flex items-center justify-between px-3 py-2 border-b bg-brand-sand/30">
+                    <span className="text-xs text-brand-carbon/70">
                       {selectedInvites.length} of {circleMembers.length} selected
                     </span>
                     <div className="flex gap-2">
@@ -219,7 +218,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
                       {circleMembers.map((member) => (
                         <label
                           key={member.userId}
-                          className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                          className="flex items-center gap-2 p-2 rounded hover:bg-brand-sand/30 cursor-pointer"
                         >
                           <Checkbox
                             checked={selectedInvites.includes(member.userId)}

@@ -85,22 +85,33 @@ export default function NativeBridgePage() {
         try {
           const PushNotifications = window?.Capacitor?.Plugins?.PushNotifications
           if (PushNotifications) {
+            // Listen for registration errors before calling register()
+            PushNotifications.addListener('registrationError', (err) => {
+              console.error('[push] Registration failed:', JSON.stringify(err))
+            })
             const perm = await PushNotifications.requestPermissions()
             if (perm.receive === 'granted') {
               await PushNotifications.register()
               PushNotifications.addListener('registration', async (pushToken) => {
                 const pushPlatform = window.Capacitor?.getPlatform?.() === 'android' ? 'android' : 'ios'
+                console.log('[push] Token registered:', pushPlatform, pushToken.value?.slice(0, 12) + '...')
                 fetch('/api/push/register', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                   body: JSON.stringify({ token: pushToken.value, platform: pushPlatform })
-                }).catch(() => {}) // fire-and-forget
+                }).catch((err) => console.error('[push] Server register failed:', err.message))
                 // Save token for logout unregister
                 try { localStorage.setItem('tripti_push_token', pushToken.value) } catch {}
               })
+            } else {
+              console.log('[push] Permission denied:', perm.receive)
             }
+          } else {
+            console.log('[push] PushNotifications plugin not available')
           }
-        } catch {} // Push is optional — never block app launch
+        } catch (err) {
+          console.error('[push] Setup error:', err.message)
+        }
 
         if (pendingUrl && typeof pendingUrl === 'string' && pendingUrl.startsWith('/')) {
           await Preferences.remove({ key: 'pending_url' })
@@ -109,7 +120,6 @@ export default function NativeBridgePage() {
           router.replace('/dashboard')
         }
       } catch (err) {
-        console.error('[native-bridge]', err)
         router.replace('/native-login')
       }
     }
@@ -122,7 +132,7 @@ export default function NativeBridgePage() {
       <div className="text-center">
         <TriptiLogo variant="full" className="h-10 w-auto mx-auto mb-4" />
         <BrandedSpinner size="lg" className="mx-auto mb-3" />
-        <p className="text-sm text-[#6B7280]">{status}</p>
+        <p className="text-sm text-brand-carbon/60">{status}</p>
       </div>
     </div>
   )

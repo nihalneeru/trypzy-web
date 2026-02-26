@@ -165,7 +165,7 @@ export function TripInfoOverlay({
   const handleShareTrip = async () => {
     if (!shareUrl) return
     const shareText = `Check out "${trip.name}" on Tripti.ai!`
-    const result = await nativeShare({ title: 'Tripti.ai Trip Preview', text: shareText, url: shareUrl })
+    const result = await nativeShare({ title: 'Tripti.ai Trip', text: shareText, url: shareUrl })
     if (result === 'copied') {
       toast.success('Share link copied!')
     } else if (result === 'failed') {
@@ -246,7 +246,7 @@ export function TripInfoOverlay({
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
         <AlertTriangle className="h-10 w-10 text-brand-red mb-3" />
-        <p className="text-sm text-gray-600">Trip data not available</p>
+        <p className="text-sm text-brand-carbon/70">Trip data not available</p>
       </div>
     )
   }
@@ -254,7 +254,7 @@ export function TripInfoOverlay({
   return (
     <div className="p-4 space-y-4">
       {/* === Trip Details Section === */}
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Trip Details</h3>
+      <h3 className="text-xs font-semibold text-brand-carbon/60 uppercase tracking-wide mb-2 mt-4">Trip Details</h3>
       <Card>
         <CardContent className="pt-4 space-y-4">
           {/* Header with edit button */}
@@ -302,7 +302,7 @@ export function TripInfoOverlay({
 
           {/* Destination hint */}
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-brand-carbon/60">
               <MapPin className="h-4 w-4" />
               <span>Destination</span>
               {isLeader && isLocked && !isEditing && (
@@ -325,8 +325,8 @@ export function TripInfoOverlay({
                 />
               </div>
             ) : (
-              <p className="text-sm text-gray-700 pl-6">
-                {trip.destinationHint || <span className="text-gray-400 italic">Not specified</span>}
+              <p className="text-sm text-brand-carbon/80 pl-6">
+                {trip.destinationHint || <span className="text-brand-carbon/40 italic">Not specified</span>}
               </p>
             )}
           </div>
@@ -345,7 +345,7 @@ export function TripInfoOverlay({
                 />
               </div>
             ) : trip.description ? (
-              <p className="text-sm text-gray-600">{trip.description}</p>
+              <p className="text-sm text-brand-carbon/70">{trip.description}</p>
             ) : null}
           </div>
 
@@ -385,21 +385,21 @@ export function TripInfoOverlay({
       </Card>
 
       {/* === Circle & People Section === */}
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Circle &amp; People</h3>
+      <h3 className="text-xs font-semibold text-brand-carbon/60 uppercase tracking-wide mb-2 mt-4">Circle &amp; People</h3>
       <Card>
         <CardContent className="pt-4 space-y-3">
           {/* Created date */}
           {createdDate && (
             <div className="flex items-center gap-3">
-              <Calendar className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-600">Created {createdDate}</span>
+              <Calendar className="h-4 w-4 text-brand-carbon/40" />
+              <span className="text-sm text-brand-carbon/70">Created {createdDate}</span>
             </div>
           )}
 
           {/* Circle link */}
           {trip.circle && (
             <div className="flex items-center gap-3">
-              <Users className="h-4 w-4 text-gray-400" />
+              <Users className="h-4 w-4 text-brand-carbon/40" />
               <Link
                 href={circlePageHref(trip.circleId || trip.circle?.id)}
                 className="text-sm text-brand-blue hover:underline"
@@ -411,8 +411,8 @@ export function TripInfoOverlay({
 
           {/* Participant count */}
           <div className="flex items-center gap-3">
-            <Users className="h-4 w-4 text-gray-400" />
-            <span className="text-sm text-gray-600">
+            <Users className="h-4 w-4 text-brand-carbon/40" />
+            <span className="text-sm text-brand-carbon/70">
               {participantCount} {participantCount === 1 ? 'traveler' : 'travelers'}
             </span>
           </div>
@@ -422,7 +422,7 @@ export function TripInfoOverlay({
       {/* === Sharing Section === */}
       {(inviteCode || (isLeader && isLocked)) && (
         <>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Sharing</h3>
+          <h3 className="text-xs font-semibold text-brand-carbon/60 uppercase tracking-wide mb-2 mt-4">Sharing</h3>
 
           {/* Invite Code Card (if exists) — single Share button */}
           {inviteCode && (
@@ -430,7 +430,7 @@ export function TripInfoOverlay({
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Invite Code</p>
+                    <p className="text-sm font-medium text-brand-carbon/80">Invite Code</p>
                     <p className="text-lg font-mono text-brand-carbon">{inviteCode}</p>
                   </div>
                 </div>
@@ -453,14 +453,14 @@ export function TripInfoOverlay({
               <CardContent className="pt-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-brand-carbon">Share trip preview</p>
-                    <p className="text-xs text-gray-500">Let anyone view the itinerary via link</p>
+                    <p className="text-sm font-medium text-brand-carbon">Share trip</p>
+                    <p className="text-xs text-brand-carbon/60">Let anyone view the itinerary via link</p>
                   </div>
                   <button
                     onClick={handleToggleSharing}
                     disabled={privacyBlocked || sharingLoading}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      shareEnabled ? 'bg-brand-red' : 'bg-gray-300'
+                      shareEnabled ? 'bg-brand-red' : 'bg-brand-carbon/20'
                     } ${(privacyBlocked || sharingLoading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     aria-label={shareEnabled ? 'Disable trip sharing' : 'Enable trip sharing'}
                   >
@@ -471,7 +471,7 @@ export function TripInfoOverlay({
                 </div>
 
                 {privacyBlocked && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-brand-carbon/60">
                     A traveler&apos;s privacy settings prevent sharing this trip.
                   </p>
                 )}
@@ -482,7 +482,7 @@ export function TripInfoOverlay({
                       <input
                         readOnly
                         value={shareUrl}
-                        className="flex-1 text-xs bg-gray-50 border rounded px-2 py-1.5 text-brand-carbon font-mono"
+                        className="flex-1 text-xs bg-brand-sand/30 border rounded px-2 py-1.5 text-brand-carbon font-mono"
                       />
                     </div>
                     <Button
@@ -492,7 +492,7 @@ export function TripInfoOverlay({
                       className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
                     >
                       <Share2 className="h-4 w-4 mr-2" />
-                      Share trip preview
+                      Share trip
                     </Button>
                   </>
                 )}
@@ -504,7 +504,7 @@ export function TripInfoOverlay({
 
       {/* Locked status note */}
       {isLocked && isLeader && (
-        <p className="text-xs text-gray-500 text-center">
+        <p className="text-xs text-brand-carbon/60 text-center">
           Only the destination can be updated after dates are locked.
         </p>
       )}
@@ -518,7 +518,7 @@ export function TripInfoOverlay({
         </div>
       ) : (
         <>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-4">Trip Boost</h3>
+          <h3 className="text-xs font-semibold text-brand-carbon/60 uppercase tracking-wide mb-2 mt-4">Trip Boost</h3>
           <BoostGateCard trip={trip} feature="settle_up" token={token} />
         </>
       )}
@@ -531,14 +531,14 @@ export function TripInfoOverlay({
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>Anyone with the link will be able to see:</p>
-                <ul className="text-sm text-gray-600 list-disc pl-5 space-y-1">
+                <ul className="text-sm text-brand-carbon/70 list-disc pl-5 space-y-1">
                   <li>Trip name and destination</li>
                   <li>Trip dates</li>
                   <li>Itinerary</li>
                   <li>Number of travelers</li>
                 </ul>
                 <p>Hidden from public view:</p>
-                <ul className="text-sm text-gray-600 list-disc pl-5 space-y-1">
+                <ul className="text-sm text-brand-carbon/70 list-disc pl-5 space-y-1">
                   <li>Traveler names and profiles</li>
                   <li>Chat messages</li>
                   <li>Accommodation details</li>

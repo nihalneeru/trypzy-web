@@ -44,7 +44,7 @@ export function CircleOverview({ circles }) {
                 {/* Stacked avatars in a 2x2 grid inside the bubble */}
                 <div className="flex flex-wrap items-center justify-center gap-0.5">
                   {preview.slice(0, 4).map((member, i) => (
-                    <Avatar key={i} className="h-7 w-7 ring-1 ring-white">
+                    <Avatar key={member.userId || member.id || i} className="h-7 w-7 ring-1 ring-white">
                       {member.image && <AvatarImage src={member.image} alt={member.name} />}
                       <AvatarFallback className="text-[9px] bg-brand-blue text-white font-medium">
                         {getInitials(member.name)}
@@ -66,7 +66,7 @@ export function CircleOverview({ circles }) {
               </p>
 
               {/* Trip count */}
-              <p className="text-[10px] text-gray-400">
+              <p className="text-[10px] text-brand-carbon/40">
                 {tripCount} {tripCount === 1 ? 'trip' : 'trips'}
               </p>
             </Link>

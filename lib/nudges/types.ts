@@ -25,6 +25,9 @@ export enum NudgeType {
 
   // Confirmation nudges
   LEADER_PROPOSING_LOW_COVERAGE = 'leader_proposing_low_coverage',
+
+  // Auto-expiry reminders
+  CHECKING_REMINDER = 'checking_reminder',
 }
 
 /**

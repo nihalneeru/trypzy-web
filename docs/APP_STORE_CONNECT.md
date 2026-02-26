@@ -177,8 +177,6 @@ Use these when answering the App Privacy questionnaire in App Store Connect.
 | Username | review.tripti.ai@gmail.com |
 | Password | tripti-beta-2026 |
 
-> **Note:** The app is beta-gated. When prompted for the beta phrase on the login screen, enter: **tripti-beta-2026**
-
 ### Review Notes
 
 ```
@@ -190,11 +188,10 @@ Tripti is a group trip planning app. Users create "circles" (private friend grou
 4. Group collaborates on itinerary, accommodation, prep, and expenses
 
 To test the full flow:
-1. On the login screen, enter the beta phrase: tripti-beta-2026
-2. Sign in with Google using review.tripti.ai@gmail.com / tripti-beta-2026
-3. You will see existing test trips and circles on the dashboard
-4. Tap into any trip to see the chat-first command center
-5. Use the bottom bar to access scheduling, travelers, expenses, and memories
+1. Sign in with Google using review.tripti.ai@gmail.com / tripti-beta-2026
+2. You will see existing test trips and circles on the dashboard
+3. Tap into any trip to see the chat-first command center
+4. Use the bottom bar to access scheduling, travelers, expenses, and memories
 
 The app requires an internet connection. All data is stored server-side.
 

@@ -55,7 +55,7 @@ export function DeleteAccountDialog({ open, onOpenChange, token }) {
       document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 
       // Clear Capacitor native state if applicable
-      if (window.Capacitor?.isNativePlatform?.()) {
+      if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
         try {
           const Prefs = window.Capacitor.Plugins?.Preferences
           if (Prefs) {
@@ -87,7 +87,7 @@ export function DeleteAccountDialog({ open, onOpenChange, token }) {
                 Delete your account?
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
-                <div className="space-y-3 text-sm text-gray-600">
+                <div className="space-y-3 text-sm text-brand-carbon/70">
                   <p>This action is permanent and cannot be undone. Here's what will happen:</p>
                   <ul className="list-disc pl-5 space-y-1.5">
                     <li>Your account access will be <strong>removed immediately</strong></li>
@@ -116,7 +116,7 @@ export function DeleteAccountDialog({ open, onOpenChange, token }) {
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-brand-carbon/70">
                     Type <strong>DELETE</strong> to confirm.
                   </p>
                   <Input

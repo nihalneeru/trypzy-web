@@ -88,7 +88,7 @@ export function TransferLeadershipDialog({
             </SelectContent>
           </Select>
           {!selectedNewLeader && !validationError && (
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-brand-carbon/60 mt-2">
               Please select a new leader to continue
             </p>
           )}

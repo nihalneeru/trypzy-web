@@ -116,7 +116,7 @@ export function getNudgeCopy(
         message: payload.dateRange
           ? `${payload.dateRange.label} has support. Lock it in when you're ready.`
           : 'The proposed dates have support. Lock them in when you\'re ready.',
-        ctaLabel: 'Lock dates',
+        ctaLabel: 'Confirm dates',
       }
 
     // ============ Traveler Guidance Nudges ============
@@ -135,6 +135,13 @@ export function getNudgeCopy(
           ? `Only ${payload.coverage.count} of ${payload.coverage.total} people can make this date range. Still want to propose it?`
           : 'Not everyone can make this date range. Still want to propose it?',
         ctaLabel: 'Suggest anyway',
+      }
+
+    case NudgeType.CHECKING_REMINDER:
+      return {
+        message: payload.travelerName && payload.dateRange
+          ? `${payload.travelerName} — still checking on ${payload.dateRange.label}? No rush, just keeping it on your radar.`
+          : 'Still checking on those dates? No rush, just keeping it on your radar.',
       }
 
     default:
@@ -167,6 +174,8 @@ export function getNudgeEmoji(type: NudgeType): string {
       return '💡'
     case NudgeType.LEADER_PROPOSING_LOW_COVERAGE:
       return '⚠️'
+    case NudgeType.CHECKING_REMINDER:
+      return '🔔'
     default:
       return '📌'
   }

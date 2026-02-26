@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useCallback, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -36,7 +36,7 @@ interface OverlayContainerProps {
   useAbsolutePosition?: boolean
   /** Use full width instead of max 448px (for V3 full-screen overlays) */
   fullWidth?: boolean
-  /** Accent color for title bar and border (hex, e.g. '#00334D'). Defaults to brand-blue. */
+  /** Accent color for title bar and border (hex, e.g. '#09173D'). Defaults to brand-blue. */
   accentColor?: string
 }
 
@@ -63,7 +63,7 @@ export function OverlayContainer({
   slideFrom = 'right',
   useAbsolutePosition = false,
   fullWidth = false,
-  accentColor = '#00334D'
+  accentColor = '#09173D'
 }: OverlayContainerProps) {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -104,6 +104,31 @@ export function OverlayContainer({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, handleCloseAttempt])
+
+  // Handle browser back button / mobile back swipe — close overlay instead of navigating away
+  useEffect(() => {
+    if (!isOpen) return
+
+    // Push a history entry so back button closes overlay instead of navigating
+    window.history.pushState({ triptiOverlay: true }, '')
+    let popstateHandled = false
+
+    const handlePopState = (e: PopStateEvent) => {
+      popstateHandled = true
+      handleCloseAttempt()
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      // If overlay was closed by X/backdrop/Escape (not by back button),
+      // clean up the extra history entry we pushed
+      if (!popstateHandled) {
+        window.history.back()
+      }
+    }
   }, [isOpen, handleCloseAttempt])
 
   // Focus management - save previous focus, focus overlay when opened, restore on close
@@ -198,7 +223,7 @@ export function OverlayContainer({
                   bottom: `calc(${bottomOffset} + 15px)`,
                   right: `calc(${rightOffset} + 15px)`,
                   left: fullWidth ? '15px' : undefined,
-                  width: fullWidth ? 'calc(100% - 30px)' : 'min(448px, calc(100% - 30px))',
+                  width: fullWidth ? 'calc(100% - 20px)' : 'min(448px, calc(100% - 20px))',
                   border: `5px solid ${accentColor}`,
                 }
               : isBottomSlide
@@ -213,8 +238,8 @@ export function OverlayContainer({
                     bottom: `calc(${bottomOffset} + 15px)`,
                     right: `calc(${rightOffset} + 15px)`,
                     left: fullWidth ? '15px' : undefined,
-                    width: fullWidth ? `calc(100% - ${rightOffset} - 30px)` : 'min(448px, calc(100% - 30px))',
-                    maxWidth: fullWidth ? undefined : `calc(100% - ${rightOffset} - 30px)`,
+                    width: fullWidth ? `calc(100% - ${rightOffset} - 20px)` : 'min(448px, calc(100% - 20px))',
+                    maxWidth: fullWidth ? undefined : `calc(100% - ${rightOffset} - 20px)`,
                     border: `5px solid ${accentColor}`,
                   }
         }
@@ -223,18 +248,35 @@ export function OverlayContainer({
         aria-labelledby="overlay-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0" style={{ backgroundColor: accentColor }}>
-          <h2 id="overlay-title" className="text-lg font-semibold text-white">
-            {title}
-          </h2>
-          <Button
-            variant="ghost"
+        <div className="flex flex-col shrink-0 border-b" style={{ backgroundColor: accentColor }}>
+          <div className="flex items-center justify-between px-4 py-3">
+            <h2 id="overlay-title" className="text-lg font-semibold text-white">
+              {title}
+            </h2>
+            <div className="relative">
+              <Button
+                variant="ghost"
+                onClick={handleCloseAttempt}
+                className="h-14 w-14 md:h-12 md:w-12 p-0 text-white bg-white/10 hover:bg-white/25 hover:text-white rounded-full [&_svg]:size-auto"
+                aria-label={hasUnsavedChanges ? 'Close overlay (unsaved changes)' : 'Close overlay'}
+              >
+                <X className="h-10 w-10 md:h-9 md:w-9" strokeWidth={2.5} aria-hidden="true" />
+              </Button>
+              {hasUnsavedChanges && (
+                <span
+                  className="absolute top-1 right-1 h-3 w-3 rounded-full bg-brand-red ring-2 ring-white animate-pulse"
+                  aria-label="Unsaved changes"
+                />
+              )}
+            </div>
+          </div>
+          <button
             onClick={handleCloseAttempt}
-            className="h-14 w-14 md:h-12 md:w-12 p-0 text-white hover:bg-white/20 hover:text-white [&_svg]:size-auto"
-            aria-label="Close overlay"
+            className="flex items-center gap-1.5 px-4 pb-2 text-xs text-white/70 hover:text-white transition-colors"
           >
-            <X className="h-10 w-10 md:h-9 md:w-9" strokeWidth={2.5} aria-hidden="true" />
-          </Button>
+            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+            Back to chat
+          </button>
         </div>
 
         {/* Content - scrollable */}
