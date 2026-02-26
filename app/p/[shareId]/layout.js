@@ -33,7 +33,7 @@ export async function generateMetadata({ params }) {
       robots: { index: false, follow: false },
     }
   } catch {
-    return { title: 'Trip Preview | Tripti.ai' }
+    return { title: 'Shared Trip | Tripti.ai' }
   }
 }
 

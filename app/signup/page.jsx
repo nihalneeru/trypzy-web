@@ -122,7 +122,7 @@ function SignupPageContent() {
           sessionStorage.removeItem('signup_oauth_pending')
           document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
         }
-        toast.success('Welcome! Trip remix feature coming soon.')
+        toast.success('Welcome to Tripti!')
         router.replace('/dashboard')
         return
       }

@@ -165,7 +165,7 @@ export function TripInfoOverlay({
   const handleShareTrip = async () => {
     if (!shareUrl) return
     const shareText = `Check out "${trip.name}" on Tripti.ai!`
-    const result = await nativeShare({ title: 'Tripti.ai Trip Preview', text: shareText, url: shareUrl })
+    const result = await nativeShare({ title: 'Tripti.ai Trip', text: shareText, url: shareUrl })
     if (result === 'copied') {
       toast.success('Share link copied!')
     } else if (result === 'failed') {
@@ -453,7 +453,7 @@ export function TripInfoOverlay({
               <CardContent className="pt-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-brand-carbon">Share trip preview</p>
+                    <p className="text-sm font-medium text-brand-carbon">Share trip</p>
                     <p className="text-xs text-brand-carbon/60">Let anyone view the itinerary via link</p>
                   </div>
                   <button
@@ -492,7 +492,7 @@ export function TripInfoOverlay({
                       className="w-full border-dashed border-brand-blue text-brand-blue hover:bg-brand-blue/5"
                     >
                       <Share2 className="h-4 w-4 mr-2" />
-                      Share trip preview
+                      Share trip
                     </Button>
                   </>
                 )}
