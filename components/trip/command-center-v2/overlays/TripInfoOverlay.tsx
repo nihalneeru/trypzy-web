@@ -510,8 +510,8 @@ export function TripInfoOverlay({
         </p>
       )}
 
-      {/* === Trip Boost Section (hide for completed trips) === */}
-      {!isTripCompleted(trip) && (
+      {/* === Trip Boost Section (hide for completed/canceled trips) === */}
+      {!isTripCompleted(trip) && trip?.status !== 'canceled' && trip?.tripStatus !== 'CANCELLED' && (
         trip.boostStatus === 'boosted' ? (
           <div className="flex items-center justify-center gap-2 py-2">
             <Badge variant="outline" className="border-brand-sand bg-brand-sand text-brand-carbon text-xs">

@@ -388,12 +388,12 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
         {/* Top section: Cancelled/removed banner + ProgressStrip (measured for overlay offset) */}
         <div ref={stripRef} className="shrink-0 z-10">
           {isCancelled && (
-            <div className="bg-brand-sand/50 border-b border-brand-carbon/10 px-4 py-3 flex items-center justify-center gap-2">
-              <span className="text-brand-carbon/70 text-sm font-medium">This trip has been canceled</span>
-              <span className="text-brand-carbon/60 text-xs">(read-only)</span>
+            <div className="bg-brand-carbon text-white px-4 py-2.5 flex items-center justify-center gap-3">
+              <span className="text-sm font-semibold">Trip canceled</span>
+              <span className="text-white/60 text-xs">(read-only)</span>
               <Link
                 href="/dashboard"
-                className="ml-2 text-sm font-medium text-brand-blue hover:underline"
+                className="ml-1 text-xs font-medium text-white/80 hover:text-white underline"
               >
                 Back to dashboard
               </Link>
