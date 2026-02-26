@@ -10,16 +10,16 @@ export function ConfidenceMeter({ current, target }) {
   let fillColor, label
   if (ratio >= 1) {
     fillColor = 'bg-brand-red'
-    label = 'Ready to propose'
+    label = 'Ready when you are'
   } else if (ratio >= 0.8) {
     fillColor = 'bg-brand-blue/60'
-    label = 'Almost there'
+    label = 'Almost ready'
   } else if (ratio >= 0.5) {
     fillColor = 'bg-brand-blue/30'
-    label = 'Getting close'
+    label = 'Moving forward'
   } else {
     fillColor = 'bg-brand-sand'
-    label = 'Building support'
+    label = 'Gathering input'
   }
 
   return (

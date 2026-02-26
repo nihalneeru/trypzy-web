@@ -2165,7 +2165,7 @@ export function DateWindowsFunnel({
             <div className="space-y-1">
               <p className="text-xs text-brand-carbon/70 text-center">
                 <Sparkles className="inline h-3 w-3 text-brand-red mr-1 align-text-bottom" />
-                Tripti recommends <strong>{formatWindowDisplay(aiRecommendation.window)}</strong>
+                TRIPTI.ai recommends <strong>{formatWindowDisplay(aiRecommendation.window)}</strong>
               </p>
               <ConfidenceMeter
                 current={aiRecommendation.window.supporterIds.length}

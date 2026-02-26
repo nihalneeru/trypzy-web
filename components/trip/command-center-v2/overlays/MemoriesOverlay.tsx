@@ -136,7 +136,6 @@ export function MemoriesOverlay({
     if (newUrls.length > 0) {
       setMediaUrls([...mediaUrls, ...newUrls])
       toast.success(`${newUrls.length} image(s) uploaded`)
-      setHasUnsavedChanges(true)
     } else {
       toast.error('Could not upload images — please try again')
     }
@@ -144,7 +143,6 @@ export function MemoriesOverlay({
 
   const removeImage = (idx: number) => {
     setMediaUrls(mediaUrls.filter((_, i) => i !== idx))
-    setHasUnsavedChanges(mediaUrls.length > 1 || caption.length > 0)
   }
 
   const handleCreate = async () => {
@@ -171,7 +169,6 @@ export function MemoriesOverlay({
       toast.success('Memory created!')
       setShowCreateDialog(false)
       resetForm()
-      setHasUnsavedChanges(false)
       await loadMemories()
       onRefresh()
     } catch (error: any) {
@@ -328,13 +325,9 @@ export function MemoriesOverlay({
 
       {/* Create Memory Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={(open) => {
-        if (!open && (mediaUrls.length > 0 || caption.length > 0)) {
-          // Has unsaved changes - could add confirmation
-        }
         setShowCreateDialog(open)
         if (!open) {
           resetForm()
-          setHasUnsavedChanges(false)
         }
       }}>
         <DialogContent className="max-w-md">
@@ -420,7 +413,6 @@ export function MemoriesOverlay({
                 value={caption}
                 onChange={(e) => {
                   setCaption(e.target.value)
-                  setHasUnsavedChanges(true)
                 }}
                 placeholder="Best sunset, that amazing cafe, hiking highlights..."
                 rows={3}
@@ -451,7 +443,6 @@ export function MemoriesOverlay({
               onClick={() => {
                 setShowCreateDialog(false)
                 resetForm()
-                setHasUnsavedChanges(false)
               }}
             >
               Cancel

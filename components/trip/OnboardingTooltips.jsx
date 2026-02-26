@@ -55,7 +55,7 @@ export function OnboardingTooltips() {
       {/* Tooltip */}
       <div
         className={`fixed z-[61] max-w-xs mx-4 px-4 py-3 rounded-xl bg-brand-sand border-2 border-brand-carbon/20 shadow-lg ${
-          tip.position === 'top' ? 'top-20 left-4 right-4' : 'bottom-24 left-4 right-4'
+          tip.position === 'top' ? 'top-[60px] sm:top-[68px] left-4 right-4' : 'bottom-[60px] sm:bottom-[52px] left-4 right-4'
         }`}
         onClick={dismiss}
         role="tooltip"
