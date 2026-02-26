@@ -108,7 +108,10 @@ export function ContextCTABar({
     // User-specific state (not in snapshot, requires user context)
     const hasSubmittedDatePicks = trip.userDatePicks && trip.userDatePicks.length > 0
     const userAvailability = trip.availability?.find((a: any) => a.userId === userId)
-    const hasSubmittedAvailability = hasSubmittedDatePicks || !!userAvailability?.dates?.length
+    // In date_windows mode, participation = supporting a window (tracked in schedulingSummary)
+    const userHasRespondedWindows = trip.schedulingSummary?.userHasResponded === true
+    const hasSubmittedAvailability = hasSubmittedDatePicks || !!userAvailability?.dates?.length || userHasRespondedWindows
+    const schedulingPhase = trip.schedulingSummary?.phase
     const votingOpen = trip.votingStatus === 'open' || trip.dateVotingOpen || trip.status === 'voting'
     const userHasVoted = trip.dateVotes?.some((v: any) => v.userId === userId) || !!trip.userVote
     const userIdeasCount = trip.ideaSummary?.userIdeaCount ?? 0
@@ -127,6 +130,17 @@ export function ContextCTABar({
         overlayType: 'scheduling',
         priority: 1,
         isBlocking: true
+      }
+    }
+
+    // 1a. PROPOSED phase: leader has proposed, waiting for reactions
+    if (isLeader && schedulingPhase === 'PROPOSED' && !datesLocked) {
+      return {
+        label: 'Review reactions',
+        icon: MessageCircle,
+        overlayType: 'scheduling',
+        priority: 1,
+        isBlocking: false
       }
     }
 
