@@ -1,6 +1,7 @@
 'use client'
 
 import { Map, ChevronRight } from 'lucide-react'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
 /**
  * ItineraryStatusCard — pinned above chat, shows itinerary progress.
@@ -13,7 +14,7 @@ export function ItineraryStatusCard({ trip, user, onOpenItinerary }) {
 
   // Only show after dates are locked and before trip is complete/canceled
   if (!datesLocked) return null
-  if (trip?.status === 'completed' || trip?.status === 'canceled') return null
+  if (trip?.status === 'completed' || trip?.status === 'canceled' || trip?.tripStatus === 'CANCELLED' || isTripCompleted(trip)) return null
   if (!itineraryStatus) return null
 
   const isLeader = trip?.createdBy === user?.id

@@ -87,6 +87,7 @@ interface ItineraryEditorPanelProps {
   llmDisabledMessage: string | null
   generatingMsgIndex: number
   progressMessages: string[]
+  viewerIsReadOnly: boolean
   // Callbacks
   onGenerateClick: () => void
   onExportICS: () => void
@@ -117,6 +118,7 @@ export function ItineraryEditorPanel({
   llmDisabledMessage,
   generatingMsgIndex,
   progressMessages,
+  viewerIsReadOnly,
   onGenerateClick,
   onExportICS
 }: ItineraryEditorPanelProps) {
@@ -176,7 +178,7 @@ export function ItineraryEditorPanel({
                 Export
               </Button>
             )}
-            {isLeader && !latestVersion && (
+            {isLeader && !latestVersion && !viewerIsReadOnly && (
               <Button
                 onClick={onGenerateClick}
                 disabled={generating || llmDisabled}
