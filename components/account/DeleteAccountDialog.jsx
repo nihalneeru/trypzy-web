@@ -55,7 +55,7 @@ export function DeleteAccountDialog({ open, onOpenChange, token }) {
       document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 
       // Clear Capacitor native state if applicable
-      if (window.Capacitor?.isNativePlatform?.()) {
+      if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
         try {
           const Prefs = window.Capacitor.Plugins?.Preferences
           if (Prefs) {

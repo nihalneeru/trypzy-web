@@ -115,7 +115,6 @@ export default function JoinCirclePage({ params }) {
 
         setCircleInfo(data)
       } catch (error) {
-        console.error('Failed to validate invite:', error)
         setCircleInfo({ valid: false, error: 'Unable to validate invite' })
       } finally {
         setLoading(false)
@@ -184,8 +183,7 @@ export default function JoinCirclePage({ params }) {
         setJoining(false)
       }
     } catch (error) {
-      console.error('Join error:', error)
-      toast.error('Could not join circle — please try again')
+      toast.error("Couldn't join circle — please try again")
       setJoining(false)
     }
   }

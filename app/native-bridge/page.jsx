@@ -109,7 +109,6 @@ export default function NativeBridgePage() {
           router.replace('/dashboard')
         }
       } catch (err) {
-        console.error('[native-bridge]', err)
         router.replace('/native-login')
       }
     }

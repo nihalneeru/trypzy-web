@@ -274,6 +274,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
   const visitFetchedRef = useRef<string | null>(null)
   useEffect(() => {
     if (!trip?.id || !token) return
+    if (!trip?.viewer?.isActiveParticipant) return // Skip for non-members (avoids 403)
     if (visitFetchedRef.current === trip.id) return
     visitFetchedRef.current = trip.id
 

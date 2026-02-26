@@ -86,8 +86,7 @@ export function CircleOnboardingInterstitial({
       const tripUrl = tripHref(data.id)
       router.push(tripUrl)
     } catch (error) {
-      console.error('Create trip error:', error)
-      toast.error(error.message || 'Failed to create trip')
+      toast.error(error.message || "Couldn't create trip — please try again")
     } finally {
       setCreating(false)
     }

@@ -80,7 +80,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
         setCircleMembers(otherMembers)
       }
     } catch (error) {
-      console.error('Failed to fetch circle members:', error)
+      // Silently fail — members list is non-critical
     } finally {
       setLoadingMembers(false)
     }
@@ -153,8 +153,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
         onSuccess(data)
       }
     } catch (error) {
-      console.error('Create trip error:', error)
-      toast.error(error.message || 'Could not create trip — please try again')
+      toast.error(error.message || "Couldn't create trip — please try again")
     } finally {
       setCreating(false)
     }

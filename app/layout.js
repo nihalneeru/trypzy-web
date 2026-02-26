@@ -24,6 +24,7 @@ export const viewport = {
 
 export function generateMetadata() {
   return {
+    metadataBase: new URL('https://tripti.ai'),
     title: 'Tripti.ai — Nifty plans. Happy circles.',
     description: 'Plan trips with your friend group — share availability, pick dates, and coordinate without the group chat chaos.',
     icons: {

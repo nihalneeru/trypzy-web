@@ -53,8 +53,7 @@ export function JoinCircleDialog({ open, onOpenChange, onSuccess, token }) {
         onSuccess(data)
       }
     } catch (error) {
-      console.error('Join circle error:', error)
-      toast.error(error.message || 'Failed to join circle')
+      toast.error(error.message || "Couldn't join circle — please try again")
     } finally {
       setJoining(false)
     }

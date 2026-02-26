@@ -440,7 +440,6 @@ async function fetchBriefData(briefToken) {
 
     return { overview, accommodation, dayByDay, decisions, packingReminders, expensesSummary }
   } catch (error) {
-    console.error('Error fetching public brief data:', error)
     return null
   }
 }

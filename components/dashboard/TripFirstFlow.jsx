@@ -117,8 +117,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
       setResult({ trip: data, circle: data.circle })
       setStep('invite')
     } catch (error) {
-      console.error('Create trip error:', error)
-      toast.error(error.message || 'Could not create trip — please try again')
+      toast.error(error.message || "Couldn't create trip — please try again")
     } finally {
       setCreating(false)
     }
@@ -178,8 +177,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
       toast.success('Circle renamed')
       setEditingCircleName(false)
     } catch (error) {
-      console.error('Rename circle error:', error)
-      toast.error(error.message || 'Could not rename circle — please try again')
+      toast.error(error.message || "Couldn't rename circle — please try again")
     } finally {
       setSavingCircleName(false)
     }

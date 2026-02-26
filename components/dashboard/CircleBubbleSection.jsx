@@ -167,7 +167,7 @@ export function CircleBubbleSection({ circle, token, currentUserId, onTripCreate
               const pos = ringPositions[i]
               return (
                 <div
-                  key={i}
+                  key={member.userId || member.id || i}
                   className="absolute"
                   style={{
                     left: `${pos.x}%`,
