@@ -3,7 +3,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 import type { OverlayType, OverlayParams } from './types'
@@ -79,6 +78,7 @@ import { NudgeCard } from '@/components/trip/chat/NudgeCard'
 
 // Hooks
 import { useTripChat } from '@/hooks/use-trip-chat'
+import { useOverlayState } from './hooks/useOverlayState'
 
 // Helpers
 import { computeProgressSteps } from '@/lib/trips/progress'
@@ -218,10 +218,15 @@ function PriorityStatusCard({
 // ─────────────────────────────────────────────────
 
 export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV3Props) {
-  // Overlay state
-  const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null)
-  const [overlayParams, setOverlayParams] = useState<OverlayParams>({})
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  // Overlay state (extracted hook)
+  const {
+    activeOverlay,
+    overlayParams,
+    hasUnsavedChanges,
+    setHasUnsavedChanges,
+    openOverlay,
+    closeOverlay
+  } = useOverlayState()
   const stripRef = useRef<HTMLDivElement>(null)
   const [stripHeight, setStripHeight] = useState(0)
 
@@ -287,30 +292,9 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
 
   // Quote-to-chat: close overlay and pre-fill chat input with quoted context
   const handleQuoteToChat = useCallback((quote: string) => {
-    setActiveOverlay(null)
-    setOverlayParams({})
-    setHasUnsavedChanges(false)
+    closeOverlay()
     setNewMessage(quote)
-  }, [setNewMessage])
-
-  // Deep link: open overlay from ?overlay= URL param (push notification tap)
-  const searchParams = useSearchParams()
-  const deepLinkHandledRef = useRef(false)
-  useEffect(() => {
-    if (deepLinkHandledRef.current) return
-    const overlayParam = searchParams?.get('overlay')
-    if (!overlayParam) return
-    const VALID_OVERLAYS: OverlayType[] = [
-      'proposed', 'scheduling', 'itinerary', 'accommodation',
-      'travelers', 'prep', 'expenses', 'memories', 'brief'
-    ]
-    if (VALID_OVERLAYS.includes(overlayParam as OverlayType)) {
-      deepLinkHandledRef.current = true
-      setActiveOverlay(overlayParam as OverlayType)
-      // Clean URL without triggering navigation
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-  }, [searchParams])
+  }, [closeOverlay, setNewMessage])
 
   // Derived state
   const progressSteps = useMemo(() => computeProgressSteps(trip), [trip])
@@ -374,26 +358,6 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
     if (stepKey === blocker.stageKey) return '#FA3823' // brand-red for blocker
     return '#09173D' // brand-blue for completed/active/future
   }, [activeOverlay, blocker.stageKey, progressSteps])
-
-  // Overlay callbacks
-  const openOverlay = useCallback((type: OverlayType, params?: OverlayParams) => {
-    if (type) {
-      if (activeOverlay === type && !params?.memberId) {
-        setActiveOverlay(null)
-        setOverlayParams({})
-        setHasUnsavedChanges(false)
-      } else {
-        setActiveOverlay(type)
-        setOverlayParams(params || {})
-      }
-    }
-  }, [activeOverlay])
-
-  const closeOverlay = useCallback(() => {
-    setActiveOverlay(null)
-    setOverlayParams({})
-    setHasUnsavedChanges(false)
-  }, [])
 
   const handleStepClick = useCallback((overlayType: OverlayType) => {
     if (overlayType) openOverlay(overlayType)
@@ -586,7 +550,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               onRefresh={onRefresh}
               onClose={closeOverlay}
               setHasUnsavedChanges={setHasUnsavedChanges}
-              onOpenOverlay={(overlay) => setActiveOverlay(overlay)}
+              onOpenOverlay={(overlay) => openOverlay(overlay)}
               onQuoteToChat={handleQuoteToChat}
             />
           )}

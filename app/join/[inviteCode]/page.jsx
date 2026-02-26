@@ -212,7 +212,7 @@ export default function JoinCirclePage({ params }) {
         : `${preview.inviterName} invited you to join ${preview.circleName}`
       : hasTrip
         ? `You're invited to ${preview?.trip?.name}`
-        : `You're invited to join a circle on Tripti`
+        : `You're invited to join a circle on TRIPTI.ai`
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
@@ -280,10 +280,13 @@ export default function JoinCirclePage({ params }) {
               <AlertTriangle className="h-8 w-8 text-brand-red" />
             </div>
             <h1 className="text-2xl font-bold text-brand-carbon mb-2">
-              Invalid Invite
+              This invite link isn't valid
             </h1>
-            <p className="text-brand-carbon/70 mb-8">
-              {circleInfo.error || 'This invite link is invalid or expired'}
+            <p className="text-brand-carbon/70 mb-2">
+              {circleInfo.error || 'It may have expired or already been used.'}
+            </p>
+            <p className="text-brand-carbon/50 mb-8 text-sm">
+              Ask your friend to resend the link.
             </p>
             <Button
               onClick={() => router.push('/dashboard')}

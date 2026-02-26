@@ -189,14 +189,14 @@ export function ChatTab({
     // Use progress snapshot for core state decisions (P0-4)
     const { datesLocked, everyoneResponded, leaderNeedsToLock, itineraryFinalized, accommodationChosen, prepStarted } = progressSnapshot
 
-    // Scheduling stage: show "Pick your dates" only if user hasn't picked
+    // Scheduling stage: show "Share your dates" only if user hasn't picked
     if (tripStatus === 'proposed' || tripStatus === 'scheduling') {
       if (!userHasPicked) {
         return {
           id: 'pick-dates',
-          title: 'Pick your dates',
+          title: 'Share your dates',
           description: 'Share your date preferences to help coordinate the trip',
-          ctaLabel: 'Pick your dates',
+          ctaLabel: 'Share your dates',
           kind: 'deeplink',
           deeplinkTab: 'planning',
           actionRequired
@@ -206,9 +206,9 @@ export function ChatTab({
       if (leaderNeedsToLock) {
         return {
           id: 'lock-dates',
-          title: 'Lock dates',
-          description: 'Everyone has responded. Lock the trip dates.',
-          ctaLabel: 'Lock Dates',
+          title: 'Confirm dates',
+          description: 'Everyone has responded. Confirm the trip dates.',
+          ctaLabel: 'Confirm dates',
           kind: 'inline',
           actionRequired: false // Leader actions are not "action required" for red styling
         }
@@ -238,9 +238,9 @@ export function ChatTab({
       if (isTripLeader) {
         return {
           id: 'lock-dates-voting',
-          title: 'Lock dates',
-          description: 'Lock the trip dates after voting.',
-          ctaLabel: 'Lock Dates',
+          title: 'Confirm dates',
+          description: 'Confirm the trip dates after voting.',
+          ctaLabel: 'Confirm dates',
           kind: 'inline',
           actionRequired: false
         }
@@ -744,24 +744,38 @@ export function ChatTab({
                       }}
                       className="bg-green-600 hover:bg-green-700 text-white h-9 md:h-7 text-xs"
                     >
-                      Lock dates
+                      Confirm dates
                     </Button>
                   ) : (
                     <Button
                       size="sm"
                       disabled
                       className="bg-brand-carbon/20 text-brand-carbon/60 h-9 md:h-7 text-xs cursor-not-allowed"
-                      title="Only the trip organizer can lock dates."
+                      title="Only the trip organizer can confirm dates."
                     >
-                      Lock dates
+                      Confirm dates
                     </Button>
                   )}
                 </div>
               </div>
             )}
             
-            {messages.length === 0 ? (
-              <p className="text-center text-brand-carbon/60 py-8">No messages yet. Share ideas, ask questions, or coordinate plans here.</p>
+            {!messages ? (
+              <div className="space-y-4 py-4 px-2">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`flex items-start gap-2 max-w-[70%] ${i % 2 === 0 ? 'flex-row-reverse' : ''}`}>
+                      <div className="w-8 h-8 rounded-full bg-brand-carbon/10 animate-pulse shrink-0" />
+                      <div className="space-y-1.5">
+                        <div className="h-3 w-16 bg-brand-carbon/10 rounded animate-pulse" />
+                        <div className={`h-10 ${i % 3 === 0 ? 'w-48' : 'w-32'} bg-brand-carbon/10 rounded-lg animate-pulse`} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : messages.length === 0 ? (
+              <p className="text-center text-brand-carbon/60 py-8">This is where your circle plans together — share ideas, ask questions, keep everyone in sync.</p>
             ) : (
               messages.map((msg: any, idx: number) => {
                 // Determine if message is from current user (used for alignment and styling)
@@ -817,7 +831,7 @@ export function ChatTab({
                       </div>
                     )}
 
-                    <div className={`flex flex-col ${isSameGroup ? 'mt-0.5' : 'mt-3'} ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex flex-col animate-slide-in-chat-msg ${isSameGroup ? 'mt-0.5' : 'mt-3'} ${msg.isSystem ? 'items-center' : isFromCurrentUser ? 'items-end' : 'items-start'}`}>
                       {msg.isSystem ? (
                         // System messages
                         <div className="flex justify-center">
@@ -1145,13 +1159,13 @@ export function ChatTab({
               </DialogContent>
             </Dialog>
 
-            {/* Lock Dates Confirmation Dialog */}
+            {/* Confirm Dates Dialog */}
             <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+                  <AlertDialogTitle>Confirm dates for everyone?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This finalizes the trip dates. Once locked, dates cannot be changed.
+                    This finalizes the trip dates. Once confirmed, dates cannot be changed.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -1216,6 +1230,7 @@ export function ChatTab({
             onClick={viewerIsReadOnly ? undefined : handleSendMessage}
             disabled={viewerIsReadOnly || sendingMessage || !newMessage.trim()}
             title={viewerIsReadOnly ? readOnlyPlaceholder : undefined}
+            aria-label="Send message"
           >
             <Send className="h-4 w-4" />
           </Button>

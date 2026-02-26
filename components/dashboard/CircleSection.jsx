@@ -107,7 +107,7 @@ export function CircleSection({ circle, token, currentUserId, onTripCreated }) {
                   />
                 ))}
               </div>
-              <p className="text-sm mb-4">No trips planned yet. Ready for an adventure?</p>
+              <p className="text-sm mb-4">No trips yet. Start one when you{'\u2019'}re ready.</p>
               <Button variant="outline" size="sm" onClick={() => setShowCreateTrip(true)}>
                 <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
                 Plan a trip

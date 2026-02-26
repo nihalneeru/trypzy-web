@@ -74,6 +74,7 @@ export function InviteShareBlock({ inviteCode, shareText, shareUrl, onShareCompl
             size="icon"
             onClick={handleCopyInviteCode}
             className="flex-shrink-0"
+            aria-label="Copy invite code"
           >
             <Copy className={`h-4 w-4 ${inviteCopied ? 'text-brand-blue' : ''}`} />
           </Button>

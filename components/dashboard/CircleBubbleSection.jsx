@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { CreateTripDialog } from './CreateTripDialog'
 import { Plus, ChevronDown, ChevronRight } from 'lucide-react'
+import { getTripCountdownBadge } from '@/lib/trips/getTripCountdownLabel'
 import Link from 'next/link'
 import { tripHref, circlePageHref } from '@/lib/navigation/routes'
 import { formatTripDateRange } from '@/lib/utils'
@@ -80,6 +81,8 @@ function TripChip({ trip }) {
     return (Date.now() - new Date(ts).getTime()) < 24 * 60 * 60 * 1000
   })()
 
+  const countdownBadge = getTripCountdownBadge(trip)
+
   return (
     <Link
       href={tripHref(trip.id)}
@@ -98,13 +101,20 @@ function TripChip({ trip }) {
             </span>
           )}
         </span>
-        <span className="text-xs text-brand-carbon/40 whitespace-nowrap flex-shrink-0">
+        <span className="text-xs text-brand-carbon/40 whitespace-nowrap flex-shrink-0 flex items-center gap-1.5">
+          {countdownBadge && (
+            <span className="inline-flex items-center rounded bg-brand-blue/10 px-1 py-0.5 text-[10px] font-medium text-brand-blue leading-none">
+              {countdownBadge}
+            </span>
+          )}
           {dateText}
         </span>
       </div>
       <div className="flex items-center justify-between gap-2 mt-1">
         <span className="text-xs text-brand-carbon/60 truncate">
-          {actionRequired ? 'Waiting on you' : `${trip.travelerCount} ${trip.travelerCount === 1 ? 'traveler' : 'travelers'}`}
+          {isStalled && trip.status !== 'completed' && trip.status !== 'canceled'
+            ? 'No activity in 7 days'
+            : actionRequired ? 'Your turn' : `${trip.travelerCount} ${trip.travelerCount === 1 ? 'traveler' : 'travelers'}`}
         </span>
         <span className={`text-xs font-medium whitespace-nowrap ${actionRequired ? 'text-brand-red' : 'text-brand-blue'}`}>
           {ctaLabel} →
@@ -209,7 +219,7 @@ export function CircleBubbleSection({ circle, token, currentUserId, onTripCreate
         {/* Trip list */}
         <div className="px-4 py-4">
           {visibleTrips.length === 0 && archivedCount === 0 ? (
-            <p className="text-sm text-brand-carbon/40 text-center py-2">No trips yet</p>
+            <p className="text-sm text-brand-carbon/40 text-center py-2">No trips yet. Start one when you{'\u2019'}re ready.</p>
           ) : (
             <div className="space-y-2">
               {visibleTrips.map((trip) => (

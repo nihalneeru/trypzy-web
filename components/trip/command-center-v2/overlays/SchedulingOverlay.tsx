@@ -422,7 +422,7 @@ export function SchedulingOverlay({
 
   const lockDates = async (startDateISO: string) => {
     if (!isCreator) {
-      toast.error('Only the trip leader can lock dates.')
+      toast.error('Only the trip leader can confirm dates.')
       return
     }
 
@@ -458,7 +458,7 @@ export function SchedulingOverlay({
       onRefresh(updatedTrip)
     } catch (error: any) {
       if (error.message?.includes('403') || error.message?.includes('Only')) {
-        toast.error('Locking dates is available to the trip leader')
+        toast.error('Confirming dates is available to the trip leader')
       } else {
         toast.error(error.message || 'Could not lock dates — please try again')
       }
@@ -677,14 +677,14 @@ export function SchedulingOverlay({
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <Lock className="h-4 w-4 mr-2" />
-                  Lock dates
+                  Confirm dates
                 </Button>
               )}
             </div>
 
             {!isCreator && (
               <p className="text-xs text-brand-carbon/60 mt-2">
-                Only the trip leader can lock dates.
+                Only the trip leader can confirm dates.
               </p>
             )}
           </CardContent>
@@ -790,6 +790,7 @@ export function SchedulingOverlay({
                         removePick(pick.startDateISO)
                       }}
                       disabled={!canParticipate}
+                      aria-label="Remove date pick"
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -1064,13 +1065,13 @@ export function SchedulingOverlay({
         </Card>
       )}
 
-      {/* Lock Confirmation Dialog */}
+      {/* Confirm Dates Dialog */}
       <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+            <AlertDialogTitle>Confirm dates for everyone?</AlertDialogTitle>
             <AlertDialogDescription>
-              This finalizes the trip dates. Once locked, dates cannot be changed.
+              This finalizes the trip dates. Once confirmed, dates cannot be changed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

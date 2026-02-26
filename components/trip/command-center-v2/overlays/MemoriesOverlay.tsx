@@ -115,7 +115,7 @@ export function MemoriesOverlay({
       console.error('Failed to load memories:', err)
       // Don't show error state if 404 (no posts endpoint)
       if (!err.message?.includes('404')) {
-        setError(err.message || 'Failed to load memories')
+        setError(err.message || "Couldn't load memories — try again")
       }
       setMemories([])
     } finally {
@@ -383,6 +383,7 @@ export function MemoriesOverlay({
                           onClick={() => fileInputRef.current?.click()}
                           disabled={uploading}
                           className="aspect-square border-2 border-dashed border-brand-carbon/20 rounded-lg flex items-center justify-center hover:border-brand-carbon/30 transition-colors"
+                          aria-label="Add image"
                         >
                           {uploading ? (
                             <BrandedSpinner size="sm" />

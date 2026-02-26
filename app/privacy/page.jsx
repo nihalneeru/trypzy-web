@@ -49,7 +49,7 @@ export default function PrivacyPolicyPage() {
           <p>
             Trip content is private to members of your selected group by default. If you or your
             trip leader choose to mark itineraries or posts as &ldquo;discoverable,&rdquo; that
-            content may be visible to other Tripti users through the Discover feature. We aim to
+            content may be visible to other TRIPTI.ai users through the Discover feature. We aim to
             collect only the information necessary to operate and improve the Service.
           </p>
 

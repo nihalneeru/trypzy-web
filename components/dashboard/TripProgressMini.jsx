@@ -68,7 +68,7 @@ export function TripProgressMini({ trip }) {
               )} />
             </div>
             <span className={cn(
-              'text-[8px] font-medium leading-tight text-center whitespace-nowrap',
+              'text-[11px] font-medium leading-tight text-center whitespace-nowrap',
               isCurrent && 'underline underline-offset-2',
               isCurrent
                 ? 'text-brand-red'

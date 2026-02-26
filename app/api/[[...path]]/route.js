@@ -7985,7 +7985,7 @@ async function handleRoute(request, { params }) {
       const itineraryFinalized = trip.itineraryStatus === 'selected' || trip.itineraryStatus === 'published'
       const accommodationChosen = trip.progress?.steps?.accommodationChosen || false
 
-      let heuristicBlocker = { type: 'DATES', cta: 'Pick your dates' }
+      let heuristicBlocker = { type: 'DATES', cta: 'Share your dates' }
       if (datesLocked && !itineraryFinalized) {
         heuristicBlocker = { type: 'ITINERARY', cta: 'Plan your itinerary' }
       } else if (datesLocked && itineraryFinalized && !accommodationChosen) {

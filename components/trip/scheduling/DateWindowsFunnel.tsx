@@ -18,7 +18,8 @@ import {
   Sparkles,
   Copy,
   MessageCircle,
-  Share2
+  Share2,
+  ChevronRight
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { copyToClipboard, nativeShare } from '@/lib/native/share'
@@ -175,6 +176,65 @@ function formatWindowDisplay(window: { startDate?: string; endDate?: string; sou
   return `${formatDate(window.startDate || '')} – ${formatDate(window.endDate || '')}`
 }
 
+// Phase indicator for the scheduling funnel
+const PHASE_STEPS = [
+  { key: 'COLLECTING', label: 'Suggest dates' },
+  { key: 'PROPOSED', label: 'React to proposal' },
+  { key: 'LOCKED', label: 'Confirm dates' },
+] as const
+
+const PHASE_SUBTITLES: Record<string, string> = {
+  COLLECTING: 'Suggest dates that work for you',
+  PROPOSED: 'The group is reviewing proposed dates — share your reaction',
+  LOCKED: 'Dates confirmed!',
+}
+
+function PhaseIndicator({ phase }: { phase: 'COLLECTING' | 'PROPOSED' | 'LOCKED' }) {
+  const phaseIndex = PHASE_STEPS.findIndex(s => s.key === phase)
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-center gap-1">
+        {PHASE_STEPS.map((step, i) => {
+          const isCompleted = i < phaseIndex
+          const isActive = i === phaseIndex
+          const isFuture = i > phaseIndex
+
+          return (
+            <div key={step.key} className="flex items-center">
+              <div className="flex items-center gap-1.5">
+                {isCompleted && (
+                  <Check className="h-3.5 w-3.5 text-brand-carbon/40" />
+                )}
+                {isActive && (
+                  <span className="inline-block h-2 w-2 rounded-full bg-brand-red" />
+                )}
+                <span
+                  className={`text-xs ${
+                    isCompleted
+                      ? 'text-brand-carbon/40'
+                      : isActive
+                        ? 'font-semibold text-brand-carbon'
+                        : 'text-brand-carbon/40'
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </div>
+              {i < PHASE_STEPS.length - 1 && (
+                <ChevronRight className={`h-3 w-3 mx-1 ${isFuture ? 'text-brand-carbon/20' : 'text-brand-carbon/40'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-center text-xs text-brand-carbon/50 mt-1.5">
+        {PHASE_SUBTITLES[phase]}
+      </p>
+    </div>
+  )
+}
+
 /**
  * DateWindowsFunnel - New date-locking funnel component
  *
@@ -315,7 +375,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to load date options')
+        throw new Error(data.error || "Couldn't load date options — try again")
       }
 
       const data = await response.json()
@@ -515,7 +575,7 @@ export function DateWindowsFunnel({
           setNormalizationError(data.error)
           return
         }
-        throw new Error(data.error || 'Failed to add dates')
+        throw new Error(data.error || "Couldn't add dates — try again")
       }
 
       // Check if API is asking for overlap acknowledgement (window not yet created)
@@ -568,7 +628,7 @@ export function DateWindowsFunnel({
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to add dates')
+        throw new Error(data.error || "Couldn't add dates — try again")
       }
 
       // Check if API is asking for overlap acknowledgement
@@ -613,7 +673,7 @@ export function DateWindowsFunnel({
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to add dates')
+        throw new Error(data.error || "Couldn't add dates — try again")
       }
 
       toast.success('Dates added')
@@ -738,7 +798,7 @@ export function DateWindowsFunnel({
     }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to add support')
+        throw new Error(data.error || "Couldn't add support — try again")
       }
       // Background sync
       fetchWindows()
@@ -773,7 +833,7 @@ export function DateWindowsFunnel({
     }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to remove support')
+        throw new Error(data.error || "Couldn't remove support — try again")
       }
       // Background sync
       fetchWindows()
@@ -797,7 +857,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to delete suggestion')
+        throw new Error(data.error || "Couldn't delete suggestion — try again")
       }
 
       toast.success('Date suggestion removed')
@@ -850,7 +910,7 @@ export function DateWindowsFunnel({
           setShowConcreteDatesDialog(true)
           return
         }
-        throw new Error(data.error || 'Failed to propose dates')
+        throw new Error(data.error || "Couldn't propose dates — try again")
       }
 
       toast.success('Dates proposed')
@@ -884,7 +944,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to propose dates')
+        throw new Error(data.error || "Couldn't propose dates — try again")
       }
 
       toast.success(windowIdsToPropose.length === 1 ? 'Dates proposed' : `${windowIdsToPropose.length} options proposed`)
@@ -937,7 +997,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to propose dates')
+        throw new Error(data.error || "Couldn't propose dates — try again")
       }
 
       toast.success('Dates proposed')
@@ -987,7 +1047,7 @@ export function DateWindowsFunnel({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to withdraw proposal')
+        throw new Error(data.error || "Couldn't withdraw proposal — try again")
       }
 
       toast.success('Proposal withdrawn')
@@ -1023,7 +1083,7 @@ export function DateWindowsFunnel({
         if (data.code === 'INSUFFICIENT_APPROVALS') {
           throw new Error(`Need ${data.approvalSummary?.requiredApprovals} approvals to lock. Currently have ${data.approvalSummary?.approvals}.`)
         }
-        throw new Error(data.error || 'Failed to lock dates')
+        throw new Error(data.error || "Couldn't confirm dates — try again")
       }
 
       toast.success('Dates locked!')
@@ -1114,7 +1174,7 @@ export function DateWindowsFunnel({
     }).then(async (response) => {
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to submit reaction')
+        throw new Error(data.error || "Couldn't submit reaction — try again")
       }
       // Background sync
       fetchWindows()
@@ -1203,6 +1263,7 @@ export function DateWindowsFunnel({
   if (phase === 'LOCKED' || trip.status === 'locked') {
     return (
       <div className="space-y-4 p-4">
+        <PhaseIndicator phase="LOCKED" />
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-3">
             <Lock className="h-6 w-6 text-green-600" />
@@ -1285,6 +1346,7 @@ export function DateWindowsFunnel({
 
     return (
       <div className="space-y-4 p-4">
+        <PhaseIndicator phase="PROPOSED" />
         <div className="text-center mb-4">
           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
             {proposedWindows.length > 1
@@ -1431,7 +1493,7 @@ export function DateWindowsFunnel({
         {/* Non-leader waiting message */}
         {!isLeader && (
           <p className="text-sm text-center text-muted-foreground pt-2 border-t">
-            The leader will lock dates once enough travelers respond.
+            The leader will confirm dates once enough travelers respond.
           </p>
         )}
 
@@ -1479,7 +1541,7 @@ export function DateWindowsFunnel({
                   disabled={submitting}
                   className="bg-brand-red hover:bg-brand-red/90"
                 >
-                  {submitting ? 'Locking...' : 'Lock dates'}
+                  {submitting ? 'Confirming...' : 'Confirm dates'}
                 </AlertDialogAction>
               )}
             </AlertDialogFooter>
@@ -1505,6 +1567,7 @@ export function DateWindowsFunnel({
 
   return (
     <div className="space-y-4 p-4">
+      <PhaseIndicator phase="COLLECTING" />
       {/* Header with progress */}
       <div className="text-center mb-2">
         <h3 className="text-lg font-semibold text-brand-carbon">When works for everyone?</h3>

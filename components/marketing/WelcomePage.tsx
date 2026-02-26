@@ -39,7 +39,7 @@ export function WelcomePage() {
     {
       icon: CalendarIcon,
       title: 'Find dates',
-      description: 'Everyone suggests when they\'re free. Tripti finds the overlap and helps your group converge.',
+      description: 'Everyone suggests when they\'re free. TRIPTI.ai finds the overlap and helps your group converge.',
     },
     {
       icon: Map,
@@ -128,7 +128,7 @@ export function WelcomePage() {
                 {stats.trips.toLocaleString()} trips
               </p>
               <p className="text-base text-brand-carbon/60 mt-2">
-                planned on Tripti and counting
+                planned on TRIPTI.ai and counting
               </p>
             </div>
           </section>
@@ -141,7 +141,7 @@ export function WelcomePage() {
               Built for friend circles.
             </h2>
             <p className="text-sm sm:text-base text-brand-carbon/70 leading-relaxed">
-              Tripti is made for friend groups and families planning trips together —
+              TRIPTI.ai is made for friend groups and families planning trips together —
               weekend getaways, bachelor parties, family reunions, you name it.
               It&apos;s not a booking engine or a rigid planner.
               It&apos;s the calm space between &quot;we should do a trip&quot; and &quot;we&apos;re actually going.&quot;

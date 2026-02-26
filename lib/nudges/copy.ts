@@ -116,7 +116,7 @@ export function getNudgeCopy(
         message: payload.dateRange
           ? `${payload.dateRange.label} has support. Lock it in when you're ready.`
           : 'The proposed dates have support. Lock them in when you\'re ready.',
-        ctaLabel: 'Lock dates',
+        ctaLabel: 'Confirm dates',
       }
 
     // ============ Traveler Guidance Nudges ============

@@ -105,7 +105,7 @@ export function ProposeToCircleDialog({ open, onOpenChange, post, circles, token
               </Select>
             ) : (
               <p className="text-sm text-brand-carbon/60">
-                You need to create or join a circle first to propose trips.
+                Create or join a circle to propose trips.
               </p>
             )}
           </div>

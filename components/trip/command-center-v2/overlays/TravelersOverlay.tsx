@@ -387,7 +387,7 @@ export function TravelersOverlay({
       onRefresh()
       onClose()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to leave trip')
+      toast.error(err.message || "Couldn't leave trip — try again")
     } finally {
       setLeaving(false)
     }
@@ -922,6 +922,7 @@ export function TravelersOverlay({
                                   className="h-8 w-8 p-0"
                                   onClick={() => handleRequestAction(request.id, 'reject')}
                                   disabled={processingRequest === request.id}
+                                  aria-label="Reject join request"
                                 >
                                   <X className="h-4 w-4 text-brand-red" />
                                 </Button>
@@ -931,6 +932,7 @@ export function TravelersOverlay({
                                   className="h-8 w-8 p-0"
                                   onClick={() => handleRequestAction(request.id, 'approve')}
                                   disabled={processingRequest === request.id}
+                                  aria-label="Approve join request"
                                 >
                                   <Check className="h-4 w-4 text-green-500" />
                                 </Button>

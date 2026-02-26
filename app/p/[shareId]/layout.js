@@ -10,7 +10,7 @@ export async function generateMetadata({ params }) {
     const trip = data.trip
 
     const title = `${trip.name}${trip.destinationHint ? ` \u2014 ${trip.destinationHint}` : ''} | Tripti.ai`
-    const description = `${trip.duration || 'A'} trip with ${trip.travelerCount} traveler${trip.travelerCount !== 1 ? 's' : ''}. Plan yours on Tripti.`
+    const description = `${trip.duration || 'A'} trip with ${trip.travelerCount} traveler${trip.travelerCount !== 1 ? 's' : ''}. Plan yours on TRIPTI.ai.`
     const ogImageUrl = `${baseUrl}/p/${shareId}/og`
 
     return {

@@ -129,7 +129,7 @@ export function BriefOverlay({
         })
         if (!res.ok) {
           const data = await res.json()
-          throw new Error(data.error || 'Failed to load brief')
+          throw new Error(data.error || "Couldn't load brief — try again")
         }
         const data = await res.json()
         setBrief(data)
@@ -244,7 +244,7 @@ export function BriefOverlay({
     const url = `${window.location.origin}/t/${briefToken}`
     navigator.share?.({
       title: `${overview?.name || trip?.name || 'Trip'} — Brief`,
-      text: 'Check out our trip brief on Tripti',
+      text: 'Check out our trip brief on TRIPTI.ai',
       url
     }).catch(() => {})
   }

@@ -102,7 +102,7 @@ export default function TermsOfUsePage() {
             Content shared within a trip or circle is visible to members of that group. Deleting
             a message or item removes it from the Service, but group members may have already
             seen it. Itineraries and trip posts that you or your trip leader mark
-            as &ldquo;discoverable&rdquo; may be visible to other Tripti users outside your group
+            as &ldquo;discoverable&rdquo; may be visible to other TRIPTI.ai users outside your group
             through the Discover feature.
           </p>
 
@@ -140,7 +140,7 @@ export default function TermsOfUsePage() {
             without our prior written consent.
           </p>
           <p>
-            &ldquo;Tripti,&rdquo; &ldquo;Tripti.ai,&rdquo; the Tripti logo, and &ldquo;Nifty plans.
+            &ldquo;TRIPTI.ai,&rdquo; the TRIPTI.ai logo, and &ldquo;Nifty plans.
             Happy circles.&rdquo; are trademarks of Trypzy, Inc. You may not use these marks without
             our prior written permission.
           </p>

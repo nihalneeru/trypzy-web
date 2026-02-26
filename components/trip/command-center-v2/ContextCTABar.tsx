@@ -119,10 +119,10 @@ export function ContextCTABar({
 
     // Priority-based CTA selection (lower priority number = higher importance)
 
-    // 1. Lock dates (if leader and can lock - highest priority for leader)
+    // 1. Confirm dates (if leader and can lock - highest priority for leader)
     if (isLeader && !datesLocked && leaderNeedsToLock) {
       return {
-        label: 'Lock dates',
+        label: 'Confirm dates',
         icon: Lock,
         overlayType: 'scheduling',
         priority: 1,
@@ -165,10 +165,10 @@ export function ContextCTABar({
       }
     }
 
-    // 3. Pick your dates (if user hasn't submitted availability and dates not locked)
+    // 3. Share your dates (if user hasn't submitted availability and dates not locked)
     if (!hasSubmittedAvailability && !datesLocked) {
       return {
-        label: 'Pick your dates',
+        label: 'Share your dates',
         icon: Calendar,
         overlayType: 'scheduling',
         priority: 3,
@@ -318,6 +318,7 @@ export function ContextCTABar({
         >
           <DollarSign className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="text-sm font-medium hidden sm:inline">Expenses</span>
+          <span className="text-sm font-medium sm:hidden">$</span>
         </Button>
 
         <Button
@@ -335,6 +336,7 @@ export function ContextCTABar({
         >
           <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="text-sm font-medium hidden sm:inline">Memories</span>
+          <span className="text-sm font-medium sm:hidden">Pics</span>
         </Button>
       </div>
 

@@ -6,7 +6,7 @@ import { Calendar, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 import { tripHref } from '@/lib/navigation/routes'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
-import { getTripCountdownLabel } from '@/lib/trips/getTripCountdownLabel'
+import { getTripCountdownLabel, getTripCountdownBadge } from '@/lib/trips/getTripCountdownLabel'
 import { formatTripDateRange } from '@/lib/utils'
 
 /**
@@ -82,10 +82,25 @@ export function TripCard({ trip, circleId = null }) {
 
   // Ensure pendingActions exists (default to empty array)
   const pendingActions = trip.pendingActions || []
-  
-  // Use tripHref without tab query - always land on Chat tab by default
-  // Deep-links should be explicit via ?tab= query, not inferred from pending actions
-  const tripUrl = tripHref(trip.id)
+
+  // Deep-link: if there's a pending action, append ?overlay= so the user
+  // lands directly on the relevant overlay instead of the chat view
+  const overlayForAction = (() => {
+    if (pendingActions.length === 0) return null
+    const topAction = pendingActions[0]
+    switch (topAction.type) {
+      case 'scheduling_required':
+      case 'date_vote':
+        return 'scheduling'
+      case 'itinerary_review':
+        return 'itinerary'
+      default:
+        return null
+    }
+  })()
+  const tripUrl = overlayForAction
+    ? `${tripHref(trip.id)}?overlay=${overlayForAction}`
+    : tripHref(trip.id)
   
   // CTA semantics: Use actionRequired as source of truth
   // If actionRequired = true: show red CTA with action-specific text
@@ -113,7 +128,7 @@ export function TripCard({ trip, circleId = null }) {
     } else {
       // Fallback: use generic action text based on status
       if (trip.status === 'proposed' || trip.status === 'scheduling') {
-        primaryLabel = trip.schedulingMode === 'top3_heatmap' ? 'Pick your dates' : 'Add your dates'
+        primaryLabel = trip.schedulingMode === 'top3_heatmap' ? 'Share your dates' : 'Add your dates'
       } else if (trip.status === 'voting') {
         primaryLabel = 'Vote on dates'
       }
@@ -122,6 +137,7 @@ export function TripCard({ trip, circleId = null }) {
   
   // Get countdown label if dates are locked
   const countdownLabel = getTripCountdownLabel(trip, trip.name)
+  const countdownBadge = getTripCountdownBadge(trip)
 
   // Stalled trip: no activity for 7+ days — subtle warmth tint (#296)
   const isStalled = (() => {
@@ -176,12 +192,20 @@ export function TripCard({ trip, circleId = null }) {
             </button>
           </div>
 
-          {/* Status dot + label + traveler count */}
+          {/* Status dot + label + traveler count + countdown badge */}
           <div className="flex items-center gap-1.5 text-sm text-brand-carbon/70 mb-2">
             <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`} aria-hidden="true" />
             <span>{statusLabel}</span>
             <span className="text-brand-carbon/40">&middot;</span>
             <span>{trip.travelerCount} {trip.travelerCount === 1 ? 'traveler' : 'travelers'}</span>
+            {countdownBadge && (
+              <>
+                <span className="text-brand-carbon/40">&middot;</span>
+                <span className="inline-flex items-center rounded bg-brand-blue/10 px-1.5 py-0.5 text-xs font-medium text-brand-blue leading-none">
+                  {countdownBadge}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Date range (always visible) */}
@@ -193,6 +217,11 @@ export function TripCard({ trip, circleId = null }) {
                 : 'Dates not set'}
             </span>
           </div>
+
+          {/* Stalled indicator (always visible when applicable) */}
+          {isStalled && trip.status !== 'completed' && trip.status !== 'canceled' && (
+            <p className="text-xs text-brand-carbon/40 mb-2">No activity in 7 days</p>
+          )}
 
           {/* Expanded section: countdown, activity, waiting badge */}
           {expanded && (
@@ -219,11 +248,11 @@ export function TripCard({ trip, circleId = null }) {
                 </div>
               )}
 
-              {/* "Waiting on you" badge */}
+              {/* "Your turn" badge */}
               {trip.actionRequired && (
                 <div className="flex items-center">
                   <span className="inline-flex items-center rounded-md bg-brand-sand px-2 py-1 text-xs font-medium text-brand-red border border-brand-red/20">
-                    Waiting on you
+                    Your turn
                   </span>
                 </div>
               )}

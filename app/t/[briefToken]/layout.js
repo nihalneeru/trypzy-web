@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Trip Brief | Tripti',
-  description: 'A shared trip brief from Tripti — group travel made calm.',
+  title: 'Trip Brief | TRIPTI.ai',
+  description: 'A shared trip brief from TRIPTI.ai — group travel made calm.',
   robots: {
     index: false,
     follow: false

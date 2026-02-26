@@ -1,10 +1,10 @@
 export function generateMetadata({ params }) {
   return {
     title: 'You\'re invited to plan a trip on Tripti.ai',
-    description: 'Join your circle on Tripti — share availability, pick dates, and coordinate your next trip together.',
+    description: 'Join your circle on TRIPTI.ai — share availability, pick dates, and coordinate your next trip together.',
     openGraph: {
       title: 'You\'re invited to plan a trip on Tripti.ai',
-      description: 'Join your circle on Tripti — share availability, pick dates, and coordinate your next trip together.',
+      description: 'Join your circle on TRIPTI.ai — share availability, pick dates, and coordinate your next trip together.',
       url: `https://tripti.ai/join/${params.inviteCode}`,
       siteName: 'Tripti.ai',
       images: [{
@@ -18,7 +18,7 @@ export function generateMetadata({ params }) {
     twitter: {
       card: 'summary',
       title: 'You\'re invited to plan a trip on Tripti.ai',
-      description: 'Join your circle on Tripti — share availability, pick dates, and coordinate your next trip together.',
+      description: 'Join your circle on TRIPTI.ai — share availability, pick dates, and coordinate your next trip together.',
     },
   }
 }

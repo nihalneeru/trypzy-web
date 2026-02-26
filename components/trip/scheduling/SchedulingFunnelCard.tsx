@@ -167,7 +167,7 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to propose window')
+        throw new Error(error.error || "Couldn't propose window — try again")
       }
 
       const updatedTrip = await response.json()
@@ -177,7 +177,7 @@ export function SchedulingFunnelCard({
       setHasUnsavedChanges(false)
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to suggest window')
+      toast.error(error.message || "Couldn't suggest window — try again")
     } finally {
       setSubmittingWindow(false)
     }
@@ -198,13 +198,13 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to save preference')
+        throw new Error(error.error || "Couldn't save preference — try again")
       }
 
       const updatedTrip = await response.json()
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save preference')
+      toast.error(error.message || "Couldn't save preference — try again")
     } finally {
       setSubmittingPreference(null)
     }
@@ -238,7 +238,7 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to propose dates')
+        throw new Error(error.error || "Couldn't propose dates — try again")
       }
 
       const updatedTrip = await response.json()
@@ -249,7 +249,7 @@ export function SchedulingFunnelCard({
       setHasUnsavedChanges(false)
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to propose dates')
+      toast.error(error.message || "Couldn't propose dates — try again")
     } finally {
       setSubmittingProposal(false)
     }
@@ -270,14 +270,14 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to submit reaction')
+        throw new Error(error.error || "Couldn't submit reaction — try again")
       }
 
       const updatedTrip = await response.json()
       toast.success('Reaction saved!')
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to submit reaction')
+      toast.error(error.message || "Couldn't submit reaction — try again")
     } finally {
       setSubmittingReaction(false)
     }
@@ -298,7 +298,7 @@ export function SchedulingFunnelCard({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to lock dates')
+        throw new Error(error.error || "Couldn't confirm dates — try again")
       }
 
       const updatedTrip = await response.json()
@@ -306,7 +306,7 @@ export function SchedulingFunnelCard({
       setShowLockConfirmation(false)
       onRefresh(updatedTrip)
     } catch (error: any) {
-      toast.error(error.message || 'Failed to lock dates')
+      toast.error(error.message || "Couldn't confirm dates — try again")
       setShowLockConfirmation(false)
     } finally {
       setLocking(false)
@@ -369,7 +369,7 @@ export function SchedulingFunnelCard({
               </Button>
             ) : (
               <div className="text-center text-brand-carbon/70 text-sm">
-                Waiting for the trip leader to lock dates...
+                Waiting for the trip leader to confirm dates...
               </div>
             )}
           </CardContent>
@@ -379,9 +379,9 @@ export function SchedulingFunnelCard({
         <AlertDialog open={showLockConfirmation} onOpenChange={setShowLockConfirmation}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Lock dates for everyone?</AlertDialogTitle>
+              <AlertDialogTitle>Confirm dates for everyone?</AlertDialogTitle>
               <AlertDialogDescription>
-                This finalizes the trip dates. Once locked, dates cannot be changed.
+                This finalizes the trip dates. Once confirmed, dates cannot be changed.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

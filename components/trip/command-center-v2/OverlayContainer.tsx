@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useCallback, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -248,18 +248,35 @@ export function OverlayContainer({
         aria-labelledby="overlay-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0" style={{ backgroundColor: accentColor }}>
-          <h2 id="overlay-title" className="text-lg font-semibold text-white">
-            {title}
-          </h2>
-          <Button
-            variant="ghost"
+        <div className="flex flex-col shrink-0 border-b" style={{ backgroundColor: accentColor }}>
+          <div className="flex items-center justify-between px-4 py-3">
+            <h2 id="overlay-title" className="text-lg font-semibold text-white">
+              {title}
+            </h2>
+            <div className="relative">
+              <Button
+                variant="ghost"
+                onClick={handleCloseAttempt}
+                className="h-14 w-14 md:h-12 md:w-12 p-0 text-white bg-white/10 hover:bg-white/25 hover:text-white rounded-full [&_svg]:size-auto"
+                aria-label={hasUnsavedChanges ? 'Close overlay (unsaved changes)' : 'Close overlay'}
+              >
+                <X className="h-10 w-10 md:h-9 md:w-9" strokeWidth={2.5} aria-hidden="true" />
+              </Button>
+              {hasUnsavedChanges && (
+                <span
+                  className="absolute top-1 right-1 h-3 w-3 rounded-full bg-brand-red ring-2 ring-white animate-pulse"
+                  aria-label="Unsaved changes"
+                />
+              )}
+            </div>
+          </div>
+          <button
             onClick={handleCloseAttempt}
-            className="h-14 w-14 md:h-12 md:w-12 p-0 text-white hover:bg-white/20 hover:text-white [&_svg]:size-auto"
-            aria-label="Close overlay"
+            className="flex items-center gap-1.5 px-4 pb-2 text-xs text-white/70 hover:text-white transition-colors"
           >
-            <X className="h-10 w-10 md:h-9 md:w-9" strokeWidth={2.5} aria-hidden="true" />
-          </Button>
+            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+            Back to chat
+          </button>
         </div>
 
         {/* Content - scrollable */}

@@ -179,7 +179,7 @@ export async function GET(request, { params }) {
               fontWeight: 600,
             }}
           >
-            Planned with Tripti
+            Planned with TRIPTI.ai
           </div>
         </div>
       </div>

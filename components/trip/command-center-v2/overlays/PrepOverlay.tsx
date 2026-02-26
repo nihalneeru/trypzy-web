@@ -511,6 +511,7 @@ export function PrepOverlay({
                     resetTransportForm()
                   }}
                   className="h-8 w-8 p-0"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -794,6 +795,7 @@ export function PrepOverlay({
                     setNewPackingItem({ title: '', quantity: '', notes: '' })
                   }}
                   className="h-8 w-8 p-0"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -954,6 +956,7 @@ export function PrepOverlay({
                     setNewPackingItem({ title: '', quantity: '', notes: '' })
                   }}
                   className="h-8 w-8 p-0"
+                  aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </Button>

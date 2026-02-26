@@ -258,6 +258,15 @@
     animation: slide-in-bottom 300ms ease-out forwards;
   }
 
+  /* Chat message entrance animation (#388) */
+  @keyframes slide-in-chat-msg {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .animate-slide-in-chat-msg {
+    animation: slide-in-chat-msg 200ms ease-out;
+  }
+
   /* Breathing pulse for empty state circles (#300) */
   @keyframes breathing-pulse {
     0%, 100% { transform: scale(0.9); opacity: 0.6; }

@@ -90,7 +90,7 @@ function StripCircle({
         </div>
       )}
       <div className={cn(
-        'w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200',
+        'w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300',
         getBgColor(),
         isBlocker && !isActiveOverlay && 'ring-2 ring-brand-red/30 ring-offset-1'
       )}>
@@ -139,6 +139,28 @@ export function ProgressStrip({
   const effectiveStart = lockedStartDate || startDate
   const effectiveEnd = lockedEndDate || endDate
 
+  // Track whether the scroll container has overflow to show/hide the scroll gradient
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const checkScroll = () => {
+      const hasOverflow = container.scrollWidth > container.clientWidth
+      const isNotAtEnd = container.scrollLeft + container.clientWidth < container.scrollWidth - 4
+      setCanScrollRight(hasOverflow && isNotAtEnd)
+    }
+
+    checkScroll()
+    container.addEventListener('scroll', checkScroll, { passive: true })
+    window.addEventListener('resize', checkScroll)
+    return () => {
+      container.removeEventListener('scroll', checkScroll)
+      window.removeEventListener('resize', checkScroll)
+    }
+  }, [])
+
   // Detect datesLocked transition for ring burst celebration
   const prevDatesLockedRef = useRef(progressSteps.datesLocked)
   const [showLockBurst, setShowLockBurst] = useState(false)
@@ -169,6 +191,18 @@ export function ProgressStrip({
       return null
     }
   }, [effectiveStart, effectiveEnd])
+
+  // Compute "Step X of Y" for mobile indicator
+  const stepIndicator = useMemo(() => {
+    const stageSteps = TRIP_PROGRESS_STEPS.filter(step => STAGE_STEP_KEYS.includes(step.key))
+    const total = stageSteps.length
+    const blockerIdx = stageSteps.findIndex(s => s.key === blockerStageKey)
+    if (blockerIdx >= 0) return { current: blockerIdx + 1, total }
+    // Find last completed step
+    let lastCompletedIdx = -1
+    stageSteps.forEach((s, i) => { if (progressSteps[s.key]) lastCompletedIdx = i })
+    return { current: Math.min(total, lastCompletedIdx + 2), total }
+  }, [progressSteps, blockerStageKey])
 
   // Auto-scroll to blocker/active chevron on mobile
   useEffect(() => {
@@ -231,7 +265,7 @@ export function ProgressStrip({
           )}
         </div>
         {participationMeter && (
-          <span className="text-xs text-brand-carbon/60 whitespace-nowrap shrink-0">
+          <span className="text-sm text-brand-carbon/60 whitespace-nowrap shrink-0">
             {participationMeter.responded} of {participationMeter.total} {participationMeter.label}
           </span>
         )}
@@ -283,7 +317,7 @@ export function ProgressStrip({
                   showRingBurst={step.key === 'datesLocked' && showLockBurst}
                 />
                 <span className={cn(
-                  'text-[11px] md:text-xs font-medium leading-tight text-center whitespace-nowrap',
+                  'text-[11px] md:text-xs font-medium leading-tight text-center whitespace-nowrap transition-colors duration-300',
                   isCurrent && 'underline underline-offset-2',
                   isActive
                     ? 'text-brand-blue'
@@ -299,8 +333,17 @@ export function ProgressStrip({
             )
           })}
       </div>
-      {/* Right-edge fade gradient to hint at scrollability on mobile */}
-      <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-brand-sand/30 to-transparent pointer-events-none md:hidden" />
+      {/* Right-edge fade gradient — only visible when more steps are scrollable */}
+      {canScrollRight && (
+        <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white/80 via-white/40 to-transparent pointer-events-none md:hidden" />
+      )}
+      </div>
+
+      {/* Mobile step counter */}
+      <div className="flex justify-center pb-1.5 md:hidden">
+        <span className="text-[11px] font-medium text-brand-carbon/40">
+          Step {stepIndicator.current} of {stepIndicator.total}
+        </span>
       </div>
     </div>
   )

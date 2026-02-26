@@ -294,7 +294,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
                 ? 'Try a different search term or browse all stories.'
                 : scope === 'circle'
                   ? 'When your circle members share memories or complete trips, their stories show up here.'
-                  : 'Public stories from the Tripti community will appear here.'}
+                  : 'Public stories from the TRIPTI.ai community will appear here.'}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               {!search && (

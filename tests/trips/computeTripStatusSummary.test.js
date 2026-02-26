@@ -123,7 +123,7 @@ describe('computeTripStatusSummary', () => {
     }
     const result = computeTripStatusSummary(trip, makeParticipants(5), null, LEADER_ID)
 
-    expect(result.nextAction).toBe('Lock dates when ready')
+    expect(result.nextAction).toBe('Confirm dates when ready')
     expect(result.nextActionRole).toBe('leader')
   })
 

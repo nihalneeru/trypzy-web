@@ -166,7 +166,7 @@ export function ExpensesOverlay({
       setError(null)
     } catch (err: any) {
       console.error('Failed to load expenses:', err)
-      setError(err.message || 'Failed to load expenses')
+      setError(err.message || "Couldn't load expenses — try again")
     } finally {
       setLoading(false)
     }

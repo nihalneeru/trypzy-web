@@ -345,7 +345,7 @@ export function ShareToDiscoverDialog({ open, onOpenChange, circles, token, onCr
             {shareScope === 'global' ? (
               <>
                 <p className="font-medium">This will be shared publicly</p>
-                <p className="text-brand-carbon/70">Anyone on Tripti can see this in Explore.</p>
+                <p className="text-brand-carbon/70">Anyone on TRIPTI.ai can see this in Explore.</p>
               </>
             ) : selectedCircle === 'all' ? (
               <>
