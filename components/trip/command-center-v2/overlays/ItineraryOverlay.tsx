@@ -620,7 +620,7 @@ export function ItineraryOverlay({
   }
 
   const handleGenerateItinerary = async (forceGenerate = false) => {
-    if (!isLeader || generating) return
+    if (!isLeader || generating || viewerIsReadOnly) return
     setGenerating(true)
     try {
       setLlmDisabledMessage(null)
@@ -878,6 +878,7 @@ export function ItineraryOverlay({
         llmDisabledMessage={llmDisabledMessage}
         generatingMsgIndex={generatingMsgIndex}
         progressMessages={GENERATION_PROGRESS_MESSAGES}
+        viewerIsReadOnly={viewerIsReadOnly}
         onGenerateClick={handleGenerateClick}
         onExportICS={handleExportICS}
       />
