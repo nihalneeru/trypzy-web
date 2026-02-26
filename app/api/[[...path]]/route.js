@@ -362,57 +362,8 @@ async function handleRoute(request, { params }) {
   const route = `/${path.join('/')}`
   const method = request.method
 
-  // --- Rate limiting ---
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  const tier = getTierForRoute(route, method)
-
-  // For auth-tier and unauthenticated requests, use IP. For authenticated, getUserFromToken
-  // is called later — so use IP-based global check first, then user-based check is done
-  // inside the auth tier. For non-auth tiers, we do a quick IP-based global check here,
-  // and a user-based tier check after auth is resolved (deferred to avoid double DB call).
-  // Auth-tier endpoints get checked by IP immediately.
-  if (tier === 'none') {
-    // Exempt from rate limiting (e.g. chat polling)
-  } else if (tier === 'auth') {
-    const rl = await checkRateLimit(`ip:${ip}`, 'auth')
-    if (!rl.success) {
-      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
-      return handleCORS(NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
-      ))
-    }
-  } else {
-    // Global IP-based catch-all for all non-auth requests
-    const rl = await checkRateLimit(`ip:${ip}`, 'global')
-    if (!rl.success) {
-      const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
-      return handleCORS(NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
-      ))
-    }
-
-    // User-based tier check (extract userId from JWT without DB call)
-    const authHeader = request.headers.get('Authorization')
-    if (authHeader?.startsWith('Bearer ')) {
-      try {
-        const decoded = jwt.verify(authHeader.split(' ')[1], jwtSecret)
-        if (decoded.userId) {
-          const userRl = await checkRateLimit(`user:${decoded.userId}`, tier)
-          if (!userRl.success) {
-            const retryAfter = Math.ceil(Math.max(0, userRl.reset - Date.now()) / 1000) || 60
-            return handleCORS(NextResponse.json(
-              { error: 'Too many requests. Please try again later.' },
-              { status: 429, headers: { 'Retry-After': String(retryAfter) } }
-            ))
-          }
-        }
-      } catch (_) {
-        // Invalid token — auth will fail later, skip user-based rate limit
-      }
-    }
-  }
+  // --- Rate limiting (disabled for launch — re-enable after Upstash tuning) ---
+  // See CLAUDE.md section 10: "Rate limiting (needs Redis/Upstash infrastructure)"
 
   try {
     const db = await connectToMongo()
