@@ -35,6 +35,11 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
   },
   plugins: {
+    StatusBar: {
+      overlaysWebView: false,
+      style: 'LIGHT',
+      backgroundColor: '#09173D',
+    },
     SplashScreen: {
       launchAutoHide: true,
       launchShowDuration: 1500,

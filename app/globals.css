@@ -171,9 +171,15 @@
 }
 
 @layer utilities {
-  /* iOS safe area insets for notch and home indicator */
+  /* Safe area insets for notch/status bar and home indicator.
+     env(safe-area-inset-top) works on iOS but NOT in Android WebViews.
+     Android API 35+ enforces edge-to-edge, so we use a fixed fallback
+     when running inside Capacitor on Android (detected via .cap-android). */
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
+  }
+  .cap-android .safe-top {
+    padding-top: 28px;
   }
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);

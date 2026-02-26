@@ -21,6 +21,7 @@
     "@capacitor/preferences": "^6.0.0",
     "@capacitor/share": "^6.0.4",
     "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.3",
     "@codetrix-studio/capacitor-google-auth": "3.4.0-rc.4",
     "dotenv": "^17.2.4"
   },

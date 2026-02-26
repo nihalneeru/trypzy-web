@@ -70,6 +70,8 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Georgia&display=swap" rel="stylesheet" />
+        {/* Detect Capacitor Android early so CSS safe-area fallback can kick in */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(window.Capacitor&&window.Capacitor.getPlatform&&window.Capacitor.getPlatform()==='android')document.documentElement.classList.add('cap-android')}catch(e){}` }} />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <Analytics />
