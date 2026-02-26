@@ -616,8 +616,8 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
           </ErrorBoundary>
         </OverlayContainer>
 
-        {/* First-visit onboarding tooltips (fixed overlay, max 2 tips) */}
-        <OnboardingTooltips />
+        {/* First-visit onboarding tooltips (fixed overlay, max 2 tips) — suppress when overlay is open (e.g. deep-link) */}
+        {!activeOverlay && <OnboardingTooltips />}
       </div>
     </div>
   )

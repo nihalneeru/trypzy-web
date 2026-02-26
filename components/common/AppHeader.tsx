@@ -147,7 +147,7 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
                       <span className="sr-only">{notifications.length} notification{notifications.length !== 1 ? 's' : ''}</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuContent align="end" className="w-72 max-w-[calc(100vw-1rem)]">
                     <div className="px-3 py-2">
                       <span className="text-xs font-medium text-brand-carbon/60 uppercase tracking-wide">Activity</span>
                     </div>

@@ -233,7 +233,7 @@ export function DiscoverFeed({ token, circles }: DiscoverFeedProps) {
             value={viewCircleId || 'all'}
             onValueChange={(value) => setViewCircleId(value === 'all' ? '' : value)}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="All circles" />
             </SelectTrigger>
             <SelectContent>
