@@ -111,11 +111,11 @@ export function ItineraryIdeasSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Destination Hint (Leader only) */}
-        {(trip?.destinationHint || isLeader) && (
+        {/* Destination Hint (Leader only, not on completed trips) */}
+        {(trip?.destinationHint || (isLeader && !viewerIsReadOnly)) && (
           <div className="pb-3 border-b">
             <p className="text-xs font-medium text-brand-carbon/60 mb-1">Destination</p>
-            {editingDestinationHint && isLeader ? (
+            {editingDestinationHint && isLeader && !viewerIsReadOnly ? (
               <div className="space-y-2">
                 <Input
                   value={destinationHintValue}
@@ -149,8 +149,8 @@ export function ItineraryIdeasSection({
               </div>
             ) : (
               <div
-                className={`flex items-start justify-between gap-2${isLeader ? ' cursor-pointer hover:bg-brand-sand/30 rounded-md -mx-1 px-1 transition-colors' : ''}`}
-                onClick={isLeader ? () => {
+                className={`flex items-start justify-between gap-2${isLeader && !viewerIsReadOnly ? ' cursor-pointer hover:bg-brand-sand/30 rounded-md -mx-1 px-1 transition-colors' : ''}`}
+                onClick={isLeader && !viewerIsReadOnly ? () => {
                   setDestinationHintValue(trip?.destinationHint || '')
                   setEditingDestinationHint(true)
                 } : undefined}
@@ -160,7 +160,7 @@ export function ItineraryIdeasSection({
                 ) : (
                   <p className="text-sm text-brand-carbon/40 italic flex-1">No destination set</p>
                 )}
-                {isLeader && (
+                {isLeader && !viewerIsReadOnly && (
                   <Edit2 className="h-3 w-3 text-brand-carbon/40 shrink-0 mt-0.5" />
                 )}
               </div>

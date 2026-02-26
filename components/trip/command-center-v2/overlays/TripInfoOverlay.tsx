@@ -30,6 +30,7 @@ import {
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { BoostGateCard } from '@/components/trip/BoostGateCard'
+import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 import Link from 'next/link'
 import { circlePageHref } from '@/lib/navigation/routes'
 
@@ -509,18 +510,20 @@ export function TripInfoOverlay({
         </p>
       )}
 
-      {/* === Trip Boost Section === */}
-      {trip.boostStatus === 'boosted' ? (
-        <div className="flex items-center justify-center gap-2 py-2">
-          <Badge variant="outline" className="border-brand-sand bg-brand-sand text-brand-carbon text-xs">
-            Boosted
-          </Badge>
-        </div>
-      ) : (
-        <>
-          <h3 className="text-xs font-semibold text-brand-carbon/60 uppercase tracking-wide mb-2 mt-4">Trip Boost</h3>
-          <BoostGateCard trip={trip} feature="settle_up" token={token} />
-        </>
+      {/* === Trip Boost Section (hide for completed trips) === */}
+      {!isTripCompleted(trip) && (
+        trip.boostStatus === 'boosted' ? (
+          <div className="flex items-center justify-center gap-2 py-2">
+            <Badge variant="outline" className="border-brand-sand bg-brand-sand text-brand-carbon text-xs">
+              Boosted
+            </Badge>
+          </div>
+        ) : (
+          <>
+            <h3 className="text-xs font-semibold text-brand-carbon/60 uppercase tracking-wide mb-2 mt-4">Trip Boost</h3>
+            <BoostGateCard trip={trip} feature="settle_up" token={token} />
+          </>
+        )
       )}
 
       {/* Share confirmation dialog */}

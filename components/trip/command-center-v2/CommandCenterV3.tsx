@@ -414,12 +414,12 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
           )}
 
           {!isCancelled && !viewer.isRemovedTraveler && isCompleted && (
-            <div className="bg-brand-sand/30 border-b border-brand-blue/20 px-4 py-3 flex items-center justify-center gap-2">
-              <span className="text-brand-blue text-sm font-medium">This trip has ended</span>
-              <span className="text-brand-blue/60 text-xs">(view only)</span>
+            <div className="bg-brand-carbon text-white px-4 py-2.5 flex items-center justify-center gap-3">
+              <span className="text-sm font-semibold">Trip completed</span>
+              <span className="text-white/60 text-xs">(view only)</span>
               <Link
                 href="/dashboard"
-                className="ml-2 text-sm font-medium text-brand-blue hover:underline"
+                className="ml-1 text-xs font-medium text-white/80 hover:text-white underline"
               >
                 Back to dashboard
               </Link>
