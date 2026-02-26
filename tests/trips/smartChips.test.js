@@ -33,6 +33,9 @@ function generateSmartChips(currentMonth) {
     chips.push({ label: "New Year's weekend", action: 'dates' })
   }
 
+  // "I'm flexible" = any dates work (submitted as free-text window, not duration pref)
+  chips.push({ label: "I'm flexible", action: 'dates' })
+
   return chips.slice(0, 5)
 }
 
@@ -42,10 +45,19 @@ function generateSmartChips(currentMonth) {
 
 describe('generateSmartChips', () => {
   describe('structure and count', () => {
-    it('returns 4 chips for every month (3 month-relative + 1 seasonal)', () => {
+    it('returns 5 chips for every month (3 month-relative + 1 seasonal + flexible)', () => {
       for (let month = 0; month < 12; month++) {
         const chips = generateSmartChips(month)
-        expect(chips.length).toBe(4)
+        expect(chips.length).toBe(5)
+      }
+    })
+
+    it('last chip is always "I\'m flexible" with action "dates"', () => {
+      for (let month = 0; month < 12; month++) {
+        const chips = generateSmartChips(month)
+        const last = chips[chips.length - 1]
+        expect(last.label).toBe("I'm flexible")
+        expect(last.action).toBe('dates')
       }
     })
 

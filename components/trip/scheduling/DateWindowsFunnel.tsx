@@ -158,7 +158,10 @@ function generateSmartChips(): { label: string; action: 'dates' | 'flexible' }[]
     chips.push({ label: "New Year's weekend", action: 'dates' })
   }
 
-  // Max 5 chips (all date-related — "flexible" duration is in the duration preference pills)
+  // "I'm flexible" = any dates work for me (submitted as free-text window)
+  chips.push({ label: "I'm flexible", action: 'dates' })
+
+  // Max 5 chips
   return chips.slice(0, 5)
 }
 
