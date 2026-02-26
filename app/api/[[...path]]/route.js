@@ -371,7 +371,9 @@ async function handleRoute(request, { params }) {
   // inside the auth tier. For non-auth tiers, we do a quick IP-based global check here,
   // and a user-based tier check after auth is resolved (deferred to avoid double DB call).
   // Auth-tier endpoints get checked by IP immediately.
-  if (tier === 'auth') {
+  if (tier === 'none') {
+    // Exempt from rate limiting (e.g. chat polling)
+  } else if (tier === 'auth') {
     const rl = await checkRateLimit(`ip:${ip}`, 'auth')
     if (!rl.success) {
       const retryAfter = Math.ceil(Math.max(0, rl.reset - Date.now()) / 1000) || 60
