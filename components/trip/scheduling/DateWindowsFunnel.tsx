@@ -158,10 +158,7 @@ function generateSmartChips(): { label: string; action: 'dates' | 'flexible' }[]
     chips.push({ label: "New Year's weekend", action: 'dates' })
   }
 
-  // Always include "I'm flexible"
-  chips.push({ label: "I'm flexible", action: 'flexible' })
-
-  // Max 5 chips
+  // Max 5 chips (all date-related — "flexible" duration is in the duration preference pills)
   return chips.slice(0, 5)
 }
 
@@ -764,11 +761,16 @@ export function DateWindowsFunnel({
 
   // Handle chip tap — parse text, pre-fill calendar
   const handleChipTap = useCallback((chip: { label: string; action: 'dates' | 'flexible' }) => {
-    if (chip.action === 'flexible') {
-      handleSetDurationPref('flexible')
-      setSelectedChipLabel(chip.label)
+    // Toggle off: if already selected, deselect and clear everything
+    if (selectedChipLabel === chip.label) {
+      setSelectedChipLabel(null)
+      setChipPreStart(null)
+      setChipPreEnd(null)
+      setNewDateText('')
+      setUseTextInput(false)
       return
     }
+
     const result = normalizeWindow(chip.label)
     if ('error' in result) {
       // Unparseable chip (e.g. "Weekend in March", "Spring break")
@@ -787,7 +789,7 @@ export function DateWindowsFunnel({
     // Also set the text so the "Add these dates" button works
     setNewDateText(`${result.startISO} - ${result.endISO}`)
     setSelectedChipLabel(chip.label)
-  }, [])
+  }, [selectedChipLabel])
 
   // Handle supporting a window
   const handleSupport = async (windowId: string) => {

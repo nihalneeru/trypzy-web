@@ -33,7 +33,6 @@ function generateSmartChips(currentMonth) {
     chips.push({ label: "New Year's weekend", action: 'dates' })
   }
 
-  chips.push({ label: "I'm flexible", action: 'flexible' })
   return chips.slice(0, 5)
 }
 
@@ -43,28 +42,17 @@ function generateSmartChips(currentMonth) {
 
 describe('generateSmartChips', () => {
   describe('structure and count', () => {
-    it('returns 5 chips for every month (3 month-relative + 1 seasonal + flexible)', () => {
+    it('returns 4 chips for every month (3 month-relative + 1 seasonal)', () => {
       for (let month = 0; month < 12; month++) {
         const chips = generateSmartChips(month)
-        expect(chips.length).toBe(5)
+        expect(chips.length).toBe(4)
       }
     })
 
-    it('last chip is always "I\'m flexible" with action flexible', () => {
+    it('all chips have action "dates"', () => {
       for (let month = 0; month < 12; month++) {
         const chips = generateSmartChips(month)
-        const last = chips[chips.length - 1]
-        expect(last.label).toBe("I'm flexible")
-        expect(last.action).toBe('flexible')
-      }
-    })
-
-    it('all non-flexible chips have action "dates"', () => {
-      for (let month = 0; month < 12; month++) {
-        const chips = generateSmartChips(month)
-        const dateChips = chips.filter(c => c.action === 'dates')
-        // 3 month-relative + 1 seasonal = 4 date chips
-        expect(dateChips.length).toBe(4)
+        chips.forEach(c => expect(c.action).toBe('dates'))
       }
     })
   })
@@ -196,19 +184,4 @@ describe('generateSmartChips', () => {
     }
   })
 
-  describe('"I\'m flexible" chip', () => {
-    it('is identified as action "flexible", not "dates"', () => {
-      for (let month = 0; month < 12; month++) {
-        const chips = generateSmartChips(month)
-        const flexChip = chips.find(c => c.label === "I'm flexible")
-        expect(flexChip).toBeDefined()
-        expect(flexChip.action).toBe('flexible')
-      }
-    })
-
-    it('does NOT parse via normalizeWindow (expected — contains "flexible" multi-range keyword)', () => {
-      const result = normalizeWindow("I'm flexible", { tripYear: 2026 })
-      expect(result.error).toBeDefined()
-    })
-  })
 })
