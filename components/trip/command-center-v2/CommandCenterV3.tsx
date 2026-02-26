@@ -510,7 +510,7 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
           onClose={closeOverlay}
           title={getOverlayTitle(activeOverlay)}
           hasUnsavedChanges={hasUnsavedChanges}
-          topOffset={`${stripHeight}px`}
+          topOffset="0px"
           bottomOffset="0px"
           rightOffset="0px"
           slideFrom="right"
