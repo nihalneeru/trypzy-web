@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/jobs/push-sweep",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/jobs/aggregates",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
