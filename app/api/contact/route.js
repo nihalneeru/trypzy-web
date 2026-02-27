@@ -59,7 +59,7 @@ export async function POST(request) {
 
   try {
     await resend.emails.send({
-      from: 'Tripti.ai Support <noreply@tripti.ai>',
+      from: 'Tripti.ai Support <noreply@send.tripti.ai>',
       to: 'contact@tripti.ai',
       replyTo: email.trim(),
       subject: `Support: ${name.trim()}`,
