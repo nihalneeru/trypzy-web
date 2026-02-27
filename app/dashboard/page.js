@@ -143,6 +143,7 @@ export default function DashboardPage() {
             // Auth gate: redirect to login if not authenticated
             router.replace('/')
           }
+          // Don't clear loading — keep skeleton visible during redirect
           return
         }
 
@@ -153,6 +154,7 @@ export default function DashboardPage() {
 
         const data = await api('/dashboard', { method: 'GET' }, tokenValue)
         setDashboardData(data)
+        setLoading(false)
         dashboardLoaded.current = true
       } catch (err) {
         const msg = err?.message || String(err)
@@ -162,10 +164,10 @@ export default function DashboardPage() {
           localStorage.removeItem('tripti_token')
           localStorage.removeItem('tripti_user')
           router.replace('/')
+          // Don't clear loading — keep skeleton visible during redirect
           return
         }
         setError(msg || 'Could not load dashboard')
-      } finally {
         setLoading(false)
       }
     }
@@ -290,7 +292,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-brand-sand/30" data-testid="dashboard-page">
-      <AppHeader userName={user?.name} activePage="circles" notifications={dashboardData.globalNotifications || []} />
+      <AppHeader userName={user?.name} notifications={dashboardData.globalNotifications || []} />
 
       <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-brand-carbon mb-6">Dashboard</h1>
