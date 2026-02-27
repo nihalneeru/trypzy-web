@@ -139,7 +139,7 @@ export function ExpensesOverlay({
     if (trip?.id) {
       loadExpenses()
     }
-  }, [trip?.id])
+  }, [trip?.id, trip?.status])
 
   // Initialize form with all travelers selected
   useEffect(() => {

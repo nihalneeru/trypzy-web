@@ -407,7 +407,7 @@ export function DateWindowsFunnel({
     } finally {
       setLoading(false)
     }
-  }, [trip.id, token])
+  }, [trip.id, trip.status, token])
 
   useEffect(() => {
     fetchWindows()

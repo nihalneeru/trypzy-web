@@ -100,7 +100,7 @@ export function MemoriesOverlay({
     if (trip?.id) {
       loadMemories()
     }
-  }, [trip?.id])
+  }, [trip?.id, trip?.status])
 
   const loadMemories = async () => {
     if (!trip?.id) return

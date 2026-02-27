@@ -186,7 +186,7 @@ export function TravelersOverlay({
       loadJoinRequests()
       loadPendingInvitations()
     }
-  }, [isTripLeader, trip?.id])
+  }, [isTripLeader, trip?.id, trip?.status])
 
   // Load user's own invitation status (for non-leaders)
   useEffect(() => {

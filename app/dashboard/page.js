@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { CircleSection } from '@/components/dashboard/CircleSection'
 import { CircleOverview } from '@/components/dashboard/CircleOverview'
 import { CreateCircleDialog } from '@/components/dashboard/CreateCircleDialog'
@@ -184,6 +184,55 @@ export default function DashboardPage() {
       if (throwOnError) throw err
     }
   }
+
+  // Silent poll — re-fetches dashboard without loading/error states
+  const pollDashboard = useCallback(async () => {
+    const tokenValue = localStorage.getItem('tripti_token')
+    if (!tokenValue) return
+    try {
+      const data = await api('/dashboard', { method: 'GET' }, tokenValue)
+      setDashboardData(data)
+    } catch {
+      // Silently ignore poll failures
+    }
+  }, [])
+
+  // Background polling (30s) + re-fetch on tab visibility change
+  useEffect(() => {
+    if (!token || loading) return
+
+    let intervalId = null
+
+    const startPolling = () => {
+      if (!intervalId) {
+        intervalId = setInterval(pollDashboard, 30000)
+      }
+    }
+
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        pollDashboard()
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    startPolling()
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      stopPolling()
+    }
+  }, [token, loading, pollDashboard])
 
   const handleCreateCircleSuccess = (circleData) => {
     // Show onboarding interstitial instead of immediately reloading
