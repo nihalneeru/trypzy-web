@@ -471,7 +471,7 @@ export function ItineraryOverlay({
     } finally {
       setLoadingIdeas(false)
     }
-  }, [trip?.id, token])
+  }, [trip?.id, trip?.status, token])
 
   const loadVersions = useCallback(async () => {
     if (!trip?.id || !token) return
@@ -499,7 +499,7 @@ export function ItineraryOverlay({
     } finally {
       setLoadingVersions(false)
     }
-  }, [trip?.id, token])
+  }, [trip?.id, trip?.status, token])
 
   const loadFeedback = useCallback(async () => {
     if (!trip?.id || !token || !latestVersion) return

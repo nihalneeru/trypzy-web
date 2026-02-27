@@ -119,6 +119,59 @@ export default function TripDetailPage() {
     }
   }, [token, tripId, fetchTrip])
 
+  // Silent poll — re-fetches trip without loading/error states.
+  // Used by background polling so the UI doesn't flash.
+  const pollTrip = useCallback(async () => {
+    if (!token || !tripId) return
+    try {
+      const res = await fetch(`/api/trips/${tripId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) return // Silently ignore poll failures
+      const data = await res.json()
+      setTrip(enrichTrip(data))
+    } catch {
+      // Silently ignore network errors during polling
+    }
+  }, [token, tripId])
+
+  // Background polling (15s) + re-fetch on tab visibility change
+  useEffect(() => {
+    if (!token || !tripId) return
+
+    let intervalId = null
+
+    const startPolling = () => {
+      if (!intervalId) {
+        intervalId = setInterval(pollTrip, 15000)
+      }
+    }
+
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        pollTrip() // Immediate refresh on tab focus
+        startPolling()
+      } else {
+        stopPolling() // Don't waste requests when tab is hidden
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    startPolling()
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      stopPolling()
+    }
+  }, [token, tripId, pollTrip])
+
   const handleRefresh = useCallback((updatedTrip) => {
     if (updatedTrip) {
       const current = tripRef.current
