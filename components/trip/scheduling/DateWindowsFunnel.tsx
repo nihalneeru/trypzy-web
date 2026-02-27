@@ -313,6 +313,10 @@ export function DateWindowsFunnel({
   const [manualEndDate, setManualEndDate] = useState('')
   const [normalizationError, setNormalizationError] = useState<string | null>(null)
 
+  // Progressive disclosure state
+  const [showInsightDetails, setShowInsightDetails] = useState(false)
+  const [showLeaderFooter, setShowLeaderFooter] = useState(false)
+
   // Smart chip calendar pre-selection
   const [chipPreStart, setChipPreStart] = useState<string | null>(null)
   const [chipPreEnd, setChipPreEnd] = useState<string | null>(null)
@@ -1490,8 +1494,8 @@ export function DateWindowsFunnel({
                   </div>
                 )}
 
-                {/* Leader: lock this specific window */}
-                {isLeader && (
+                {/* Leader: lock this specific window — prominent when ready, secondary override otherwise */}
+                {isLeader && (wSummary?.readyToLock ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1502,7 +1506,15 @@ export function DateWindowsFunnel({
                     <Lock className="h-3.5 w-3.5 mr-1.5" />
                     Lock this option
                   </Button>
-                )}
+                ) : (
+                  <button
+                    onClick={() => { setLockTargetId(pw.id); setShowLockConfirm(true) }}
+                    disabled={submitting}
+                    className="w-full text-center text-xs text-brand-carbon/50 hover:text-brand-blue hover:underline py-1"
+                  >
+                    Lock anyway (override)
+                  </button>
+                ))}
               </CardContent>
             </Card>
           )
@@ -1615,66 +1627,80 @@ export function DateWindowsFunnel({
         )}
       </div>
 
-      {/* Duration preference selector */}
-      <Card className="bg-brand-sand/20">
-        <CardContent className="py-3">
-          {/* Show creator's initial duration hint if set */}
-          {trip.duration && (
-            <p className="text-xs text-muted-foreground mb-2">
-              Trip creator suggested: <span className="font-medium">
-                {trip.duration === 'weekend' ? 'Weekend (2-3 days)' :
-                 trip.duration === 'extended-weekend' ? 'Extended weekend (3-4 days)' :
-                 trip.duration === 'week' ? 'A week' :
-                 trip.duration === 'week-plus' ? 'Week+ (8+ days)' :
-                 trip.duration === 'flexible' ? 'Flexible' : trip.duration}
-              </span>
-            </p>
-          )}
-          <p className="text-sm font-medium text-brand-carbon mb-2">How long would you like this trip to be?</p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { value: 'weekend', label: 'Weekend', desc: '2-3 days' },
-              { value: 'extended', label: 'Extended', desc: '3-4 days' },
-              { value: 'week', label: 'A week', desc: '5-7 days' },
-              { value: 'week_plus', label: 'Week+', desc: '8+ days' },
-              { value: 'flexible', label: 'Flexible', desc: 'Any length' },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => handleSetDurationPref(userDurationPref === opt.value ? null : opt.value)}
-                disabled={!isActiveParticipant}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                  !isActiveParticipant
-                    ? 'bg-brand-sand/50 text-brand-carbon/40 border-brand-carbon/10 cursor-not-allowed'
-                    : userDurationPref === opt.value
-                    ? 'bg-brand-blue text-white border-brand-blue'
-                    : 'bg-white text-brand-carbon/80 border-brand-carbon/10 hover:border-brand-blue/50'
-                }`}
-              >
-                {opt.label}
-                <span className="text-[10px] opacity-70 ml-1">({opt.desc})</span>
-              </button>
-            ))}
-          </div>
-          {isLeader && durationTotalResponses > 0 && (
-            <div className="mt-3 pt-3 border-t border-brand-carbon/10">
-              <p className="text-xs text-muted-foreground mb-1">Group preferences ({durationTotalResponses} responded):</p>
-              <div className="flex flex-wrap gap-1">
-                {Object.entries(durationAggregate).map(([pref, users]) =>
-                  users.length > 0 && (
-                    <span key={pref} className="text-xs bg-white px-2 py-0.5 rounded border">
-                      {pref === 'weekend' ? 'Weekend' :
-                       pref === 'extended' ? 'Extended' :
-                       pref === 'week' ? 'A week' :
-                       pref === 'week_plus' ? 'Week+' : 'Flexible'}: {users.length}
-                    </span>
-                  )
-                )}
+      {/* Duration preference selector — collapsed after user votes */}
+      <Collapsible defaultOpen={!userDurationPref}>
+        <CollapsibleTrigger asChild>
+          <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg bg-brand-sand/20 border border-brand-sand/40 hover:bg-brand-sand/30 transition-colors">
+            <span className="text-sm font-medium text-brand-carbon">
+              {userDurationPref
+                ? `Trip length: ${userDurationPref === 'weekend' ? 'Weekend' : userDurationPref === 'extended' ? 'Extended' : userDurationPref === 'week' ? 'A week' : userDurationPref === 'week_plus' ? 'Week+' : 'Flexible'}`
+                : 'How long should this trip be?'}
+            </span>
+            <ChevronDown className="h-4 w-4 text-brand-carbon/40" />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <Card className="bg-brand-sand/20 mt-2 border-brand-sand/40">
+            <CardContent className="py-3">
+              {/* Show creator's initial duration hint if set */}
+              {trip.duration && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  Trip creator suggested: <span className="font-medium">
+                    {trip.duration === 'weekend' ? 'Weekend (2-3 days)' :
+                     trip.duration === 'extended-weekend' ? 'Extended weekend (3-4 days)' :
+                     trip.duration === 'week' ? 'A week' :
+                     trip.duration === 'week-plus' ? 'Week+ (8+ days)' :
+                     trip.duration === 'flexible' ? 'Flexible' : trip.duration}
+                  </span>
+                </p>
+              )}
+              <p className="text-sm font-medium text-brand-carbon mb-2">How long would you like this trip to be?</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'weekend', label: 'Weekend', desc: '2-3 days' },
+                  { value: 'extended', label: 'Extended', desc: '3-4 days' },
+                  { value: 'week', label: 'A week', desc: '5-7 days' },
+                  { value: 'week_plus', label: 'Week+', desc: '8+ days' },
+                  { value: 'flexible', label: 'Flexible', desc: 'Any length' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleSetDurationPref(userDurationPref === opt.value ? null : opt.value)}
+                    disabled={!isActiveParticipant}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      !isActiveParticipant
+                        ? 'bg-brand-sand/50 text-brand-carbon/40 border-brand-carbon/10 cursor-not-allowed'
+                        : userDurationPref === opt.value
+                        ? 'bg-brand-blue text-white border-brand-blue'
+                        : 'bg-white text-brand-carbon/80 border-brand-carbon/10 hover:border-brand-blue/50'
+                    }`}
+                  >
+                    {opt.label}
+                    <span className="text-[10px] opacity-70 ml-1">({opt.desc})</span>
+                  </button>
+                ))}
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              {isLeader && durationTotalResponses > 0 && (
+                <div className="mt-3 pt-3 border-t border-brand-carbon/10">
+                  <p className="text-xs text-muted-foreground mb-1">Group preferences ({durationTotalResponses} responded):</p>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.entries(durationAggregate).map(([pref, users]) =>
+                      users.length > 0 && (
+                        <span key={pref} className="text-xs bg-white px-2 py-0.5 rounded border">
+                          {pref === 'weekend' ? 'Weekend' :
+                           pref === 'extended' ? 'Extended' :
+                           pref === 'week' ? 'A week' :
+                           pref === 'week_plus' ? 'Week+' : 'Flexible'}: {users.length}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Add new window form */}
       <Collapsible open={showAddWindow} onOpenChange={setShowAddWindow}>
@@ -2108,7 +2134,7 @@ export function DateWindowsFunnel({
                 </p>
               )}
 
-              {/* Insight card (visible to all when data exists) */}
+              {/* Insight card — summary always visible, details collapsed for non-leaders */}
               {hasInsight && (
                 <Card className="border-brand-blue/20 bg-brand-sand/30">
                   <CardContent className="py-4 space-y-3">
@@ -2129,97 +2155,171 @@ export function DateWindowsFunnel({
                       )}
                     </div>
 
-                    {/* Summary */}
+                    {/* Summary — always visible */}
                     <p className="text-sm text-brand-carbon leading-relaxed">{output.summary}</p>
 
-                    {/* Preferences */}
-                    {output.preferences?.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-brand-carbon mb-1">Preferences from the group</p>
-                        <ul className="space-y-1">
-                          {output.preferences.map((p: any, i: number) => (
-                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
-                              <span className="text-brand-blue mt-0.5 shrink-0">•</span>
-                              <span>
-                                {p.text}
-                                {p.confidence === 'low' && (
-                                  <span className="text-[10px] text-brand-carbon/40 ml-1">(low confidence)</span>
-                                )}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    {/* Details — auto-expanded for leaders, collapsed for non-leaders */}
+                    {isLeader ? (
+                      <>
+                        {output.preferences?.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-brand-carbon mb-1">Preferences from the group</p>
+                            <ul className="space-y-1">
+                              {output.preferences.map((p: any, i: number) => (
+                                <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                                  <span className="text-brand-blue mt-0.5 shrink-0">•</span>
+                                  <span>
+                                    {p.text}
+                                    {p.confidence === 'low' && (
+                                      <span className="text-[10px] text-brand-carbon/40 ml-1">(low confidence)</span>
+                                    )}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
 
-                    {/* Avoids / Conflicts */}
-                    {output.avoids?.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-brand-carbon mb-1">Dates to avoid</p>
-                        <ul className="space-y-1">
-                          {output.avoids.map((a: any, i: number) => (
-                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
-                              <span className="text-brand-red mt-0.5 shrink-0">•</span>
-                              <span>{a.text}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                        {output.avoids?.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-brand-carbon mb-1">Dates to avoid</p>
+                            <ul className="space-y-1">
+                              {output.avoids.map((a: any, i: number) => (
+                                <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                                  <span className="text-brand-red mt-0.5 shrink-0">•</span>
+                                  <span>{a.text}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
 
-                    {/* Waiting on */}
-                    {missingNames.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-brand-carbon mb-1">
-                          Waiting on ({missingNames.length})
-                        </p>
-                        <p className="text-sm text-muted-foreground">{missingNames.join(', ')}</p>
-                      </div>
-                    )}
+                        {missingNames.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-brand-carbon mb-1">
+                              Waiting on ({missingNames.length})
+                            </p>
+                            <p className="text-sm text-muted-foreground">{missingNames.join(', ')}</p>
+                          </div>
+                        )}
 
-                    {/* Ambiguities */}
-                    {output.ambiguities?.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-brand-carbon mb-1">Unclear</p>
-                        <ul className="space-y-1">
-                          {output.ambiguities.map((a: any, i: number) => (
-                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
-                              <span className="text-brand-carbon/40 mt-0.5 shrink-0">•</span>
-                              <span>{a.text}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                        {output.ambiguities?.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-brand-carbon mb-1">Unclear</p>
+                            <ul className="space-y-1">
+                              {output.ambiguities.map((a: any, i: number) => (
+                                <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                                  <span className="text-brand-carbon/40 mt-0.5 shrink-0">•</span>
+                                  <span>{a.text}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
 
-                    {/* Follow-up questions (role-aware) */}
-                    {output.followups?.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-brand-carbon mb-1">
-                          {isLeader ? 'Suggested questions to ask' : 'Open questions'}
-                        </p>
-                        <ul className="space-y-2">
-                          {output.followups.map((f: any, i: number) => (
-                            <li key={i} className="text-sm text-muted-foreground bg-white rounded p-2 border">
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="italic">&ldquo;{f.question}&rdquo;</span>
-                                {isLeader && (
-                                  <button
-                                    onClick={() => handleCopyFollowup(f.question)}
-                                    className="shrink-0 text-muted-foreground hover:text-brand-blue p-1"
-                                    aria-label="Copy to clipboard"
-                                  >
-                                    <Copy className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
+                        {output.followups?.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-brand-carbon mb-1">Suggested questions to ask</p>
+                            <ul className="space-y-2">
+                              {output.followups.map((f: any, i: number) => (
+                                <li key={i} className="text-sm text-muted-foreground bg-white rounded p-2 border">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="italic">&ldquo;{f.question}&rdquo;</span>
+                                    <button
+                                      onClick={() => handleCopyFollowup(f.question)}
+                                      className="shrink-0 text-muted-foreground hover:text-brand-blue p-1"
+                                      aria-label="Copy to clipboard"
+                                    >
+                                      <Copy className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                  {f.reason && (
+                                    <p className="text-xs text-brand-carbon/40 mt-1">{f.reason}</p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {!showInsightDetails ? (
+                          <button
+                            onClick={() => setShowInsightDetails(true)}
+                            className="text-xs text-brand-blue hover:underline"
+                          >
+                            View details
+                          </button>
+                        ) : (
+                          <div className="space-y-3">
+                            {output.preferences?.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-brand-carbon mb-1">Preferences from the group</p>
+                                <ul className="space-y-1">
+                                  {output.preferences.map((p: any, i: number) => (
+                                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                                      <span className="text-brand-blue mt-0.5 shrink-0">•</span>
+                                      <span>
+                                        {p.text}
+                                        {p.confidence === 'low' && (
+                                          <span className="text-[10px] text-brand-carbon/40 ml-1">(low confidence)</span>
+                                        )}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
                               </div>
-                              {f.reason && (
-                                <p className="text-xs text-brand-carbon/40 mt-1">{f.reason}</p>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                            )}
+
+                            {output.avoids?.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-brand-carbon mb-1">Dates to avoid</p>
+                                <ul className="space-y-1">
+                                  {output.avoids.map((a: any, i: number) => (
+                                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                                      <span className="text-brand-red mt-0.5 shrink-0">•</span>
+                                      <span>{a.text}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {missingNames.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-brand-carbon mb-1">
+                                  Waiting on ({missingNames.length})
+                                </p>
+                                <p className="text-sm text-muted-foreground">{missingNames.join(', ')}</p>
+                              </div>
+                            )}
+
+                            {output.followups?.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-brand-carbon mb-1">Open questions</p>
+                                <ul className="space-y-2">
+                                  {output.followups.map((f: any, i: number) => (
+                                    <li key={i} className="text-sm text-muted-foreground bg-white rounded p-2 border">
+                                      <span className="italic">&ldquo;{f.question}&rdquo;</span>
+                                      {f.reason && (
+                                        <p className="text-xs text-brand-carbon/40 mt-1">{f.reason}</p>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() => setShowInsightDetails(false)}
+                              className="text-xs text-brand-blue hover:underline"
+                            >
+                              Hide details
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -2229,8 +2329,9 @@ export function DateWindowsFunnel({
         })()
       )}
 
-      {/* Sticky propose footer — leader only (only show if there are available windows) */}
+      {/* Sticky propose footer — leader only */}
       {isLeader && phase === 'COLLECTING' && sortedWindowsMemo.length > 0 && (
+        (proposalStatus?.proposalReady || sortedWindowsMemo.length >= 3 || showLeaderFooter) ? (
         <div className="sticky bottom-0 -mx-4 -mb-4 bg-white border-t shadow-[0_-2px_8px_rgba(0,0,0,0.06)] px-4 py-3 space-y-2">
           {/* Condensed AI recommendation one-liner */}
           {aiRecommendation && (
@@ -2347,6 +2448,14 @@ export function DateWindowsFunnel({
             </div>
           )}
         </div>
+        ) : (
+        <button
+          onClick={() => setShowLeaderFooter(true)}
+          className="w-full text-center text-sm text-brand-blue hover:underline py-2"
+        >
+          Leader actions
+        </button>
+        )
       )}
 
       {/* Concrete dates dialog (for unstructured windows) */}
