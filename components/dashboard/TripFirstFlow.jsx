@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { TripFormFields } from './TripFormFields'
 import { InviteShareBlock } from './InviteShareBlock'
 import { tripHref } from '@/lib/navigation/routes'
+import { tripCreated } from '@/lib/analytics/track'
 
 const INITIAL_FORM = {
   name: '',
@@ -114,6 +115,7 @@ export function TripFirstFlow({ open, onOpenChange, token, onSuccess }) {
       }
 
       toast.success('Trip created!')
+      tripCreated(data.id || data._id, data.type || tripForm.type, data.circle?.id, data.circle?.memberCount)
       setResult({ trip: data, circle: data.circle })
       setStep('invite')
     } catch (error) {

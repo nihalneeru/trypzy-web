@@ -16,6 +16,7 @@ import { AppHeader } from '@/components/common/AppHeader'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { useSession } from 'next-auth/react'
+import { screenViewed } from '@/lib/analytics/track'
 
 // API Helper with single retry for network errors
 const api = async (endpoint, options = {}, token = null, { retry = true } = {}) => {
@@ -69,6 +70,11 @@ export default function DashboardPage() {
   const [showJoinCircle, setShowJoinCircle] = useState(false)
   const [showTripFirst, setShowTripFirst] = useState(false)
   const [newCircle, setNewCircle] = useState(null) // For onboarding interstitial
+
+  // Screen view tracking
+  useEffect(() => {
+    screenViewed('Dashboard')
+  }, [])
 
   // Dev-only navigation tracing
   useEffect(() => {

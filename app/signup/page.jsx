@@ -9,6 +9,7 @@ import { TriptiLogo } from '@/components/brand/TriptiLogo'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import Image from 'next/image'
 import { toast } from 'sonner'
+import { identifyUser, signupCompleted } from '@/lib/analytics/track'
 
 function SignupPageContent() {
   const router = useRouter()
@@ -106,6 +107,10 @@ function SignupPageContent() {
         email: session.user.email,
         name: session.user.name
       }))
+
+      // Identify user + track signup in Mixpanel
+      identifyUser(session.user.id, { email: session.user.email, name: session.user.name })
+      signupCompleted({ method: 'google' })
 
       // Determine redirect destination: URL param > localStorage > dashboard
       const urlReturnTo = searchParams.get('returnTo')

@@ -12,6 +12,7 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
+import { itineraryGenerated } from '@/lib/analytics/track'
 import { ITINERARY_CONFIG } from '@/lib/itinerary/config'
 import { isTripCompleted } from '@/lib/trips/isTripCompleted'
 
@@ -631,6 +632,7 @@ export function ItineraryOverlay({
         token
       )
       toast.success('Itinerary generated!')
+      itineraryGenerated(trip.id)
       await loadVersions()
       onRefresh(result?.trip || undefined)
     } catch (error: any) {

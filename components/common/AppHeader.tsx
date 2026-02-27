@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { resetUser } from '@/lib/analytics/track'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -81,6 +82,7 @@ export function AppHeader({ userName, activePage, notifications: externalNotific
     localStorage.removeItem('tripti_token')
     localStorage.removeItem('tripti_user')
     document.cookie = 'tripti_auth_mode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    resetUser()
 
     if (window.Capacitor?.isNativePlatform?.()) {
       try {

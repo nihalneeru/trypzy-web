@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { copyToClipboard, nativeShare } from '@/lib/native/share'
+import { datesProposed, datesLocked } from '@/lib/analytics/track'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -598,6 +599,7 @@ export function DateWindowsFunnel({
       }
 
       toast.success('Dates added')
+      datesProposed(trip.id, isLeader ? 'leader' : 'traveler')
       resetFormState()
       await fetchWindows()
     } catch (err: any) {
@@ -649,6 +651,7 @@ export function DateWindowsFunnel({
       }
 
       toast.success('Dates added')
+      datesProposed(trip.id, isLeader ? 'leader' : 'traveler')
       resetFormState()
       await fetchWindows()
     } catch (err: any) {
@@ -685,6 +688,7 @@ export function DateWindowsFunnel({
       }
 
       toast.success('Dates added')
+      datesProposed(trip.id, isLeader ? 'leader' : 'traveler')
       resetFormState()
       await fetchWindows()
     } catch (err: any) {
@@ -1115,6 +1119,7 @@ export function DateWindowsFunnel({
       }
 
       toast.success('Dates locked!')
+      datesLocked(trip.id, travelers?.length || 0)
       setShowLockConfirm(false)
       onRefresh()
       onClose()

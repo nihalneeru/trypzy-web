@@ -7,6 +7,7 @@ import { AppHeader } from '@/components/common/AppHeader'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { TripDetailSkeleton } from '@/components/trip/TripDetailSkeleton'
 import { deriveTripPrimaryStage, getPrimaryTabForStage, computeProgressFlags } from '@/lib/trips/stage'
+import { screenViewed, boostPurchased } from '@/lib/analytics/track'
 
 /**
  * Enrich a raw trip object with computed stage fields.
@@ -31,6 +32,18 @@ export default function TripDetailPage() {
   const [error, setError] = useState(null)
 
   const tripRef = useRef(null)
+
+  // Screen view tracking + boost success detection
+  useEffect(() => {
+    if (tripId) screenViewed('Trip', { trip_id: tripId })
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('boost') === 'success' && tripId) {
+        boostPurchased(tripId)
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+  }, [tripId])
 
   // Keep ref in sync with state
   useEffect(() => {

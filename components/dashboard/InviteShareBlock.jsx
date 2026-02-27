@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Share2, Copy } from 'lucide-react'
 import { nativeShare, copyToClipboard } from '@/lib/native/share'
+import { inviteSent } from '@/lib/analytics/track'
 
 /**
  * Reusable invite link + share UI block.
@@ -26,6 +27,7 @@ export function InviteShareBlock({ inviteCode, shareText, shareUrl, onShareCompl
     if (result === 'copied') {
       setInviteCopied(true)
       toast.success('Code copied!')
+      inviteSent(null, 'copy_code')
       setTimeout(() => setInviteCopied(false), 2000)
     } else {
       toast.error('Could not copy — please copy manually')
@@ -36,6 +38,7 @@ export function InviteShareBlock({ inviteCode, shareText, shareUrl, onShareCompl
     const result = await nativeShare({ title: 'Tripti.ai Invite', text: shareText, url: shareUrl })
     if (result === 'shared' || result === 'copied') {
       if (result === 'copied') toast.success('Invite link copied!')
+      inviteSent(null, result === 'shared' ? 'share_sheet' : 'copy')
       if (onShareComplete) onShareComplete(true)
     } else {
       toast.error('Could not copy — please copy manually')
