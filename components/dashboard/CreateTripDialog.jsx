@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TripFormFields } from './TripFormFields'
+import { tripCreated } from '@/lib/analytics/track'
 
 /**
  * Create Trip Dialog Component
@@ -148,6 +149,7 @@ export function CreateTripDialog({ open, onOpenChange, onSuccess, circleId, toke
       }
       
       toast.success('Trip created!')
+      tripCreated(data.id || data._id, data.type || tripForm.type, circleId, null)
       onOpenChange(false)
       if (onSuccess) {
         onSuccess(data)

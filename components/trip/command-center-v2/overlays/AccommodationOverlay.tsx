@@ -34,6 +34,7 @@ import {
   MessageCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { stayOptionAdded, stayOptionSelected } from '@/lib/analytics/track'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isTripCompleted } from '@/lib/trips/isTripCompleted'
@@ -281,6 +282,7 @@ export function AccommodationOverlay({
       }, token)
 
       toast.success('Stay option added!')
+      stayOptionAdded(trip.id)
       resetForm()
       await loadData()
       onRefresh?.()
@@ -365,6 +367,7 @@ export function AccommodationOverlay({
       }, token)
 
       toast.success('Stay confirmed!')
+      stayOptionSelected(trip.id)
       setShowSelectConfirm(false)
       setOptionToSelect(null)
       await loadData()
