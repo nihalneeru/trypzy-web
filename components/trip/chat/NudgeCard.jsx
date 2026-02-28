@@ -60,42 +60,29 @@ export function NudgeCard({ trip, userRole, onOpenOverlay }) {
 
 function getNudge(trip, userRole) {
   const status = trip.status
+  const schedulingPhase = trip.schedulingSummary?.phase
 
-  // Scheduling phase — traveler hasn't added dates
-  if ((status === 'proposed' || status === 'scheduling') && userRole !== 'leader') {
-    if (!trip.userHasSubmittedDates) {
-      return {
-        message: "Your circle is picking dates for this trip. Share when you're free so the circle can find the best time.",
-        actionLabel: 'Add your dates',
-        action: (openOverlay) => openOverlay('scheduling'),
-      }
-    }
-  }
+  // When SchedulingStatusCard is visible it already has contextual CTAs —
+  // skip all scheduling nudges to avoid duplication.
+  const schedulingCardVisible = schedulingPhase && schedulingPhase !== 'LOCKED'
 
-  // Scheduling phase — leader can propose
-  if ((status === 'proposed' || status === 'scheduling') && userRole === 'leader') {
-    if (trip.proposalReady) {
-      return {
-        message: 'Enough people have shared their dates. You can now propose a window for the circle to react to.',
-        actionLabel: 'Review dates',
-        action: (openOverlay) => openOverlay('scheduling'),
-      }
-    }
-  }
-
-  // Voting/proposed phase — traveler hasn't reacted
-  if (status === 'voting' && userRole !== 'leader') {
-    if (!trip.userHasVoted) {
-      return {
-        message: 'A date window has been proposed. Let your circle know if it works for you.',
-        actionLabel: 'React to dates',
-        action: (openOverlay) => openOverlay('scheduling'),
+  if (!schedulingCardVisible) {
+    // Voting phase — traveler hasn't reacted (fallback when no status card)
+    if (status === 'voting' && userRole !== 'leader') {
+      if (!trip.userHasVoted) {
+        return {
+          message: 'A date window has been proposed. Let your circle know if it works for you.',
+          actionLabel: 'React to dates',
+          action: (openOverlay) => openOverlay('scheduling'),
+        }
       }
     }
   }
 
   // Dates locked — leader hasn't started itinerary
-  if (status === 'locked' && userRole === 'leader') {
+  // Only show if ItineraryStatusCard is NOT visible (it already has a leader CTA)
+  const itineraryCardVisible = (status === 'locked' || trip?.lockedStartDate) && trip?.itineraryStatus
+  if (!itineraryCardVisible && status === 'locked' && userRole === 'leader') {
     if (!trip.hasItinerary) {
       return {
         message: 'Dates are locked! You can now build an itinerary together with your circle.',
