@@ -38,17 +38,29 @@ if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
 // For development, use a default
 const jwtSecret = JWT_SECRET || 'dev-only-secret-key'
 
-// MongoDB connection
-let client
-let db
+// MongoDB connection — serverless-safe singleton.
+let clientPromise
+
+function getClientPromise() {
+  if (!clientPromise) {
+    const c = new MongoClient(process.env.MONGO_URL, {
+      serverSelectionTimeoutMS: 5000,
+    })
+    clientPromise = c.connect()
+  }
+  return clientPromise
+}
 
 async function connectToMongo() {
-  if (!client) {
-    client = new MongoClient(process.env.MONGO_URL)
-    await client.connect()
-    db = client.db(process.env.DB_NAME || 'tripti')
+  try {
+    const client = await getClientPromise()
+    return client.db(process.env.DB_NAME || 'tripti')
+  } catch {
+    // Connection failed (stale/reset) — clear and retry once
+    clientPromise = null
+    const client = await getClientPromise()
+    return client.db(process.env.DB_NAME || 'tripti')
   }
-  return db
 }
 
 // Helper function to handle CORS
