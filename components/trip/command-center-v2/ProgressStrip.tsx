@@ -6,7 +6,6 @@ import { TRIP_PROGRESS_STEPS } from '@/lib/trips/progress'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
-import { circlePageHref } from '@/lib/navigation/routes'
 import {
   Tooltip,
   TooltipContent,
@@ -232,13 +231,13 @@ export function ProgressStrip({
       <div className="flex items-center justify-between px-3 md:px-4 pt-2 pb-1 gap-2">
         <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
           <Link
-            href={circleId ? circlePageHref(circleId) : '/dashboard'}
+            href="/dashboard"
             className="flex-shrink-0 p-1 -ml-1 text-brand-carbon/50 hover:text-brand-carbon self-center"
-            aria-label="Back"
+            aria-label="Back to dashboard"
           >
             <ChevronLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-sm md:text-base font-semibold text-brand-carbon break-words min-w-0">
+          <h1 className="text-base md:text-lg font-bold text-brand-carbon break-words min-w-0">
             {tripName}
           </h1>
           {isLeader && (
