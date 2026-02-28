@@ -78,6 +78,10 @@ export function OverlayContainer({
     }
   }, [hasUnsavedChanges, onClose])
 
+  // Keep a stable ref so effects don't re-run when hasUnsavedChanges toggles
+  const closeAttemptRef = useRef(handleCloseAttempt)
+  useEffect(() => { closeAttemptRef.current = handleCloseAttempt }, [handleCloseAttempt])
+
   // Handle confirmed close (discard changes)
   const handleConfirmClose = useCallback(() => {
     setShowDiscardDialog(false)
@@ -98,13 +102,13 @@ export function OverlayContainer({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        handleCloseAttempt()
+        closeAttemptRef.current()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, handleCloseAttempt])
+  }, [isOpen])
 
   // Handle browser back button / mobile back swipe — close overlay instead of navigating away
   useEffect(() => {
@@ -116,7 +120,7 @@ export function OverlayContainer({
 
     const handlePopState = (e: PopStateEvent) => {
       popstateHandled = true
-      handleCloseAttempt()
+      closeAttemptRef.current()
     }
 
     window.addEventListener('popstate', handlePopState)
@@ -129,7 +133,7 @@ export function OverlayContainer({
         window.history.back()
       }
     }
-  }, [isOpen, handleCloseAttempt])
+  }, [isOpen])
 
   // Focus management - save previous focus, focus overlay when opened, restore on close
   useEffect(() => {
