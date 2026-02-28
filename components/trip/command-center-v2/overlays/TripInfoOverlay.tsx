@@ -25,7 +25,8 @@ import {
   Check,
   X,
   AlertTriangle,
-  Share2
+  Share2,
+  FileText
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
@@ -41,6 +42,7 @@ interface TripInfoOverlayProps {
   onRefresh: (updatedTrip?: any) => void
   onClose: () => void
   setHasUnsavedChanges: (has: boolean) => void
+  onOpenOverlay?: (overlay: string) => void
 }
 
 export function TripInfoOverlay({
@@ -49,7 +51,8 @@ export function TripInfoOverlay({
   user,
   onRefresh,
   onClose,
-  setHasUnsavedChanges
+  setHasUnsavedChanges,
+  onOpenOverlay
 }: TripInfoOverlayProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -421,9 +424,32 @@ export function TripInfoOverlay({
       </Card>
 
       {/* === Sharing Section === */}
-      {(inviteCode || (isLeader && isLocked)) && (
+      {(inviteCode || isLocked) && (
         <>
           <h3 className="text-xs font-semibold text-brand-carbon/60 uppercase tracking-wide mb-2 mt-4">Sharing</h3>
+
+          {/* Trip Brief — available to all travelers */}
+          {isLocked && onOpenOverlay && (
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-brand-carbon">Trip Brief</p>
+                    <p className="text-xs text-brand-carbon/60">View a summary of this trip</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onOpenOverlay('brief')}
+                    className="border-brand-blue text-brand-blue hover:bg-brand-blue/5"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    View
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Invite Code Card (if exists) — single Share button */}
           {inviteCode && (
