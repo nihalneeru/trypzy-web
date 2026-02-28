@@ -5174,7 +5174,7 @@ async function handleRoute(request, { params }) {
 
       try {
         const Stripe = (await import('stripe')).default
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-12-18.acacia' })
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
         const { ensureBoostIndexes } = await import('@/lib/server/ensureIndexes.js')
         await ensureBoostIndexes()
@@ -5182,7 +5182,6 @@ async function handleRoute(request, { params }) {
         const origin = request.headers.get('origin') || process.env.NEXTAUTH_URL || 'https://tripti.ai'
 
         const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
           line_items: [{
             price_data: {
               currency: 'usd',
@@ -5212,7 +5211,9 @@ async function handleRoute(request, { params }) {
           amount: 499,
           currency: 'usd',
           stripeSessionId: session.id,
-          stripePaymentIntentId: null,
+          // Note: stripePaymentIntentId intentionally omitted (not null) so the
+          // sparse unique index on this field doesn't collide across pending records.
+          // The webhook sets it when payment completes.
           status: 'pending',
           createdAt: new Date().toISOString(),
         })
@@ -5227,8 +5228,11 @@ async function handleRoute(request, { params }) {
 
         return handleCORS(NextResponse.json({ sessionUrl: session.url }))
       } catch (err) {
-        console.error('[Boost] Stripe Checkout error:', err)
-        return handleCORS(NextResponse.json({ error: 'Could not create checkout session' }, { status: 500 }))
+        console.error('[Boost] Stripe Checkout error:', err?.message || err)
+        const msg = err?.type === 'StripeInvalidRequestError'
+          ? `Stripe error: ${err.message}`
+          : 'Could not create checkout session'
+        return handleCORS(NextResponse.json({ error: msg }, { status: 500 }))
       }
     }
 
