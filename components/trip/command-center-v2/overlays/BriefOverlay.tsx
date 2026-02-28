@@ -253,8 +253,8 @@ export function BriefOverlay({
     <ScrollArea className="h-full">
       <div className="space-y-4 pb-6">
 
-        {/* Share Brief — leader only */}
-        {isLeader && (
+        {/* Share Brief — link visible to all travelers, create/revoke leader only */}
+        {(briefToken || isLeader) && (
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-2 mb-3">
@@ -265,7 +265,7 @@ export function BriefOverlay({
               {briefToken ? (
                 <div className="space-y-3">
                   <p className="text-xs text-brand-carbon/70">
-                    Anyone with this link can view a read-only summary of your trip. No personal details are shared.
+                    Anyone with this link can view a read-only summary of this trip. No personal details are shared.
                   </p>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 rounded-md bg-brand-sand/50 px-3 py-1.5 text-xs text-brand-carbon/70 truncate font-mono">
@@ -292,15 +292,18 @@ export function BriefOverlay({
                       </button>
                     )}
                   </div>
-                  <button
-                    onClick={handleRevokeBrief}
-                    disabled={shareLoading}
-                    className="text-xs text-brand-red hover:underline disabled:opacity-50"
-                  >
-                    {shareLoading ? 'Revoking...' : 'Revoke link'}
-                  </button>
+                  {isLeader && (
+                    <button
+                      onClick={handleRevokeBrief}
+                      disabled={shareLoading}
+                      className="text-xs text-brand-red hover:underline disabled:opacity-50"
+                    >
+                      {shareLoading ? 'Revoking...' : 'Revoke link'}
+                    </button>
+                  )}
                 </div>
               ) : (
+                /* No token yet — only leader sees create button */
                 <div className="space-y-2">
                   <p className="text-xs text-brand-carbon/70">
                     Create a shareable link so anyone can view a read-only summary of this trip.
@@ -504,123 +507,6 @@ export function BriefOverlay({
           </CardContent>
         </Card>
 
-        {/* Share Brief Card — leader only */}
-        {isLeader && (
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Link2 className="h-4 w-4 text-brand-blue shrink-0" />
-                <h3 className="text-sm font-semibold text-brand-carbon">Share Brief</h3>
-              </div>
-
-              {briefToken ? (
-                <div className="space-y-3">
-                  {/* URL display */}
-                  <div className="flex items-center gap-2 rounded-md border border-brand-carbon/10 bg-brand-sand/30 px-3 py-2">
-                    <span className="text-xs text-brand-carbon/70 truncate flex-1 font-mono">
-                      {typeof window !== 'undefined' ? `${window.location.origin}/t/${briefToken}` : `/t/${briefToken}`}
-                    </span>
-                  </div>
-
-                  <div className="flex gap-2">
-                    {/* Copy button */}
-                    <button
-                      onClick={async () => {
-                        const url = `${window.location.origin}/t/${briefToken}`
-                        try {
-                          await navigator.clipboard.writeText(url)
-                          setCopied(true)
-                          setTimeout(() => setCopied(false), 2000)
-                        } catch {
-                          // Fallback: select the text
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-brand-carbon/10 bg-white text-xs font-medium text-brand-carbon hover:bg-brand-sand/30 transition-colors"
-                    >
-                      {copied ? (
-                        <><Check className="h-3.5 w-3.5 text-green-600" /> Copied</>
-                      ) : (
-                        <><Copy className="h-3.5 w-3.5" /> Copy link</>
-                      )}
-                    </button>
-
-                    {/* Share via navigator.share */}
-                    {typeof navigator !== 'undefined' && 'share' in navigator && (
-                      <button
-                        onClick={() => {
-                          navigator.share({
-                            title: `Trip Brief: ${overview.name}`,
-                            url: `${window.location.origin}/t/${briefToken}`
-                          }).catch(() => {})
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-brand-carbon/10 bg-white text-xs font-medium text-brand-carbon hover:bg-brand-sand/30 transition-colors"
-                      >
-                        <Share2 className="h-3.5 w-3.5" /> Share
-                      </button>
-                    )}
-
-                    {/* Revoke */}
-                    <button
-                      disabled={shareLoading}
-                      onClick={async () => {
-                        setShareLoading(true)
-                        try {
-                          const res = await fetch(`/api/trips/${trip.id}/brief/share`, {
-                            method: 'DELETE',
-                            headers: { Authorization: `Bearer ${token}` }
-                          })
-                          if (res.ok) {
-                            setBriefToken(null)
-                          }
-                        } catch {
-                          // ignore
-                        } finally {
-                          setShareLoading(false)
-                        }
-                      }}
-                      className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-brand-carbon/40 hover:text-brand-red hover:bg-red-50 transition-colors disabled:opacity-50"
-                    >
-                      {shareLoading ? '...' : 'Revoke'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-xs text-brand-carbon/60 mb-3">
-                    Share a read-only link to your trip brief with anyone.
-                  </p>
-                  <button
-                    disabled={shareLoading}
-                    onClick={async () => {
-                      setShareLoading(true)
-                      try {
-                        const res = await fetch(`/api/trips/${trip.id}/brief/share`, {
-                          method: 'POST',
-                          headers: { Authorization: `Bearer ${token}` }
-                        })
-                        if (res.ok) {
-                          const data = await res.json()
-                          setBriefToken(data.briefToken)
-                        }
-                      } catch {
-                        // ignore
-                      } finally {
-                        setShareLoading(false)
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-blue text-white text-xs font-semibold hover:bg-brand-blue/90 transition-colors disabled:opacity-50"
-                  >
-                    {shareLoading ? (
-                      'Generating...'
-                    ) : (
-                      <><Link2 className="h-3.5 w-3.5" /> Share brief link</>
-                    )}
-                  </button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
       </div>
     </ScrollArea>
   )
