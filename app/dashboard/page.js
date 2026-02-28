@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { CircleSection } from '@/components/dashboard/CircleSection'
 import { CircleOverview } from '@/components/dashboard/CircleOverview'
 import { CreateCircleDialog } from '@/components/dashboard/CreateCircleDialog'
@@ -8,7 +8,9 @@ import { JoinCircleDialog } from '@/components/dashboard/JoinCircleDialog'
 import { CircleOnboardingInterstitial } from '@/components/dashboard/CircleOnboardingInterstitial'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Users, UserPlus, Calendar } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Plus, Users, UserPlus, Calendar, Search, X } from 'lucide-react'
+import { filterDashboardTrips, countAllTrips } from '@/lib/dashboard/filterTrips'
 import { TripFirstFlow } from '@/components/dashboard/TripFirstFlow'
 import { BrandedSpinner } from '@/components/common/BrandedSpinner'
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton'
@@ -64,6 +66,9 @@ export default function DashboardPage() {
   const [error, setError] = useState(null)
   const [token, setToken] = useState(null)
   const [user, setUser] = useState(null)
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Dialog states
   const [showCreateCircle, setShowCreateCircle] = useState(false)
@@ -290,6 +295,15 @@ export default function DashboardPage() {
     return null
   }
 
+  // Search filtering — client-side, instant
+  const tripCount = countAllTrips(dashboardData.circles)
+  const showSearch = tripCount >= 4
+  const { circles: filteredCircles, totalMatches } = filterDashboardTrips(
+    dashboardData.circles,
+    searchQuery
+  )
+  const isFiltering = searchQuery.trim().length > 0
+
   return (
     <div className="min-h-screen bg-brand-sand/30" data-testid="dashboard-page">
       <AppHeader userName={user?.name} notifications={dashboardData.globalNotifications || []} />
@@ -330,6 +344,38 @@ export default function DashboardPage() {
                 Create Circle
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Search bar — only shown when 4+ trips across all circles */}
+        {showSearch && (
+          <div className="mb-6">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-carbon/40" aria-hidden="true" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search trips..."
+                className="pl-10 pr-8"
+                aria-label="Search trips by name"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-carbon/40 hover:text-brand-carbon/70"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {isFiltering && (
+              <p className="text-sm text-brand-carbon/60 mt-2">
+                {totalMatches === 0
+                  ? `No trips matching "${searchQuery}"`
+                  : `${totalMatches} ${totalMatches === 1 ? 'trip' : 'trips'} matching "${searchQuery}"`}
+              </p>
+            )}
           </div>
         )}
 
@@ -387,8 +433,11 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        ) : isFiltering && filteredCircles.length === 0 ? (
+          // No results — show clear prompt instead of empty circle cards
+          null
         ) : (
-          dashboardData.circles.map((circle) => (
+          filteredCircles.map((circle) => (
             <CircleSection
               key={circle.id}
               circle={circle}
