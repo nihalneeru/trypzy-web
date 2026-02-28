@@ -266,8 +266,11 @@ npm run build         # Production build
 npm run seed          # Seed data (alex.traveler@example.com / password123)
 ```
 
-**GOLDEN RULE: Never work directly on main branch.**
-Always create a feature branch (`feat/`, `fix/`), work there, create PR to merge into main.
+**GOLDEN RULE: Never push directly to `production`.**
+- `production` branch → `tripti.ai` (live). Only receives merges from `main`.
+- `main` branch → `preview.tripti.ai` (staging). Receives feature branch PRs.
+- Always create a feature branch (`feat/`, `fix/`), work there, PR into `main`.
+- To ship to production: PR `main` → `production`.
 
 ## 9) "If you only read 5 things" (for Claude)
 

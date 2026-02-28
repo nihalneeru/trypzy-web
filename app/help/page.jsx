@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { AppHeader } from '@/components/common/AppHeader'
-import { HelpCircle, Mail, FileText } from 'lucide-react'
+import { HelpCircle, Send, FileText, CheckCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
@@ -29,7 +29,7 @@ const faqs = [
   },
   {
     q: 'I\u2019m having trouble logging in. What should I do?',
-    a: 'Try signing in with the same method you used to create your account (Google or Apple). If you\u2019re still stuck, email us and we\u2019ll help sort it out.',
+    a: 'Try signing in with the same method you used to create your account (Google or Apple). If you\u2019re still stuck, send us a message using the form above and we\u2019ll help sort it out.',
   },
   {
     q: 'My invite link isn\u2019t working. What\u2019s wrong?',
@@ -43,13 +43,54 @@ const faqs = [
 
 export default function HelpPage() {
   const [userName, setUserName] = useState(null)
+  const [formState, setFormState] = useState({ name: '', email: '', message: '' })
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem('tripti_user')
-      if (storedUser) setUserName(JSON.parse(storedUser).name)
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser)
+        setUserName(parsed.name)
+        setFormState(prev => ({
+          ...prev,
+          name: parsed.name || '',
+          email: parsed.email || '',
+        }))
+      }
     } catch {}
   }, [])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError(null)
+    setSending(true)
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formState.name,
+          email: formState.email,
+          message: formState.message,
+          website: e.target.elements.website?.value || '',
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Something went wrong')
+
+      setSent(true)
+      setFormState(prev => ({ ...prev, message: '' }))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-brand-sand/30">
@@ -62,23 +103,112 @@ export default function HelpPage() {
         <p className="text-brand-carbon/60 mb-6 ml-9">Find quick answers or get in touch.</p>
 
         <div className="bg-white rounded-lg border border-brand-carbon/10 p-6 sm:p-8 space-y-8">
-          {/* Contact */}
+          {/* Contact Form */}
           <section>
             <h2 className="text-xl font-semibold text-brand-carbon mb-3">Contact us</h2>
             <p className="text-brand-carbon/70 mb-2">
-              Have a question, found a bug, or need help with your account? Reach out and
+              Have a question, found a bug, or need help with your account? Send us a message and
               we&apos;ll get back to you as soon as we can.
             </p>
             <p className="text-sm text-brand-carbon/50 mb-4">
               We usually reply within 1&ndash;2 business days. Please don&apos;t include
               passwords or sensitive payment info in your message.
             </p>
-            <Button asChild className="bg-brand-blue hover:bg-brand-blue/90 text-white">
-              <a href="mailto:contact@tripti.ai?subject=Tripti%20Support">
-                <Mail className="h-4 w-4 mr-2" aria-hidden="true" />
-                contact@tripti.ai
-              </a>
-            </Button>
+
+            {sent ? (
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-brand-sand/40 border border-brand-sand">
+                <CheckCircle className="h-5 w-5 text-brand-green shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="text-sm font-medium text-brand-carbon">Message sent!</p>
+                  <p className="text-sm text-brand-carbon/60">We&apos;ll get back to you at {formState.email}.</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-brand-blue"
+                  onClick={() => setSent(false)}
+                >
+                  Send another
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-3">
+                {/* Honeypot — hidden from real users */}
+                <div className="absolute opacity-0 h-0 overflow-hidden" aria-hidden="true" tabIndex={-1}>
+                  <label htmlFor="website">Website</label>
+                  <input type="text" id="website" name="website" autoComplete="off" tabIndex={-1} />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="contact-name" className="block text-sm font-medium text-brand-carbon mb-1">
+                      Name
+                    </label>
+                    <input
+                      id="contact-name"
+                      type="text"
+                      required
+                      maxLength={200}
+                      value={formState.name}
+                      onChange={e => setFormState(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full rounded-md border border-brand-carbon/20 px-3 py-2 text-sm text-brand-carbon placeholder:text-brand-carbon/40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+                      placeholder="Your name"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="contact-email" className="block text-sm font-medium text-brand-carbon mb-1">
+                      Email
+                    </label>
+                    <input
+                      id="contact-email"
+                      type="email"
+                      required
+                      maxLength={320}
+                      value={formState.email}
+                      onChange={e => setFormState(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full rounded-md border border-brand-carbon/20 px-3 py-2 text-sm text-brand-carbon placeholder:text-brand-carbon/40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="contact-message" className="block text-sm font-medium text-brand-carbon mb-1">
+                    Message
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    required
+                    rows={4}
+                    maxLength={5000}
+                    minLength={10}
+                    value={formState.message}
+                    onChange={e => setFormState(prev => ({ ...prev, message: e.target.value }))}
+                    className="w-full rounded-md border border-brand-carbon/20 px-3 py-2 text-sm text-brand-carbon placeholder:text-brand-carbon/40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-y"
+                    placeholder="Tell us how we can help..."
+                  />
+                </div>
+
+                {error && (
+                  <p className="text-sm text-brand-red">{error}</p>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={sending}
+                  className="bg-brand-blue hover:bg-brand-blue/90 text-white"
+                >
+                  {sending ? (
+                    'Sending...'
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" aria-hidden="true" />
+                      Send message
+                    </>
+                  )}
+                </Button>
+              </form>
+            )}
           </section>
 
           {/* FAQ */}
@@ -93,10 +223,7 @@ export default function HelpPage() {
                       <>
                         Go to <Link href="/settings" className="text-brand-blue underline">Settings</Link> and
                         scroll to the bottom to find the account deletion option.
-                        If you can&apos;t access your account, email us at{' '}
-                        <a href="mailto:contact@tripti.ai?subject=Account%20Deletion%20Request" className="text-brand-blue underline">
-                          contact@tripti.ai
-                        </a>{' '}
+                        If you can&apos;t access your account, use the contact form above
                         and we&apos;ll take care of it.
                       </>
                     )}
