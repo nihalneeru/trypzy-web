@@ -827,39 +827,45 @@ export function ItineraryOverlay({
   // Render
   // ----------------------------------------------------------------------------
 
+  const hasItinerary = !!latestVersion
+
+  const ideasSection = (
+    <ItineraryIdeasSection
+      trip={trip}
+      user={user}
+      isLeader={isLeader}
+      viewerIsReadOnly={viewerIsReadOnly}
+      readOnlyReason={readOnlyReason}
+      maxIdeasPerUser={MAX_IDEAS_PER_USER}
+      maxIdeaLength={MAX_IDEA_LENGTH}
+      ideas={ideas}
+      loadingIdeas={loadingIdeas}
+      ideasError={ideasError}
+      newIdeaText={newIdeaText}
+      setNewIdeaText={setNewIdeaText}
+      addingIdea={addingIdea}
+      userIdeaCount={userIdeaCount}
+      groupedIdeas={groupedIdeas}
+      editingDestinationHint={editingDestinationHint}
+      setEditingDestinationHint={setEditingDestinationHint}
+      destinationHintValue={destinationHintValue}
+      setDestinationHintValue={setDestinationHintValue}
+      savingDestinationHint={savingDestinationHint}
+      onAddIdea={handleAddIdea}
+      onLikeIdea={handleLikeIdea}
+      onSaveDestinationHint={handleSaveDestinationHint}
+      onCancelDestinationHint={handleCancelDestinationHint}
+      onRetryLoadIdeas={handleRetryLoadIdeas}
+      onQuoteToChat={onQuoteToChat}
+    />
+  )
+
   return (
     <div className="space-y-6">
-      {/* Section 1: Ideas Submission */}
-      <ItineraryIdeasSection
-        trip={trip}
-        user={user}
-        isLeader={isLeader}
-        viewerIsReadOnly={viewerIsReadOnly}
-        readOnlyReason={readOnlyReason}
-        maxIdeasPerUser={MAX_IDEAS_PER_USER}
-        maxIdeaLength={MAX_IDEA_LENGTH}
-        ideas={ideas}
-        loadingIdeas={loadingIdeas}
-        ideasError={ideasError}
-        newIdeaText={newIdeaText}
-        setNewIdeaText={setNewIdeaText}
-        addingIdea={addingIdea}
-        userIdeaCount={userIdeaCount}
-        groupedIdeas={groupedIdeas}
-        editingDestinationHint={editingDestinationHint}
-        setEditingDestinationHint={setEditingDestinationHint}
-        destinationHintValue={destinationHintValue}
-        setDestinationHintValue={setDestinationHintValue}
-        savingDestinationHint={savingDestinationHint}
-        onAddIdea={handleAddIdea}
-        onLikeIdea={handleLikeIdea}
-        onSaveDestinationHint={handleSaveDestinationHint}
-        onCancelDestinationHint={handleCancelDestinationHint}
-        onRetryLoadIdeas={handleRetryLoadIdeas}
-        onQuoteToChat={onQuoteToChat}
-      />
+      {/* Ideas first when no itinerary yet, itinerary first once generated */}
+      {!hasItinerary && ideasSection}
 
-      {/* Section 2: Itinerary Viewer */}
+      {/* Itinerary Viewer */}
       <ItineraryEditorPanel
         trip={trip}
         isLeader={isLeader}
@@ -923,6 +929,9 @@ export function ItineraryOverlay({
           onReviseItinerary={handleReviseItinerary}
         />
       )}
+
+      {/* Ideas section — below itinerary once generated */}
+      {hasItinerary && ideasSection}
 
       {/* Generate Confirmation Dialog */}
       <AlertDialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>

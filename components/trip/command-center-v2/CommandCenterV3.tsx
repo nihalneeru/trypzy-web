@@ -612,6 +612,17 @@ export function CommandCenterV3({ trip, token, user, onRefresh }: CommandCenterV
               onRefresh={onRefresh}
               onClose={closeOverlay}
               setHasUnsavedChanges={setHasUnsavedChanges}
+              onOpenOverlay={openOverlay}
+            />
+          )}
+          {activeOverlay === 'brief' && (
+            <BriefOverlay
+              trip={trip}
+              token={token}
+              user={user}
+              onRefresh={onRefresh}
+              onClose={closeOverlay}
+              setHasUnsavedChanges={setHasUnsavedChanges}
             />
           )}
           </ErrorBoundary>

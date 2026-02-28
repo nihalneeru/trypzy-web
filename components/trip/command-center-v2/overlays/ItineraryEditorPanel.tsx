@@ -175,7 +175,7 @@ export function ItineraryEditorPanel({
                 className="text-brand-blue border-brand-blue hover:bg-brand-blue/5"
               >
                 <CalendarPlus className="h-4 w-4 mr-1" />
-                Export
+                Add to Calendar
               </Button>
             )}
             {isLeader && !latestVersion && !viewerIsReadOnly && (
