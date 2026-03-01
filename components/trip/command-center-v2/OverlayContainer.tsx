@@ -69,14 +69,21 @@ export function OverlayContainer({
   const overlayRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
-  // Handle close attempt - check for unsaved changes
-  const handleCloseAttempt = useCallback(() => {
+  // Stable ref for close logic — avoids re-running popstate/keyboard effects
+  // when hasUnsavedChanges toggles (which would cause history.back() → popstate → dialog)
+  const closeAttemptRef = useRef(() => {})
+  closeAttemptRef.current = () => {
     if (hasUnsavedChanges) {
       setShowDiscardDialog(true)
     } else {
       onClose()
     }
-  }, [hasUnsavedChanges, onClose])
+  }
+
+  // Handle close attempt - check for unsaved changes
+  const handleCloseAttempt = useCallback(() => {
+    closeAttemptRef.current()
+  }, [])
 
   // Handle confirmed close (discard changes)
   const handleConfirmClose = useCallback(() => {
@@ -114,7 +121,7 @@ export function OverlayContainer({
     window.history.pushState({ triptiOverlay: true }, '')
     let popstateHandled = false
 
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = () => {
       popstateHandled = true
       handleCloseAttempt()
     }
