@@ -143,8 +143,10 @@ export function WelcomePage() {
             <p className="text-sm sm:text-base text-brand-carbon/70 leading-relaxed">
               TRIPTI.ai is made for friend groups and families planning trips together —
               weekend getaways, bachelor parties, family reunions, you name it.
+            </p>
+            <p className="text-sm sm:text-base text-brand-carbon/70 leading-relaxed mt-3">
               It&apos;s not a booking engine or a rigid planner.
-              It&apos;s the calm space between &quot;we should do a trip&quot; and &quot;we&apos;re actually going.&quot;
+              It&apos;s the bridge between &quot;we should do a trip&quot; and &quot;we&apos;re actually going.&quot;
             </p>
           </div>
         </section>
