@@ -2403,8 +2403,8 @@ export function DateWindowsFunnel({
             </div>
           )}
 
-          {/* Custom dates toggle */}
-          {!shortlistMode && !showCustomProposal ? (
+          {/* Custom dates toggle — collapse when in shortlist mode */}
+          {!showCustomProposal || shortlistMode ? (
             <button
               onClick={() => setShowCustomProposal(true)}
               className="w-full text-center text-xs text-brand-blue hover:underline"
